@@ -192,12 +192,15 @@ UPDATE parts SET content = $2 WHERE id = $1;
 SELECT * FROM interactions WHERE workspace_id = @workspace_id AND id = ANY(@ids::uuid[]);
 
 -- name: Timeline :many
+-- Timeline lists a record's interactions that started by now, newest first,
+-- or the upcoming ones, soonest first.
 SELECT interactions.* FROM interactions
 JOIN links ON links.interaction_id = interactions.id AND links.record_id = @record_id
 WHERE interactions.workspace_id = @workspace_id AND NOT interactions.skipped
   AND (cardinality(@kinds::text[]) = 0 OR interactions.kind = ANY(@kinds::text[]))
   AND (sqlc.narg(before)::timestamptz IS NULL OR interactions.started_at < sqlc.narg(before)::timestamptz)
-ORDER BY interactions.started_at DESC, interactions.id
+  AND (interactions.started_at > now()) = @upcoming::bool
+ORDER BY CASE WHEN @upcoming::bool THEN interactions.started_at END, interactions.started_at DESC, interactions.id
 LIMIT @row_limit;
 
 -- name: SearchInteractions :many
@@ -226,10 +229,13 @@ WHERE links.interaction_id = ANY(@ids::uuid[])
 ORDER BY links.interaction_id, links.created_at;
 
 -- name: RecordActivity :many
-SELECT links.record_id, count(*)::int AS interactions, max(interactions.started_at)::timestamptz AS last_at
+-- RecordActivity counts each record's interactions that started by now, with
+-- when the first started and when the latest was last active.
+SELECT links.record_id, count(*)::int AS interactions, min(interactions.started_at)::timestamptz AS first_at,
+  max(least(coalesce(interactions.ended_at, interactions.started_at), now()))::timestamptz AS last_at
 FROM links
 JOIN interactions ON interactions.id = links.interaction_id AND NOT interactions.skipped
-WHERE interactions.workspace_id = @workspace_id AND links.record_id = ANY(@record_ids::uuid[])
+WHERE interactions.workspace_id = @workspace_id AND links.record_id = ANY(@record_ids::uuid[]) AND interactions.started_at <= now()
 GROUP BY links.record_id;
 
 -- name: DeleteLinks :exec
