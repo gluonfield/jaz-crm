@@ -10,7 +10,7 @@ import { ObjectIcon, RecordIcon } from '@/components/icons'
 import { Picker } from '@/components/picker'
 import { SelectField } from '@/components/select-field'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
-import { formatDay } from '@/lib/format'
+import { formatDay, formatNumber } from '@/lib/format'
 import { useDebounced, useListKeys } from '@/lib/hooks'
 import { useObjects, useRecords } from '@/lib/queries'
 import { statusOf } from '@/lib/stages'
@@ -192,7 +192,7 @@ function cell(record: CrmRecord, attribute: Attribute) {
     return values[0] === 'true' ? 'Yes' : ''
   }
   if (attribute.type === 'number') {
-    return values.map((v) => Number(v).toLocaleString('en')).join(', ')
+    return values.map((v) => formatNumber(v, attribute.slug)).join(', ')
   }
   return <span className="block truncate" title={values.join(', ')}>{values.join(', ')}</span>
 }

@@ -2,7 +2,7 @@ import { Link } from '@tanstack/react-router'
 import { Check, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { recordName, valueKey, valueText, valuesOf } from '@/lib/crm'
-import { formatDay } from '@/lib/format'
+import { formatDay, formatNumber } from '@/lib/format'
 import { useDebounced } from '@/lib/hooks'
 import { useRecords, useWorkspace, useWrite } from '@/lib/queries'
 import type { Attribute, CrmRecord, Value } from '@/lib/types'
@@ -84,16 +84,11 @@ export function Field({ record, attribute }: { record: CrmRecord; attribute: Att
       label={attribute.name}
       type={inputType[attribute.type]}
       placeholder="Add…"
-      display={current ? shown[attribute.type]?.(current) : undefined}
+      display={current ? (attribute.type === 'number' ? formatNumber(current, slug) : attribute.type === 'date' ? formatDay(current) : undefined) : undefined}
       onCommit={(text) => (text ? write.set(slug, text) : current && write.remove(slug, []))}
     />
   )
 }
-
-const number = new Intl.NumberFormat('en', { maximumFractionDigits: 2 })
-
-// shown formats the values whose stored form reads poorly.
-const shown: Partial<Record<Attribute['type'], (value: string) => string>> = { date: formatDay, number: (value) => number.format(Number(value)) }
 
 const valueButton = 'flex h-7 min-w-0 max-w-full items-center truncate rounded-[var(--radius-control)] px-1.5 text-left text-[13px] text-ink outline-none hover:bg-list-hover'
 

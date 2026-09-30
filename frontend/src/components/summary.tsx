@@ -2,14 +2,13 @@ import { Link } from '@tanstack/react-router'
 import { CalendarClock } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { valueText, valuesOf } from '@/lib/crm'
-import { formatDate, timeAgo } from '@/lib/format'
+import { formatDate, formatNumber, timeAgo } from '@/lib/format'
 import { useWorkspace } from '@/lib/queries'
 import type { CrmObject, CrmRecord, Interaction, Member, Ref } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { RecordIcon } from './icons'
 import { Stage } from './stage'
 
-const number = new Intl.NumberFormat('en', { maximumFractionDigits: 2 })
 const when = new Intl.DateTimeFormat('en', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 
 // order puts a record's identity in reading order: where it stands, what it
@@ -31,7 +30,7 @@ function identity(record: CrmRecord, object: CrmObject, members: Member[]) {
     if (a.type === 'status') {
       facts.push(<Stage key={a.slug} attribute={a} stage={text} />)
     } else if (a.type === 'number') {
-      facts.push(<span key={a.slug}>{number.format(Number(text))}</span>)
+      facts.push(<span key={a.slug}>{formatNumber(text, a.slug)}</span>)
     } else if (a.type === 'text' && !a.multi && text.length <= 60) {
       facts.push(<span key={a.slug}>{text}</span>)
     } else if (a.type === 'reference' && !a.multi) {

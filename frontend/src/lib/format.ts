@@ -3,6 +3,16 @@ const longDate = new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric',
 const clock = new Intl.DateTimeFormat('en', { hour: 'numeric', minute: '2-digit' })
 const relative = new Intl.RelativeTimeFormat('en', { numeric: 'auto', style: 'narrow' })
 
+export function formatNumber(value: number | string, slug?: string, compact = false) {
+  return new Intl.NumberFormat('en', {
+    style: slug === 'value' ? 'currency' : 'decimal',
+    currency: 'USD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: compact ? 1 : 2,
+    notation: compact ? 'compact' : 'standard',
+  }).format(Number(value))
+}
+
 export function formatDate(date: Date | string) {
   const parsed = new Date(date)
   return (parsed.getFullYear() === new Date().getFullYear() ? shortDate : longDate).format(parsed)

@@ -2,15 +2,13 @@ import { useNavigate } from '@tanstack/react-router'
 import { Plus } from 'lucide-react'
 import { type KeyboardEvent, type ReactNode, useState } from 'react'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
+import { formatNumber } from '@/lib/format'
 import { useAction } from '@/lib/queries'
 import type { Attribute, CrmObject, CrmRecord, Ref } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { CreateRecord, singular } from './create-record'
 import { RecordIcon } from './icons'
 import { StageDot } from './stage'
-
-const compact = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 })
-const full = new Intl.NumberFormat('en', { maximumFractionDigits: 2 })
 
 // Board lays an object's records out in columns by the stage of its status,
 // and moves a record to another stage when its card is dropped there.
@@ -73,7 +71,7 @@ export function Board({ object, status, records }: { object: CrmObject; status: 
               over === stage && 'bg-primary-soft shadow-[inset_0_0_0_1px_var(--color-primary)]',
             )}
           >
-            <Column object={object} status={status} stage={stage} count={cards.length} total={amount && total ? total : undefined}>
+            <Column object={object} status={status} stage={stage} count={cards.length} amount={amount} total={amount && total ? total : undefined}>
               {cards.map((r) => (
                 <Card key={r.id} record={r} amount={amount} dragging={dragging === r.id} onDrag={setDragging} />
               ))}
@@ -90,6 +88,7 @@ function Column({
   status,
   stage,
   count,
+  amount,
   total,
   children,
 }: {
@@ -97,6 +96,7 @@ function Column({
   status: Attribute
   stage: string
   count: number
+  amount?: Attribute
   total?: number
   children: ReactNode
 }) {
@@ -109,8 +109,8 @@ function Column({
         <span className="font-medium text-ink">{stage}</span>
         <span className="tabular-nums text-ink-3">{count}</span>
         {total !== undefined && (
-          <span className="ml-auto tabular-nums text-ink-3" title={full.format(total)}>
-            {compact.format(total)}
+          <span className="ml-auto tabular-nums text-ink-3" title={formatNumber(total, amount?.slug)}>
+            {formatNumber(total, amount?.slug, true)}
           </span>
         )}
         <button
@@ -176,7 +176,7 @@ function Card({ record, amount, dragging, onDrag }: { record: CrmRecord; amount?
         )}
         {(value || people.length > 0) && (
           <span className="flex items-center gap-2">
-            {value && <span className="tabular-nums text-ink">{full.format(Number(valueText(value)))}</span>}
+            {value && <span className="tabular-nums text-ink">{formatNumber(valueText(value), amount?.slug)}</span>}
             <span className="ml-auto flex -space-x-1">
               {people.slice(0, 4).map((p) => (
                 <RecordIcon key={p.id} object="people" name={p.name ?? ''} photo={p.photo} size={18} className="ring-2 ring-raised" />

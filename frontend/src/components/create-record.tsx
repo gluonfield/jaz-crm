@@ -311,6 +311,7 @@ function TextProperty({ attribute, value, onChange }: { attribute: Attribute; va
   return (
     <label className="inline-flex h-6 items-center rounded-[var(--radius-control)] border border-border px-2 text-[12px] transition-colors focus-within:border-ink-3/60 hover:bg-list-hover">
       <span className="sr-only">{attribute.name}</span>
+      {attribute.type === 'number' && attribute.slug === 'value' && <span className="mr-1 text-ink-2">$</span>}
       <input
         value={value}
         type={attribute.type === 'date' ? 'date' : 'text'}
