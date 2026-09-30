@@ -16,7 +16,7 @@ type Connection struct {
 	RefreshToken []byte
 	Status       string
 	CreatedAt    time.Time
-	// Aliases are the other addresses the mailbox sends as.
+	// Aliases are the other addresses the mailbox sends as or receives at.
 	Aliases []string
 }
 
@@ -58,6 +58,6 @@ type ConnectionStore interface {
 	// InternalAddresses are the workspace's members' and connections' emails,
 	// aliases included.
 	InternalAddresses(ctx context.Context, workspaceID string) ([]string, error)
-	SetAliases(ctx context.Context, connectionID string, aliases []string) error
+	AddAliases(ctx context.Context, connectionID string, aliases []string) error
 	MailProgress(ctx context.Context, connectionIDs []string) ([]MailProgress, error)
 }

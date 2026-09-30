@@ -44,10 +44,15 @@ type fakeGoogle struct {
 	now        time.Time
 }
 
-func gmailMessage(id, thread, from, to, subject, inReplyTo, body string, at time.Time) string {
+// gmailMessage renders a message; extra headers are "Name: value" lines.
+func gmailMessage(id, thread, from, to, subject, inReplyTo, body string, at time.Time, extra ...string) string {
 	headers := []map[string]string{{"name": "From", "value": from}, {"name": "To", "value": to}, {"name": "Subject", "value": subject}, {"name": "Message-ID", "value": "<" + id + "@mail>"}}
 	if inReplyTo != "" {
 		headers = append(headers, map[string]string{"name": "In-Reply-To", "value": "<" + inReplyTo + "@mail>"})
+	}
+	for _, h := range extra {
+		name, value, _ := strings.Cut(h, ": ")
+		headers = append(headers, map[string]string{"name": name, "value": value})
 	}
 	raw, _ := json.Marshal(map[string]any{
 		"id": id, "threadId": thread, "labelIds": []string{"INBOX"}, "internalDate": fmt.Sprint(at.UnixMilli()),
@@ -135,9 +140,10 @@ func TestSyncAgainstGoogle(t *testing.T) {
 	fake := &fakeGoogle{now: now, messages: map[string]string{
 		"m1": gmailMessage("m1", "t1", "Owner <owner@cas.dev>", "Ada Lovelace <ada@customer.io>", "Quote", "", "Hello Ada", now.Add(-48*time.Hour)),
 		"m2": gmailMessage("m2", "t1", "Ada Lovelace <ada@customer.io>", "owner@cas.dev", "Re: Quote", "m1", "Thanks!", now.Add(-47*time.Hour)),
-		"m4": gmailMessage("m4", "t2", "bob@supplier.com", "owner@cas.dev", "Cold pitch", "", "Buy our bolts", now.Add(-40*time.Hour)),
+		"m4": gmailMessage("m4", "t2", "bob@supplier.com", "hello@cas-forward.dev", "Cold pitch", "", "Buy our bolts", now.Add(-40*time.Hour), "Delivered-To: hello@cas-forward.dev"),
+		"m6": gmailMessage("m6", "t6", "digest@lists.dev", "owner@cas.dev", "Weekly digest", "", "News", now.Add(-30*time.Hour), "Delivered-To: owner@cas.dev", "Delivered-To: members@lists.dev", "List-Unsubscribe: <mailto:leave@lists.dev>"),
 		"m3": gmailMessage("m3", "t3", "ada@customer.io", "owner@cas.dev", "Next order", "", "Another 50 please", now.Add(-time.Hour)),
-	}, listed: []string{"m1", "m2", "m4"}, history: map[string]string{
+	}, listed: []string{"m1", "m2", "m4", "m6"}, history: map[string]string{
 		"100": `{"history":[{"messagesAdded":[{"message":{"id":"m3"}}]}],"historyId":"120"}`,
 	}}
 	srv := httptest.NewServer(fake)
@@ -186,8 +192,14 @@ func TestSyncAgainstGoogle(t *testing.T) {
 	if !done || fetched != 2 {
 		t.Fatalf("backfill done %v, fetched %d bodies; want only the kept thread's two", done, fetched)
 	}
-	if views, err := conns.List(ctx, actor); err != nil || len(views) != 1 || !views[0].Backfilled || views[0].Messages != 3 || !views[0].Oldest.Equal(now.Add(-48*time.Hour).Truncate(time.Millisecond)) {
+	if views, err := conns.List(ctx, actor); err != nil || len(views) != 1 || !views[0].Backfilled || views[0].Messages != 4 || !views[0].Oldest.Equal(now.Add(-48*time.Hour).Truncate(time.Millisecond)) {
 		t.Fatalf("progress: %+v %v", views, err)
+	}
+	if own, _ := store.InternalAddresses(ctx, owner.WorkspaceID); !slices.Contains(own, "hello@cas-forward.dev") || slices.Contains(own, "members@lists.dev") {
+		t.Fatalf("addresses mail was delivered to: %v", own)
+	}
+	if internal, _ := convs.Contacts(ctx, actor, interactions.Internal, "", 10); !slices.ContainsFunc(internal, func(c interactions.Contact) bool { return c.Address == "hello@cas-forward.dev" }) {
+		t.Fatalf("internal: %+v", internal)
 	}
 	kept, err := convs.Contacts(ctx, actor, interactions.Kept, "", 10)
 	if err != nil || len(kept) != 1 || kept[0].Address != "ada@customer.io" {

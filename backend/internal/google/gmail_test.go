@@ -17,7 +17,7 @@ import (
 func TestMessage(t *testing.T) {
 	c := fake(t, map[string]http.HandlerFunc{
 		"/gmail/v1/users/me/messages/m1": func(w http.ResponseWriter, r *http.Request) {
-			wantQuery(t, r.URL, url.Values{"format": {"metadata"}, "metadataHeaders": {"From", "To", "Cc", "Subject", "Message-ID", "In-Reply-To", "References", "List-Unsubscribe", "Precedence", "Auto-Submitted"}})
+			wantQuery(t, r.URL, url.Values{"format": {"metadata"}, "metadataHeaders": {"From", "To", "Cc", "Subject", "Message-ID", "In-Reply-To", "References", "List-Unsubscribe", "Precedence", "Auto-Submitted", "Delivered-To"}})
 			io.WriteString(w, `{"id":"m1","threadId":"t1","labelIds":["INBOX","UNREAD"],"internalDate":"1760000000123","payload":{"headers":[
 				{"name":"From","value":"\"Doe, Jane\" <Jane@Example.com>"},
 				{"name":"To","value":"bob@x.com, 'Carol' <Carol@X.com>"},
@@ -25,7 +25,9 @@ func TestMessage(t *testing.T) {
 				{"name":"Subject","value":"Intro"},
 				{"name":"Message-Id","value":" <abc.123@mail.x.com> "},
 				{"name":"In-Reply-To","value":"<prev@x.com>"},
-				{"name":"References","value":"<r1@x.com>\r\n <r2@x.com><prev@x.com>"}]}}`)
+				{"name":"References","value":"<r1@x.com>\r\n <r2@x.com><prev@x.com>"},
+				{"name":"Delivered-To","value":"Owner@X.com"},
+				{"name":"Delivered-To","value":" jane.alias@x.com "}]}}`)
 		},
 		"/gmail/v1/users/me/messages/m2": func(w http.ResponseWriter, r *http.Request) {
 			wantQuery(t, r.URL, url.Values{"format": {"full"}})
@@ -46,17 +48,18 @@ func TestMessage(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := Message{
-		ID:         "m1",
-		ThreadID:   "t1",
-		Labels:     []string{"INBOX", "UNREAD"},
-		Date:       time.UnixMilli(1760000000123).UTC(),
-		From:       Address{Name: "Doe, Jane", Email: "jane@example.com"},
-		To:         []Address{{Email: "bob@x.com"}, {Name: "Carol", Email: "carol@x.com"}},
-		Cc:         []Address{{Name: "Acme [Support]", Email: "support@acme.com"}, {Name: "John", Email: "john@x.com"}},
-		Subject:    "Intro",
-		MessageID:  "abc.123@mail.x.com",
-		InReplyTo:  "prev@x.com",
-		References: []string{"r1@x.com", "r2@x.com", "prev@x.com"},
+		ID:          "m1",
+		ThreadID:    "t1",
+		Labels:      []string{"INBOX", "UNREAD"},
+		Date:        time.UnixMilli(1760000000123).UTC(),
+		From:        Address{Name: "Doe, Jane", Email: "jane@example.com"},
+		To:          []Address{{Email: "bob@x.com"}, {Name: "Carol", Email: "carol@x.com"}},
+		Cc:          []Address{{Name: "Acme [Support]", Email: "support@acme.com"}, {Name: "John", Email: "john@x.com"}},
+		Subject:     "Intro",
+		MessageID:   "abc.123@mail.x.com",
+		InReplyTo:   "prev@x.com",
+		References:  []string{"r1@x.com", "r2@x.com", "prev@x.com"},
+		DeliveredTo: []string{"owner@x.com", "jane.alias@x.com"},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("metadata message =\n%+v\nwant\n%+v", got, want)

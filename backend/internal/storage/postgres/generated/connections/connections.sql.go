@@ -44,6 +44,23 @@ func (q *Queries) ActiveConnections(ctx context.Context) ([]Connection, error) {
 	return items, nil
 }
 
+const addAliases = `-- name: AddAliases :exec
+UPDATE connections SET aliases = ARRAY(SELECT DISTINCT unnest(aliases || $1::text[]) ORDER BY 1)
+WHERE id = $2 AND NOT aliases @> $1::text[]
+`
+
+type AddAliasesParams struct {
+	Aliases []string
+	ID      string
+}
+
+// AddAliases adds addresses to a connection's aliases, writing only when one
+// is new.
+func (q *Queries) AddAliases(ctx context.Context, arg AddAliasesParams) error {
+	_, err := q.db.Exec(ctx, addAliases, arg.Aliases, arg.ID)
+	return err
+}
+
 const deleteConnection = `-- name: DeleteConnection :execrows
 DELETE FROM connections WHERE workspace_id = $1 AND id = $2
 `
@@ -275,20 +292,6 @@ func (q *Queries) SaveConnection(ctx context.Context, arg SaveConnectionParams) 
 		&i.Aliases,
 	)
 	return i, err
-}
-
-const setAliases = `-- name: SetAliases :exec
-UPDATE connections SET aliases = $1::text[] WHERE id = $2
-`
-
-type SetAliasesParams struct {
-	Aliases []string
-	ID      string
-}
-
-func (q *Queries) SetAliases(ctx context.Context, arg SetAliasesParams) error {
-	_, err := q.db.Exec(ctx, setAliases, arg.Aliases, arg.ID)
-	return err
 }
 
 const setConnectionStatus = `-- name: SetConnectionStatus :exec

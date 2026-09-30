@@ -374,7 +374,7 @@ func TestAliasesLearnedLaterAreOwn(t *testing.T) {
 	if got := e.contacts(t, interactions.Pending); got["sales@ml.test"].Address == "" || got["cara@buyer.com"].Address == "" {
 		t.Fatalf("before the alias is known both wait: %v", got)
 	}
-	if err := e.store.SetAliases(ctx, e.conn.ID, []string{"owner@cas.dev", "sales@ml.test"}); err != nil {
+	if err := e.store.AddAliases(ctx, e.conn.ID, []string{"owner@cas.dev", "sales@ml.test"}); err != nil {
 		t.Fatal(err)
 	}
 	e.triage(t)

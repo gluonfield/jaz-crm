@@ -42,8 +42,11 @@ SELECT lower(connections.account)::text FROM connections WHERE connections.works
 UNION
 SELECT lower(alias)::text FROM connections, unnest(connections.aliases) AS alias WHERE connections.workspace_id = @workspace_id;
 
--- name: SetAliases :exec
-UPDATE connections SET aliases = @aliases::text[] WHERE id = @id;
+-- name: AddAliases :exec
+-- AddAliases adds addresses to a connection's aliases, writing only when one
+-- is new.
+UPDATE connections SET aliases = ARRAY(SELECT DISTINCT unnest(aliases || @aliases::text[]) ORDER BY 1)
+WHERE id = @id AND NOT aliases @> @aliases::text[];
 
 -- name: MailProgress :many
 -- MailProgress counts each connection's synced mail and finds its earliest.

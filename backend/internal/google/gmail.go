@@ -35,6 +35,9 @@ type Message struct {
 	References   []string
 	Bulk         bool
 	Text         string
+	// DeliveredTo lists the mailboxes that received the message on its way
+	// here, including those that forwarded it.
+	DeliveredTo []string
 }
 
 type HistoryPage struct {
@@ -42,7 +45,7 @@ type HistoryPage struct {
 	Next, HistoryID string
 }
 
-var metadataHeaders = []string{"From", "To", "Cc", "Subject", "Message-ID", "In-Reply-To", "References", "List-Unsubscribe", "Precedence", "Auto-Submitted"}
+var metadataHeaders = []string{"From", "To", "Cc", "Subject", "Message-ID", "In-Reply-To", "References", "List-Unsubscribe", "Precedence", "Auto-Submitted", "Delivered-To"}
 
 func (c *Client) Profile(ctx context.Context) (Profile, error) {
 	var raw struct {
@@ -86,22 +89,28 @@ func (c *Client) Message(ctx context.Context, id string, full bool) (Message, er
 		return Message{}, err
 	}
 	h := map[string]string{}
+	var delivered []string
 	for _, header := range raw.Payload.Headers {
-		h[strings.ToLower(header.Name)] = strings.TrimSpace(header.Value)
+		name := strings.ToLower(header.Name)
+		h[name] = strings.TrimSpace(header.Value)
+		if name == "delivered-to" {
+			delivered = append(delivered, strings.ToLower(h[name]))
+		}
 	}
 	m := Message{
-		ID:         raw.ID,
-		ThreadID:   raw.ThreadID,
-		Labels:     raw.LabelIDs,
-		Date:       time.UnixMilli(raw.InternalDate).UTC(),
-		To:         addresses(h["to"]),
-		Cc:         addresses(h["cc"]),
-		Subject:    h["subject"],
-		MessageID:  firstID(h["message-id"]),
-		InReplyTo:  firstID(h["in-reply-to"]),
-		References: messageIDs(h["references"]),
-		Bulk:       bulk(h),
-		Text:       raw.Payload.text(),
+		ID:          raw.ID,
+		ThreadID:    raw.ThreadID,
+		Labels:      raw.LabelIDs,
+		Date:        time.UnixMilli(raw.InternalDate).UTC(),
+		To:          addresses(h["to"]),
+		Cc:          addresses(h["cc"]),
+		Subject:     h["subject"],
+		MessageID:   firstID(h["message-id"]),
+		InReplyTo:   firstID(h["in-reply-to"]),
+		References:  messageIDs(h["references"]),
+		Bulk:        bulk(h),
+		Text:        raw.Payload.text(),
+		DeliveredTo: delivered,
 	}
 	if from := addresses(h["from"]); len(from) > 0 {
 		m.From = from[0]

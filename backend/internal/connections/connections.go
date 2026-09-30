@@ -227,9 +227,10 @@ func (s *Service) Disconnect(ctx context.Context, actor auth.Actor, id string) e
 	return errs.Invalidf("no connection %q", id)
 }
 
-// SetAliases records the other addresses the connection's mailbox sends as.
-func (s *Service) SetAliases(ctx context.Context, connectionID string, aliases []string) error {
-	return s.store.SetAliases(ctx, connectionID, aliases)
+// AddAliases records other addresses the connection's mailbox sends as or
+// receives at.
+func (s *Service) AddAliases(ctx context.Context, connectionID string, aliases []string) error {
+	return s.store.AddAliases(ctx, connectionID, aliases)
 }
 
 // Cursor returns where a stream resumes, or "" before it starts.

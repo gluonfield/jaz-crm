@@ -57,8 +57,8 @@ func (s *Store) MailProgress(ctx context.Context, connectionIDs []string) ([]sto
 	})(s.conn.MailProgress(ctx, connectionIDs))
 }
 
-func (s *Store) SetAliases(ctx context.Context, connectionID string, aliases []string) error {
-	return mapError(s.conn.SetAliases(ctx, conndb.SetAliasesParams{ID: connectionID, Aliases: aliases}))
+func (s *Store) AddAliases(ctx context.Context, connectionID string, aliases []string) error {
+	return mapError(s.conn.AddAliases(ctx, conndb.AddAliasesParams{ID: connectionID, Aliases: aliases}))
 }
 
 func (s *Store) InternalAddresses(ctx context.Context, workspaceID string) ([]string, error) {

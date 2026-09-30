@@ -87,7 +87,8 @@ func classify(err error) error {
 }
 
 // Aliases records the addresses the mailbox sends as, so mail sent from any
-// of them is the workspace's own.
+// of them is the workspace's own. Addresses it receives at are learned as
+// mail arrives.
 func (a *Activities) Aliases(ctx context.Context, id string) error {
 	s, err := a.session(ctx, id)
 	if err != nil {
@@ -97,7 +98,7 @@ func (a *Activities) Aliases(ctx context.Context, id string) error {
 	if err != nil {
 		return classify(err)
 	}
-	return a.Connections.SetAliases(ctx, id, aliases)
+	return a.Connections.AddAliases(ctx, id, aliases)
 }
 
 // Photos reads the profile pictures of the people the mailbox has written
@@ -213,7 +214,10 @@ func (a *Activities) GmailIncremental(ctx context.Context, id string) error {
 	return a.Connections.SetCursor(ctx, id, connections.StreamHistory, latest)
 }
 
+// ingest stores messages and learns the mailbox's addresses from where they
+// were delivered; list mail is left out, as a list may name itself there.
 func (a *Activities) ingest(ctx context.Context, s session, ids []string) error {
+	var delivered []string
 	for _, id := range ids {
 		m, err := s.google.Message(ctx, id, false)
 		if errors.Is(err, google.ErrNotFound) {
@@ -225,9 +229,12 @@ func (a *Activities) ingest(ctx context.Context, s session, ids []string) error 
 		if err := a.Interactions.IngestEmail(ctx, s.known, emailOf(s.conn, m)); err != nil {
 			return err
 		}
+		if !m.Bulk {
+			delivered = append(delivered, m.DeliveredTo...)
+		}
 		activity.RecordHeartbeat(ctx, id)
 	}
-	return nil
+	return a.Connections.AddAliases(ctx, s.conn.ID, delivered)
 }
 
 func emailOf(c storage.Connection, m google.Message) interactions.EmailMessage {
