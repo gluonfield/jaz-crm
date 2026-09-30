@@ -239,7 +239,7 @@ const listAttributes = `-- name: ListAttributes :many
 SELECT attributes.id, attributes.object_id, attributes.slug, attributes.name, attributes.type, attributes.multi, attributes.is_unique, attributes.target_object_id, attributes.created_at, attributes.options FROM attributes
 JOIN objects ON objects.id = attributes.object_id
 WHERE objects.workspace_id = $1
-ORDER BY attributes.object_id, attributes.slug
+ORDER BY attributes.object_id, attributes.created_at, attributes.slug
 `
 
 func (q *Queries) ListAttributes(ctx context.Context, workspaceID string) ([]Attribute, error) {

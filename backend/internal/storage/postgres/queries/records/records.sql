@@ -13,7 +13,7 @@ SELECT * FROM objects WHERE workspace_id = $1 ORDER BY created_at, slug;
 SELECT attributes.* FROM attributes
 JOIN objects ON objects.id = attributes.object_id
 WHERE objects.workspace_id = $1
-ORDER BY attributes.object_id, attributes.slug;
+ORDER BY attributes.object_id, attributes.created_at, attributes.slug;
 
 -- name: DeleteRecord :execrows
 DELETE FROM records WHERE workspace_id = $1 AND id = $2;

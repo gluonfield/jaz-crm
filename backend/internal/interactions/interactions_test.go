@@ -159,6 +159,18 @@ func TestTriageKeepsPeopleYouWriteTo(t *testing.T) {
 		t.Fatalf("company timeline: %+v", got)
 	}
 
+	// Once someone names the person, that name replaces the one from mail headers.
+	if _, _, err := e.crm.Upsert(ctx, e.a, records.SourceUser, records.Write{Object: "people", RecordID: ada.PersonID, Set: map[string][]string{"name": {"Ada King"}}}); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.contacts(t, interactions.Kept)["ada@customer.io"].Name; got != "Ada King" {
+		t.Fatalf("contact name: %q", got)
+	}
+	parties := e.timeline(t, company)[0].Participants
+	if i := slices.IndexFunc(parties, func(p interactions.Party) bool { return p.Address == "ada@customer.io" }); i < 0 || parties[i].Name != "Ada King" {
+		t.Fatalf("participants: %+v", parties)
+	}
+
 	// The same reply in a teammate's mailbox has other ids but one Message-ID.
 	other, err := e.store.SaveConnection(ctx, storage.NewConnection{WorkspaceID: e.a.WorkspaceID, UserID: e.a.UserID, Provider: "google", Account: "sales@cas.dev", RefreshToken: []byte("sealed")})
 	if err != nil {

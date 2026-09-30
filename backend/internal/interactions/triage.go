@@ -1,6 +1,7 @@
 package interactions
 
 import (
+	"cmp"
 	"context"
 	"net/mail"
 	"strings"
@@ -287,11 +288,21 @@ func (s *Service) Contacts(ctx context.Context, actor auth.Actor, verdict, query
 		q.Query = &query
 	}
 	rows, err := s.store.ListHandles(ctx, q)
+	if err != nil {
+		return nil, err
+	}
+	people := []string{}
+	for _, r := range rows {
+		if r.Handle.PersonID != nil {
+			people = append(people, *r.Handle.PersonID)
+		}
+	}
+	labels, err := s.records.Labels(ctx, actor.WorkspaceID, people)
 	out := []Contact{}
 	for _, r := range rows {
 		h := r.Handle
 		out = append(out, Contact{
-			Address: h.Value, Kind: h.Kind, Name: h.Name, Triage: h.Triage, DecidedBy: deref(h.DecidedBy), Reason: h.Reason,
+			Address: h.Value, Kind: h.Kind, Name: cmp.Or(labels[deref(h.PersonID)].Name, h.Name), Triage: h.Triage, DecidedBy: deref(h.DecidedBy), Reason: h.Reason,
 			PersonID: deref(h.PersonID), Interactions: int(r.Interactions), LastSeen: r.LastSeen,
 		})
 	}

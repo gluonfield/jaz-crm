@@ -1,6 +1,7 @@
 package interactions
 
 import (
+	"cmp"
 	"context"
 	"slices"
 	"strings"
@@ -128,9 +129,14 @@ func (s *Service) views(ctx context.Context, workspaceID string, list []storage.
 	if err != nil {
 		return nil, err
 	}
-	recordIDs := make([]string, len(links))
-	for i, l := range links {
-		recordIDs[i] = l.RecordID
+	recordIDs := []string{}
+	for _, l := range links {
+		recordIDs = append(recordIDs, l.RecordID)
+	}
+	for _, p := range participants {
+		if p.Handle.PersonID != nil {
+			recordIDs = append(recordIDs, *p.Handle.PersonID)
+		}
 	}
 	labels, err := s.records.Labels(ctx, workspaceID, recordIDs)
 	if err != nil {
@@ -145,14 +151,12 @@ func (s *Service) views(ctx context.Context, workspaceID string, list []storage.
 	}
 	for _, p := range participants {
 		h := p.Handle
-		authors[h.ID] = h.Name
-		if h.Name == "" {
-			authors[h.ID] = h.Value
-		}
+		name := cmp.Or(labels[deref(h.PersonID)].Name, h.Name)
+		authors[h.ID] = cmp.Or(name, h.Value)
 		v := &out[index[p.InteractionID]]
 		i := slices.IndexFunc(v.Participants, func(party Party) bool { return party.Address == h.Value })
 		if i < 0 {
-			v.Participants = append(v.Participants, Party{Address: h.Value, Name: h.Name, Role: p.Role, PersonID: deref(h.PersonID)})
+			v.Participants = append(v.Participants, Party{Address: h.Value, Name: name, Role: p.Role, PersonID: deref(h.PersonID)})
 		} else if slices.Index(roles, p.Role) < slices.Index(roles, v.Participants[i].Role) {
 			v.Participants[i].Role = p.Role
 		}
