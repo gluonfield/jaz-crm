@@ -19,34 +19,40 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 			return objectsOutput{Objects: objectViews(objects)}, err
 		})
 	add(r, &mcp.Tool{Name: "search_records", Title: "Search records", Annotations: readOnly,
-		Description: "List an object's records, newest first, filtered by text and attribute values. Records, and the records they reference, carry a picture: a person's profile picture when Google has one, else the website logo of a record with a domain."},
+		Description: "List an object's records, newest first, filtered by text and attribute values, with how often and when last each was in touch. Records, and the records they reference, carry a picture: a person's profile picture when Google has one, else the website logo of a record with a domain."},
 		func(ctx context.Context, actor auth.Actor, in searchInput) (recordsOutput, error) {
 			found, err := crm.Search(ctx, actor, records.Search{Object: in.Object, Query: in.Query, Where: in.Where, Limit: in.Limit})
+			if err != nil {
+				return recordsOutput{}, err
+			}
+			ids := make([]string, len(found))
+			for i, record := range found {
+				ids[i] = record.ID
+			}
+			activity, err := conversations.Activities(ctx, actor, ids)
 			if err != nil {
 				return recordsOutput{}, err
 			}
 			photos, err := pics.of(ctx, actor, found)
 			out := recordsOutput{Records: []recordView{}}
 			for _, record := range found {
-				out.Records = append(out.Records, recordOf(record, photos))
+				out.Records = append(out.Records, recordWith(record, activity, photos))
 			}
 			return out, err
 		})
 	add(r, &mcp.Tool{Name: "get_record", Title: "Get record", Annotations: readOnly,
-		Description: "Get one record with its current values and how often, and when last, it was in touch."},
+		Description: "Get one record with its current values and how often, since when and when last it was in touch; upcoming meetings do not count."},
 		func(ctx context.Context, actor auth.Actor, in recordInput) (recordView, error) {
 			record, err := crm.Get(ctx, actor, in.RecordID)
 			if err != nil {
 				return recordView{}, err
 			}
-			activity, err := conversations.Activity(ctx, actor, record.ID)
+			activity, err := conversations.Activities(ctx, actor, []string{record.ID})
 			if err != nil {
 				return recordView{}, err
 			}
 			photos, err := pics.of(ctx, actor, []records.Record{record})
-			view := recordOf(record, photos)
-			view.Activity = &activityView{Interactions: activity.Interactions, LastAt: activity.LastAt}
-			return view, err
+			return recordWith(record, activity, photos), err
 		})
 	add(r, &mcp.Tool{Name: "record_history", Title: "Record history", Annotations: readOnly,
 		Description: "A record's recent changes, newest first: the value each attribute got, from which source (user, agent or sync), who made it and when; removed marks a value taken away with nothing in its place."},
@@ -141,18 +147,21 @@ type refView struct {
 }
 
 type recordView struct {
-	ID        string         `json:"id"`
-	Object    string         `json:"object"`
-	CreatedAt time.Time      `json:"created_at"`
-	Values    map[string]any `json:"values"`
-	Activity  *activityView  `json:"activity,omitempty"`
+	ID        string                 `json:"id"`
+	Object    string                 `json:"object"`
+	CreatedAt time.Time              `json:"created_at"`
+	Values    map[string]any         `json:"values"`
+	Activity  *interactions.Activity `json:"activity,omitempty"`
 	// Photo is a person's profile picture from one of their addresses.
 	Photo string `json:"photo,omitempty"`
 }
 
-type activityView struct {
-	Interactions int        `json:"interactions"`
-	LastAt       *time.Time `json:"last_at,omitempty"`
+// recordWith shows a record with its activity and picture.
+func recordWith(r records.Record, activity map[string]interactions.Activity, photos map[string]string) recordView {
+	view := recordOf(r, photos)
+	a := activity[r.ID]
+	view.Activity = &a
+	return view
 }
 
 // recordOf shows a single-valued attribute as its value and a multi-valued

@@ -216,6 +216,9 @@ func TestInteractionTools(t *testing.T) {
 	if activity := record["activity"].(map[string]any); activity["interactions"] != float64(1) {
 		t.Fatalf("activity: %v", activity)
 	}
+	if people := encode(mustCall(t, a, "search_records", map[string]any{"object": "people"})); !strings.Contains(people, `"interactions":1,`) {
+		t.Fatalf("search_records activity: %s", people)
+	}
 
 	for tool, args := range map[string]map[string]any{
 		"get_interaction":   {"interaction_id": id},

@@ -151,12 +151,14 @@ type TimelineQuery struct {
 	WorkspaceID string
 	Kinds       []string
 	Before      *time.Time
+	Upcoming    bool
 	Limit       int32
 }
 
 type Activity struct {
 	RecordID     string
 	Interactions int32
+	FirstAt      time.Time
 	LastAt       time.Time
 }
 
