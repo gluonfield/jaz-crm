@@ -1,5 +1,6 @@
 x-app: &app
   build: .
+  restart: unless-stopped
   environment:
     DATABASE_URL: postgres://jazcrm:jazcrm@postgres:5432/jazcrm?sslmode=disable
     PUBLIC_URL: ${PUBLIC_URL:-http://localhost:7500}
@@ -29,6 +30,7 @@ x-app: &app
 services:
   postgres:
     image: postgres:17-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: jazcrm
       POSTGRES_PASSWORD: jazcrm
@@ -45,6 +47,7 @@ services:
 
   temporal:
     image: temporalio/auto-setup:1.29.4
+    restart: unless-stopped
     environment:
       DB: postgres12
       DB_PORT: 5432
@@ -59,6 +62,7 @@ services:
 
   temporal-ui:
     image: temporalio/ui:2.36.2
+    restart: unless-stopped
     environment:
       TEMPORAL_ADDRESS: temporal:7233
     ports:
