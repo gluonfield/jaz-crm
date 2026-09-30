@@ -25,7 +25,7 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 			return objectsOutput{Objects: objectViews(objects)}, err
 		})
 	add(r, &mcp.Tool{Name: "search_records", Title: "Search records", Annotations: readOnly,
-		Description: "List an object's records, newest first, filtered by text and attribute values. People carry a profile picture when Google has one, and records with a domain their website's logo."},
+		Description: "List an object's records, newest first, filtered by text and attribute values, with how often and when last each was in touch. Records, and the records they reference, carry a picture: a person's profile picture when Google has one, else the website logo of a record with a domain."},
 		func(ctx context.Context, actor auth.Actor, in searchInput) (recordsOutput, error) {
 			found, err := crm.Search(ctx, actor, records.Search{Object: in.Object, Query: in.Query, Where: in.Where, Limit: in.Limit})
 			if err != nil {
@@ -35,31 +35,30 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 			for i, record := range found {
 				ids[i] = record.ID
 			}
-			photos, err := pics.of(ctx, actor, ids)
+			activity, err := conversations.Activities(ctx, actor, ids)
+			if err != nil {
+				return recordsOutput{}, err
+			}
+			photos, err := pics.of(ctx, actor, found)
 			out := recordsOutput{Records: []recordView{}}
 			for _, record := range found {
-				view := recordOf(record)
-				view.Photo = photos[record.ID]
-				out.Records = append(out.Records, view)
+				out.Records = append(out.Records, recordWith(record, activity, photos))
 			}
 			return out, err
 		})
 	add(r, &mcp.Tool{Name: "get_record", Title: "Get record", Annotations: readOnly,
-		Description: "Get one record with its current values and how often, and when last, it was in touch."},
+		Description: "Get one record with its current values and how often, since when and when last it was in touch; upcoming meetings do not count."},
 		func(ctx context.Context, actor auth.Actor, in recordInput) (recordView, error) {
 			record, err := crm.Get(ctx, actor, in.RecordID)
 			if err != nil {
 				return recordView{}, err
 			}
-			activity, err := conversations.Activity(ctx, actor, record.ID)
+			activity, err := conversations.Activities(ctx, actor, []string{record.ID})
 			if err != nil {
 				return recordView{}, err
 			}
-			photos, err := pics.of(ctx, actor, []string{record.ID})
-			view := recordOf(record)
-			view.Activity = &activityView{Interactions: activity.Interactions, LastAt: activity.LastAt}
-			view.Photo = photos[record.ID]
-			return view, err
+			photos, err := pics.of(ctx, actor, []records.Record{record})
+			return recordWith(record, activity, photos), err
 		})
 	add(r, &mcp.Tool{Name: "record_history", Title: "Record history", Annotations: readOnly,
 		Description: "A record's recent changes, newest first: the value each attribute got, from which source (user, agent or sync), who made it and when; removed marks a value taken away with nothing in its place."},
@@ -84,7 +83,7 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 			if err != nil {
 				return upsertOutput{}, err
 			}
-			out := upsertOutput{Record: recordOf(record), Skipped: []skipView{}}
+			out := upsertOutput{Record: recordOf(record, nil), Skipped: []skipView{}}
 			for _, s := range skips {
 				out.Skipped = append(out.Skipped, skipView{Attribute: s.Attribute, Value: s.Value, SetBy: string(s.Source)})
 			}
@@ -96,13 +95,13 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 			return empty{}, crm.Delete(ctx, actor, in.RecordID)
 		})
 	add(r, &mcp.Tool{Name: "create_object", Title: "Create object",
-		Description: "Create a record type, such as deals or suppliers. It starts with a name attribute."},
+		Description: "Create a record type, such as quotes or suppliers. It starts with a name attribute."},
 		func(ctx context.Context, actor auth.Actor, in objectInput) (objectView, error) {
 			object, err := crm.CreateObject(ctx, actor, in.Slug, in.Name)
 			return objectOf(object), err
 		})
 	add(r, &mcp.Tool{Name: "create_attribute", Title: "Create attribute",
-		Description: "Add an attribute to an object. Types: text, number, date, checkbox, url, select (with options), email, domain, phone, reference (with target)."},
+		Description: "Add an attribute to an object. Types: text, number, date, checkbox, url, select (with options), status (with its stages in order as options; a new record starts in the first), email, domain, phone, reference (with target)."},
 		func(ctx context.Context, actor auth.Actor, in attributeInput) (objectView, error) {
 			object, err := crm.CreateAttribute(ctx, actor, in.Object, records.Attribute{
 				Slug: in.Slug, Name: in.Name, Type: in.Type, Multi: in.Multi, Unique: in.Unique, Target: in.Target, Options: in.Options,
@@ -158,34 +157,38 @@ func objectViews(objects []records.Object) []objectView {
 }
 
 type refView struct {
-	ID   string `json:"id"`
-	Name string `json:"name,omitempty"`
+	ID    string `json:"id"`
+	Name  string `json:"name,omitempty"`
+	Photo string `json:"photo,omitempty"`
 }
 
 type recordView struct {
-	ID        string         `json:"id"`
-	Object    string         `json:"object"`
-	CreatedAt time.Time      `json:"created_at"`
-	Values    map[string]any `json:"values"`
-	Activity  *activityView  `json:"activity,omitempty"`
+	ID        string                 `json:"id"`
+	Object    string                 `json:"object"`
+	CreatedAt time.Time              `json:"created_at"`
+	Values    map[string]any         `json:"values"`
+	Activity  *interactions.Activity `json:"activity,omitempty"`
 	// Photo is a person's profile picture from one of their addresses.
 	Photo string `json:"photo,omitempty"`
 }
 
-type activityView struct {
-	Interactions int        `json:"interactions"`
-	LastAt       *time.Time `json:"last_at,omitempty"`
+// recordWith shows a record with its activity and picture.
+func recordWith(r records.Record, activity map[string]interactions.Activity, photos map[string]string) recordView {
+	view := recordOf(r, photos)
+	a := activity[r.ID]
+	view.Activity = &a
+	return view
 }
 
 // recordOf shows a single-valued attribute as its value and a multi-valued
-// one as a list; references appear as the record's id and name.
-func recordOf(r records.Record) recordView {
+// one as a list; references appear as the record's id, name and picture.
+func recordOf(r records.Record, photos map[string]string) recordView {
 	values := map[string]any{}
 	for _, f := range r.Fields {
 		var list []any
 		for _, v := range f.Values {
 			if v.RecordID != "" {
-				list = append(list, refView{ID: v.RecordID, Name: v.Text})
+				list = append(list, refView{ID: v.RecordID, Name: v.Text, Photo: photos[v.RecordID]})
 			} else {
 				list = append(list, v.Text)
 			}
@@ -196,7 +199,7 @@ func recordOf(r records.Record) recordView {
 			values[f.Attribute] = list[0]
 		}
 	}
-	return recordView{ID: r.ID, Object: r.Object, CreatedAt: r.CreatedAt, Values: values}
+	return recordView{ID: r.ID, Object: r.Object, CreatedAt: r.CreatedAt, Values: values, Photo: photos[r.ID]}
 }
 
 type searchInput struct {
@@ -256,8 +259,8 @@ func lists(values map[string]any) (map[string][]string, error) {
 }
 
 type objectInput struct {
-	Slug string `json:"slug" jsonschema:"lowercase identifier, such as deals"`
-	Name string `json:"name" jsonschema:"display name, such as Deals"`
+	Slug string `json:"slug" jsonschema:"lowercase identifier, such as quotes"`
+	Name string `json:"name" jsonschema:"display name, such as Quotes"`
 }
 
 type attributeInput struct {
@@ -268,7 +271,7 @@ type attributeInput struct {
 	Multi   bool     `json:"multi,omitempty"`
 	Unique  bool     `json:"unique,omitempty" jsonschema:"values identify a record, like an email"`
 	Target  string   `json:"target,omitempty" jsonschema:"object slug a reference points at"`
-	Options []string `json:"options,omitempty" jsonschema:"allowed values of a select, such as pipeline stages"`
+	Options []string `json:"options,omitempty" jsonschema:"allowed values of a select, or a status's stages in order"`
 }
 
 type changeView struct {

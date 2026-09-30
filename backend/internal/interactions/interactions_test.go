@@ -96,7 +96,7 @@ func (e env) contacts(t *testing.T, status string) map[string]interactions.Conta
 
 func (e env) timeline(t *testing.T, recordID string) []interactions.Interaction {
 	t.Helper()
-	list, err := e.svc.Timeline(ctx, e.a, recordID, nil, nil, 50)
+	list, err := e.svc.Timeline(ctx, e.a, recordID, nil, nil, false, 50)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -283,6 +283,39 @@ func TestMeetingsAndTranscripts(t *testing.T) {
 	}
 	if got := e.timeline(t, ada.PersonID); len(got) != 0 {
 		t.Fatalf("a cancelled meeting stays on the timeline: %+v", got)
+	}
+}
+
+// A record's timeline and activity end at now: scheduled meetings are
+// upcoming, soonest first, and never its last contact.
+func TestUpcomingMeetings(t *testing.T) {
+	e := setup(t, nil)
+	known, err := e.svc.Known(ctx, e.a.WorkspaceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().Truncate(time.Second)
+	for id, start := range map[string]time.Time{"later": now.Add(8 * 24 * time.Hour), "next": now.Add(24 * time.Hour), "past": now.Add(-72 * time.Hour)} {
+		err := e.svc.IngestMeeting(ctx, known, interactions.CalendarEvent{
+			ConnectionID: e.conn.ID, UserID: e.conn.UserID, ExternalID: id, Title: id, Start: start, End: start.Add(time.Hour),
+			Attendees: []interactions.Attendee{{Email: "owner@cas.dev", Organizer: true}, {Email: "ada@customer.io"}},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	e.triage(t)
+	ada := e.contacts(t, interactions.Kept)["ada@customer.io"].PersonID
+	if got := e.timeline(t, ada); len(got) != 1 || got[0].Title != "past" {
+		t.Fatalf("timeline: %+v", got)
+	}
+	upcoming, err := e.svc.Timeline(ctx, e.a, ada, nil, nil, true, 10)
+	if err != nil || len(upcoming) != 2 || upcoming[0].Title != "next" || upcoming[1].Title != "later" {
+		t.Fatalf("upcoming: %+v %v", upcoming, err)
+	}
+	activity, err := e.svc.Activities(ctx, e.a, []string{ada})
+	if a := activity[ada]; err != nil || a.Interactions != 1 || !a.FirstAt.Equal(now.Add(-72*time.Hour)) || !a.LastAt.Equal(now.Add(-71*time.Hour)) {
+		t.Fatalf("activity: %+v %v", activity, err)
 	}
 }
 

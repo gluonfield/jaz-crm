@@ -56,10 +56,11 @@ func limitOf(limit int) int32 {
 	return int32(min(limit, 100))
 }
 
-// Timeline lists a record's interactions, newest first.
-func (s *Service) Timeline(ctx context.Context, actor auth.Actor, recordID string, kinds []string, before *time.Time, limit int) ([]Interaction, error) {
+// Timeline lists a record's interactions that started by now, newest first,
+// or its upcoming ones, soonest first.
+func (s *Service) Timeline(ctx context.Context, actor auth.Actor, recordID string, kinds []string, before *time.Time, upcoming bool, limit int) ([]Interaction, error) {
 	list, err := s.store.Timeline(ctx, storage.TimelineQuery{
-		RecordID: recordID, WorkspaceID: actor.WorkspaceID, Kinds: append([]string{}, kinds...), Before: before, Limit: limitOf(limit),
+		RecordID: recordID, WorkspaceID: actor.WorkspaceID, Kinds: append([]string{}, kinds...), Before: before, Upcoming: upcoming, Limit: limitOf(limit),
 	})
 	if err != nil {
 		return nil, err
@@ -98,18 +99,22 @@ func (s *Service) find(ctx context.Context, workspaceID, id string) ([]storage.I
 	return list, err
 }
 
-// Activity is how often, and when last, a record was in touch.
+// Activity is how often a record was in touch up to now, since when, and
+// when last.
 type Activity struct {
-	Interactions int
-	LastAt       *time.Time
+	Interactions int        `json:"interactions"`
+	FirstAt      *time.Time `json:"first_at,omitempty"`
+	LastAt       *time.Time `json:"last_at,omitempty"`
 }
 
-func (s *Service) Activity(ctx context.Context, actor auth.Actor, recordID string) (Activity, error) {
-	rows, err := s.store.RecordActivity(ctx, actor.WorkspaceID, []string{recordID})
-	if err != nil || len(rows) == 0 {
-		return Activity{}, err
+// Activities maps records to their activity; upcoming meetings do not count.
+func (s *Service) Activities(ctx context.Context, actor auth.Actor, recordIDs []string) (map[string]Activity, error) {
+	rows, err := s.store.RecordActivity(ctx, actor.WorkspaceID, recordIDs)
+	out := map[string]Activity{}
+	for _, r := range rows {
+		out[r.RecordID] = Activity{Interactions: int(r.Interactions), FirstAt: &r.FirstAt, LastAt: &r.LastAt}
 	}
-	return Activity{Interactions: int(rows[0].Interactions), LastAt: &rows[0].LastAt}, nil
+	return out, err
 }
 
 func (s *Service) views(ctx context.Context, workspaceID string, list []storage.Interaction, full bool) ([]Interaction, error) {
@@ -172,7 +177,7 @@ func (s *Service) views(ctx context.Context, workspaceID string, list []storage.
 		if p.AuthorHandleID != nil && author == "" {
 			author = authors[*p.AuthorHandleID]
 		}
-		content := deref(p.Content)
+		content := readable(p.Kind, deref(p.Content))
 		if v.Preview == "" && content != "" {
 			v.Preview = preview(content)
 		}

@@ -90,6 +90,12 @@ func (s *Service) upsert(ctx context.Context, actor auth.Actor, source Source, w
 	if id == "" && !slices.ContainsFunc(set, func(c change) bool { return len(c.entries) > 0 }) {
 		return Record{}, nil, errs.Invalidf("a new %s record needs at least one value", object.Slug)
 	}
+	// A new record starts in the first stage of each status it is not given.
+	for _, attr := range sc.attributes(object.ID) {
+		if id == "" && attr.Type == Status && !slices.ContainsFunc(set, func(c change) bool { return c.attr.ID == attr.ID }) {
+			set = append(set, change{attr: attr, entries: []entry{{text: &attr.Options[0]}}})
+		}
+	}
 	var skips []Skip
 	id, err = s.store.WriteRecord(ctx, actor.WorkspaceID, object.ID, id, func(current []storage.RecordValue) (storage.ValueChanges, error) {
 		var changes storage.ValueChanges

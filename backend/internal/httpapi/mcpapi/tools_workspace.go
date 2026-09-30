@@ -31,7 +31,7 @@ func registerWorkspace(r *registry, members *workspaces.Service, keys *auth.Serv
 			return workspaceRef{ID: m.WorkspaceID, Name: m.Name, Current: true}, keys.Switch(ctx, actor, m.UserID)
 		})
 	add(r, &mcp.Tool{Name: "create_workspace", Title: "Create workspace",
-		Description: "Start a workspace with you as its admin and move there, unless these calls use an API key. It has people and companies, and syncs nothing until someone connects Google in it."},
+		Description: "Start a workspace with you as its admin and move there, unless these calls use an API key. It has people, companies and deals, and syncs nothing until someone connects Google in it."},
 		func(ctx context.Context, actor auth.Actor, in createWorkspaceInput) (workspaceRef, error) {
 			user, err := members.Create(ctx, actor, in.Name)
 			if err != nil {

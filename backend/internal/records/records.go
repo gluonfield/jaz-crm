@@ -37,7 +37,7 @@ type Attribute struct {
 	Unique bool
 	// Target is the object a reference points at.
 	Target string
-	// Options are a select attribute's allowed values.
+	// Options are a select's allowed values, or a status's stages in order.
 	Options []string
 }
 

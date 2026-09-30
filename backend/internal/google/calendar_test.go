@@ -18,7 +18,7 @@ func TestEvents(t *testing.T) {
 			case "":
 				wantQuery(t, r.URL, url.Values{"singleEvents": {"true"}, "showDeleted": {"true"}, "maxResults": {"250"}, "timeMin": {"2026-01-01T00:00:00Z"}})
 				io.WriteString(w, `{"nextPageToken":"p2","items":[
-					{"id":"e1","iCalUID":"e1@google.com","status":"confirmed","summary":"Sync","description":"Weekly","recurringEventId":"e0",
+					{"id":"e1","iCalUID":"e1@google.com","status":"confirmed","summary":"Sync","description":"<b>Weekly</b><br><ul><li>Numbers</li><li>Hiring</li></ul><a href=\"https://x.test/doc\">Notes</a>","recurringEventId":"e0",
 					 "start":{"dateTime":"2026-02-02T10:00:00Z"},"end":{"dateTime":"2026-02-02T10:30:00Z"},
 					 "organizer":{"email":"Ann@X.com","displayName":"Ann","self":true},
 					 "attendees":[{"email":"Ann@X.com","displayName":"Ann","responseStatus":"accepted","self":true,"organizer":true},
@@ -47,7 +47,7 @@ func TestEvents(t *testing.T) {
 			ICalUID:     "e1@google.com",
 			Status:      "confirmed",
 			Summary:     "Sync",
-			Description: "Weekly",
+			Description: "Weekly\n\n- Numbers\n- Hiring\nNotes https://x.test/doc",
 			Start:       time.Date(2026, 2, 2, 10, 0, 0, 0, time.UTC),
 			End:         time.Date(2026, 2, 2, 10, 30, 0, 0, time.UTC),
 			Organizer:   Attendee{Email: "ann@x.com", Name: "Ann", Self: true},

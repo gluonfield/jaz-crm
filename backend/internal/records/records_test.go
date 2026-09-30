@@ -230,7 +230,7 @@ func TestConcurrentUpsertsCreateOneRecord(t *testing.T) {
 // the references to it.
 func TestCustomObjects(t *testing.T) {
 	svc, a, _ := setup(t)
-	if _, err := svc.CreateObject(ctx, a, "deals", "Deals"); err != nil {
+	if _, err := svc.CreateObject(ctx, a, "quotes", "Quotes"); err != nil {
 		t.Fatal(err)
 	}
 	for _, attr := range []records.Attribute{
@@ -239,35 +239,52 @@ func TestCustomObjects(t *testing.T) {
 		{Slug: "closes", Name: "Closes", Type: records.Date},
 		{Slug: "company", Name: "Company", Type: records.Reference, Target: "companies"},
 	} {
-		if _, err := svc.CreateAttribute(ctx, a, "deals", attr); err != nil {
+		if _, err := svc.CreateAttribute(ctx, a, "quotes", attr); err != nil {
 			t.Fatalf("%s: %v", attr.Slug, err)
 		}
 	}
 	for name, bad := range map[string]records.Attribute{
 		"unique select":         {Slug: "x", Name: "X", Type: records.Select, Options: []string{"a"}, Unique: true},
+		"status without stages": {Slug: "x", Name: "X", Type: records.Status},
+		"multi status":          {Slug: "x", Name: "X", Type: records.Status, Options: []string{"a"}, Multi: true},
 		"unknown target":        {Slug: "x", Name: "X", Type: records.Reference, Target: "nope"},
 		"taken slug":            {Slug: "amount", Name: "X", Type: records.Number},
 		"bad slug":              {Slug: "Bad Slug", Name: "X", Type: records.Text},
 	} {
-		if _, err := svc.CreateAttribute(ctx, a, "deals", bad); err == nil {
+		if _, err := svc.CreateAttribute(ctx, a, "quotes", bad); err == nil {
 			t.Errorf("%s was accepted", name)
 		}
 	}
 	acme, _ := upsert(t, svc, a, records.SourceAgent, records.Write{Object: "companies", Set: set("name", "Acme", "domains", "acme.com")})
-	deal, _ := upsert(t, svc, a, records.SourceAgent, records.Write{Object: "deals", Set: set("name", "Press line", "stage", "won", "amount", "1,200.50", "closes", "2026-10-01T09:00:00Z", "company", "acme.com")})
+	quote, _ := upsert(t, svc, a, records.SourceAgent, records.Write{Object: "quotes", Set: set("name", "Press line", "stage", "won", "amount", "1,200.50", "closes", "2026-10-01T09:00:00Z", "company", "acme.com")})
 	for attr, want := range map[string]string{"stage": "Won", "amount": "1200.5", "closes": "2026-10-01", "company": acme.ID} {
-		if got := values(deal, attr); !slices.Equal(got, []string{want}) {
+		if got := values(quote, attr); !slices.Equal(got, []string{want}) {
 			t.Errorf("%s: %v", attr, got)
 		}
 	}
-	if _, _, err := svc.Upsert(ctx, a, records.SourceAgent, records.Write{Object: "deals", RecordID: deal.ID, Set: set("stage", "Lost")}); err == nil {
+	if _, _, err := svc.Upsert(ctx, a, records.SourceAgent, records.Write{Object: "quotes", RecordID: quote.ID, Set: set("stage", "Lost")}); err == nil {
 		t.Error("a stage outside the options was accepted")
 	}
 	if err := svc.Delete(ctx, a, acme.ID); err != nil {
 		t.Fatal(err)
 	}
-	if deal, _ = svc.Get(ctx, a, deal.ID); len(values(deal, "company")) != 0 {
-		t.Errorf("a deleted company is still referenced: %v", values(deal, "company"))
+	if quote, _ = svc.Get(ctx, a, quote.ID); len(values(quote, "company")) != 0 {
+		t.Errorf("a deleted company is still referenced: %v", values(quote, "company"))
+	}
+}
+
+// A new record starts in the first stage of a status it is not given; a
+// given stage is matched to its option, and a later write keeps it.
+func TestNewRecordsStartInTheFirstStage(t *testing.T) {
+	svc, a, _ := setup(t)
+	lead, _ := upsert(t, svc, a, records.SourceUser, records.Write{Object: "deals", Set: set("name", "Press line")})
+	if got := values(lead, "stage"); !slices.Equal(got, []string{"Lead"}) {
+		t.Errorf("a new deal's stage: %v", got)
+	}
+	won, _ := upsert(t, svc, a, records.SourceUser, records.Write{Object: "deals", Set: set("name", "Dies", "stage", "won")})
+	won, _ = upsert(t, svc, a, records.SourceUser, records.Write{Object: "deals", RecordID: won.ID, Set: set("name", "Dies for Acme")})
+	if got := values(won, "stage"); !slices.Equal(got, []string{"Won"}) {
+		t.Errorf("a given stage: %v", got)
 	}
 }
 

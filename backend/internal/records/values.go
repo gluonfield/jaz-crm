@@ -21,6 +21,7 @@ const (
 	Checkbox  = "checkbox"
 	URL       = "url"
 	Select    = "select"
+	Status    = "status"
 	Email     = "email"
 	Domain    = "domain"
 	Phone     = "phone"
@@ -33,8 +34,15 @@ var uniqueTypes = []string{Text, Number, URL, Email, Domain, Phone}
 // titleAttribute names a record wherever it is referenced.
 const titleAttribute = "name"
 
-// StandardObjects is the schema every workspace starts with.
+// StandardObjects is the schema every workspace starts with, listed in this
+// order.
 var StandardObjects = []storage.NewObject{
+	{Slug: "companies", Name: "Companies", Attributes: []storage.NewAttribute{
+		{Slug: titleAttribute, Name: "Name", Type: Text},
+		{Slug: "categories", Name: "Categories", Type: Select, Multi: true},
+		{Slug: "domains", Name: "Domains", Type: Domain, Multi: true, IsUnique: true},
+		{Slug: "description", Name: "Description", Type: Text},
+	}},
 	{Slug: "people", Name: "People", Attributes: []storage.NewAttribute{
 		{Slug: titleAttribute, Name: "Name", Type: Text},
 		{Slug: "email_addresses", Name: "Email addresses", Type: Email, Multi: true, IsUnique: true},
@@ -42,11 +50,12 @@ var StandardObjects = []storage.NewObject{
 		{Slug: "company", Name: "Company", Type: Reference, Target: "companies"},
 		{Slug: "job_title", Name: "Job title", Type: Text},
 	}},
-	{Slug: "companies", Name: "Companies", Attributes: []storage.NewAttribute{
+	{Slug: "deals", Name: "Deals", Attributes: []storage.NewAttribute{
 		{Slug: titleAttribute, Name: "Name", Type: Text},
-		{Slug: "categories", Name: "Categories", Type: Select, Multi: true},
-		{Slug: "domains", Name: "Domains", Type: Domain, Multi: true, IsUnique: true},
-		{Slug: "description", Name: "Description", Type: Text},
+		{Slug: "stage", Name: "Stage", Type: Status, Options: []string{"Lead", "In progress", "Won", "Lost"}},
+		{Slug: "value", Name: "Value", Type: Number},
+		{Slug: "company", Name: "Company", Type: Reference, Target: "companies"},
+		{Slug: "people", Name: "People", Type: Reference, Target: "people", Multi: true},
 	}},
 }
 
@@ -131,7 +140,7 @@ func canonical(attr storage.Attribute, raw string) (string, bool) {
 			return "", false
 		}
 		return u.String(), (u.Scheme == "http" || u.Scheme == "https") && strings.Contains(u.Host, ".")
-	case Select:
+	case Select, Status:
 		i := slices.IndexFunc(attr.Options, func(o string) bool { return strings.EqualFold(o, raw) })
 		if i < 0 {
 			return "", false

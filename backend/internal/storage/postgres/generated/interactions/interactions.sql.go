@@ -813,10 +813,11 @@ func (q *Queries) PersonPhotos(ctx context.Context, arg PersonPhotosParams) ([]P
 }
 
 const recordActivity = `-- name: RecordActivity :many
-SELECT links.record_id, count(*)::int AS interactions, max(interactions.started_at)::timestamptz AS last_at
+SELECT links.record_id, count(*)::int AS interactions, min(interactions.started_at)::timestamptz AS first_at,
+  max(least(coalesce(interactions.ended_at, interactions.started_at), now()))::timestamptz AS last_at
 FROM links
 JOIN interactions ON interactions.id = links.interaction_id AND NOT interactions.skipped
-WHERE interactions.workspace_id = $1 AND links.record_id = ANY($2::uuid[])
+WHERE interactions.workspace_id = $1 AND links.record_id = ANY($2::uuid[]) AND interactions.started_at <= now()
 GROUP BY links.record_id
 `
 
@@ -828,9 +829,12 @@ type RecordActivityParams struct {
 type RecordActivityRow struct {
 	RecordID     string
 	Interactions int32
+	FirstAt      time.Time
 	LastAt       time.Time
 }
 
+// RecordActivity counts each record's interactions that started by now, with
+// when the first started and when the latest was last active.
 func (q *Queries) RecordActivity(ctx context.Context, arg RecordActivityParams) ([]RecordActivityRow, error) {
 	rows, err := q.db.Query(ctx, recordActivity, arg.WorkspaceID, arg.RecordIDs)
 	if err != nil {
@@ -840,7 +844,12 @@ func (q *Queries) RecordActivity(ctx context.Context, arg RecordActivityParams) 
 	items := []RecordActivityRow{}
 	for rows.Next() {
 		var i RecordActivityRow
-		if err := rows.Scan(&i.RecordID, &i.Interactions, &i.LastAt); err != nil {
+		if err := rows.Scan(
+			&i.RecordID,
+			&i.Interactions,
+			&i.FirstAt,
+			&i.LastAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1025,8 +1034,9 @@ JOIN links ON links.interaction_id = interactions.id AND links.record_id = $1
 WHERE interactions.workspace_id = $2 AND NOT interactions.skipped
   AND (cardinality($3::text[]) = 0 OR interactions.kind = ANY($3::text[]))
   AND ($4::timestamptz IS NULL OR interactions.started_at < $4::timestamptz)
-ORDER BY interactions.started_at DESC, interactions.id
-LIMIT $5
+  AND (interactions.started_at > now()) = $5::bool
+ORDER BY CASE WHEN $5::bool THEN interactions.started_at END, interactions.started_at DESC, interactions.id
+LIMIT $6
 `
 
 type TimelineParams struct {
@@ -1034,15 +1044,19 @@ type TimelineParams struct {
 	WorkspaceID string
 	Kinds       []string
 	Before      *time.Time
+	Upcoming    bool
 	Limit       int32
 }
 
+// Timeline lists a record's interactions that started by now, newest first,
+// or the upcoming ones, soonest first.
 func (q *Queries) Timeline(ctx context.Context, arg TimelineParams) ([]Interaction, error) {
 	rows, err := q.db.Query(ctx, timeline,
 		arg.RecordID,
 		arg.WorkspaceID,
 		arg.Kinds,
 		arg.Before,
+		arg.Upcoming,
 		arg.Limit,
 	)
 	if err != nil {
