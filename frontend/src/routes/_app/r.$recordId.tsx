@@ -1,7 +1,7 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { MoreHorizontal, Trash2 } from 'lucide-react'
 import { Button, Header, Tab } from '@/components/controls'
-import { Field } from '@/components/fields'
+import { Field, TextInput, useWrite } from '@/components/fields'
 import { History } from '@/components/history'
 import { ObjectIcon, RecordIcon } from '@/components/icons'
 import { Related } from '@/components/related'
@@ -10,7 +10,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { recordName, valueText, valuesOf } from '@/lib/crm'
 import { timeAgo } from '@/lib/format'
 import { useAction, useObjects, useTimeline, useTool } from '@/lib/queries'
-import type { Attribute, CrmRecord } from '@/lib/types'
+import type { Attribute, CrmObject, CrmRecord } from '@/lib/types'
 
 export const Route = createFileRoute('/_app/r/$recordId')({
   validateSearch: (search: Record<string, unknown>): { tab?: 'activity' } => (search.tab === 'activity' ? { tab: 'activity' } : {}),
@@ -59,7 +59,9 @@ function RecordPage() {
           <div className="flex items-center gap-3 [grid-area:title]">
             <RecordIcon object={record.object} name={name} photo={record.photo} size={36} />
             <div className="min-w-0">
-              <h1 className="truncate text-[20px] font-semibold tracking-[-0.01em] text-ink">{name}</h1>
+              <h1 className="-ml-1.5 text-[20px] font-semibold tracking-[-0.01em] text-ink">
+                <Title key={`${record.id}:${name}`} record={record} object={object} name={name} />
+              </h1>
               <p className="text-[12.5px] text-ink-3">
                 {record.activity?.interactions
                   ? `${record.activity.interactions} conversation${record.activity.interactions === 1 ? '' : 's'} · last ${timeAgo(record.activity.last_at!)}`
@@ -100,6 +102,15 @@ function RecordPage() {
       </div>
     </>
   )
+}
+
+// Title shows a record's name, which a click edits when the object has one.
+function Title({ record, object, name }: { record: CrmRecord; object: CrmObject; name: string }) {
+  const write = useWrite(record)
+  if (!object.attributes.some((a) => a.slug === 'name')) {
+    return <span className="block truncate px-1.5">{name}</span>
+  }
+  return <TextInput label="Name" initial={name} placeholder="Name" required className="h-9 text-[20px]" onCommit={(text) => write.set('name', text)} />
 }
 
 // ordered puts a record's name first.

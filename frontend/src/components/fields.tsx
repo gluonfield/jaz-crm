@@ -85,13 +85,16 @@ export function Field({ record, attribute }: { record: CrmRecord; attribute: Att
 
 const valueButton = 'flex h-7 min-w-0 max-w-full items-center truncate rounded-[var(--radius-control)] px-1.5 text-left text-[13px] text-ink outline-none hover:bg-list-hover'
 
-// TextInput edits in place and commits on Enter or blur.
-function TextInput({
+// TextInput edits in place and commits on Enter or blur; a required one
+// emptied goes back to what it was.
+export function TextInput({
   initial = '',
   label,
   type,
   placeholder,
   display,
+  required,
+  className,
   onCommit,
 }: {
   initial?: string
@@ -99,19 +102,23 @@ function TextInput({
   type?: string
   placeholder: string
   display?: string
+  required?: boolean
+  className?: string
   onCommit: (text: string) => void
 }) {
   const [text, setText] = useState(initial)
   const [editing, setEditing] = useState(false)
   const commit = () => {
     setEditing(false)
-    if (text.trim() !== initial) {
+    if (required && !text.trim()) {
+      setText(initial)
+    } else if (text.trim() !== initial) {
       onCommit(text.trim())
     }
   }
   if (display && !editing) {
     return (
-      <button type="button" aria-label={`${label}: ${display}`} className={valueButton} onClick={() => setEditing(true)}>
+      <button type="button" aria-label={`${label}: ${display}`} className={cn(valueButton, className)} onClick={() => setEditing(true)}>
         {display}
       </button>
     )
@@ -133,7 +140,10 @@ function TextInput({
           setEditing(false)
         }
       }}
-      className="h-7 w-full min-w-0 rounded-[var(--radius-control)] border border-transparent bg-transparent px-1.5 text-[13px] text-ink outline-none placeholder:text-ink-3 hover:bg-list-hover focus:border-border focus:bg-bg"
+      className={cn(
+        'h-7 w-full min-w-0 rounded-[var(--radius-control)] border border-transparent bg-transparent px-1.5 text-[13px] text-ink outline-none placeholder:text-ink-3 hover:bg-list-hover focus:border-border focus:bg-bg',
+        className,
+      )}
     />
   )
 }
