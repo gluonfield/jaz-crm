@@ -50,7 +50,7 @@ export function Related({ recordId, object, objects }: { recordId: string; objec
                 <span className="flex min-w-0 flex-col">
                   <span className="truncate font-medium leading-tight text-ink">{recordName(r)}</span>
                   <span className="truncate text-[12px] leading-tight text-ink-3">
-                    {status && valuesOf(r, status.slug)[0] ? <Stage attribute={status} stage={valueText(valuesOf(r, status.slug)[0])} /> : detail(r, o)}
+                    {status && valuesOf(r, status.slug)[0] ? <Stage stage={valueText(valuesOf(r, status.slug)[0])} /> : detail(r, o)}
                   </span>
                 </span>
                 {r.activity?.last_at && <span className="ml-auto shrink-0 pl-2 text-[12px] tabular-nums text-ink-3">{timeAgo(r.activity.last_at)}</span>}

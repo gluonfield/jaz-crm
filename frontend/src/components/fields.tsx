@@ -42,10 +42,10 @@ export function Field({ record, attribute }: { record: CrmRecord; attribute: Att
     return (
       <Picker
         trigger={
-          <button className={cn(valueButton, !current && 'text-ink-3')}>{current ? <Stage attribute={attribute} stage={current} /> : 'Set…'}</button>
+          <button className={cn(valueButton, !current && 'text-ink-3')}>{current ? <Stage stage={current} /> : 'Set…'}</button>
         }
         placeholder={`Set ${attribute.name.toLowerCase()}...`}
-        options={(attribute.options ?? []).map((o) => ({ value: o, label: o, icon: <StageDot attribute={attribute} stage={o} /> }))}
+        options={(attribute.options ?? []).map((o) => ({ value: o, label: o, icon: <StageDot stage={o} /> }))}
         selected={values.map(valueKey)}
         onSelect={(option) => write.set(slug, option)}
       />

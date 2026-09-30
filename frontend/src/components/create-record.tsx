@@ -207,9 +207,9 @@ function Property({
   if (attribute.type === 'status') {
     return (
       <Picker
-        trigger={<Chip empty={empty} icon={values[0] && <StageDot attribute={attribute} stage={values[0]} />} label={values[0] ?? attribute.name} />}
+        trigger={<Chip empty={empty} icon={values[0] && <StageDot stage={values[0]} />} label={values[0] ?? attribute.name} />}
         placeholder={`Set ${attribute.name.toLowerCase()}…`}
-        options={(attribute.options ?? []).map((o) => ({ value: o, label: o, icon: <StageDot attribute={attribute} stage={o} /> }))}
+        options={(attribute.options ?? []).map((o) => ({ value: o, label: o, icon: <StageDot stage={o} /> }))}
         selected={values}
         onSelect={toggle}
       />

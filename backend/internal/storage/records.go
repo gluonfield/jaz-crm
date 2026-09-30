@@ -115,12 +115,22 @@ type ValueChanges struct {
 // RecordMutation decides a record's changes from its current values.
 type RecordMutation func(current []RecordValue) (ValueChanges, error)
 
+type StatusChanges struct {
+	Options []string
+	From    string
+	To      string
+	ActorID *string
+}
+
+type StatusMutation func(options []string) (StatusChanges, error)
+
 type RecordStore interface {
 	Objects(ctx context.Context, workspaceID string) ([]Object, error)
 	Attributes(ctx context.Context, workspaceID string) ([]Attribute, error)
 	CreateObject(ctx context.Context, workspaceID string, object NewObject) error
 	CreateAttribute(ctx context.Context, attr AttributeInput) error
 	AddAttributeOption(ctx context.Context, workspaceID, attributeID, value string) (string, error)
+	EditStatus(ctx context.Context, workspaceID, attributeID string, mutate StatusMutation) error
 	DeleteRecord(ctx context.Context, workspaceID, id string) error
 	Records(ctx context.Context, workspaceID string, ids []string) ([]Record, error)
 	SearchRecords(ctx context.Context, query RecordQuery) ([]Record, error)

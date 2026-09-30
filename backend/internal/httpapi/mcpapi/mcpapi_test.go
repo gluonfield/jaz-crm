@@ -228,6 +228,75 @@ func TestPipelineStages(t *testing.T) {
 	}
 }
 
+func TestPipelineStageManagement(t *testing.T) {
+	a, b := connect(t)
+	deal := mustCall(t, a, "upsert_record", map[string]any{"object": "deals", "values": map[string]any{"name": "Contract", "stage": "Lead", "value": "1200"}})["record"].(map[string]any)
+	edit := func(action, stage string, extra map[string]any) {
+		t.Helper()
+		args := map[string]any{"object": "deals", "attribute": "stage", "action": action, "stage": stage}
+		for key, value := range extra {
+			args[key] = value
+		}
+		mustCall(t, a, "edit_pipeline_stage", args)
+	}
+	assertStages := func(expected string) {
+		t.Helper()
+		if schema := encode(mustCall(t, a, "list_objects", nil)); !strings.Contains(schema, `"options":`+expected) {
+			t.Fatalf("pipeline order: %s; wanted %s", schema, expected)
+		}
+	}
+	edit("rename", "Lead", map[string]any{"name": " Qualified "})
+	assertStages(`["Qualified","In progress","Won","Lost"]`)
+	if saved := mustCall(t, a, "get_record", map[string]any{"record_id": deal["id"]}); encode(saved["values"]) != `{"name":"Contract","owner":"a@jaz.test","stage":"Qualified","value":"1200"}` {
+		t.Fatalf("rename lost deal values: %v", saved)
+	}
+	if schema := encode(mustCall(t, b, "list_objects", nil)); strings.Contains(schema, "Qualified") {
+		t.Fatalf("renaming affected another workspace: %s", schema)
+	}
+	for _, args := range []map[string]any{
+		{"action": "rename", "stage": "Qualified", "name": "won"},
+		{"action": "rename", "stage": "Qualified", "name": " "},
+		{"action": "rename", "stage": "Qualified", "name": strings.Repeat("x", 81)},
+		{"action": "delete", "stage": "Qualified"},
+		{"action": "delete", "stage": "Qualified", "replacement": "Qualified"},
+		{"action": "move", "stage": "Qualified", "before": "missing"},
+	} {
+		args["object"], args["attribute"] = "deals", "stage"
+		if _, failure := call(t, a, "edit_pipeline_stage", args); failure == "" {
+			t.Fatalf("invalid stage change accepted: %v", args)
+		}
+		assertStages(`["Qualified","In progress","Won","Lost"]`)
+	}
+	if _, failure := call(t, b, "edit_pipeline_stage", map[string]any{"object": "deals", "attribute": "stage", "action": "delete", "stage": "Qualified"}); failure == "" {
+		t.Fatal("another workspace changed the private stage")
+	}
+	edit("move", "Won", map[string]any{"before": "Qualified"})
+	assertStages(`["Won","Qualified","In progress","Lost"]`)
+	created := mustCall(t, a, "upsert_record", map[string]any{"object": "deals", "values": map[string]any{"name": "New contract"}})["record"].(map[string]any)
+	if created["values"].(map[string]any)["stage"] != "Won" {
+		t.Fatalf("new records did not use the reordered first stage: %v", created)
+	}
+	edit("move", "Won", nil)
+	assertStages(`["Qualified","In progress","Lost","Won"]`)
+	edit("delete", "Qualified", map[string]any{"replacement": "In progress"})
+	assertStages(`["In progress","Lost","Won"]`)
+	if saved := mustCall(t, a, "get_record", map[string]any{"record_id": deal["id"]}); saved["values"].(map[string]any)["stage"] != "In progress" {
+		t.Fatalf("deleting a stage orphaned its deal: %v", saved)
+	}
+	history := encode(mustCall(t, a, "record_history", map[string]any{"record_id": deal["id"]}))
+	for _, value := range []string{`"value":"Lead"`, `"value":"Qualified"`, `"value":"In progress"`} {
+		if !strings.Contains(history, value) {
+			t.Fatalf("stage history lost %s: %s", value, history)
+		}
+	}
+	edit("delete", "Lost", nil)
+	edit("delete", "Won", map[string]any{"replacement": "In progress"})
+	if _, failure := call(t, a, "edit_pipeline_stage", map[string]any{"object": "deals", "attribute": "stage", "action": "delete", "stage": "In progress"}); failure == "" {
+		t.Fatal("deleted the last stage")
+	}
+	assertStages(`["In progress"]`)
+}
+
 func TestCompanyCategories(t *testing.T) {
 	a, _ := connect(t)
 	for _, value := range []string{" Manufacturing ", "B2B"} {

@@ -22,6 +22,31 @@ SELECT option::text FROM updated, unnest(options) AS option WHERE lower(option) 
 -- name: ListObjects :many
 SELECT * FROM objects WHERE workspace_id = $1 ORDER BY created_at, slug;
 
+-- name: LockStatus :one
+SELECT attributes.* FROM attributes JOIN objects ON objects.id = attributes.object_id
+WHERE objects.workspace_id = @workspace_id AND attributes.id = @id AND attributes.type = 'status'
+FOR UPDATE OF attributes;
+
+-- name: LockObjectStatuses :many
+SELECT attributes.* FROM attributes JOIN objects ON objects.id = attributes.object_id
+WHERE objects.workspace_id = @workspace_id AND objects.id = @object_id AND attributes.type = 'status'
+ORDER BY attributes.id FOR SHARE OF attributes;
+
+-- name: StageInUse :one
+SELECT EXISTS (SELECT 1 FROM record_values WHERE attribute_id = @attribute_id AND text = @text AND active_until IS NULL);
+
+-- name: UpdateStatusOptions :exec
+UPDATE attributes SET options = @options WHERE id = @id;
+
+-- name: ReplaceStageValues :exec
+WITH closed AS (
+  UPDATE record_values SET active_until = clock_timestamp()
+  WHERE record_values.attribute_id = @attribute_id AND record_values.text = @from_stage AND record_values.active_until IS NULL
+  RETURNING record_values.record_id, record_values.attribute_id, record_values.source, record_values.active_until
+)
+INSERT INTO record_values (record_id, attribute_id, text, source, actor_id, active_from)
+SELECT closed.record_id, closed.attribute_id, @to_stage, closed.source, @actor_id, closed.active_until FROM closed;
+
 -- name: ListAttributes :many
 SELECT attributes.* FROM attributes
 JOIN objects ON objects.id = attributes.object_id

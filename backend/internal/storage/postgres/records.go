@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"slices"
 
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 	authdb "github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/generated/auth"
@@ -66,8 +67,11 @@ func (s *Store) RecordsByUniqueKeys(ctx context.Context, workspaceID string, att
 
 func (s *Store) WriteRecord(ctx context.Context, workspaceID, objectID, id string, mutate storage.RecordMutation) (string, error) {
 	err := s.tx(ctx, func(_ *authdb.Queries, r *recdb.Queries) error {
+		statuses, err := r.LockObjectStatuses(ctx, recdb.LockObjectStatusesParams{WorkspaceID: workspaceID, ObjectID: objectID})
+		if err != nil {
+			return err
+		}
 		var record recdb.Record
-		var err error
 		if id == "" {
 			record, err = r.CreateRecord(ctx, recdb.CreateRecordParams{WorkspaceID: workspaceID, ObjectID: objectID})
 		} else {
@@ -88,6 +92,13 @@ func (s *Store) WriteRecord(ctx context.Context, workspaceID, objectID, id strin
 		changes, err := mutate(values)
 		if err != nil {
 			return err
+		}
+		for _, value := range changes.Insert {
+			for _, status := range statuses {
+				if value.AttributeID == status.ID && (value.Text == nil || !slices.Contains(status.Options, *value.Text)) {
+					return storage.ErrConflict
+				}
+			}
 		}
 		if err := r.CloseValues(ctx, recdb.CloseValuesParams{RecordID: id, IDs: changes.Close}); err != nil {
 			return err

@@ -15,6 +15,16 @@ export type Attribute = {
 
 export type CrmObject = { slug: string; name: string; attributes: Attribute[] }
 
+export type StageEdit = {
+  object: string
+  attribute: string
+  action: 'rename' | 'move' | 'delete'
+  stage: string
+  name?: string
+  before?: string
+  replacement?: string
+}
+
 export type Ref = { id: string; name?: string; photo?: string }
 
 // A value is text, or a referenced record.

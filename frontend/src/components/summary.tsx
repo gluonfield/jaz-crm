@@ -28,7 +28,7 @@ function identity(record: CrmRecord, object: CrmObject, members: Member[]) {
     }
     const text = valueText(first)
     if (a.type === 'status') {
-      facts.push(<Stage key={a.slug} attribute={a} stage={text} />)
+      facts.push(<Stage key={a.slug} stage={text} />)
     } else if (a.type === 'number') {
       facts.push(<span key={a.slug}>{formatNumber(text, a.slug)}</span>)
     } else if (a.type === 'text' && !a.multi && text.length <= 60) {

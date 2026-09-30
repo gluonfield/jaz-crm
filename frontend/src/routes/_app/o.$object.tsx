@@ -180,7 +180,7 @@ function ViewButton({ active, label, onClick, children }: { active: boolean; lab
 function cell(record: CrmRecord, attribute: Attribute) {
   const values = valuesOf(record, attribute.slug).map(valueText)
   if (attribute.type === 'status' && values[0]) {
-    return <Stage attribute={attribute} stage={values[0]} />
+    return <Stage stage={values[0]} />
   }
   if (attribute.type === 'domain') {
     return <div className="flex flex-col gap-1">{values.map((domain) => <a key={domain} href={`https://${domain}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="truncate text-primary hover:underline">{domain}</a>)}</div>

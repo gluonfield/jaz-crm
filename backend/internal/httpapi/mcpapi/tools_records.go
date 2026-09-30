@@ -12,6 +12,11 @@ import (
 )
 
 func registerRecords(r *registry, crm *records.Service, conversations *interactions.Service, pics pictures) {
+	add(r, &mcp.Tool{Name: "edit_pipeline_stage", Title: "Edit pipeline stage",
+		Description: "Rename, move or delete a status stage. Move places it before another stage, or last when before is omitted. Delete requires a replacement when records use the stage, and moves them there. At least one stage remains; history is preserved."},
+		func(ctx context.Context, actor auth.Actor, in stageInput) (empty, error) {
+			return empty{}, crm.EditStage(ctx, actor, in.Object, in.Attribute, records.StageEdit{Action: in.Action, Stage: in.Stage, Name: in.Name, Before: in.Before, Replacement: in.Replacement})
+		})
 	add(r, &mcp.Tool{Name: "add_attribute_option", Title: "Add attribute option",
 		Description: "Add a reusable choice to a select attribute or append a pipeline stage to a status attribute. Returns the existing choice when its spelling differs only in case. Assign choices through upsert_record."},
 		func(ctx context.Context, actor auth.Actor, in optionInput) (optionOutput, error) {
@@ -108,6 +113,16 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 			})
 			return objectOf(object), err
 		})
+}
+
+type stageInput struct {
+	Object      string `json:"object"`
+	Attribute   string `json:"attribute"`
+	Action      string `json:"action" jsonschema:"rename, move or delete"`
+	Stage       string `json:"stage"`
+	Name        string `json:"name,omitempty"`
+	Before      string `json:"before,omitempty"`
+	Replacement string `json:"replacement,omitempty"`
 }
 
 type optionInput struct {

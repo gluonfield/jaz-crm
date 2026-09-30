@@ -1,12 +1,12 @@
 import type { Attribute } from './types'
 
-// Stage colours follow a status's order, so a pipeline reads left to right:
-// the first four suit Lead, In progress, Won and Lost.
 const palette = [1, 4, 3, 5, 2, 6]
+const standard: Record<string, number> = { lead: 1, 'in progress': 4, won: 3, lost: 5 }
 
-export function stageColor(attribute: Attribute, stage: string) {
-  const index = Math.max(0, (attribute.options ?? []).indexOf(stage))
-  return `var(--color-avatar-${palette[index % palette.length]})`
+export function stageColor(stage: string) {
+  const name = stage.toLowerCase()
+  const hash = [...name].reduce((value, letter) => (value * 31 + letter.codePointAt(0)!) % palette.length, 0)
+  return `var(--color-avatar-${standard[name] ?? palette[hash]})`
 }
 
 // statusOf is the attribute an object's pipeline moves along, if it has one.

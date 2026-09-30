@@ -330,6 +330,48 @@ func (q *Queries) ListObjects(ctx context.Context, workspaceID string) ([]Object
 	return items, nil
 }
 
+const lockObjectStatuses = `-- name: LockObjectStatuses :many
+SELECT attributes.id, attributes.object_id, attributes.slug, attributes.name, attributes.type, attributes.multi, attributes.is_unique, attributes.target_object_id, attributes.created_at, attributes.options FROM attributes JOIN objects ON objects.id = attributes.object_id
+WHERE objects.workspace_id = $1 AND objects.id = $2 AND attributes.type = 'status'
+ORDER BY attributes.id FOR SHARE OF attributes
+`
+
+type LockObjectStatusesParams struct {
+	WorkspaceID string
+	ObjectID    string
+}
+
+func (q *Queries) LockObjectStatuses(ctx context.Context, arg LockObjectStatusesParams) ([]Attribute, error) {
+	rows, err := q.db.Query(ctx, lockObjectStatuses, arg.WorkspaceID, arg.ObjectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Attribute{}
+	for rows.Next() {
+		var i Attribute
+		if err := rows.Scan(
+			&i.ID,
+			&i.ObjectID,
+			&i.Slug,
+			&i.Name,
+			&i.Type,
+			&i.Multi,
+			&i.IsUnique,
+			&i.TargetObjectID,
+			&i.CreatedAt,
+			&i.Options,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockRecord = `-- name: LockRecord :one
 SELECT id, workspace_id, object_id, created_at FROM records WHERE workspace_id = $1 AND object_id = $2 AND id = $3 FOR UPDATE
 `
@@ -348,6 +390,35 @@ func (q *Queries) LockRecord(ctx context.Context, arg LockRecordParams) (Record,
 		&i.WorkspaceID,
 		&i.ObjectID,
 		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const lockStatus = `-- name: LockStatus :one
+SELECT attributes.id, attributes.object_id, attributes.slug, attributes.name, attributes.type, attributes.multi, attributes.is_unique, attributes.target_object_id, attributes.created_at, attributes.options FROM attributes JOIN objects ON objects.id = attributes.object_id
+WHERE objects.workspace_id = $1 AND attributes.id = $2 AND attributes.type = 'status'
+FOR UPDATE OF attributes
+`
+
+type LockStatusParams struct {
+	WorkspaceID string
+	ID          string
+}
+
+func (q *Queries) LockStatus(ctx context.Context, arg LockStatusParams) (Attribute, error) {
+	row := q.db.QueryRow(ctx, lockStatus, arg.WorkspaceID, arg.ID)
+	var i Attribute
+	err := row.Scan(
+		&i.ID,
+		&i.ObjectID,
+		&i.Slug,
+		&i.Name,
+		&i.Type,
+		&i.Multi,
+		&i.IsUnique,
+		&i.TargetObjectID,
+		&i.CreatedAt,
+		&i.Options,
 	)
 	return i, err
 }
@@ -443,6 +514,33 @@ func (q *Queries) RecordsByUniqueKeys(ctx context.Context, arg RecordsByUniqueKe
 	return items, nil
 }
 
+const replaceStageValues = `-- name: ReplaceStageValues :exec
+WITH closed AS (
+  UPDATE record_values SET active_until = clock_timestamp()
+  WHERE record_values.attribute_id = $3 AND record_values.text = $4 AND record_values.active_until IS NULL
+  RETURNING record_values.record_id, record_values.attribute_id, record_values.source, record_values.active_until
+)
+INSERT INTO record_values (record_id, attribute_id, text, source, actor_id, active_from)
+SELECT closed.record_id, closed.attribute_id, $1, closed.source, $2, closed.active_until FROM closed
+`
+
+type ReplaceStageValuesParams struct {
+	ToStage     *string
+	ActorID     *string
+	AttributeID string
+	FromStage   *string
+}
+
+func (q *Queries) ReplaceStageValues(ctx context.Context, arg ReplaceStageValuesParams) error {
+	_, err := q.db.Exec(ctx, replaceStageValues,
+		arg.ToStage,
+		arg.ActorID,
+		arg.AttributeID,
+		arg.FromStage,
+	)
+	return err
+}
+
 const searchRecords = `-- name: SearchRecords :many
 SELECT records.id, records.workspace_id, records.object_id, records.created_at FROM records
 WHERE records.workspace_id = $1 AND records.object_id = $2
@@ -507,4 +605,34 @@ func (q *Queries) SearchRecords(ctx context.Context, arg SearchRecordsParams) ([
 		return nil, err
 	}
 	return items, nil
+}
+
+const stageInUse = `-- name: StageInUse :one
+SELECT EXISTS (SELECT 1 FROM record_values WHERE attribute_id = $1 AND text = $2 AND active_until IS NULL)
+`
+
+type StageInUseParams struct {
+	AttributeID string
+	Text        *string
+}
+
+func (q *Queries) StageInUse(ctx context.Context, arg StageInUseParams) (bool, error) {
+	row := q.db.QueryRow(ctx, stageInUse, arg.AttributeID, arg.Text)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const updateStatusOptions = `-- name: UpdateStatusOptions :exec
+UPDATE attributes SET options = $1 WHERE id = $2
+`
+
+type UpdateStatusOptionsParams struct {
+	Options []string
+	ID      string
+}
+
+func (q *Queries) UpdateStatusOptions(ctx context.Context, arg UpdateStatusOptionsParams) error {
+	_, err := q.db.Exec(ctx, updateStatusOptions, arg.Options, arg.ID)
+	return err
 }
