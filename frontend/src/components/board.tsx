@@ -62,6 +62,7 @@ export function Board({ object, status, records }: { object: CrmObject; status: 
             }}
             onDrop={(e) => {
               e.preventDefault()
+              setDragging(undefined)
               setOver(undefined)
               move(e.dataTransfer.getData('text/plain'), stage)
             }}
