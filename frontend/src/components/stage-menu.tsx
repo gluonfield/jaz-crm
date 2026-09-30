@@ -1,5 +1,5 @@
 import { ArrowLeft, ArrowRight, Check, GripVertical, PanelLeftClose, Trash2 } from 'lucide-react'
-import { type DragEvent, useState } from 'react'
+import { type PointerEvent, useState } from 'react'
 import { useAction } from '@/lib/queries'
 import type { Attribute, CrmObject, StageEdit } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -9,13 +9,12 @@ import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
 
 const actionClass = 'flex h-8 w-full items-center gap-2 rounded-[5px] px-2 text-[13px] text-ink-2 outline-none hover:bg-list-active hover:text-ink focus-visible:bg-list-active disabled:opacity-40 [&_svg]:size-3.5'
 
-export function StageMenu({ object, status, stage, onCollapse, onDragStart, onDragEnd, disabled }: {
+export function StageMenu({ object, status, stage, onCollapse, onPointerDown, disabled }: {
   object: CrmObject
   status: Attribute
   stage: string
   onCollapse: () => void
-  onDragStart: (event: DragEvent<HTMLButtonElement>) => void
-  onDragEnd: () => void
+  onPointerDown: (event: PointerEvent<HTMLButtonElement>) => void
   disabled: boolean
 }) {
   const [open, setOpen] = useState(false)
@@ -45,11 +44,9 @@ export function StageMenu({ object, status, stage, onCollapse, onDragStart, onDr
           type="button"
           aria-label={`Manage ${stage} stage`}
           title="Drag to reorder or click to edit"
-          draggable={!pending}
           disabled={pending}
-          onDragStart={onDragStart}
-          onDragEnd={onDragEnd}
-          className="flex size-6 shrink-0 cursor-grab items-center justify-center rounded-[var(--radius-control)] text-ink-3 outline-none hover:bg-list-active hover:text-ink focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing disabled:opacity-40"
+          onPointerDown={onPointerDown}
+          className="flex size-6 shrink-0 touch-none cursor-grab items-center justify-center rounded-[var(--radius-control)] text-ink-3 outline-none hover:bg-list-active hover:text-ink focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing disabled:opacity-40"
         ><GripVertical className="size-3.5" /></button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-[272px] overflow-hidden rounded-[12px] border-border bg-raised p-0">

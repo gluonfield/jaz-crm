@@ -1,10 +1,11 @@
 import { useNavigate } from '@tanstack/react-router'
 import { Plus } from 'lucide-react'
-import { type DragEvent, type KeyboardEvent, type ReactNode, useState } from 'react'
+import { type KeyboardEvent, type PointerEvent, type ReactNode, useState } from 'react'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
 import { formatNumber } from '@/lib/format'
 import { useAction } from '@/lib/queries'
 import type { Attribute, CrmObject, CrmRecord, Ref, StageEdit } from '@/lib/types'
+import { useColumnDrag } from '@/lib/use-column-drag'
 import { cn } from '@/lib/utils'
 import { Button, inputClass } from './controls'
 import { CreateRecord, singular } from './create-record'
@@ -20,9 +21,9 @@ export function Board({ object, status, records }: { object: CrmObject; status: 
   const [moved, setMoved] = useState<Record<string, { from: string; to: string }>>({})
   const [dragging, setDragging] = useState<string>()
   const [over, setOver] = useState<string>()
-  const [stageDrag, setStageDrag] = useState<string>()
   const [collapsed, setCollapsed] = useState<string[]>([])
   const edit = useAction<StageEdit>('edit_pipeline_stage')
+  const { boardRef, order, view: columnDrag, start: dragColumn } = useColumnDrag(status.options ?? [], (stage, before) => edit.mutateAsync({ object: object.slug, attribute: status.slug, action: 'move', stage, before }))
   const amount = object.attributes.find((a) => a.type === 'number')
   const saved = (r: CrmRecord) => valueText(valuesOf(r, status.slug)[0] ?? '')
   // A moved card shows its new stage until the saved stage changes.
@@ -46,8 +47,8 @@ export function Board({ object, status, records }: { object: CrmObject; status: 
     )
   }
   return (
-    <div className="scrollbar-quiet flex min-h-0 flex-1 gap-3 overflow-x-auto p-3 pt-3">
-      {(status.options ?? []).map((stage) => {
+    <div ref={boardRef} className={cn('scrollbar-quiet flex min-h-0 flex-1 gap-3 overflow-x-auto p-3 pt-3', columnDrag && 'select-none')}>
+      {order.map((stage) => {
         const folded = collapsed.includes(stage)
         const cards = records.filter((r) => stageOf(r) === stage)
         const total = amount ? cards.reduce((sum, r) => sum + (Number(valueText(valuesOf(r, amount.slug)[0] ?? '0')) || 0), 0) : 0
@@ -55,8 +56,10 @@ export function Board({ object, status, records }: { object: CrmObject; status: 
           <section
             key={stage}
             aria-label={stage}
+            data-stage={stage}
+            style={columnDrag ? { transform: `translateX(${columnDrag.offsets[stage]}px)` } : undefined}
             onDragOver={(e) => {
-              if (dragging || stageDrag) {
+              if (dragging) {
                 e.preventDefault()
                 e.dataTransfer.dropEffect = 'move'
                 setOver(stage)
@@ -71,24 +74,14 @@ export function Board({ object, status, records }: { object: CrmObject; status: 
               e.preventDefault()
               setDragging(undefined)
               setOver(undefined)
-              setStageDrag(undefined)
-              const column = e.dataTransfer.getData('application/x-jaz-crm-stage')
-              if (column) {
-                if (column !== stage) {
-                  const bounds = e.currentTarget.getBoundingClientRect()
-                  const options = status.options ?? []
-                  const before = e.clientX < bounds.x + bounds.width / 2 ? stage : options[options.indexOf(stage) + 1]
-                  edit.mutate({ object: object.slug, attribute: status.slug, action: 'move', stage: column, before })
-                }
-              } else {
-                move(e.dataTransfer.getData('text/plain'), stage)
-              }
+              move(e.dataTransfer.getData('text/plain'), stage)
             }}
             className={cn(
               'flex shrink-0 flex-col rounded-[var(--radius-card)] transition-[background-color,box-shadow] duration-150',
               folded ? 'w-12 bg-list-hover' : 'w-[272px]',
-              (dragging || stageDrag) && 'bg-list-hover',
-              stageDrag === stage && 'opacity-50',
+              dragging && 'bg-list-hover',
+              columnDrag && 'transition-transform duration-150 ease-out motion-reduce:transition-none',
+              columnDrag?.stage === stage && 'bg-list-hover outline-1 -outline-offset-1 outline-dashed outline-ink-3/40 [&>*]:invisible',
               over === stage && 'bg-primary-soft shadow-[inset_0_0_0_1px_var(--color-primary)]',
             )}
           >
@@ -100,15 +93,7 @@ export function Board({ object, status, records }: { object: CrmObject; status: 
               </button>
             ) : <Column object={object} status={status} stage={stage} count={cards.length} amount={amount} total={amount && total ? total : undefined} disabled={edit.isPending}
               onCollapse={() => setCollapsed((current) => [...current, stage])}
-              onDragStart={(e) => {
-                e.dataTransfer.setData('application/x-jaz-crm-stage', stage)
-                e.dataTransfer.effectAllowed = 'move'
-                setStageDrag(stage)
-              }}
-              onDragEnd={() => {
-                setStageDrag(undefined)
-                setOver(undefined)
-              }}>
+              onPointerDown={(e) => dragColumn(stage, e)}>
               {cards.map((r) => (
                 <Card key={r.id} record={r} amount={amount} dragging={dragging === r.id} onDrag={setDragging} />
               ))}
@@ -175,8 +160,7 @@ function Column({
   children,
   disabled,
   onCollapse,
-  onDragStart,
-  onDragEnd,
+  onPointerDown,
 }: {
   object: CrmObject
   status: Attribute
@@ -187,8 +171,7 @@ function Column({
   children: ReactNode
   disabled: boolean
   onCollapse: () => void
-  onDragStart: (event: DragEvent<HTMLButtonElement>) => void
-  onDragEnd: () => void
+  onPointerDown: (event: PointerEvent<HTMLButtonElement>) => void
 }) {
   const [adding, setAdding] = useState(false)
   const kind = singular(object)
@@ -214,7 +197,7 @@ function Column({
         >
           <Plus className="size-3.5" />
         </button>
-        <StageMenu object={object} status={status} stage={stage} disabled={disabled} onCollapse={onCollapse} onDragStart={onDragStart} onDragEnd={onDragEnd} />
+        <StageMenu object={object} status={status} stage={stage} disabled={disabled} onCollapse={onCollapse} onPointerDown={onPointerDown} />
       </header>
       <ol className="scrollbar-quiet flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-2 pb-2">
         {children}
