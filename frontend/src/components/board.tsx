@@ -5,6 +5,7 @@ import { recordName, valueText, valuesOf } from '@/lib/crm'
 import { useAction } from '@/lib/queries'
 import type { Attribute, CrmObject, CrmRecord, Ref } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { CreateRecord, singular } from './create-record'
 import { RecordIcon } from './icons'
 import { StageDot } from './stage'
 
@@ -100,10 +101,10 @@ function Column({
   children: ReactNode
 }) {
   const [adding, setAdding] = useState(false)
-  const singular = object.name.toLowerCase().replace(/s$/, '')
+  const kind = singular(object)
   return (
     <>
-      <header className="flex h-10 shrink-0 items-center gap-2 px-3 text-[13px]">
+      <header className="flex h-9 shrink-0 items-center gap-2 px-3 text-[13px]">
         <StageDot attribute={status} stage={stage} />
         <span className="font-medium text-ink">{stage}</span>
         <span className="tabular-nums text-ink-3">{count}</span>
@@ -114,7 +115,7 @@ function Column({
         )}
         <button
           type="button"
-          aria-label={`New ${singular} in ${stage}`}
+          aria-label={`New ${kind} in ${stage}`}
           onClick={() => setAdding(true)}
           className={cn(
             'flex size-6 items-center justify-center rounded-[var(--radius-control)] text-ink-3 outline-none transition-colors hover:bg-list-active hover:text-ink focus-visible:ring-2 focus-visible:ring-ring',
@@ -126,20 +127,17 @@ function Column({
       </header>
       <ol className="scrollbar-quiet flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-2 pb-2">
         {children}
-        {adding ? (
-          <NewCard object={object} status={status} stage={stage} onDone={() => setAdding(false)} />
-        ) : (
-          <li>
-            <button
-              type="button"
-              onClick={() => setAdding(true)}
-              className="flex h-8 w-full items-center gap-1.5 rounded-[var(--radius-control)] px-2 text-[12.5px] text-ink-3 outline-none transition-colors hover:bg-list-active hover:text-ink-2 focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <Plus className="size-3.5" /> New {singular}
-            </button>
-          </li>
-        )}
+        <li>
+          <button
+            type="button"
+            onClick={() => setAdding(true)}
+            className="flex h-8 w-full items-center gap-1.5 rounded-[var(--radius-control)] px-2 text-[12.5px] text-ink-3 outline-none transition-colors hover:bg-list-active hover:text-ink-2 focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Plus className="size-3.5" /> New {kind}
+          </button>
+        </li>
       </ol>
+      <CreateRecord object={object} open={adding} onOpenChange={setAdding} initial={{ [status.slug]: stage }} />
     </>
   )
 }
@@ -187,34 +185,6 @@ function Card({ record, amount, dragging, onDrag }: { record: CrmRecord; amount?
           </span>
         )}
       </div>
-    </li>
-  )
-}
-
-// NewCard names a new record in a stage; Enter creates it and stays open for
-// the next, Escape or leaving it empty closes it.
-function NewCard({ object, status, stage, onDone }: { object: CrmObject; status: Attribute; stage: string; onDone: () => void }) {
-  const [name, setName] = useState('')
-  const upsert = useAction<object>('upsert_record')
-  return (
-    <li>
-      <input
-        autoFocus
-        value={name}
-        aria-label={`New ${object.name.toLowerCase().replace(/s$/, '')} in ${stage}`}
-        placeholder="Name"
-        onChange={(e) => setName(e.target.value)}
-        onBlur={() => !name.trim() && onDone()}
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') {
-            onDone()
-          } else if (e.key === 'Enter' && name.trim()) {
-            upsert.mutate({ object: object.slug, values: { name: name.trim(), [status.slug]: stage } })
-            setName('')
-          }
-        }}
-        className="h-10 w-full rounded-[8px] border border-primary bg-raised px-3 text-[13px] text-ink shadow-xs outline-none placeholder:text-ink-3"
-      />
     </li>
   )
 }

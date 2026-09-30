@@ -36,7 +36,7 @@ export function SelectField({ record, attribute }: { record: CrmRecord; attribut
           aria-label={`Edit ${attribute.name.toLowerCase()} for ${recordName(record)}`}
           disabled={pending}
           onKeyDown={(e) => e.stopPropagation()}
-          className="flex min-h-10 w-full min-w-0 items-center gap-1.5 rounded-[var(--radius-control)] px-1.5 py-1 text-left outline-none hover:bg-list-hover focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+          className="flex min-h-7 w-full min-w-0 items-center gap-1.5 rounded-[var(--radius-control)] px-1.5 py-0.5 text-left outline-none hover:bg-list-hover focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
         >
           <span className="flex min-w-0 flex-1 flex-wrap gap-1">
             {values.length ? values.map((value) => <ValueTag key={value} value={value} />) : <span className="flex items-center gap-1.5 text-[12px] text-ink-3"><Tags className="size-3.5" /> Add {attribute.name.toLowerCase()}</span>}

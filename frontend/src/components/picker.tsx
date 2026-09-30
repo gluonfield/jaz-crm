@@ -85,7 +85,7 @@ export function Picker({
                   disabled={disabled}
                   value={`${option.label} ${option.value}`}
                   onSelect={() => pick(option.value)}
-                  className="flex min-h-10 cursor-default items-center gap-2.5 rounded-[5px] px-2 text-[13px] text-ink outline-none data-[selected=true]:bg-list-active data-[disabled=true]:opacity-50"
+                  className="flex h-8 cursor-default items-center gap-2.5 rounded-[5px] px-2 text-[13px] text-ink outline-none data-[selected=true]:bg-list-active data-[disabled=true]:opacity-50"
                 >
                   {multiple && (
                     <span className={cn('flex size-3.5 items-center justify-center rounded-[4px] border border-ink-3/60', active && 'border-primary bg-primary text-on-primary')}>
@@ -110,7 +110,7 @@ export function Picker({
                     setOpen(false)
                   }
                 }}
-                className="flex min-h-10 cursor-default items-center gap-2.5 rounded-[5px] px-2 text-[13px] text-ink outline-none data-[selected=true]:bg-list-active data-[disabled=true]:opacity-50"
+                className="flex h-8 cursor-default items-center gap-2.5 rounded-[5px] px-2 text-[13px] text-ink outline-none data-[selected=true]:bg-list-active data-[disabled=true]:opacity-50"
               >
                 <Plus className="size-3.5 text-ink-3" />
                 <span className="truncate">Create “{newValue}”</span>

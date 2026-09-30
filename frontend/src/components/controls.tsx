@@ -13,14 +13,18 @@ export function Header({ children }: { children?: ReactNode }) {
   )
 }
 
-export function Button({ primary, className, ...props }: ComponentProps<'button'> & { primary?: boolean }) {
+// Button is quiet and raised by default, filled when primary, and bare when
+// ghost, as for toolbar controls.
+export function Button({ primary, ghost, className, ...props }: ComponentProps<'button'> & { primary?: boolean; ghost?: boolean }) {
   return (
     <button
       type="button"
       {...props}
       className={cn(
-        'inline-flex h-7 shrink-0 items-center gap-1.5 rounded-[var(--radius-control)] border px-2.5 text-[12.5px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 [&_svg]:size-3.5',
-        primary ? 'border-primary bg-primary text-on-primary hover:bg-primary-strong' : 'border-border text-ink hover:bg-list-hover',
+        'inline-flex h-7 shrink-0 items-center gap-1.5 rounded-[var(--radius-control)] px-2.5 text-[12.5px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 [&_svg]:size-3.5',
+        primary && 'bg-primary text-on-primary shadow-xs hover:bg-primary-strong',
+        ghost && 'px-2 font-normal text-ink-2 hover:bg-list-hover hover:text-ink',
+        !primary && !ghost && 'border border-border bg-raised text-ink shadow-xs hover:bg-list-hover',
         className,
       )}
     />

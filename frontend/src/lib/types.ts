@@ -1,6 +1,6 @@
 // Wire shapes of the server's tools; field names are their JSON names.
 
-export const attributeTypes = ['text', 'number', 'date', 'checkbox', 'url', 'select', 'status', 'email', 'domain', 'phone', 'reference'] as const
+export const attributeTypes = ['text', 'number', 'date', 'checkbox', 'url', 'select', 'status', 'member', 'email', 'domain', 'phone', 'reference'] as const
 export type AttributeType = (typeof attributeTypes)[number]
 
 export type Attribute = {
@@ -65,7 +65,7 @@ export type Contact = {
   last_seen: string
 }
 
-export type Member = { name: string; email: string; admin?: boolean; is_me?: boolean }
+export type Member = { name: string; email: string; admin?: boolean; is_me?: boolean; photo?: string }
 
 export type Workspace = { name: string; description: string; members?: Member[]; invited?: string[] }
 

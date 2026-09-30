@@ -3,7 +3,8 @@ import { CalendarClock } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { valueText, valuesOf } from '@/lib/crm'
 import { formatDate, timeAgo } from '@/lib/format'
-import type { CrmObject, CrmRecord, Interaction, Ref } from '@/lib/types'
+import { useWorkspace } from '@/lib/queries'
+import type { CrmObject, CrmRecord, Interaction, Member, Ref } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { RecordIcon } from './icons'
 import { Stage } from './stage'
@@ -13,10 +14,10 @@ const when = new Intl.DateTimeFormat('en', { weekday: 'short', month: 'short', d
 
 // order puts a record's identity in reading order: where it stands, what it
 // is worth, what it does, who it belongs to, then how to reach it.
-const order = ['status', 'number', 'text', 'reference', 'domain', 'email']
+const order = ['status', 'number', 'text', 'reference', 'member', 'domain', 'email']
 
 // identity is one line of a record's short, single facts.
-function identity(record: CrmRecord, object: CrmObject) {
+function identity(record: CrmRecord, object: CrmObject, members: Member[]) {
   const facts: ReactNode[] = []
   const attributes = object.attributes.filter((a) => a.slug !== 'name' && order.includes(a.type))
   attributes.sort((a, b) => order.indexOf(a.type) - order.indexOf(b.type))
@@ -49,6 +50,14 @@ function identity(record: CrmRecord, object: CrmObject) {
           </a>
         )),
       )
+    } else if (a.type === 'member') {
+      const member = members.find((m) => m.email === text)
+      facts.push(
+        <span key={a.slug} className="inline-flex items-center gap-1.5" title={a.name}>
+          <RecordIcon object="people" name={member?.name || text} photo={member?.photo} size={16} />
+          {member?.name || text}
+        </span>,
+      )
     } else if (a.type === 'email') {
       facts.push(<span key={a.slug}>{text}</span>)
     }
@@ -59,7 +68,7 @@ function identity(record: CrmRecord, object: CrmObject) {
 // Summary says who a record is and where things stand: its facts in a line,
 // its conversations so far, and what is scheduled next.
 export function Summary({ record, object, name, upcoming, children }: { record: CrmRecord; object: CrmObject; name: string; upcoming: Interaction[]; children: ReactNode }) {
-  const facts = identity(record, object)
+  const facts = identity(record, object, useWorkspace()?.members ?? [])
   const activity = record.activity
   const next = upcoming[0]
   const touch = activity?.interactions

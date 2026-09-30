@@ -1,9 +1,10 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
-import { ArrowDownAZ, ChevronDown, Kanban, Plus, Search, Table2, Tags } from 'lucide-react'
+import { ArrowDownAZ, Kanban, Plus, Search, Table2, Tags } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { Board } from '@/components/board'
 import { Stage } from '@/components/stage'
-import { Button, Header, inputClass } from '@/components/controls'
+import { Button, Header } from '@/components/controls'
+import { CreateRecord } from '@/components/create-record'
 import { ConnectGoogle, EmptyState } from '@/components/empty-state'
 import { ObjectIcon, RecordIcon } from '@/components/icons'
 import { Picker } from '@/components/picker'
@@ -11,7 +12,7 @@ import { SelectField } from '@/components/select-field'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
 import { formatDay } from '@/lib/format'
 import { useDebounced, useListKeys } from '@/lib/hooks'
-import { useAction, useObjects, useRecords } from '@/lib/queries'
+import { useObjects, useRecords } from '@/lib/queries'
 import { statusOf } from '@/lib/stages'
 import { useMail } from '@/lib/sync'
 import type { Attribute, CrmObject, CrmRecord } from '@/lib/types'
@@ -58,13 +59,8 @@ function ObjectPage() {
         <ObjectIcon slug={slug} />
         {object.name}
         {records && <span className="font-normal tabular-nums text-ink-3">{records.length}</span>}
-        <Button primary className="ml-auto h-10" onClick={() => setCreating(true)}>
-          <Plus /> {slug === 'companies' ? 'New company' : 'New'}
-        </Button>
-      </Header>
-      <div onKeyDown={(e) => e.stopPropagation()} className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border px-4 py-2.5">
         {status && (
-          <div role="group" aria-label="View" className="flex h-10 items-center rounded-[var(--radius-control)] border border-border p-0.5">
+          <div role="group" aria-label="View" className="ml-2 flex h-7 items-center rounded-[var(--radius-control)] bg-list-hover p-0.5">
             <ViewButton active={!!board} label="Board" onClick={() => void navigate({ to: '.', search: { category, sort }, replace: true })}>
               <Kanban />
             </ViewButton>
@@ -73,37 +69,59 @@ function ObjectPage() {
             </ViewButton>
           </div>
         )}
-        {categories && (
+        <div className="ml-auto flex min-w-0 items-center gap-1 font-normal">
+          {categories && (
+            <Picker
+              trigger={
+                <Button ghost className="min-w-0">
+                  <Tags />
+                  <span className="max-w-40 truncate">{category || 'All categories'}</span>
+                </Button>
+              }
+              placeholder="Filter categories…"
+              options={[{ value: '', label: 'All categories' }, ...(categories.options ?? []).map((value) => ({ value, label: value }))]}
+              selected={[category ?? '']}
+              onSelect={filter}
+            />
+          )}
           <Picker
-            trigger={<Button className="h-10 min-w-0 max-w-full"><Tags /><span className="max-w-56 truncate">{category || 'All categories'}</span><ChevronDown /></Button>}
-            placeholder="Filter categories…"
-            options={[{ value: '', label: 'All categories' }, ...(categories.options ?? []).map((value) => ({ value, label: value }))]}
-            selected={[category ?? '']}
-            onSelect={filter}
+            trigger={
+              <Button ghost>
+                <ArrowDownAZ />
+                {sort === 'name' ? 'Name' : 'Recently added'}
+              </Button>
+            }
+            placeholder="Sort by…"
+            options={[{ value: '', label: 'Recently added' }, { value: 'name', label: 'Name' }]}
+            selected={[sort ?? '']}
+            onSelect={(value) => void navigate({ to: '.', search: { category, sort: value === 'name' ? 'name' : undefined, view }, replace: true })}
           />
-        )}
-        <Picker
-          trigger={<Button className="h-10"><ArrowDownAZ />{sort === 'name' ? 'Name' : 'Recently added'}<ChevronDown /></Button>}
-          placeholder="Sort records…"
-          options={[{ value: '', label: 'Recently added' }, { value: 'name', label: 'Name' }]}
-          selected={[sort ?? '']}
-          onSelect={(value) => void navigate({ to: '.', search: { category, sort: value === 'name' ? 'name' : undefined, view }, replace: true })}
-        />
-        <label className="relative flex w-full min-w-0 items-center sm:ml-auto sm:w-64">
-          <Search className="pointer-events-none absolute left-2 size-3.5 text-ink-3" />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={`Search ${object.name.toLowerCase()}`} aria-label={`Search ${object.name.toLowerCase()}`} className={cn(inputClass, 'h-10 w-full pl-7')} />
-        </label>
-      </div>
-      {creating && <QuickCreate object={object} onDone={() => setCreating(false)} />}
+          <label className="group flex h-7 min-w-0 items-center gap-1.5 rounded-[var(--radius-control)] px-2 text-ink-3 transition-colors focus-within:bg-list-hover hover:bg-list-hover">
+            <Search className="size-3.5 shrink-0" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => e.stopPropagation()}
+              placeholder="Search"
+              aria-label={`Search ${object.name.toLowerCase()}`}
+              className="w-20 min-w-0 bg-transparent text-[12.5px] text-ink outline-none transition-[width] duration-150 placeholder:text-ink-3 focus:w-40"
+            />
+          </label>
+          <Button className="ml-1" onClick={() => setCreating(true)}>
+            <Plus /> New
+          </Button>
+        </div>
+      </Header>
+      <CreateRecord object={object} open={creating} onOpenChange={setCreating} openCreated />
       {board ? (
         records && <Board object={object} status={board} records={records} />
-      ) : records?.length === 0 && !creating ? (
+      ) : records?.length === 0 ? (
         <Empty object={object} query={query} category={categories ? category : undefined} />
       ) : (
         <div className="scrollbar-quiet min-h-0 flex-1 overflow-auto">
           <table className="w-full border-collapse text-[13px]">
             <thead className="sticky top-0 z-10 bg-bg">
-              <tr className="h-10 border-b border-border text-left text-[12px] text-ink-3">
+              <tr className="h-9 border-b border-border text-left text-[12px] text-ink-3">
                 <th className="sticky left-0 z-20 min-w-56 bg-bg px-4 font-medium">{slug === 'companies' ? 'Company' : 'Name'}</th>
                 {columns.map((a) => (
                   <th key={a.slug} className="whitespace-nowrap px-3 font-medium">
@@ -118,16 +136,16 @@ function ObjectPage() {
                   key={r.id}
                   data-row={index}
                   onClick={() => open(index)}
-                  className={cn('group h-13 cursor-default border-b border-border/60 hover:bg-list-hover', focus === index && 'bg-list-hover')}
+                  className={cn('group h-10 cursor-default border-b border-border/50 hover:bg-list-hover', focus === index && 'bg-list-hover')}
                 >
                   <td className={cn('sticky left-0 z-10 max-w-72 bg-bg px-4 group-hover:bg-list-hover', focus === index && 'bg-list-hover')}>
-                    <Link to="/r/$recordId" params={{ recordId: r.id }} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} className="flex min-h-10 items-center gap-2.5 font-medium text-ink">
+                    <Link to="/r/$recordId" params={{ recordId: r.id }} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} className="flex items-center gap-2.5 font-medium text-ink">
                       <RecordIcon object={slug} name={recordName(r)} photo={r.photo} />
                       <span className="truncate">{recordName(r)}</span>
                     </Link>
                   </td>
                   {columns.map((a) => (
-                    <td key={a.slug} className={cn('max-w-80 px-3 py-1 text-ink-2', a.type === 'select' ? 'min-w-64' : 'min-w-44')}>
+                    <td key={a.slug} className={cn('max-w-80 px-3 text-ink-2', a.type === 'select' ? 'min-w-56' : 'min-w-40')}>
                       {a.type === 'select' ? <div onClick={(e) => e.stopPropagation()}><SelectField record={r} attribute={a} /></div> : cell(r, a)}
                     </td>
                   ))}
@@ -151,7 +169,7 @@ function ViewButton({ active, label, onClick, children }: { active: boolean; lab
       onClick={onClick}
       className={cn(
         'flex h-full items-center rounded-[4px] px-1.5 text-ink-3 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-3.5',
-        active ? 'bg-list-active text-ink' : 'hover:text-ink',
+        active ? 'bg-raised text-ink shadow-xs' : 'hover:text-ink',
       )}
     >
       {children}
@@ -176,44 +194,7 @@ function cell(record: CrmRecord, attribute: Attribute) {
   if (attribute.type === 'number') {
     return values.map((v) => Number(v).toLocaleString('en')).join(', ')
   }
-  return <span className="block truncate" title={values.join(', ')}>{values.join(', ') || '—'}</span>
-}
-
-// QuickCreate adds a record by name and its identifying value, such as an
-// email or domain, which also finds the record if it already exists.
-function QuickCreate({ object, onDone }: { object: CrmObject; onDone: () => void }) {
-  const identity = object.attributes.find((a) => a.unique)
-  const [name, setName] = useState('')
-  const [key, setKey] = useState('')
-  const navigate = useNavigate()
-  const upsert = useAction<object, { record: CrmRecord }>('upsert_record')
-  const submit = () => {
-    const values: Record<string, string> = {}
-    if (name.trim()) {
-      values.name = name.trim()
-    }
-    if (identity && key.trim()) {
-      values[identity.slug] = key.trim()
-    }
-    upsert.mutate({ object: object.slug, values }, { onSuccess: (out) => navigate({ to: '/r/$recordId', params: { recordId: out.record.id } }) })
-  }
-  return (
-    <form
-      className="flex items-center gap-2 border-b border-border bg-panel px-4 py-2"
-      onSubmit={(e) => {
-        e.preventDefault()
-        submit()
-      }}
-      onKeyDown={(e) => e.key === 'Escape' && onDone()}
-    >
-      <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" className={cn(inputClass, 'w-56')} />
-      {identity && <input value={key} onChange={(e) => setKey(e.target.value)} placeholder={identity.name} className={cn(inputClass, 'w-64')} />}
-      <Button primary type="submit" disabled={!name.trim() && !key.trim()}>
-        Create
-      </Button>
-      <Button onClick={onDone}>Cancel</Button>
-    </form>
-  )
+  return <span className="block truncate" title={values.join(', ')}>{values.join(', ')}</span>
 }
 
 function Empty({ object, query, category }: { object: CrmObject; query: string; category?: string }) {

@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { recordName, valueKey, valueText, valuesOf } from '@/lib/crm'
 import { formatDay } from '@/lib/format'
 import { useDebounced } from '@/lib/hooks'
-import { useRecords, useWrite } from '@/lib/queries'
+import { useRecords, useWorkspace, useWrite } from '@/lib/queries'
 import type { Attribute, CrmRecord, Value } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { Chip } from './controls'
@@ -50,6 +50,9 @@ export function Field({ record, attribute }: { record: CrmRecord; attribute: Att
         onSelect={(option) => write.set(slug, option)}
       />
     )
+  }
+  if (attribute.type === 'member') {
+    return <MemberField attribute={attribute} values={values.map(valueText)} onSelect={(email) => write.set(slug, email)} />
   }
   if (attribute.type === 'reference') {
     return <ReferenceField record={record} attribute={attribute} values={values} />
@@ -186,5 +189,25 @@ function ReferenceField({ record, attribute, values }: { record: CrmRecord; attr
         />
       )}
     </div>
+  )
+}
+
+// MemberField picks a member of the workspace, shown by name and photo.
+function MemberField({ attribute, values, onSelect }: { attribute: Attribute; values: string[]; onSelect: (email: string) => void }) {
+  const members = useWorkspace()?.members ?? []
+  const chosen = members.find((m) => m.email === values[0])
+  return (
+    <Picker
+      trigger={
+        <button className={cn(valueButton, 'gap-2', !values[0] && 'text-ink-3')}>
+          {chosen && <RecordIcon object="people" name={chosen.name || chosen.email} photo={chosen.photo} size={18} />}
+          <span className="truncate">{chosen ? chosen.name || chosen.email : (values[0] ?? 'Set…')}</span>
+        </button>
+      }
+      placeholder={`Set ${attribute.name.toLowerCase()}…`}
+      options={members.map((m) => ({ value: m.email, label: m.name || m.email, icon: <RecordIcon object="people" name={m.name || m.email} photo={m.photo} size={18} /> }))}
+      selected={values}
+      onSelect={onSelect}
+    />
   )
 }
