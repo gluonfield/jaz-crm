@@ -68,6 +68,25 @@ SELECT users.* FROM sessions
 JOIN users ON users.id = sessions.user_id
 WHERE sessions.token_hash = $1 AND sessions.expires_at > now();
 
+-- name: UpdateSessionUser :execrows
+-- UpdateSessionUser moves a session to another of its person's users.
+UPDATE sessions SET user_id = $2 WHERE token_hash = $1;
+
+-- name: UserIdentities :many
+SELECT * FROM identities WHERE user_id = $1 ORDER BY created_at;
+
+-- name: Memberships :many
+-- Memberships lists the workspaces of a user's person: the users that share
+-- an identity with it, and itself.
+SELECT users.id AS user_id, workspaces.id AS workspace_id, workspaces.name FROM users
+JOIN workspaces ON workspaces.id = users.workspace_id
+WHERE users.id = @user_id OR users.id IN (
+  SELECT other.user_id FROM identities mine
+  JOIN identities other ON other.issuer = mine.issuer AND other.subject = mine.subject
+  WHERE mine.user_id = @user_id
+)
+ORDER BY workspaces.created_at;
+
 -- name: DeleteSession :exec
 DELETE FROM sessions WHERE token_hash = $1;
 

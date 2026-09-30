@@ -17,6 +17,13 @@ type APIKey struct {
 	CreatedAt time.Time
 }
 
+type Identity struct {
+	Issuer    string
+	Subject   string
+	UserID    string
+	CreatedAt time.Time
+}
+
 type OAuthClient struct {
 	ID           string
 	Name         string

@@ -103,6 +103,8 @@ type AuthStore interface {
 
 	CreateSession(ctx context.Context, tokenHash []byte, userID string, expiresAt time.Time) error
 	UserBySession(ctx context.Context, tokenHash []byte) (User, error)
+	// UpdateSessionUser moves a session to another of its person's users.
+	UpdateSessionUser(ctx context.Context, tokenHash []byte, userID string) error
 	DeleteSession(ctx context.Context, tokenHash []byte) error
 
 	CreateOAuthClient(ctx context.Context, client OAuthClient) (OAuthClient, error)
@@ -120,9 +122,19 @@ type AuthStore interface {
 	// RevokeOAuthToken revokes a token; a refresh token takes every token of
 	// its grant with it (RFC 7009).
 	RevokeOAuthToken(ctx context.Context, tokenHash []byte) error
-	UserByAccessToken(ctx context.Context, tokenHash []byte) (User, error)
+	// UserByAccessToken returns the token's user and grant.
+	UserByAccessToken(ctx context.Context, tokenHash []byte) (User, string, error)
+	// UpdateOAuthGrantUser moves a grant to another of its person's users.
+	UpdateOAuthGrantUser(ctx context.Context, grantID, userID string) error
 	OAuthGrants(ctx context.Context, userID string) ([]OAuthGrantSummary, error)
 	RevokeOAuthGrant(ctx context.Context, userID, grantID string) error
+}
+
+// Membership is one of a person's workspaces with their user there.
+type Membership struct {
+	UserID      string
+	WorkspaceID string
+	Name        string
 }
 
 // Identity links a person's OIDC subject to one user row per workspace.
@@ -147,6 +159,9 @@ type WorkspaceStore interface {
 	Users(ctx context.Context, workspaceID string) ([]User, error)
 	UsersByIdentity(ctx context.Context, issuer, subject string) ([]User, error)
 	UsersByEmail(ctx context.Context, email string) ([]User, error)
+	UserIdentities(ctx context.Context, userID string) ([]Identity, error)
+	// Memberships lists the workspaces of a user's person.
+	Memberships(ctx context.Context, userID string) ([]Membership, error)
 	// ShareIdentity links identity to every user from signs in as.
 	ShareIdentity(ctx context.Context, from, identity Identity) ([]User, error)
 	// CreateOwnedWorkspace creates a workspace, its owner linked to the

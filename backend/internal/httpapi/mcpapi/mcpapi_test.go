@@ -2,11 +2,15 @@ package mcpapi_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"github.com/gluonfield/jaz-crm/backend/internal/logos"
+	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -29,10 +33,15 @@ func (key bearer) RoundTrip(req *http.Request) (*http.Response, error) {
 	return http.DefaultTransport.RoundTrip(req)
 }
 
-// connect serves /mcp and returns sessions for the owners of two workspaces.
-func connect(t *testing.T) (*mcp.ClientSession, *mcp.ClientSession) {
+type env struct {
+	url    string
+	keys   *auth.Service
+	people *workspaces.Service
+}
+
+// serve runs /mcp over a fresh database.
+func serve(t *testing.T) env {
 	t.Helper()
-	ctx := context.Background()
 	store := postgrestest.New(t)
 	keys := auth.NewService(store, auth.Config{PublicURL: "http://crm.test"})
 	people := workspaces.NewService(store, workspaces.Config{})
@@ -44,25 +53,40 @@ func connect(t *testing.T) (*mcp.ClientSession, *mcp.ClientSession) {
 	}
 	srv := httptest.NewServer(mcpapi.NewHandler(mcpapi.Services{Records: crm, Workspaces: people, Interactions: convs, Connections: conns, Logos: logos.NewService(store, logos.Fetcher{})}, keys, log.New(io.Discard)).MCP)
 	t.Cleanup(srv.Close)
-	var sessions []*mcp.ClientSession
-	for _, email := range []string{"a@jaz.test", "b@jaz.test"} {
-		user, err := people.Provision(ctx, email)
-		if err != nil {
-			t.Fatal(err)
-		}
-		key, _, err := keys.CreateKey(ctx, user.ID, "test", "")
-		if err != nil {
-			t.Fatal(err)
-		}
-		client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "1"}, nil)
-		session, err := client.Connect(ctx, &mcp.StreamableClientTransport{Endpoint: srv.URL, HTTPClient: &http.Client{Transport: bearer(key)}}, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		t.Cleanup(func() { _ = session.Close() })
-		sessions = append(sessions, session)
+	return env{url: srv.URL, keys: keys, people: people}
+}
+
+// session opens an MCP session that sends token.
+func (e env) session(t *testing.T, token string) *mcp.ClientSession {
+	t.Helper()
+	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "1"}, nil)
+	session, err := client.Connect(context.Background(), &mcp.StreamableClientTransport{Endpoint: e.url, HTTPClient: &http.Client{Transport: bearer(token)}}, nil)
+	if err != nil {
+		t.Fatal(err)
 	}
-	return sessions[0], sessions[1]
+	t.Cleanup(func() { _ = session.Close() })
+	return session
+}
+
+// apiKey provisions an account for email and returns its API key.
+func (e env) apiKey(t *testing.T, email string) string {
+	t.Helper()
+	user, err := e.people.Provision(context.Background(), email)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key, _, err := e.keys.CreateKey(context.Background(), user.ID, "test", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return key
+}
+
+// connect returns sessions for the owners of two workspaces.
+func connect(t *testing.T) (*mcp.ClientSession, *mcp.ClientSession) {
+	t.Helper()
+	e := serve(t)
+	return e.session(t, e.apiKey(t, "a@jaz.test")), e.session(t, e.apiKey(t, "b@jaz.test"))
 }
 
 // call returns a tool's structured result, or its error text.
@@ -203,5 +227,77 @@ func TestInteractionTools(t *testing.T) {
 	}
 	if out := mustCall(t, a, "list_connections", nil); len(out["connections"].([]any)) != 0 || out["connect_url"] != nil {
 		t.Errorf("connections without Google configured: %v", out)
+	}
+}
+
+// oauth runs the OAuth flow an MCP host such as Jaz runs for user and
+// returns the access token its connection sends.
+func (e env) oauth(t *testing.T, user storage.User) string {
+	t.Helper()
+	ctx := context.Background()
+	app, err := e.keys.RegisterClient(ctx, "Jaz", []string{"http://localhost/cb"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	verifier := strings.Repeat("verifier", 8)
+	sum := sha256.Sum256([]byte(verifier))
+	target, err := e.keys.Approve(ctx, auth.Actor{UserID: user.ID, WorkspaceID: user.WorkspaceID}, auth.AuthorizeRequest{
+		ResponseType: "code", ClientID: app.ID, RedirectURI: "http://localhost/cb",
+		CodeChallenge: base64.RawURLEncoding.EncodeToString(sum[:]), CodeChallengeMethod: "S256",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	redirect, _ := url.Parse(target)
+	tokens, err := e.keys.Token(ctx, auth.TokenRequest{
+		GrantType: "authorization_code", ClientID: app.ID, Code: redirect.Query().Get("code"),
+		RedirectURI: "http://localhost/cb", CodeVerifier: verifier,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return tokens.AccessToken
+}
+
+// A person creates a workspace and switches between theirs over one MCP
+// session, the way Jaz stays connected; each workspace sees only its own
+// records. An API key can create a workspace but stays in its own.
+func TestWorkspacesCreateAndSwitch(t *testing.T) {
+	e := serve(t)
+	pat, err := e.people.SignIn(context.Background(), auth.Identity{Issuer: "https://idp.test", Subject: "pat", Email: "pat@example.com", EmailVerified: true, Name: "Pat"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	jaz := e.session(t, e.oauth(t, pat))
+	mustCall(t, jaz, "upsert_record", map[string]any{"object": "companies", "values": map[string]any{"name": "Home Co"}})
+	created := mustCall(t, jaz, "create_workspace", map[string]any{"name": " Side project "})
+	if created["name"] != "Side project" || created["current"] != true {
+		t.Fatalf("created: %v", created)
+	}
+	if got := mustCall(t, jaz, "get_workspace", nil); got["name"] != "Side project" || !strings.Contains(encode(got["members"]), `"admin":true`) {
+		t.Fatalf("after creating, the session should act in the new workspace as its admin: %v", got)
+	}
+	if found := mustCall(t, jaz, "search_records", map[string]any{"object": "companies"})["records"].([]any); len(found) != 0 {
+		t.Fatalf("the new workspace sees other records: %v", found)
+	}
+	listed := mustCall(t, jaz, "list_workspaces", nil)["workspaces"].([]any)
+	if len(listed) != 2 {
+		t.Fatalf("workspaces: %v", listed)
+	}
+	home := listed[0].(map[string]any)
+	mustCall(t, jaz, "switch_workspace", map[string]any{"workspace_id": home["id"]})
+	if found := mustCall(t, jaz, "search_records", map[string]any{"object": "companies"})["records"].([]any); len(found) != 1 {
+		t.Fatalf("after switching back: %v", found)
+	}
+	if _, failure := call(t, jaz, "switch_workspace", map[string]any{"workspace_id": "00000000-0000-4000-8000-000000000000"}); !strings.Contains(failure, "not a member") {
+		t.Fatalf("switch to a stranger's workspace: %q", failure)
+	}
+
+	keyed := e.session(t, e.apiKey(t, "kim@example.com"))
+	if other := mustCall(t, keyed, "create_workspace", map[string]any{"name": "Kim's other"}); other["current"] != nil {
+		t.Fatalf("an API key moved: %v", other)
+	}
+	if got := mustCall(t, keyed, "get_workspace", nil); got["name"] == "Kim's other" {
+		t.Fatal("an API key left its workspace")
 	}
 }

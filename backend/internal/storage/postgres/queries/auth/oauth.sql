@@ -23,7 +23,7 @@ JOIN oauth_grants ON oauth_grants.id = oauth_tokens.grant_id
 WHERE oauth_tokens.token_hash = $1;
 
 -- name: UserByAccessToken :one
-SELECT users.* FROM oauth_tokens
+SELECT sqlc.embed(users), oauth_grants.id AS grant_id FROM oauth_tokens
 JOIN oauth_grants ON oauth_grants.id = oauth_tokens.grant_id
 JOIN users ON users.id = oauth_grants.user_id
 WHERE oauth_tokens.token_hash = $1 AND oauth_tokens.kind = 'access'
@@ -58,3 +58,6 @@ ORDER BY last_used_at DESC;
 -- name: RevokeGrantByID :exec
 UPDATE oauth_grants SET revoked_at = now() WHERE id = $1 AND revoked_at IS NULL;
 
+-- name: UpdateOAuthGrantUser :execrows
+-- UpdateOAuthGrantUser moves a grant to another of its person's users.
+UPDATE oauth_grants SET user_id = $2 WHERE id = $1 AND revoked_at IS NULL;

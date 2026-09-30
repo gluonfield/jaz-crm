@@ -20,6 +20,7 @@ var (
 	ErrForbidden       = errs.Invalid{Message: "only workspace admins can invite people or change the workspace"}
 	ErrInvalidEmail    = errs.Invalid{Message: "enter a valid email address"}
 	ErrInvalidName     = errs.Invalid{Message: "a workspace name is 1 to 80 characters"}
+	ErrNotMember       = errs.Invalid{Message: "you are not a member of that workspace"}
 )
 
 // Config optionally restricts sign-in; empty lists admit every verified email.
@@ -184,6 +185,55 @@ func (s *Service) Update(ctx context.Context, actor auth.Actor, name, descriptio
 		return workspace, errs.Invalidf("a workspace description is at most 2000 characters")
 	}
 	return workspace, s.store.UpdateWorkspace(ctx, workspace.ID, workspace.Name, workspace.Description)
+}
+
+// Memberships lists the workspaces the actor's person belongs to.
+func (s *Service) Memberships(ctx context.Context, actor auth.Actor) ([]storage.Membership, error) {
+	return s.store.Memberships(ctx, actor.UserID)
+}
+
+// Member returns the actor's person's membership of a workspace.
+func (s *Service) Member(ctx context.Context, actor auth.Actor, workspaceID string) (storage.Membership, error) {
+	memberships, err := s.store.Memberships(ctx, actor.UserID)
+	if err != nil {
+		return storage.Membership{}, err
+	}
+	i := slices.IndexFunc(memberships, func(m storage.Membership) bool { return m.WorkspaceID == workspaceID })
+	if i < 0 {
+		return storage.Membership{}, ErrNotMember
+	}
+	return memberships[i], nil
+}
+
+// Create starts a workspace with the actor's person as its admin, reachable
+// by every identity they sign in with, and returns their user there.
+func (s *Service) Create(ctx context.Context, actor auth.Actor, name string) (storage.User, error) {
+	name = strings.TrimSpace(name)
+	if name == "" || len([]rune(name)) > 80 {
+		return storage.User{}, ErrInvalidName
+	}
+	me, err := s.store.UserByID(ctx, actor.UserID)
+	if err != nil {
+		return storage.User{}, err
+	}
+	identities, err := s.store.UserIdentities(ctx, actor.UserID)
+	if err != nil {
+		return storage.User{}, err
+	}
+	if len(identities) == 0 {
+		return storage.User{}, errs.Invalidf("sign in to create a workspace")
+	}
+	owner := storage.NewUser{Name: me.Name, Email: me.Email, AvatarURL: me.AvatarURL, Admin: true}
+	user, err := s.store.CreateOwnedWorkspace(ctx, name, owner, identities[0], records.StandardObjects)
+	if err != nil {
+		return user, err
+	}
+	for _, id := range identities[1:] {
+		if _, err := s.store.ShareIdentity(ctx, identities[0], id); err != nil {
+			return user, err
+		}
+	}
+	return user, nil
 }
 
 // Workspace describes the actor's workspace.

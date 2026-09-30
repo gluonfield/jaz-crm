@@ -347,6 +347,45 @@ func (q *Queries) ListUsers(ctx context.Context, workspaceID string) ([]User, er
 	return items, nil
 }
 
+const memberships = `-- name: Memberships :many
+SELECT users.id AS user_id, workspaces.id AS workspace_id, workspaces.name FROM users
+JOIN workspaces ON workspaces.id = users.workspace_id
+WHERE users.id = $1 OR users.id IN (
+  SELECT other.user_id FROM identities mine
+  JOIN identities other ON other.issuer = mine.issuer AND other.subject = mine.subject
+  WHERE mine.user_id = $1
+)
+ORDER BY workspaces.created_at
+`
+
+type MembershipsRow struct {
+	UserID      string
+	WorkspaceID string
+	Name        string
+}
+
+// Memberships lists the workspaces of a user's person: the users that share
+// an identity with it, and itself.
+func (q *Queries) Memberships(ctx context.Context, userID string) ([]MembershipsRow, error) {
+	rows, err := q.db.Query(ctx, memberships, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []MembershipsRow{}
+	for rows.Next() {
+		var i MembershipsRow
+		if err := rows.Scan(&i.UserID, &i.WorkspaceID, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const replaceAPIKey = `-- name: ReplaceAPIKey :one
 WITH replaced AS (
   DELETE FROM api_keys WHERE user_id = $1 AND label = $2 AND key_hash <> $4
@@ -439,6 +478,24 @@ func (q *Queries) ShareIdentity(ctx context.Context, arg ShareIdentityParams) ([
 	return items, nil
 }
 
+const updateSessionUser = `-- name: UpdateSessionUser :execrows
+UPDATE sessions SET user_id = $2 WHERE token_hash = $1
+`
+
+type UpdateSessionUserParams struct {
+	TokenHash []byte
+	UserID    string
+}
+
+// UpdateSessionUser moves a session to another of its person's users.
+func (q *Queries) UpdateSessionUser(ctx context.Context, arg UpdateSessionUserParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateSessionUser, arg.TokenHash, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const updateWorkspace = `-- name: UpdateWorkspace :execrows
 UPDATE workspaces SET name = $2, description = $3 WHERE id = $1
 `
@@ -497,6 +554,35 @@ func (q *Queries) UserBySession(ctx context.Context, tokenHash []byte) (User, er
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const userIdentities = `-- name: UserIdentities :many
+SELECT issuer, subject, user_id, created_at FROM identities WHERE user_id = $1 ORDER BY created_at
+`
+
+func (q *Queries) UserIdentities(ctx context.Context, userID string) ([]Identity, error) {
+	rows, err := q.db.Query(ctx, userIdentities, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Identity{}
+	for rows.Next() {
+		var i Identity
+		if err := rows.Scan(
+			&i.Issuer,
+			&i.Subject,
+			&i.UserID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const usersByEmail = `-- name: UsersByEmail :many

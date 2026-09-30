@@ -52,7 +52,7 @@ func NewHandler(svc Services, keys *auth.Service, logger *log.Logger) *Handler {
 	}, &mcp.ServerOptions{Instructions: instructions})
 	r := &registry{server: server, logger: logger.WithPrefix("tools"), ops: map[string]func(context.Context, auth.Actor, json.RawMessage) (any, error){}}
 	registerRecords(r, svc.Records, svc.Interactions, pictures{svc.Interactions, svc.Logos, keys.Issuer()})
-	registerWorkspace(r, svc.Workspaces)
+	registerWorkspace(r, svc.Workspaces, keys)
 	registerInteractions(r, svc.Interactions)
 	registerConnections(r, svc.Connections, keys.Issuer())
 	registerApp(r, keys.Issuer())
@@ -64,8 +64,10 @@ func NewHandler(svc Services, keys *auth.Service, logger *log.Logger) *Handler {
 		if err != nil {
 			return nil, err
 		}
+		// The MCP session belongs to the credential, which keeps it across a
+		// switch of workspace.
 		return &mcpauth.TokenInfo{
-			UserID:     actor.UserID,
+			UserID:     actor.Principal(),
 			Expiration: time.Now().Add(time.Hour),
 			Extra:      map[string]any{actorKey: actor},
 		}, nil

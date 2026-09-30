@@ -32,7 +32,9 @@ func (s *Service) Session(ctx context.Context, token string) (Actor, error) {
 	if errors.Is(err, storage.ErrNotFound) {
 		return Actor{}, ErrUnauthenticated
 	}
-	return actorOf(user), err
+	actor := actorOf(user)
+	actor.session = hash(token)
+	return actor, err
 }
 
 func (s *Service) EndSession(ctx context.Context, token string) error {

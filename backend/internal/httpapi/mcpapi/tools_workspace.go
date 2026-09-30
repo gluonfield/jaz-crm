@@ -2,13 +2,49 @@ package mcpapi
 
 import (
 	"context"
+	"errors"
+	"strings"
 
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"github.com/gluonfield/jaz-crm/backend/internal/workspaces"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-func registerWorkspace(r *registry, members *workspaces.Service) {
+func registerWorkspace(r *registry, members *workspaces.Service, keys *auth.Service) {
+	add(r, &mcp.Tool{Name: "list_workspaces", Title: "List workspaces", Annotations: readOnly,
+		Description: "The workspaces you belong to; current is the one these calls act in."},
+		func(ctx context.Context, actor auth.Actor, _ empty) (workspacesOutput, error) {
+			list, err := members.Memberships(ctx, actor)
+			out := workspacesOutput{Workspaces: []workspaceRef{}}
+			for _, m := range list {
+				out.Workspaces = append(out.Workspaces, workspaceRef{ID: m.WorkspaceID, Name: m.Name, Current: m.WorkspaceID == actor.WorkspaceID})
+			}
+			return out, err
+		})
+	add(r, &mcp.Tool{Name: "switch_workspace", Title: "Switch workspace",
+		Description: "Move this connection, or the web session, to another of your workspaces; later calls act there. An API key stays in its own workspace."},
+		func(ctx context.Context, actor auth.Actor, in workspaceInput) (workspaceRef, error) {
+			m, err := members.Member(ctx, actor, in.WorkspaceID)
+			if err != nil {
+				return workspaceRef{}, err
+			}
+			return workspaceRef{ID: m.WorkspaceID, Name: m.Name, Current: true}, keys.Switch(ctx, actor, m.UserID)
+		})
+	add(r, &mcp.Tool{Name: "create_workspace", Title: "Create workspace",
+		Description: "Start a workspace with you as its admin and move there, unless these calls use an API key. It has people and companies, and syncs nothing until someone connects Google in it."},
+		func(ctx context.Context, actor auth.Actor, in createWorkspaceInput) (workspaceRef, error) {
+			user, err := members.Create(ctx, actor, in.Name)
+			if err != nil {
+				return workspaceRef{}, err
+			}
+			created := workspaceRef{ID: user.WorkspaceID, Name: strings.TrimSpace(in.Name), Current: true}
+			if err := keys.Switch(ctx, actor, user.ID); errors.Is(err, auth.ErrFixedWorkspace) {
+				created.Current = false
+			} else if err != nil {
+				return workspaceRef{}, err
+			}
+			return created, nil
+		})
 	add(r, &mcp.Tool{Name: "get_workspace", Title: "Get workspace", Annotations: readOnly,
 		Description: "Describe this workspace: its name, description, members and pending invites."},
 		func(ctx context.Context, actor auth.Actor, _ empty) (workspaceView, error) {
@@ -65,4 +101,22 @@ type inviteOutput struct {
 type updateWorkspaceInput struct {
 	Name        *string `json:"name,omitempty"`
 	Description *string `json:"description,omitempty" jsonschema:"who this workspace's CRM is for, such as: manufacturing customers, suppliers and partners"`
+}
+
+type workspaceRef struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Current bool   `json:"current,omitempty"`
+}
+
+type workspacesOutput struct {
+	Workspaces []workspaceRef `json:"workspaces"`
+}
+
+type workspaceInput struct {
+	WorkspaceID string `json:"workspace_id"`
+}
+
+type createWorkspaceInput struct {
+	Name string `json:"name"`
 }

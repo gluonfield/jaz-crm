@@ -1,6 +1,7 @@
 import { Link, useRouterState } from '@tanstack/react-router'
-import { ChevronDown, Inbox, LoaderCircle, LogOut, Monitor, Moon, PlugZap, Search, Settings, Sun, TextSearch } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { Check, ChevronDown, Inbox, LoaderCircle, LogOut, Monitor, Moon, PlugZap, Plus, Search, Settings, Sun, TextSearch } from 'lucide-react'
+import { type ReactNode, useState } from 'react'
+import { Button, inputClass } from '@/components/controls'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,6 +13,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { signOut, useMe } from '@/lib/account'
 import { embedded } from '@/lib/api'
@@ -21,6 +23,7 @@ import { setSchemePreference } from '@/lib/theme'
 import type { Contact } from '@/lib/types'
 import { setUI } from '@/lib/ui'
 import { cn } from '@/lib/utils'
+import { useMoveWorkspace, useWorkspaces } from '@/lib/workspaces'
 import { ObjectIcon, RecordIcon } from './icons'
 import { Kbd } from './kbd'
 
@@ -107,46 +110,96 @@ function NavItem({ to, icon, count, busy, children }: { to: string; icon: ReactN
 function WorkspaceMenu() {
   const workspace = useWorkspace()
   const me = useMe()
+  const workspaces = useWorkspaces()
+  const move = useMoveWorkspace()
+  const [creating, setCreating] = useState(false)
   const name = workspace?.name ?? ''
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger className="flex h-7 min-w-0 flex-1 select-none items-center gap-2 rounded-[var(--radius-control)] px-1.5 font-semibold text-ink outline-none hover:bg-list-hover data-[state=open]:bg-list-active">
-        {name && <RecordIcon object="companies" name={name} />}
-        <span className="truncate">{name}</span>
-        <ChevronDown className="size-3 shrink-0 text-ink-3" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-56">
-        {me && <DropdownMenuLabel className="truncate text-[12px] font-normal text-ink-3">{me.email}</DropdownMenuLabel>}
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>
-            <Sun /> Theme
-          </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent>
-            <DropdownMenuItem onSelect={() => setSchemePreference('light')}>
-              <Sun /> Light
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger className="flex h-7 min-w-0 flex-1 select-none items-center gap-2 rounded-[var(--radius-control)] px-1.5 font-semibold text-ink outline-none hover:bg-list-hover data-[state=open]:bg-list-active">
+          {name && <RecordIcon object="companies" name={name} />}
+          <span className="truncate">{name}</span>
+          <ChevronDown className="size-3 shrink-0 text-ink-3" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-56">
+          {me && <DropdownMenuLabel className="truncate text-[12px] font-normal text-ink-3">{me.email}</DropdownMenuLabel>}
+          {workspaces.map((w) => (
+            <DropdownMenuItem key={w.id} onSelect={() => !w.current && move.mutate({ workspace_id: w.id })}>
+              <RecordIcon object="companies" name={w.name} size={16} />
+              <span className="flex-1 truncate">{w.name}</span>
+              {w.current && <Check aria-label="Current" />}
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => setSchemePreference('dark')}>
-              <Moon /> Dark
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => setSchemePreference('system')}>
-              <Monitor /> System
-            </DropdownMenuItem>
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
-        <DropdownMenuItem asChild>
-          <Link to="/settings">
-            <Settings /> Settings
-          </Link>
-        </DropdownMenuItem>
-        {!embedded() && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => void signOut()}>
-              <LogOut /> Sign out
-            </DropdownMenuItem>
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+          ))}
+          <DropdownMenuItem onSelect={() => setCreating(true)}>
+            <Plus /> New workspace
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <Sun /> Theme
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <DropdownMenuItem onSelect={() => setSchemePreference('light')}>
+                <Sun /> Light
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setSchemePreference('dark')}>
+                <Moon /> Dark
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setSchemePreference('system')}>
+                <Monitor /> System
+              </DropdownMenuItem>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+          <DropdownMenuItem asChild>
+            <Link to="/settings">
+              <Settings /> Settings
+            </Link>
+          </DropdownMenuItem>
+          {!embedded() && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => void signOut()}>
+                <LogOut /> Sign out
+              </DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <NewWorkspace open={creating} onOpenChange={setCreating} />
+    </>
+  )
+}
+
+// NewWorkspace names a workspace and moves there.
+function NewWorkspace({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+  const [name, setName] = useState('')
+  const move = useMoveWorkspace()
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent showCloseButton={false} className="w-[380px] gap-3 rounded-[12px] border-border bg-raised p-4 shadow-[var(--shadow-raised)]">
+        <DialogTitle className="text-[14px] font-semibold text-ink">New workspace</DialogTitle>
+        <form
+          className="flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            move.mutate(
+              { name },
+              {
+                onSuccess: () => {
+                  onOpenChange(false)
+                  setName('')
+                },
+              },
+            )
+          }}
+        >
+          <input autoFocus aria-label="Workspace name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Name, such as Acme" className={cn(inputClass, 'flex-1')} />
+          <Button primary type="submit" disabled={!name.trim() || move.isPending}>
+            Create
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }

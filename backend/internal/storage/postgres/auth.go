@@ -131,8 +131,33 @@ func (s *Store) RevokeOAuthToken(ctx context.Context, tokenHash []byte) error {
 	return mapError(s.auth.RevokeTokenFamily(ctx, tokenHash))
 }
 
-func (s *Store) UserByAccessToken(ctx context.Context, tokenHash []byte) (storage.User, error) {
-	return one(toUser)(s.auth.UserByAccessToken(ctx, tokenHash))
+func (s *Store) UserByAccessToken(ctx context.Context, tokenHash []byte) (storage.User, string, error) {
+	row, err := s.auth.UserByAccessToken(ctx, tokenHash)
+	return toUser(row.User), row.GrantID, mapError(err)
+}
+
+func (s *Store) UpdateOAuthGrantUser(ctx context.Context, grantID, userID string) error {
+	return moved(s.auth.UpdateOAuthGrantUser(ctx, authdb.UpdateOAuthGrantUserParams{ID: grantID, UserID: userID}))
+}
+
+func (s *Store) UpdateSessionUser(ctx context.Context, tokenHash []byte, userID string) error {
+	return moved(s.auth.UpdateSessionUser(ctx, authdb.UpdateSessionUserParams{TokenHash: tokenHash, UserID: userID}))
+}
+
+// moved reports a move that matched no row as not found.
+func moved(rows int64, err error) error {
+	if err == nil && rows == 0 {
+		return storage.ErrNotFound
+	}
+	return mapError(err)
+}
+
+func (s *Store) UserIdentities(ctx context.Context, userID string) ([]storage.Identity, error) {
+	return many(func(r authdb.Identity) storage.Identity { return storage.Identity(r) })(s.auth.UserIdentities(ctx, userID))
+}
+
+func (s *Store) Memberships(ctx context.Context, userID string) ([]storage.Membership, error) {
+	return many(func(r authdb.MembershipsRow) storage.Membership { return storage.Membership(r) })(s.auth.Memberships(ctx, userID))
 }
 
 func (s *Store) OAuthGrants(ctx context.Context, userID string) ([]storage.OAuthGrantSummary, error) {

@@ -273,8 +273,26 @@ func (q *Queries) RevokeTokenFamily(ctx context.Context, hash []byte) error {
 	return err
 }
 
+const updateOAuthGrantUser = `-- name: UpdateOAuthGrantUser :execrows
+UPDATE oauth_grants SET user_id = $2 WHERE id = $1 AND revoked_at IS NULL
+`
+
+type UpdateOAuthGrantUserParams struct {
+	ID     string
+	UserID string
+}
+
+// UpdateOAuthGrantUser moves a grant to another of its person's users.
+func (q *Queries) UpdateOAuthGrantUser(ctx context.Context, arg UpdateOAuthGrantUserParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateOAuthGrantUser, arg.ID, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const userByAccessToken = `-- name: UserByAccessToken :one
-SELECT users.id, users.workspace_id, users.name, users.email, users.avatar_url, users.admin, users.created_at FROM oauth_tokens
+SELECT users.id, users.workspace_id, users.name, users.email, users.avatar_url, users.admin, users.created_at, oauth_grants.id AS grant_id FROM oauth_tokens
 JOIN oauth_grants ON oauth_grants.id = oauth_tokens.grant_id
 JOIN users ON users.id = oauth_grants.user_id
 WHERE oauth_tokens.token_hash = $1 AND oauth_tokens.kind = 'access'
@@ -282,17 +300,23 @@ WHERE oauth_tokens.token_hash = $1 AND oauth_tokens.kind = 'access'
   AND oauth_grants.revoked_at IS NULL
 `
 
-func (q *Queries) UserByAccessToken(ctx context.Context, tokenHash []byte) (User, error) {
+type UserByAccessTokenRow struct {
+	User    User
+	GrantID string
+}
+
+func (q *Queries) UserByAccessToken(ctx context.Context, tokenHash []byte) (UserByAccessTokenRow, error) {
 	row := q.db.QueryRow(ctx, userByAccessToken, tokenHash)
-	var i User
+	var i UserByAccessTokenRow
 	err := row.Scan(
-		&i.ID,
-		&i.WorkspaceID,
-		&i.Name,
-		&i.Email,
-		&i.AvatarURL,
-		&i.Admin,
-		&i.CreatedAt,
+		&i.User.ID,
+		&i.User.WorkspaceID,
+		&i.User.Name,
+		&i.User.Email,
+		&i.User.AvatarURL,
+		&i.User.Admin,
+		&i.User.CreatedAt,
+		&i.GrantID,
 	)
 	return i, err
 }

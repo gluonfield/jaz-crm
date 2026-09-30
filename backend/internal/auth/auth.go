@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gluonfield/jaz-crm/backend/internal/errs"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 )
 
@@ -23,6 +24,35 @@ type Actor struct {
 	// Agent is set for bearer credentials: the request comes from software
 	// acting for the user rather than from the person's own browser.
 	Agent bool
+	// The session or OAuth grant the request came with, which a switch of
+	// workspace moves; an API key has neither and stays in its workspace.
+	session []byte
+	grant   string
+}
+
+// Principal names who holds the credential and stays the same when it
+// switches workspace: the OAuth grant, or the user for an API key.
+func (a Actor) Principal() string {
+	if a.grant != "" {
+		return "grant:" + a.grant
+	}
+	return a.UserID
+}
+
+// ErrFixedWorkspace is a switch asked of an API key, which belongs to one
+// workspace's user.
+var ErrFixedWorkspace = errs.Invalid{Message: "an API key acts in its own workspace; create one in the other workspace"}
+
+// Switch points the session or OAuth grant behind actor at another of the
+// person's users, so its later requests act in that user's workspace.
+func (s *Service) Switch(ctx context.Context, actor Actor, userID string) error {
+	switch {
+	case actor.grant != "":
+		return s.store.UpdateOAuthGrantUser(ctx, actor.grant, userID)
+	case actor.session != nil:
+		return s.store.UpdateSessionUser(ctx, actor.session, userID)
+	}
+	return ErrFixedWorkspace
 }
 
 func actorOf(user storage.User) Actor {
@@ -54,10 +84,11 @@ const (
 // Authenticate resolves a bearer token: an OAuth access token or an API key.
 func (s *Service) Authenticate(ctx context.Context, token string) (Actor, error) {
 	var user storage.User
+	var grant string
 	var err error
 	switch {
 	case strings.HasPrefix(token, accessTokenPrefix):
-		user, err = s.store.UserByAccessToken(ctx, hash(token))
+		user, grant, err = s.store.UserByAccessToken(ctx, hash(token))
 	case token != "":
 		user, err = s.store.UserByAPIKey(ctx, hash(token))
 	default:
@@ -67,7 +98,7 @@ func (s *Service) Authenticate(ctx context.Context, token string) (Actor, error)
 		return Actor{}, ErrUnauthenticated
 	}
 	actor := actorOf(user)
-	actor.Agent = true
+	actor.Agent, actor.grant = true, grant
 	return actor, err
 }
 
