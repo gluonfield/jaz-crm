@@ -1,0 +1,68 @@
+name: Container images
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+concurrency:
+  group: images-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: jazcrm
+          POSTGRES_PASSWORD: jazcrm
+          POSTGRES_DB: jazcrm
+        ports: ['55532:5432']
+        options: --health-cmd="pg_isready -U jazcrm" --health-interval=2s --health-timeout=3s --health-retries=30
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
+        with:
+          go-version: '1.26'
+          cache-dependency-path: backend/go.sum
+      - working-directory: backend
+        run: |
+          go build ./...
+          go vet ./...
+          go test ./...
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        target: [server, worker]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - name: Publish ${{ matrix.target }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker buildx create --use
+          image="ghcr.io/${GITHUB_REPOSITORY,,}-$TARGET"
+          tags=(--tag "$image:$GITHUB_SHA")
+          if [[ "$GITHUB_REF" == refs/heads/main ]]; then
+            tags+=(--tag "$image:latest")
+          elif [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            tags+=(--tag "$image:$GITHUB_REF_NAME")
+          fi
+          docker buildx build --platform linux/amd64,linux/arm64 --target "$TARGET" "${tags[@]}" \
+            --label "org.opencontainers.image.source=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --push .

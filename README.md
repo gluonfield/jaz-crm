@@ -17,6 +17,28 @@ Agents connect to `/mcp` with OAuth, or with an API key as a bearer token:
 claude mcp add --transport http jaz-crm http://localhost:7500/mcp --header "Authorization: Bearer $OWNER_API_KEY"
 ```
 
+## Container images
+
+GitHub Actions verifies the backend and publishes two images for Linux amd64 and arm64:
+
+- `ghcr.io/gluonfield/jaz-crm-server`: HTTP, MCP and the web app; listens on port 7500.
+- `ghcr.io/gluonfield/jaz-crm-worker`: background sync; starts the worker directly, with no web assets or HTTP port.
+
+Main publishes `latest` and the full commit SHA. A `v*` Git tag publishes that tag and its commit SHA. Pin both services to the same SHA or release tag for a repeatable deployment.
+
+Copy `.env.example` to `deployment.env`. Set `DATABASE_URL` to a reachable Postgres database, `TEMPORAL_ADDRESS` and `TEMPORAL_NAMESPACE` to your Temporal service, and `PUBLIC_URL` to the public server URL. Add `TEMPORAL_API_KEY` for Temporal Cloud. Configure `OIDC_*` for sign-in and `GOOGLE_*` plus a stable `ENCRYPTION_KEY` for sync. Both containers use the same database, Temporal settings and encryption key; configuration is read at startup.
+
+```sh
+docker run -d --name jaz-crm-server --restart unless-stopped \
+  --env-file deployment.env -p 7500:7500 ghcr.io/gluonfield/jaz-crm-server:latest
+docker run -d --name jaz-crm-worker --restart unless-stopped \
+  --env-file deployment.env ghcr.io/gluonfield/jaz-crm-worker:latest
+```
+
+Postgres and Temporal run separately. Schema migrations run automatically. `GET /healthz` checks the server; worker startup and sync are reported in its logs. The images run as a non-root user. GitHub creates new packages as private: authenticated pulls need a token with `read:packages`, or the package owner can make each package public in its settings.
+
+Build locally with `docker build --target server -t jaz-crm-server .` and `docker build --target worker -t jaz-crm-worker .`. Docker Compose selects these targets automatically.
+
 ## How it works
 
 - **Records.** Objects are record types; every workspace starts with people, companies and deals and can add its own, such as suppliers. Attributes are typed: text, number, date, checkbox, url, select, status, email, domain, phone and reference. A status is a select whose options are ordered stages, so an object with one is a pipeline, shown as a board. Add stages, drag their grips to reorder, or click a grip to rename, move, collapse or delete a stage. Deleting moves its deals to a chosen stage and keeps their history. Emails, domains and phone numbers identify records, so writing a known email updates that person instead of creating another.

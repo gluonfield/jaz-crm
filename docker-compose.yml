@@ -1,5 +1,4 @@
 x-app: &app
-  build: .
   restart: unless-stopped
   environment:
     DATABASE_URL: postgres://jazcrm:jazcrm@postgres:5432/jazcrm?sslmode=disable
@@ -72,12 +71,17 @@ services:
 
   server:
     <<: *app
+    build:
+      context: .
+      target: server
     ports:
       - "7500:7500"
 
   worker:
     <<: *app
-    entrypoint: ["/app/worker"]
+    build:
+      context: .
+      target: worker
 
 volumes:
   postgres:
