@@ -23,24 +23,23 @@ func NewService(store storage.LogoStore, fetch Fetcher) *Service {
 // refreshBatch is how many domains one refresh looks up.
 const refreshBatch = 20
 
-// Refresh looks up the logos of a workspace's domains that are due, and
-// reports how many it looked up.
-func (s *Service) Refresh(ctx context.Context, workspaceID string) (int, error) {
+// Refresh looks up the logos of a workspace's domains that are due.
+func (s *Service) Refresh(ctx context.Context, workspaceID string) error {
 	domains, err := s.store.StaleLogoDomains(ctx, workspaceID, refreshBatch)
 	if err != nil {
-		return 0, err
+		return err
 	}
-	for i, domain := range domains {
+	for _, domain := range domains {
 		logo := s.fetch.Icon(ctx, domain)
 		// A cancelled look found nothing about the site.
 		if err := ctx.Err(); err != nil {
-			return i, err
+			return err
 		}
 		if err := s.store.SaveLogo(ctx, logo); err != nil {
-			return i, err
+			return err
 		}
 	}
-	return len(domains), nil
+	return nil
 }
 
 // Logo returns the image a token names.

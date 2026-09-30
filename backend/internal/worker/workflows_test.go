@@ -23,7 +23,7 @@ func syncEnv(t *testing.T, backfill func(int) (bool, error), incremental error) 
 		return backfill(len(passes))
 	})
 	env.OnActivity(a.GmailIncremental, mock.Anything, "c1").Return(incremental).Maybe()
-	for _, step := range []any{a.Aliases, a.CalendarSync, a.Triage, a.Photos, a.Watch} {
+	for _, step := range []any{a.Aliases, a.CalendarSync, a.Triage, a.CompanyLogos, a.Photos, a.Watch} {
 		env.OnActivity(step, mock.Anything, "c1").Return(nil).Maybe()
 	}
 	env.OnActivity(a.FetchContent, mock.Anything, "c1").Return(0, nil).Maybe()

@@ -70,7 +70,7 @@ func pass(ctx workflow.Context, a *Activities, id string) (bool, error) {
 		out      any
 	}{
 		{a.Aliases, nil}, {a.GmailBackfill, &backfilled}, {a.GmailIncremental, nil}, {a.CalendarSync, nil}, {a.Triage, nil},
-		{a.FetchContent, &fetched}, {a.Photos, nil}, {a.Watch, nil}, {a.DueMeetings, &due},
+		{a.CompanyLogos, nil}, {a.FetchContent, &fetched}, {a.Photos, nil}, {a.Watch, nil}, {a.DueMeetings, &due},
 	}
 	for _, s := range steps {
 		if err := run(s.activity, s.out); err != nil {

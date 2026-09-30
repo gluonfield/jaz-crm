@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"slices"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/gluonfield/jaz-crm/backend/internal/connections"
@@ -61,18 +60,24 @@ type session struct {
 	known  interactions.Known
 }
 
-// session loads a connection with its Google client; a deleted or revoked
-// connection ends the sync.
-func (a *Activities) session(ctx context.Context, id string) (session, error) {
+// connection loads a connection that is syncing; a deleted or revoked one
+// ends the sync.
+func (a *Activities) connection(ctx context.Context, id string) (storage.Connection, error) {
 	c, err := a.Connections.Connection(ctx, id)
 	if errors.Is(err, storage.ErrNotFound) {
-		return session{}, temporal.NewNonRetryableApplicationError("connection deleted", errGone, err)
+		return c, temporal.NewNonRetryableApplicationError("connection deleted", errGone, err)
 	}
+	if err == nil && c.Status != "active" {
+		return c, temporal.NewNonRetryableApplicationError("connection revoked", errRevoked, nil)
+	}
+	return c, err
+}
+
+// session loads a connection with its Google client.
+func (a *Activities) session(ctx context.Context, id string) (session, error) {
+	c, err := a.connection(ctx, id)
 	if err != nil {
 		return session{}, err
-	}
-	if c.Status != "active" {
-		return session{}, temporal.NewNonRetryableApplicationError("connection revoked", errRevoked, nil)
 	}
 	g, err := a.Connections.Google(ctx, c)
 	if err != nil {
@@ -105,16 +110,12 @@ func (a *Activities) Aliases(ctx context.Context, id string) error {
 	return a.Connections.AddAliases(ctx, id, aliases)
 }
 
-// Photos looks up the logos of companies' new domains, and once a day reads
-// the profile pictures of the people the mailbox has written to. An account
-// connected before it granted contacts access skips pictures until it
-// connects again.
+// Photos reads, once a day, the profile pictures of the people the mailbox
+// has written to. An account connected before it granted contacts access
+// skips pictures until it connects again.
 func (a *Activities) Photos(ctx context.Context, id string) error {
 	s, err := a.session(ctx, id)
 	if err != nil {
-		return err
-	}
-	if _, err := a.Logos.Refresh(ctx, s.conn.WorkspaceID); err != nil {
 		return err
 	}
 	last, err := a.Connections.Cursor(ctx, id, connections.StreamPhotos)
@@ -227,9 +228,9 @@ func (a *Activities) GmailIncremental(ctx context.Context, id string) error {
 func (a *Activities) ingest(ctx context.Context, s session, ids []string) error {
 	var delivered []string
 	for chunk := range slices.Chunk(ids, contentBatch) {
-		messages, err := fetch(ctx, s.google, chunk, false)
+		messages, err := s.google.Messages(ctx, chunk, false)
 		if err != nil {
-			return err
+			return classify(err)
 		}
 		for _, m := range messages {
 			if m.ID == "" {
@@ -245,40 +246,6 @@ func (a *Activities) ingest(ctx context.Context, s session, ids []string) error 
 		activity.RecordHeartbeat(ctx, len(delivered))
 	}
 	return a.Connections.AddAliases(ctx, s.conn.ID, delivered)
-}
-
-// A sync fetches up to fetchers messages at once, starting fetchRate a
-// second: a fetch costs 5 of the 15,000 quota units Gmail allows a user a
-// minute, and other clients of the account share them.
-const (
-	fetchers  = 8
-	fetchRate = 10
-)
-
-// fetch gets messages concurrently, in the order asked; one deleted since it
-// was listed comes back empty.
-func fetch(ctx context.Context, g *google.Client, ids []string, full bool) ([]google.Message, error) {
-	messages := make([]google.Message, len(ids))
-	errs := make([]error, len(ids))
-	slots := make(chan struct{}, fetchers)
-	pace := time.NewTicker(time.Second / fetchRate)
-	defer pace.Stop()
-	var wg sync.WaitGroup
-	for i, id := range ids {
-		<-pace.C
-		slots <- struct{}{}
-		wg.Go(func() {
-			defer func() { <-slots }()
-			messages[i], errs[i] = g.Message(ctx, id, full)
-		})
-	}
-	wg.Wait()
-	for _, err := range errs {
-		if err != nil && !errors.Is(err, google.ErrNotFound) {
-			return nil, classify(err)
-		}
-	}
-	return messages, nil
 }
 
 func emailOf(c storage.Connection, m google.Message) interactions.EmailMessage {
@@ -357,14 +324,20 @@ func (a *Activities) meeting(ctx context.Context, s session, e google.Event) err
 
 // Triage settles the connection's workspace's addresses.
 func (a *Activities) Triage(ctx context.Context, id string) error {
-	c, err := a.Connections.Connection(ctx, id)
-	if errors.Is(err, storage.ErrNotFound) {
-		return temporal.NewNonRetryableApplicationError("connection deleted", errGone, err)
-	}
+	c, err := a.connection(ctx, id)
 	if err != nil {
 		return err
 	}
 	return a.Interactions.Triage(ctx, c.WorkspaceID)
+}
+
+// CompanyLogos looks up the logos of the workspace's new company domains.
+func (a *Activities) CompanyLogos(ctx context.Context, id string) error {
+	c, err := a.connection(ctx, id)
+	if err != nil {
+		return err
+	}
+	return a.Logos.Refresh(ctx, c.WorkspaceID)
 }
 
 // FetchContent fetches bodies of linked messages, returning how many.
@@ -381,9 +354,9 @@ func (a *Activities) FetchContent(ctx context.Context, id string) (int, error) {
 	for i, p := range parts {
 		ids[i] = p.ProviderID
 	}
-	messages, err := fetch(ctx, s.google, ids, true)
+	messages, err := s.google.Messages(ctx, ids, true)
 	if err != nil {
-		return 0, err
+		return 0, classify(err)
 	}
 	for i, p := range parts {
 		if err := a.Interactions.SetContent(ctx, p.ID, messages[i].Text); err != nil {

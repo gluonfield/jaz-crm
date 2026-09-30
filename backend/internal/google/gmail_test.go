@@ -16,6 +16,7 @@ import (
 
 func TestMessage(t *testing.T) {
 	c := fake(t, map[string]http.HandlerFunc{
+		"/gmail/v1/users/me/messages/gone": respond(http.StatusNotFound, `{"error":{"code":404,"message":"Not Found"}}`),
 		"/gmail/v1/users/me/messages/m1": func(w http.ResponseWriter, r *http.Request) {
 			wantQuery(t, r.URL, url.Values{"format": {"metadata"}, "metadataHeaders": {"From", "To", "Cc", "Subject", "Message-ID", "In-Reply-To", "References", "List-Unsubscribe", "Precedence", "Auto-Submitted", "Delivered-To"}})
 			io.WriteString(w, `{"id":"m1","threadId":"t1","labelIds":["INBOX","UNREAD"],"internalDate":"1760000000123","payload":{"headers":[
@@ -43,7 +44,7 @@ func TestMessage(t *testing.T) {
 				base64.URLEncoding.EncodeToString([]byte("attachment")))
 		},
 	})
-	got, err := c.Message(t.Context(), "m1", false)
+	got, err := c.Messages(t.Context(), []string{"gone", "m1"}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,15 +62,15 @@ func TestMessage(t *testing.T) {
 		References:  []string{"r1@x.com", "r2@x.com", "prev@x.com"},
 		DeliveredTo: []string{"owner@x.com", "jane.alias@x.com"},
 	}
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("metadata message =\n%+v\nwant\n%+v", got, want)
+	if !reflect.DeepEqual(got, []Message{{}, want}) {
+		t.Errorf("metadata messages =\n%+v\nwant a deleted one empty, then\n%+v", got, want)
 	}
-	full, err := c.Message(t.Context(), "m2", true)
+	full, err := c.Messages(t.Context(), []string{"m2"}, true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := "Hello Ann!\n\n-- footer."; full.Text != want {
-		t.Errorf("text = %q, want %q", full.Text, want)
+	if want := "Hello Ann!\n\n-- footer."; full[0].Text != want {
+		t.Errorf("text = %q, want %q", full[0].Text, want)
 	}
 }
 

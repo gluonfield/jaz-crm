@@ -218,6 +218,7 @@ func TestSyncAgainstGoogle(t *testing.T) {
 	if cursor, _ := conns.Cursor(ctx, conn.ID, connections.StreamPhotos); cursor != "" {
 		t.Fatalf("an account without contacts access must retry after reconnecting: %q", cursor)
 	}
+	run(a.CompanyLogos, nil, conn.ID)
 	person, err := crm.Get(ctx, actor, ada)
 	if err != nil {
 		t.Fatal(err)

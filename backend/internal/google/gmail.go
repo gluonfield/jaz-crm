@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -73,8 +74,42 @@ func (c *Client) ListMessages(ctx context.Context, query, pageToken string) (Mes
 	return page, nil
 }
 
-// Message leaves Text empty unless full is set: metadata responses carry no bodies.
-func (c *Client) Message(ctx context.Context, id string, full bool) (Message, error) {
+// Messages reads up to messageReaders messages at once, starting messageRate a
+// second: a read costs 5 of the 15,000 quota units Gmail allows a user a
+// minute, and other clients of the account share them.
+const (
+	messageReaders = 8
+	messageRate    = 10
+)
+
+// Messages returns messages in the order asked; one deleted since it was
+// listed comes back empty. Text is empty unless full is set: metadata
+// responses carry no bodies.
+func (c *Client) Messages(ctx context.Context, ids []string, full bool) ([]Message, error) {
+	messages := make([]Message, len(ids))
+	errs := make([]error, len(ids))
+	slots := make(chan struct{}, messageReaders)
+	pace := time.NewTicker(time.Second / messageRate)
+	defer pace.Stop()
+	var wg sync.WaitGroup
+	for i, id := range ids {
+		<-pace.C
+		slots <- struct{}{}
+		wg.Go(func() {
+			defer func() { <-slots }()
+			messages[i], errs[i] = c.message(ctx, id, full)
+		})
+	}
+	wg.Wait()
+	for _, err := range errs {
+		if err != nil && !errors.Is(err, ErrNotFound) {
+			return nil, err
+		}
+	}
+	return messages, nil
+}
+
+func (c *Client) message(ctx context.Context, id string, full bool) (Message, error) {
 	q := url.Values{"format": {"metadata"}, "metadataHeaders": metadataHeaders}
 	if full {
 		q = url.Values{"format": {"full"}}
