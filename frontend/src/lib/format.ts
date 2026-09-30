@@ -36,6 +36,30 @@ export function timeAgo(iso: string) {
   return 'just now'
 }
 
+// recentOrDate says how long ago a moment of the last week was, and the date
+// of an older one.
+export function recentOrDate(iso: string) {
+  return Date.now() - new Date(iso).getTime() < 7 * 86400000 ? timeAgo(iso) : formatDate(iso)
+}
+
+export const hasEnded = (iso: string) => new Date(iso).getTime() < Date.now()
+
+const weekday = new Intl.DateTimeFormat('en', { weekday: 'short' })
+
+// meetingTime says when a meeting runs: its day, its start and end, and how
+// long it lasts.
+export function meetingTime(start: string, end?: string) {
+  const from = new Date(start)
+  const text = `${weekday.format(from)}, ${formatDate(from)} · ${clock.format(from)}`
+  if (!end) {
+    return text
+  }
+  const to = new Date(end)
+  const minutes = Math.round((to.getTime() - from.getTime()) / 60000)
+  const length = minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} h${minutes % 60 ? ` ${minutes % 60} min` : ''}`
+  return `${text} – ${clock.format(to)} · ${length}`
+}
+
 // localInput is a datetime-local input's value for a moment.
 export function localInput(date: Date) {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16)

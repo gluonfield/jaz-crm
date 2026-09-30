@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils'
 import { Chip } from './controls'
 import { RecordIcon } from './icons'
 import { Picker } from './picker'
+import { Stage, StageDot } from './stage'
 import { SelectField } from './select-field'
 
 const inputType: Partial<Record<Attribute['type'], string>> = { number: 'number', date: 'date', email: 'email', url: 'url', phone: 'tel' }
@@ -36,6 +37,20 @@ export function Field({ record, attribute }: { record: CrmRecord; attribute: Att
   if (attribute.type === 'select') {
     return <SelectField record={record} attribute={attribute} />
   }
+  if (attribute.type === 'status') {
+    const current = values[0] && valueText(values[0])
+    return (
+      <Picker
+        trigger={
+          <button className={cn(valueButton, !current && 'text-ink-3')}>{current ? <Stage attribute={attribute} stage={current} /> : 'Set…'}</button>
+        }
+        placeholder={`Set ${attribute.name.toLowerCase()}...`}
+        options={(attribute.options ?? []).map((o) => ({ value: o, label: o, icon: <StageDot attribute={attribute} stage={o} /> }))}
+        selected={values.map(valueKey)}
+        onSelect={(option) => write.set(slug, option)}
+      />
+    )
+  }
   if (attribute.type === 'reference') {
     return <ReferenceField record={record} attribute={attribute} values={values} />
   }
@@ -47,7 +62,14 @@ export function Field({ record, attribute }: { record: CrmRecord; attribute: Att
             {valueText(v)}
           </Chip>
         ))}
-        <TextInput key={values.length} label={`Add ${attribute.name.toLowerCase()}`} type={inputType[attribute.type]} placeholder="Add..." onCommit={(text) => write.set(slug, text)} />
+        <TextInput
+          key={values.length}
+          label={`Add ${attribute.name.toLowerCase()}`}
+          type={inputType[attribute.type]}
+          placeholder="Add…"
+          className="w-auto min-w-16 flex-1"
+          onCommit={(text) => write.set(slug, text)}
+        />
       </div>
     )
   }
@@ -58,12 +80,17 @@ export function Field({ record, attribute }: { record: CrmRecord; attribute: Att
       initial={current}
       label={attribute.name}
       type={inputType[attribute.type]}
-      placeholder="Empty"
-      display={attribute.type === 'date' && current ? formatDay(current) : undefined}
+      placeholder="Add…"
+      display={current ? shown[attribute.type]?.(current) : undefined}
       onCommit={(text) => (text ? write.set(slug, text) : current && write.remove(slug, []))}
     />
   )
 }
+
+const number = new Intl.NumberFormat('en', { maximumFractionDigits: 2 })
+
+// shown formats the values whose stored form reads poorly.
+const shown: Partial<Record<Attribute['type'], (value: string) => string>> = { date: formatDay, number: (value) => number.format(Number(value)) }
 
 const valueButton = 'flex h-7 min-w-0 max-w-full items-center truncate rounded-[var(--radius-control)] px-1.5 text-left text-[13px] text-ink outline-none hover:bg-list-hover'
 

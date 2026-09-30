@@ -1,6 +1,8 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
-import { ArrowDownAZ, ChevronDown, Plus, Search, Tags } from 'lucide-react'
-import { useState } from 'react'
+import { ArrowDownAZ, ChevronDown, Kanban, Plus, Search, Table2, Tags } from 'lucide-react'
+import { type ReactNode, useState } from 'react'
+import { Board } from '@/components/board'
+import { Stage } from '@/components/stage'
 import { Button, Header, inputClass } from '@/components/controls'
 import { ConnectGoogle, EmptyState } from '@/components/empty-state'
 import { ObjectIcon, RecordIcon } from '@/components/icons'
@@ -10,12 +12,14 @@ import { recordName, valueText, valuesOf } from '@/lib/crm'
 import { formatDay } from '@/lib/format'
 import { useDebounced, useListKeys } from '@/lib/hooks'
 import { useAction, useObjects, useRecords } from '@/lib/queries'
+import { statusOf } from '@/lib/stages'
 import { useMail } from '@/lib/sync'
 import type { Attribute, CrmObject, CrmRecord } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 export const Route = createFileRoute('/_app/o/$object')({
-  validateSearch: (search: Record<string, unknown>): { category?: string; sort?: 'name' } => ({
+  validateSearch: (search: Record<string, unknown>): { category?: string; sort?: 'name'; view?: 'table' } => ({
+    view: search.view === 'table' ? 'table' : undefined,
     category: typeof search.category === 'string' ? search.category : undefined,
     sort: search.sort === 'name' ? 'name' : undefined,
   }),
@@ -32,7 +36,7 @@ function ObjectPage() {
   const { object: slug } = Route.useParams()
   const object = useObjects()?.find((o) => o.slug === slug)
   const categories = object?.attributes.find((a) => a.slug === 'categories' && a.type === 'select')
-  const { category, sort } = Route.useSearch()
+  const { category, sort, view } = Route.useSearch()
   const [search, setSearch] = useState('')
   const query = useDebounced(search.trim())
   const found = useRecords(slug, query, 100, category && categories ? { categories: category } : {}).data?.records
@@ -45,7 +49,9 @@ function ObjectPage() {
     return <Header>{slug}</Header>
   }
   const columns = object.attributes.filter((a) => a.slug !== 'name').sort((a, b) => Number(b.slug === 'categories') - Number(a.slug === 'categories'))
-  const filter = (value: string) => void navigate({ to: '.', search: { category: value || undefined, sort }, replace: true })
+  const status = statusOf(object.attributes)
+  const board = view === 'table' ? undefined : status
+  const filter = (value: string) => void navigate({ to: '.', search: { category: value || undefined, sort, view }, replace: true })
   return (
     <>
       <Header>
@@ -57,6 +63,16 @@ function ObjectPage() {
         </Button>
       </Header>
       <div onKeyDown={(e) => e.stopPropagation()} className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border px-4 py-2.5">
+        {status && (
+          <div role="group" aria-label="View" className="flex h-10 items-center rounded-[var(--radius-control)] border border-border p-0.5">
+            <ViewButton active={!!board} label="Board" onClick={() => void navigate({ to: '.', search: { category, sort }, replace: true })}>
+              <Kanban />
+            </ViewButton>
+            <ViewButton active={!board} label="Table" onClick={() => void navigate({ to: '.', search: { category, sort, view: 'table' }, replace: true })}>
+              <Table2 />
+            </ViewButton>
+          </div>
+        )}
         {categories && (
           <Picker
             trigger={<Button className="h-10 min-w-0 max-w-full"><Tags /><span className="max-w-56 truncate">{category || 'All categories'}</span><ChevronDown /></Button>}
@@ -71,7 +87,7 @@ function ObjectPage() {
           placeholder="Sort records…"
           options={[{ value: '', label: 'Recently added' }, { value: 'name', label: 'Name' }]}
           selected={[sort ?? '']}
-          onSelect={(value) => void navigate({ to: '.', search: { category, sort: value === 'name' ? 'name' : undefined }, replace: true })}
+          onSelect={(value) => void navigate({ to: '.', search: { category, sort: value === 'name' ? 'name' : undefined, view }, replace: true })}
         />
         <label className="relative flex w-full min-w-0 items-center sm:ml-auto sm:w-64">
           <Search className="pointer-events-none absolute left-2 size-3.5 text-ink-3" />
@@ -79,7 +95,9 @@ function ObjectPage() {
         </label>
       </div>
       {creating && <QuickCreate object={object} onDone={() => setCreating(false)} />}
-      {records?.length === 0 && !creating ? (
+      {board ? (
+        records && <Board object={object} status={board} records={records} />
+      ) : records?.length === 0 && !creating ? (
         <Empty object={object} query={query} category={categories ? category : undefined} />
       ) : (
         <div className="scrollbar-quiet min-h-0 flex-1 overflow-auto">
@@ -123,8 +141,29 @@ function ObjectPage() {
   )
 }
 
+function ViewButton({ active, label, onClick, children }: { active: boolean; label: string; onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      aria-pressed={active}
+      title={label}
+      onClick={onClick}
+      className={cn(
+        'flex h-full items-center rounded-[4px] px-1.5 text-ink-3 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-3.5',
+        active ? 'bg-list-active text-ink' : 'hover:text-ink',
+      )}
+    >
+      {children}
+    </button>
+  )
+}
+
 function cell(record: CrmRecord, attribute: Attribute) {
   const values = valuesOf(record, attribute.slug).map(valueText)
+  if (attribute.type === 'status' && values[0]) {
+    return <Stage attribute={attribute} stage={values[0]} />
+  }
   if (attribute.type === 'domain') {
     return <div className="flex flex-col gap-1">{values.map((domain) => <a key={domain} href={`https://${domain}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="truncate text-primary hover:underline">{domain}</a>)}</div>
   }

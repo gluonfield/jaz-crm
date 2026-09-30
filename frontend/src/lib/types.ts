@@ -1,6 +1,6 @@
 // Wire shapes of the server's tools; field names are their JSON names.
 
-export const attributeTypes = ['text', 'number', 'date', 'checkbox', 'url', 'select', 'email', 'domain', 'phone', 'reference'] as const
+export const attributeTypes = ['text', 'number', 'date', 'checkbox', 'url', 'select', 'status', 'email', 'domain', 'phone', 'reference'] as const
 export type AttributeType = (typeof attributeTypes)[number]
 
 export type Attribute = {
@@ -15,7 +15,7 @@ export type Attribute = {
 
 export type CrmObject = { slug: string; name: string; attributes: Attribute[] }
 
-export type Ref = { id: string; name?: string }
+export type Ref = { id: string; name?: string; photo?: string }
 
 // A value is text, or a referenced record.
 export type Value = string | Ref
@@ -25,7 +25,7 @@ export type CrmRecord = {
   object: string
   created_at: string
   values: Record<string, Value | Value[] | null>
-  activity?: { interactions: number; last_at?: string }
+  activity?: { interactions: number; first_at?: string; last_at?: string }
   photo?: string
 }
 

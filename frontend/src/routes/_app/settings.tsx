@@ -149,7 +149,7 @@ function NewAttribute({ object, objects, onDone }: { object: CrmObject; objects:
         type,
         multi,
         target: type === 'reference' ? target : undefined,
-        options: type === 'select' ? options.split(',').map((o) => o.trim()).filter(Boolean) : undefined,
+        options: type === 'select' || type === 'status' ? options.split(',').map((o) => o.trim()).filter(Boolean) : undefined,
       },
       { onSuccess: onDone },
     )
@@ -176,7 +176,7 @@ function NewAttribute({ object, objects, onDone }: { object: CrmObject; objects:
           ))}
         </select>
       )}
-      {type === 'select' && <input value={options} onChange={(e) => setOptions(e.target.value)} placeholder="Lead, Quoted, Won" className={cn(inputClass, 'w-48')} />}
+      {(type === 'select' || type === 'status') && <input value={options} onChange={(e) => setOptions(e.target.value)} placeholder="Lead, Quoted, Won" className={cn(inputClass, 'w-48')} />}
       {type !== 'checkbox' && (
         <label className="flex items-center gap-1.5 text-[12.5px] text-ink-2">
           <input type="checkbox" checked={multi} onChange={(e) => setMulti(e.target.checked)} /> Many

@@ -95,7 +95,7 @@ export function Picker({
                   {option.icon}
                   <span className="min-w-0 flex-1 truncate">{option.label}</span>
                   {!multiple && active && <Check className="size-3.5 text-ink-2" />}
-                  {index < 9 && <span className="w-3 text-right text-[11px] tabular-nums text-ink-3">{index + 1}</span>}
+                  {!onCreate && index < 9 && <span className="w-3 text-right text-[11px] tabular-nums text-ink-3">{index + 1}</span>}
                 </CommandPrimitive.Item>
               )
             })}
