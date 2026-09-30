@@ -54,11 +54,17 @@ export function useRecordSearch(query: string, limit = 5) {
 
 const pageSize = 20
 
-// useTimeline pages back through a record's interactions.
-export function useTimeline(recordId: string) {
+// useUpcoming lists a record's scheduled interactions, soonest first.
+export function useUpcoming(recordId: string) {
+  return useTool<{ interactions: Interaction[] }>('list_interactions', { record_id: recordId, upcoming: true, limit: 5 }).data?.interactions ?? []
+}
+
+// useTimeline pages back through a record's interactions of some kinds, or
+// of every kind.
+export function useTimeline(recordId: string, kinds?: string[]) {
   return useInfiniteQuery({
-    queryKey: ['list_interactions', recordId],
-    queryFn: ({ pageParam }) => call<{ interactions: Interaction[] }>('list_interactions', { record_id: recordId, before: pageParam, limit: pageSize }),
+    queryKey: ['list_interactions', recordId, kinds],
+    queryFn: ({ pageParam }) => call<{ interactions: Interaction[] }>('list_interactions', { record_id: recordId, kinds, before: pageParam, limit: pageSize }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => (last.interactions.length === pageSize ? last.interactions[pageSize - 1].started_at : undefined),
   })

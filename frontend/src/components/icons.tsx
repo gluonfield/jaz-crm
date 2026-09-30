@@ -1,4 +1,4 @@
-import { Box, Building2, CalendarDays, Mail, NotebookPen, Phone, Users } from 'lucide-react'
+import { Box, Building2, CalendarDays, Handshake, Mail, NotebookPen, Phone, Users } from 'lucide-react'
 import { useState } from 'react'
 import type { Kind } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -51,7 +51,7 @@ export function RecordIcon({ object, name, photo, size = 18, className }: { obje
   )
 }
 
-const objectIcons: Record<string, typeof Box> = { people: Users, companies: Building2 }
+const objectIcons: Record<string, typeof Box> = { people: Users, companies: Building2, deals: Handshake }
 
 export function ObjectIcon({ slug, className }: { slug: string; className?: string }) {
   const Icon = objectIcons[slug] ?? Box

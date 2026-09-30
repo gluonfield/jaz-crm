@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils'
 import { Chip } from './controls'
 import { RecordIcon } from './icons'
 import { Picker } from './picker'
+import { Stage, StageDot } from './stage'
 
 type Write = { object: string; record_id: string; values?: Record<string, string | string[]>; remove?: Record<string, string[]> }
 
@@ -43,14 +44,18 @@ export function Field({ record, attribute }: { record: CrmRecord; attribute: Att
       </button>
     )
   }
-  if (attribute.type === 'select') {
+  if (attribute.type === 'select' || attribute.type === 'status') {
+    const status = attribute.type === 'status'
+    const current = values[0] && valueText(values[0])
     return (
       <Picker
-        trigger={<button className={cn(valueButton, !values.length && 'text-ink-3')}>{values.length ? valueText(values[0]) : 'Empty'}</button>}
+        trigger={
+          <button className={cn(valueButton, !current && 'text-ink-3')}>{current && status ? <Stage attribute={attribute} stage={current} /> : (current ?? 'Set…')}</button>
+        }
         placeholder={`Set ${attribute.name.toLowerCase()}...`}
-        options={(attribute.options ?? []).map((o) => ({ value: o, label: o }))}
+        options={(attribute.options ?? []).map((o) => ({ value: o, label: o, icon: status ? <StageDot attribute={attribute} stage={o} /> : undefined }))}
         selected={values.map(valueKey)}
-        onSelect={(option) => (values.some((v) => valueKey(v) === option) ? write.remove(slug, [option]) : write.set(slug, option))}
+        onSelect={(option) => (option === current && !status ? write.remove(slug, [option]) : write.set(slug, option))}
       />
     )
   }
@@ -65,7 +70,14 @@ export function Field({ record, attribute }: { record: CrmRecord; attribute: Att
             {valueText(v)}
           </Chip>
         ))}
-        <TextInput key={values.length} label={`Add ${attribute.name.toLowerCase()}`} type={inputType[attribute.type]} placeholder="Add..." onCommit={(text) => write.set(slug, text)} />
+        <TextInput
+          key={values.length}
+          label={`Add ${attribute.name.toLowerCase()}`}
+          type={inputType[attribute.type]}
+          placeholder="Add…"
+          className="w-auto min-w-16 flex-1"
+          onCommit={(text) => write.set(slug, text)}
+        />
       </div>
     )
   }
@@ -76,12 +88,17 @@ export function Field({ record, attribute }: { record: CrmRecord; attribute: Att
       initial={current}
       label={attribute.name}
       type={inputType[attribute.type]}
-      placeholder="Empty"
-      display={attribute.type === 'date' && current ? formatDay(current) : undefined}
+      placeholder="Add…"
+      display={current ? shown[attribute.type]?.(current) : undefined}
       onCommit={(text) => (text ? write.set(slug, text) : current && write.remove(slug, []))}
     />
   )
 }
+
+const number = new Intl.NumberFormat('en', { maximumFractionDigits: 2 })
+
+// shown formats the values whose stored form reads poorly.
+const shown: Partial<Record<Attribute['type'], (value: string) => string>> = { date: formatDay, number: (value) => number.format(Number(value)) }
 
 const valueButton = 'flex h-7 min-w-0 max-w-full items-center truncate rounded-[var(--radius-control)] px-1.5 text-left text-[13px] text-ink outline-none hover:bg-list-hover'
 
