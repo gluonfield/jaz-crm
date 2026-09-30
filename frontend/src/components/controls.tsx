@@ -21,9 +21,9 @@ export function Button({ primary, ghost, className, ...props }: ComponentProps<'
       type="button"
       {...props}
       className={cn(
-        'inline-flex h-7 shrink-0 items-center gap-1.5 rounded-[var(--radius-control)] px-2.5 text-[12.5px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 [&_svg]:size-3.5',
+        'inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full px-3 text-[12.5px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 [&_svg]:size-3.5',
         primary && 'bg-primary text-on-primary shadow-xs hover:bg-primary-strong',
-        ghost && 'px-2 font-normal text-ink-2 hover:bg-list-hover hover:text-ink',
+        ghost && 'px-2.5 font-normal text-ink-2 hover:bg-list-hover hover:text-ink',
         !primary && !ghost && 'border border-border bg-raised text-ink shadow-xs hover:bg-list-hover',
         className,
       )}
@@ -38,8 +38,8 @@ export function Tab({ active, children, onClick }: { active: boolean; children: 
       aria-pressed={active}
       onClick={onClick}
       className={cn(
-        'inline-flex h-[26px] items-center gap-1.5 rounded-[var(--radius-control)] border px-2.5 text-[12.5px] font-medium outline-none transition-colors duration-100 [&_svg]:size-3.5',
-        active ? 'border-border bg-list-active text-ink' : 'border-transparent text-ink-2 hover:bg-list-hover hover:text-ink',
+        'inline-flex h-7 items-center gap-1.5 rounded-full border border-border px-3 text-[12.5px] font-medium outline-none transition-colors duration-100 [&_svg]:size-3.5',
+        active ? 'bg-list-active text-ink' : 'text-ink-2 hover:bg-list-hover hover:text-ink',
       )}
     >
       {children}

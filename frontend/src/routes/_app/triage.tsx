@@ -40,7 +40,7 @@ function TriagePage() {
       <Header>
         <Inbox />
         Triage
-        <div className="ml-3 flex gap-1">
+        <div className="ml-3 flex gap-1.5">
           {tabs.map((t) => (
             <Tab key={t.status} active={status === t.status} onClick={() => setStatus(t.status)}>
               {t.label}

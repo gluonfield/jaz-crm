@@ -55,7 +55,7 @@ function InteractionPage() {
           {join && (
             <ExternalLink
               href={join}
-              className="mt-4 inline-flex h-8 items-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-[13px] font-medium text-on-primary no-underline hover:bg-primary-strong"
+              className="mt-4 inline-flex h-8 items-center gap-2 rounded-full bg-primary px-3.5 text-[13px] font-medium text-on-primary no-underline hover:bg-primary-strong"
             >
               <Video className="size-4" /> Join meeting
             </ExternalLink>

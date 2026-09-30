@@ -152,7 +152,7 @@ function Form({ object, initial = {}, openCreated, close }: { object: CrmObject;
         <button
           type="submit"
           disabled={!ready}
-          className="flex h-8 items-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-[13px] font-medium text-on-primary shadow-xs outline-none transition-[background-color,opacity] hover:bg-primary-strong focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+          className="flex h-8 items-center gap-2 rounded-full bg-primary px-3.5 text-[13px] font-medium text-on-primary shadow-xs outline-none transition-[background-color,opacity] hover:bg-primary-strong focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
         >
           Create {singular(object)}
           <span className="flex items-center gap-0.5 opacity-70">
@@ -176,7 +176,7 @@ const Chip = forwardRef<HTMLButtonElement, { icon?: ReactNode; label: ReactNode;
       type="button"
       {...props}
       className={cn(
-        'inline-flex h-6 max-w-56 shrink-0 items-center gap-1.5 rounded-[var(--radius-control)] border border-border px-2 text-[12px] outline-none transition-colors duration-100 hover:bg-list-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-ring',
+        'inline-flex h-6 max-w-56 shrink-0 items-center gap-1.5 rounded-full border border-border px-2.5 text-[12px] outline-none transition-colors duration-100 hover:bg-list-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-ring',
         empty ? 'text-ink-3' : 'text-ink-2',
         className,
       )}
@@ -309,7 +309,7 @@ const inputMode: Partial<Record<Attribute['type'], 'decimal' | 'email' | 'tel' |
 // until something is typed, then what was typed.
 function TextProperty({ attribute, value, onChange }: { attribute: Attribute; value: string; onChange: (text: string) => void }) {
   return (
-    <label className="inline-flex h-6 items-center rounded-[var(--radius-control)] border border-border px-2 text-[12px] transition-colors focus-within:border-ink-3/60 hover:bg-list-hover">
+    <label className="inline-flex h-6 items-center rounded-full border border-border px-2.5 text-[12px] transition-colors focus-within:border-ink-3/60 hover:bg-list-hover">
       <span className="sr-only">{attribute.name}</span>
       {attribute.type === 'number' && attribute.slug === 'value' && <span className="mr-1 text-ink-2">$</span>}
       <input

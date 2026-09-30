@@ -60,7 +60,7 @@ function ObjectPage() {
         {object.name}
         {records && <span className="font-normal tabular-nums text-ink-3">{records.length}</span>}
         {status && (
-          <div role="group" aria-label="View" className="ml-2 flex h-7 items-center rounded-[var(--radius-control)] bg-list-hover p-0.5">
+          <div role="group" aria-label="View" className="ml-2 flex h-7 items-center rounded-full bg-list-hover p-0.5">
             <ViewButton active={!!board} label="Board" onClick={() => void navigate({ to: '.', search: { category, sort }, replace: true })}>
               <Kanban />
             </ViewButton>
@@ -168,7 +168,7 @@ function ViewButton({ active, label, onClick, children }: { active: boolean; lab
       title={label}
       onClick={onClick}
       className={cn(
-        'flex h-full items-center rounded-[4px] px-1.5 text-ink-3 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-3.5',
+        'flex h-full items-center rounded-full px-2 text-ink-3 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-3.5',
         active ? 'bg-raised text-ink shadow-xs' : 'hover:text-ink',
       )}
     >

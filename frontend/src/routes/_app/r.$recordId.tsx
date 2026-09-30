@@ -68,7 +68,7 @@ function RecordPage() {
           <div className="flex min-w-0 flex-col gap-8 [grid-area:main]">
             <Related recordId={record.id} object={object.slug} objects={objects} />
             <section>
-              <div className="mb-4 flex gap-1 border-b border-border pb-2">
+              <div className="mb-4 flex gap-1.5 border-b border-border pb-2">
                 <Tab active={!tab} onClick={() => void navigate({ to: '.', search: {}, replace: true })}>
                   Conversations
                 </Tab>

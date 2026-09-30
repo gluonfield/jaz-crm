@@ -194,7 +194,7 @@ function Composer({ recordId, people }: { recordId: string; people: string[] }) 
               aria-pressed={kind === k.kind}
               onClick={() => setKind(k.kind)}
               className={cn(
-                'inline-flex h-7 items-center gap-1.5 rounded-[var(--radius-control)] px-2 text-[12.5px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring',
+                'inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-[12.5px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring',
                 kind === k.kind ? 'bg-list-active text-ink' : 'text-ink-3 hover:text-ink',
               )}
             >

@@ -17,7 +17,7 @@ const colours = [
 export function ValueTag({ value }: { value: string }) {
   const colour = [...value.toLowerCase()].reduce((hash, letter) => (hash * 31 + letter.codePointAt(0)!) % colours.length, 0)
   return (
-    <span title={value} className={cn('inline-flex h-6 max-w-48 items-center rounded-[5px] px-2 text-[12px] font-medium ring-1 ring-inset', colours[colour])}>
+    <span title={value} className={cn('inline-flex h-6 max-w-48 items-center rounded-full px-2.5 text-[12px] font-medium ring-1 ring-inset', colours[colour])}>
       <span className="truncate">{value}</span>
     </span>
   )
