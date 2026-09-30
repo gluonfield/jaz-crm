@@ -55,9 +55,15 @@ func cors(next http.Handler) http.Handler {
 }
 
 // spa serves the built app, falling back to index.html for client routes.
+// Other methods fail, so a client posting to a wrong URL gets an error
+// rather than the page.
 func spa(dir string) http.Handler {
 	files := http.FileServer(http.Dir(dir))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			http.Error(w, "not found; MCP is served at /mcp", http.StatusNotFound)
+			return
+		}
 		if info, err := os.Stat(filepath.Join(dir, filepath.Clean("/"+r.URL.Path))); err != nil || info.IsDir() {
 			http.ServeFile(w, r, filepath.Join(dir, "index.html"))
 			return
