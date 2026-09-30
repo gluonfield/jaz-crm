@@ -6,11 +6,13 @@ Status: milestones 1 to 5 are built, 2026-09-30.
 
 ## Current request: Companies UI (2026-09-30)
 
-- Use the supplied Attio table as the reference for a clearer Companies table.
-- Make categories visible as coloured tags, editable in the table and on company pages.
-- Allow several categories per company and reusable custom labels per workspace.
-- Filter companies by category and retain text search. Agents use the same category field.
-- Verify creation, assignment, removal, filtering, tenant isolation and existing-workspace migration before shipping.
+Completed and live on :7500. Backend build, vet and tests, frontend typecheck/lint/build, API tenant isolation, browser edit/filter/search/sort flows, and an existing-workspace upgrade all passed. Live record counts are unchanged.
+
+- [x] Use the supplied Attio table as the reference for a clearer Companies table.
+- [x] Make categories visible as coloured tags, editable in the table and on company pages.
+- [x] Allow several categories per company and reusable custom labels per workspace.
+- [x] Filter companies by category and retain text search. Agents use the same category field.
+- [x] Verify creation, assignment, removal, filtering, tenant isolation and existing-workspace migration before shipping.
 
 ## v1
 
