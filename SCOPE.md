@@ -2,7 +2,7 @@
 
 jaz-crm is a CRM that fills itself from email, calendar, meeting transcripts and logged calls. Agents operate it through MCP; people review and correct what it records.
 
-Status: scope draft, 2026-09-30. Nothing is built yet.
+Status: milestone 1 (foundation) is built, 2026-09-30.
 
 ## v1
 
@@ -125,6 +125,7 @@ Other recorders (Zoom, Granola, Fireflies) post to `/webhooks/interactions` with
 
 | Tool | Purpose |
 |---|---|
+| `list_objects` | Objects and their attributes |
 | `search_records` | Find records by text or attribute filters |
 | `get_record` | Attributes plus derived stats: last contact, counts |
 | `list_interactions` | Timeline for a record, filtered by kind and time |
@@ -134,6 +135,7 @@ Other recorders (Zoom, Granola, Fireflies) post to `/webhooks/interactions` with
 | `log_interaction` | Log a call, meeting or note |
 | `link_interaction` | Attach an interaction to a record |
 | `list_triage`, `decide_triage` | Review and override keep and skip decisions for addresses, domains and threads |
+| `list_members`, `invite_member`, `rename_workspace` | Workspace membership; admins invite and rename |
 
 ## Architecture
 
