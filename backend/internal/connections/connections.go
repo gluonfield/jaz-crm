@@ -25,12 +25,26 @@ type Config struct {
 	Google    google.OAuthConfig
 	Key       []byte
 	Endpoints google.Endpoints
+	// Backfill is how far back a connection syncs mail and meetings.
+	Backfill time.Duration
 }
+
+// Streams a connection syncs, each resuming from its cursor.
+const (
+	StreamBackfill = "gmail_backfill"
+	StreamHistory  = "gmail_history"
+	StreamWatch    = "gmail_watch"
+	StreamCalendar = "calendar"
+	// BackfillDone is the backfill's cursor once the mail history is in.
+	BackfillDone = "done"
+)
 
 // Syncer runs a connection's sync; the Temporal worker implements it.
 type Syncer interface {
 	Start(ctx context.Context, connectionID string) error
 	Stop(ctx context.Context, connectionID string) error
+	// Step names the sync step running now, or "" between passes.
+	Step(ctx context.Context, connectionID string) (string, error)
 }
 
 type Service struct {
@@ -51,6 +65,11 @@ func NewService(store storage.ConnectionStore, cfg Config, syncer Syncer) (*Serv
 	}
 	s.aead, err = cipher.NewGCM(block)
 	return s, err
+}
+
+// Since is where the synced window starts.
+func (s *Service) Since() time.Time {
+	return time.Now().Add(-s.cfg.Backfill)
 }
 
 func (s *Service) Enabled() bool {
@@ -133,6 +152,14 @@ type View struct {
 	CreatedAt time.Time
 	// Streams maps each stream to when it last moved.
 	Streams map[string]time.Time
+	// Step is the sync step running now, such as GmailBackfill; empty
+	// between passes.
+	Step string
+	// Backfilled reports whether the mail history is in.
+	Backfilled bool
+	// Messages counts the synced mail; Oldest is the earliest.
+	Messages int
+	Oldest   *time.Time
 }
 
 func (s *Service) List(ctx context.Context, actor auth.Actor) ([]View, error) {
@@ -145,17 +172,39 @@ func (s *Service) List(ctx context.Context, actor auth.Actor) ([]View, error) {
 		ids[i] = c.ID
 	}
 	cursors, err := s.store.Cursors(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	mail, err := s.store.MailProgress(ctx, ids)
 	out := []View{}
 	for _, c := range list {
 		v := View{ID: c.ID, Account: c.Account, Owner: c.UserID, Status: c.Status, CreatedAt: c.CreatedAt, Streams: map[string]time.Time{}}
 		for _, cur := range cursors {
 			if cur.ConnectionID == c.ID {
 				v.Streams[cur.Stream] = cur.UpdatedAt
+				v.Backfilled = v.Backfilled || cur.Stream == StreamBackfill && cur.Cursor == BackfillDone
 			}
+		}
+		for _, m := range mail {
+			if m.ConnectionID == c.ID {
+				v.Messages, v.Oldest = m.Messages, &m.Oldest
+			}
+		}
+		if c.Status == "active" {
+			v.Step = s.step(ctx, c.ID)
 		}
 		out = append(out, v)
 	}
 	return out, err
+}
+
+// step asks the syncer what runs now. Progress is advisory: an unreachable
+// Temporal reports idle rather than failing the list.
+func (s *Service) step(ctx context.Context, connectionID string) string {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	step, _ := s.syncer.Step(ctx, connectionID)
+	return step
 }
 
 // Disconnect stops a connection's sync and deletes it; what it already
@@ -174,6 +223,11 @@ func (s *Service) Disconnect(ctx context.Context, actor auth.Actor, id string) e
 		}
 	}
 	return errs.Invalidf("no connection %q", id)
+}
+
+// SetAliases records the other addresses the connection's mailbox sends as.
+func (s *Service) SetAliases(ctx context.Context, connectionID string, aliases []string) error {
+	return s.store.SetAliases(ctx, connectionID, aliases)
 }
 
 // Cursor returns where a stream resumes, or "" before it starts.

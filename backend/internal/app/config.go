@@ -81,6 +81,10 @@ func ParseConfig(name string, args []string) (Config, error) {
 	if err != nil {
 		return cfg, errors.New("ENCRYPTION_KEY must be base64, such as the output of openssl rand -base64 32")
 	}
+	days, err := strconv.Atoi(env("BACKFILL_DAYS", "730"))
+	if err != nil || days < 1 {
+		return cfg, errors.New("BACKFILL_DAYS must be a positive number of days")
+	}
 	cfg.Connections = connections.Config{
 		Google: google.OAuthConfig{
 			ClientID:     strings.TrimSpace(os.Getenv("GOOGLE_CLIENT_ID")),
@@ -89,12 +93,9 @@ func ParseConfig(name string, args []string) (Config, error) {
 		},
 		Key:       key,
 		Endpoints: google.Production,
+		Backfill:  time.Duration(days) * 24 * time.Hour,
 	}
-	days, err := strconv.Atoi(env("BACKFILL_DAYS", "730"))
-	if err != nil || days < 1 {
-		return cfg, errors.New("BACKFILL_DAYS must be a positive number of days")
-	}
-	cfg.Sync = worker.Config{Backfill: time.Duration(days) * 24 * time.Hour, PubSubTopic: strings.TrimSpace(os.Getenv("GMAIL_PUBSUB_TOPIC"))}
+	cfg.Sync = worker.Config{PubSubTopic: strings.TrimSpace(os.Getenv("GMAIL_PUBSUB_TOPIC"))}
 	if strings.HasPrefix(cfg.PublicURL, "https://") {
 		cfg.Sync.CalendarWebhook = cfg.PublicURL + "/webhooks/google/calendar"
 	}

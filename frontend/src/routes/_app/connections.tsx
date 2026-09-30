@@ -2,9 +2,10 @@ import { createFileRoute } from '@tanstack/react-router'
 import { PlugZap } from 'lucide-react'
 import { Button, Header, Row, Section } from '@/components/controls'
 import { embedded } from '@/lib/api'
-import { timeAgo } from '@/lib/format'
+import { formatDate, timeAgo } from '@/lib/format'
 import { app } from '@/lib/mcp-app'
-import { useAction, useTool } from '@/lib/queries'
+import { useAction } from '@/lib/queries'
+import { steps, useConnections } from '@/lib/sync'
 import type { Connection } from '@/lib/types'
 
 export const Route = createFileRoute('/_app/connections')({
@@ -14,9 +15,23 @@ export const Route = createFileRoute('/_app/connections')({
 
 const streams: Record<string, string> = { gmail_history: 'Mail', calendar: 'Calendar' }
 
+// progress says what a connection is doing and how much mail is in.
+function progress(c: Connection, since: string) {
+  if (c.status === 'revoked') {
+    return ['Access revoked; connect again', '']
+  }
+  const messages = `${c.messages.toLocaleString('en')} messages`
+  if (!c.backfilled) {
+    const reached = c.oldest ? ` · reached ${formatDate(c.oldest)}` : ''
+    return [steps[c.step ?? ''] ?? steps.GmailBackfill, `${messages} so far${reached}, going back to ${formatDate(since)}`]
+  }
+  const synced = Object.entries(streams).map(([stream, label]) => `${label} ${c.synced[stream] ? `synced ${timeAgo(c.synced[stream])}` : 'syncing'}`)
+  return [c.step ? steps[c.step] : 'Up to date', [messages, ...synced].join(' · ')]
+}
+
 function ConnectionsPage() {
   const { error } = Route.useSearch()
-  const data = useTool<{ connections: Connection[]; connect_url?: string }>('list_connections').data
+  const data = useConnections()
   const disconnect = useAction<object>('disconnect')
   const connect = () => {
     if (!data?.connect_url) {
@@ -46,21 +61,24 @@ function ConnectionsPage() {
             {data?.connections.length === 0 && (
               <Row className="text-ink-3">{data.connect_url ? 'No accounts connected' : 'Google is not configured on this server'}</Row>
             )}
-            {data?.connections.map((c) => (
-              <Row key={c.id}>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate font-medium text-ink">{c.account}</div>
-                  <div className="truncate text-[12px] text-ink-3">
-                    {c.status === 'revoked'
-                      ? 'Access revoked; connect again'
-                      : Object.entries(streams)
-                          .map(([stream, label]) => `${label} ${c.synced[stream] ? `synced ${timeAgo(c.synced[stream])}` : 'syncing'}`)
-                          .join(' · ')}
+            {data?.connections.map((c) => {
+              const [now, detail] = progress(c, data.since)
+              return (
+                <Row key={c.id} className="items-start">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-medium text-ink">{c.account}</div>
+                    <div className="truncate text-[12px] text-ink-2">{now}</div>
+                    <div className="truncate text-[12px] text-ink-3">{detail}</div>
+                    {c.status === 'active' && !c.backfilled && (
+                      <div role="progressbar" aria-label="Importing mail" className="mt-2 h-1 overflow-hidden rounded-full bg-list-active">
+                        <div className="h-full w-1/3 animate-sweep rounded-full bg-primary motion-reduce:animate-none" />
+                      </div>
+                    )}
                   </div>
-                </div>
-                <Button onClick={() => disconnect.mutate({ connection_id: c.id })}>Disconnect</Button>
-              </Row>
-            ))}
+                  <Button onClick={() => disconnect.mutate({ connection_id: c.id })}>Disconnect</Button>
+                </Row>
+              )
+            })}
           </Section>
         </div>
       </div>

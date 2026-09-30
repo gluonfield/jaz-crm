@@ -38,7 +38,7 @@ func (s *Service) Known(ctx context.Context, workspaceID string) (Known, error) 
 	return k, err
 }
 
-var automated = regexp.MustCompile(`^(no-?reply|do-?not-?reply|notifications?|mailer-daemon|postmaster|bounces?)([+._-][^@]*)?@|@(resource\.)?calendar\.google\.com$`)
+var automated = regexp.MustCompile(`^([^@]*[+._-])?(no-?reply|do-?not-?reply|notifications?|mailer-daemon|postmaster|bounces?)([+._-][^@]*)?@|@(resource\.)?calendar\.google\.com$`)
 
 // verdict is a new address's first verdict.
 func (k Known) verdict(kind, value string) storage.NewHandle {

@@ -162,5 +162,6 @@ func callText(t *testing.T, conn *mcp.ClientSession, name string, args map[strin
 // idle stands in for the Temporal worker, which these tests never reach.
 type idle struct{}
 
-func (idle) Start(context.Context, string) error { return nil }
-func (idle) Stop(context.Context, string) error  { return nil }
+func (idle) Start(context.Context, string) error          { return nil }
+func (idle) Stop(context.Context, string) error           { return nil }
+func (idle) Step(context.Context, string) (string, error) { return "", nil }

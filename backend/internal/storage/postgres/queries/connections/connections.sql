@@ -35,7 +35,18 @@ SELECT * FROM sync_cursors WHERE connection_id = ANY(@connection_ids::uuid[]);
 
 -- name: InternalAddresses :many
 -- InternalAddresses are the workspace's own addresses: its members' emails and
--- its connected accounts.
+-- its connected accounts with their aliases.
 SELECT lower(users.email)::text AS address FROM users WHERE users.workspace_id = @workspace_id
 UNION
-SELECT lower(connections.account)::text FROM connections WHERE connections.workspace_id = @workspace_id;
+SELECT lower(connections.account)::text FROM connections WHERE connections.workspace_id = @workspace_id
+UNION
+SELECT lower(alias)::text FROM connections, unnest(connections.aliases) AS alias WHERE connections.workspace_id = @workspace_id;
+
+-- name: SetAliases :exec
+UPDATE connections SET aliases = @aliases::text[] WHERE id = @id;
+
+-- name: MailProgress :many
+-- MailProgress counts each connection's synced mail and finds its earliest.
+SELECT connection_id::text AS connection_id, count(*)::int AS messages, min(at)::timestamptz AS oldest
+FROM parts WHERE connection_id = ANY(@connection_ids::uuid[]) AND kind = 'message'
+GROUP BY connection_id;

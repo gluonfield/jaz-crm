@@ -60,6 +60,19 @@ func (s *Starter) Start(ctx context.Context, connectionID string) error {
 	return err
 }
 
+// Step names the activity the connection's sync is running, or "" between
+// passes and when no sync runs.
+func (s *Starter) Step(ctx context.Context, connectionID string) (string, error) {
+	d, err := s.client.DescribeWorkflowExecution(ctx, syncID(connectionID), "")
+	if errors.As(err, new(*serviceerror.NotFound)) || err == nil && len(d.PendingActivities) == 0 {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return d.PendingActivities[0].GetActivityType().GetName(), nil
+}
+
 func (s *Starter) Stop(ctx context.Context, connectionID string) error {
 	err := s.client.TerminateWorkflow(ctx, syncID(connectionID), "", "disconnected")
 	if errors.As(err, new(*serviceerror.NotFound)) {

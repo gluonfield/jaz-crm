@@ -364,3 +364,24 @@ func TestClassifier(t *testing.T) {
 		t.Errorf("classifier calls: %d", f.calls)
 	}
 }
+
+// Mail sent from an alias learned after it arrived counts as the
+// workspace's: the alias turns internal and the person written to is kept.
+func TestAliasesLearnedLaterAreOwn(t *testing.T) {
+	e := setup(t, nil)
+	e.ingest(t, message(e.conn, "a1", "ta", "sales@ml.test", "cara@buyer.com"))
+	e.triage(t)
+	if got := e.contacts(t, interactions.Pending); got["sales@ml.test"].Address == "" || got["cara@buyer.com"].Address == "" {
+		t.Fatalf("before the alias is known both wait: %v", got)
+	}
+	if err := e.store.SetAliases(ctx, e.conn.ID, []string{"owner@cas.dev", "sales@ml.test"}); err != nil {
+		t.Fatal(err)
+	}
+	e.triage(t)
+	if got := e.contacts(t, interactions.Internal)["sales@ml.test"]; got.Address == "" {
+		t.Fatalf("alias not internal: %v", e.contacts(t, interactions.Pending))
+	}
+	if got := e.contacts(t, interactions.Kept)["cara@buyer.com"]; got.DecidedBy != interactions.ByEngagement {
+		t.Fatalf("cara: %+v", got)
+	}
+}

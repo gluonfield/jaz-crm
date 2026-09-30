@@ -51,6 +51,16 @@ func (s *Store) Cursors(ctx context.Context, connectionIDs []string) ([]storage.
 	return many(toCursor)(s.conn.ListCursors(ctx, connectionIDs))
 }
 
+func (s *Store) MailProgress(ctx context.Context, connectionIDs []string) ([]storage.MailProgress, error) {
+	return many(func(r conndb.MailProgressRow) storage.MailProgress {
+		return storage.MailProgress{ConnectionID: r.ConnectionID, Messages: int(r.Messages), Oldest: r.Oldest}
+	})(s.conn.MailProgress(ctx, connectionIDs))
+}
+
+func (s *Store) SetAliases(ctx context.Context, connectionID string, aliases []string) error {
+	return mapError(s.conn.SetAliases(ctx, conndb.SetAliasesParams{ID: connectionID, Aliases: aliases}))
+}
+
 func (s *Store) InternalAddresses(ctx context.Context, workspaceID string) ([]string, error) {
 	addresses, err := s.conn.InternalAddresses(ctx, workspaceID)
 	return addresses, mapError(err)

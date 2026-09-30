@@ -28,6 +28,8 @@ func (w *woken) Start(_ context.Context, id string) error {
 
 func (w *woken) Stop(context.Context, string) error { return nil }
 
+func (w *woken) Step(context.Context, string) (string, error) { return "", nil }
+
 func post(t *testing.T, h http.HandlerFunc, headers map[string]string, body string) (int, string) {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))

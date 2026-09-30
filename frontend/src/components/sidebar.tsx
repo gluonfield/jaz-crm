@@ -1,5 +1,5 @@
 import { Link, useRouterState } from '@tanstack/react-router'
-import { ChevronDown, Inbox, LogOut, Monitor, Moon, PlugZap, Search, Settings, Sun, TextSearch } from 'lucide-react'
+import { ChevronDown, Inbox, LoaderCircle, LogOut, Monitor, Moon, PlugZap, Search, Settings, Sun, TextSearch } from 'lucide-react'
 import type { ReactNode } from 'react'
 import {
   DropdownMenu,
@@ -16,6 +16,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { signOut, useMe } from '@/lib/account'
 import { embedded } from '@/lib/api'
 import { useObjects, useTool, useWorkspace } from '@/lib/queries'
+import { steps, syncing, useConnections } from '@/lib/sync'
 import { setSchemePreference } from '@/lib/theme'
 import type { Contact } from '@/lib/types'
 import { setUI } from '@/lib/ui'
@@ -26,6 +27,7 @@ import { Kbd } from './kbd'
 export function Sidebar() {
   const objects = useObjects() ?? []
   const pending = useTool<{ contacts: Contact[] }>('list_triage', { status: 'pending', limit: 200 }).data?.contacts.length ?? 0
+  const sync = useConnections()?.connections.find(syncing)
   return (
     <aside className="flex w-[232px] shrink-0 flex-col gap-px px-2.5 pb-3 pt-2.5 text-[13px]">
       <div className="mb-2 flex items-center gap-1">
@@ -59,7 +61,7 @@ export function Sidebar() {
         ))}
       </Section>
       <Section title="Workspace">
-        <NavItem to="/connections" icon={<PlugZap />}>
+        <NavItem to="/connections" icon={<PlugZap />} busy={sync && (steps[sync.step ?? ''] ?? steps.GmailBackfill)}>
           Connections
         </NavItem>
         <NavItem to="/settings" icon={<Settings />}>
@@ -79,7 +81,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   )
 }
 
-function NavItem({ to, icon, count, children }: { to: string; icon: ReactNode; count?: number; children: ReactNode }) {
+function NavItem({ to, icon, count, busy, children }: { to: string; icon: ReactNode; count?: number; busy?: string; children: ReactNode }) {
   const path = useRouterState({ select: (s) => s.location.pathname })
   const active = path === to || path.startsWith(to + '/')
   return (
@@ -93,6 +95,11 @@ function NavItem({ to, icon, count, children }: { to: string; icon: ReactNode; c
       {icon}
       <span className="flex-1 truncate">{children}</span>
       {!!count && <span className="text-[12px] tabular-nums text-ink-3">{count}</span>}
+      {busy && (
+        <span title={busy} className="flex text-ink-3">
+          <LoaderCircle aria-label={busy} className="animate-spin motion-reduce:animate-none" />
+        </span>
+      )}
     </Link>
   )
 }

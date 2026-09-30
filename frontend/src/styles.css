@@ -66,6 +66,15 @@
   --shadow-raised: var(--shadow-lg, 0 0 0 1px rgb(0 0 0 / 0.02), 0 4px 16px -2px rgb(0 0 0 / 0.1), 0 2px 4px rgb(0 0 0 / 0.04));
 
   --animate-rise: rise 160ms cubic-bezier(0.2, 0.9, 0.3, 1);
+  --animate-sweep: sweep 1.4s linear infinite;
+  @keyframes sweep {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(300%);
+    }
+  }
   @keyframes rise {
     from {
       opacity: 0;

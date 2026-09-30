@@ -67,4 +67,17 @@ export type Member = { name: string; email: string; admin?: boolean; is_me?: boo
 
 export type Workspace = { name: string; description: string; members?: Member[]; invited?: string[] }
 
-export type Connection = { id: string; account: string; owner_id: string; status: string; created_at: string; synced: Record<string, string> }
+export type Connection = {
+  id: string
+  account: string
+  owner_id: string
+  status: string
+  created_at: string
+  synced: Record<string, string>
+  step?: string
+  backfilled: boolean
+  messages: number
+  oldest?: string
+}
+
+export type Connections = { connections: Connection[]; connect_url?: string; since: string }

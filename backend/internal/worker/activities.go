@@ -16,22 +16,11 @@ import (
 	"go.temporal.io/sdk/temporal"
 )
 
-// Cursor streams.
-const (
-	streamBackfill = "gmail_backfill"
-	streamHistory  = "gmail_history"
-	streamWatch    = "gmail_watch"
-	streamCalendar = "calendar"
-	backfillDone   = "done"
-)
-
 // contentBatch is how many message bodies one pass fetches.
 const contentBatch = 50
 
 // Config shapes what a sync reaches for.
 type Config struct {
-	// Backfill is how far back mail and meetings are synced.
-	Backfill time.Duration
 	// PubSubTopic, when set, receives Gmail push notifications.
 	PubSubTopic string
 	// CalendarWebhook, when set, receives Calendar push notifications.
@@ -92,6 +81,20 @@ func classify(err error) error {
 	return err
 }
 
+// Aliases records the addresses the mailbox sends as, so mail sent from any
+// of them is the workspace's own.
+func (a *Activities) Aliases(ctx context.Context, id string) error {
+	s, err := a.session(ctx, id)
+	if err != nil {
+		return err
+	}
+	aliases, err := s.google.SendAs(ctx)
+	if err != nil {
+		return classify(err)
+	}
+	return a.Connections.SetAliases(ctx, id, aliases)
+}
+
 // GmailBackfill ingests one page of the mailbox's history, reporting whether
 // the backfill is complete. The history cursor is captured first, so mail
 // arriving during the backfill is picked up incrementally.
@@ -100,11 +103,11 @@ func (a *Activities) GmailBackfill(ctx context.Context, id string) (bool, error)
 	if err != nil {
 		return false, err
 	}
-	page, err := a.Connections.Cursor(ctx, id, streamBackfill)
-	if err != nil || page == backfillDone {
-		return page == backfillDone, err
+	page, err := a.Connections.Cursor(ctx, id, connections.StreamBackfill)
+	if err != nil || page == connections.BackfillDone {
+		return page == connections.BackfillDone, err
 	}
-	history, err := a.Connections.Cursor(ctx, id, streamHistory)
+	history, err := a.Connections.Cursor(ctx, id, connections.StreamHistory)
 	if err != nil {
 		return false, err
 	}
@@ -113,11 +116,11 @@ func (a *Activities) GmailBackfill(ctx context.Context, id string) (bool, error)
 		if err != nil {
 			return false, classify(err)
 		}
-		if err := a.Connections.SetCursor(ctx, id, streamHistory, profile.HistoryID); err != nil {
+		if err := a.Connections.SetCursor(ctx, id, connections.StreamHistory, profile.HistoryID); err != nil {
 			return false, err
 		}
 	}
-	query := "after:" + time.Now().Add(-a.Config.Backfill).Format("2006/01/02") + " -in:chats"
+	query := "after:" + a.Connections.Since().Format("2006/01/02") + " -in:chats"
 	list, err := s.google.ListMessages(ctx, query, page)
 	if err != nil {
 		return false, classify(err)
@@ -127,15 +130,15 @@ func (a *Activities) GmailBackfill(ctx context.Context, id string) (bool, error)
 	}
 	next := list.Next
 	if next == "" {
-		next = backfillDone
+		next = connections.BackfillDone
 	}
-	return next == backfillDone, a.Connections.SetCursor(ctx, id, streamBackfill, next)
+	return next == connections.BackfillDone, a.Connections.SetCursor(ctx, id, connections.StreamBackfill, next)
 }
 
 // GmailIncremental ingests mail added since the history cursor. A cursor
 // too old for Gmail restarts the backfill.
 func (a *Activities) GmailIncremental(ctx context.Context, id string) error {
-	history, err := a.Connections.Cursor(ctx, id, streamHistory)
+	history, err := a.Connections.Cursor(ctx, id, connections.StreamHistory)
 	if err != nil || history == "" {
 		return err
 	}
@@ -147,10 +150,10 @@ func (a *Activities) GmailIncremental(ctx context.Context, id string) error {
 	for token := ""; ; {
 		page, err := s.google.History(ctx, history, token)
 		if errors.Is(err, google.ErrExpiredCursor) {
-			if err := a.Connections.ResetCursor(ctx, id, streamBackfill); err != nil {
+			if err := a.Connections.ResetCursor(ctx, id, connections.StreamBackfill); err != nil {
 				return err
 			}
-			return a.Connections.ResetCursor(ctx, id, streamHistory)
+			return a.Connections.ResetCursor(ctx, id, connections.StreamHistory)
 		}
 		if err != nil {
 			return classify(err)
@@ -165,7 +168,7 @@ func (a *Activities) GmailIncremental(ctx context.Context, id string) error {
 			break
 		}
 	}
-	return a.Connections.SetCursor(ctx, id, streamHistory, latest)
+	return a.Connections.SetCursor(ctx, id, connections.StreamHistory, latest)
 }
 
 func (a *Activities) ingest(ctx context.Context, s session, ids []string) error {
@@ -207,12 +210,12 @@ func (a *Activities) CalendarSync(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	token, err := a.Connections.Cursor(ctx, id, streamCalendar)
+	token, err := a.Connections.Cursor(ctx, id, connections.StreamCalendar)
 	if err != nil {
 		return err
 	}
 	for page := ""; ; {
-		events, err := s.google.Events(ctx, token, page, time.Now().Add(-a.Config.Backfill))
+		events, err := s.google.Events(ctx, token, page, a.Connections.Since())
 		if errors.Is(err, google.ErrExpiredCursor) {
 			token = ""
 			page = ""
@@ -228,7 +231,7 @@ func (a *Activities) CalendarSync(ctx context.Context, id string) error {
 		}
 		activity.RecordHeartbeat(ctx, page)
 		if page = events.Next; page == "" {
-			return a.Connections.SetCursor(ctx, id, streamCalendar, events.SyncToken)
+			return a.Connections.SetCursor(ctx, id, connections.StreamCalendar, events.SyncToken)
 		}
 	}
 }
@@ -306,7 +309,7 @@ func (a *Activities) Watch(ctx context.Context, id string) error {
 	}
 	soon := time.Now().Add(24 * time.Hour)
 	if a.Config.PubSubTopic != "" {
-		raw, err := a.Connections.Cursor(ctx, id, streamWatch)
+		raw, err := a.Connections.Cursor(ctx, id, connections.StreamWatch)
 		if err != nil {
 			return err
 		}
@@ -315,7 +318,7 @@ func (a *Activities) Watch(ctx context.Context, id string) error {
 			if err != nil {
 				return classify(err)
 			}
-			if err := a.Connections.SetCursor(ctx, id, streamWatch, expires.Format(time.RFC3339)); err != nil {
+			if err := a.Connections.SetCursor(ctx, id, connections.StreamWatch, expires.Format(time.RFC3339)); err != nil {
 				return err
 			}
 		}

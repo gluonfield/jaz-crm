@@ -180,6 +180,9 @@ type InteractionStore interface {
 	HandlesByValue(ctx context.Context, workspaceID string, values []string) ([]Handle, error)
 	HandlesByDomain(ctx context.Context, workspaceID, domain string) ([]Handle, error)
 	ListHandles(ctx context.Context, q HandleQuery) ([]HandleSummary, error)
+	// MarkInternal files undecided handles at the given addresses or domains as
+	// internal.
+	MarkInternal(ctx context.Context, workspaceID string, addresses, domains []string) error
 	EngagedHandles(ctx context.Context, workspaceID string, maxSize int32) ([]string, error)
 	HandlesOnRecords(ctx context.Context, workspaceID string) ([]HandleRecord, error)
 	KeptWithoutPerson(ctx context.Context, workspaceID string) ([]Handle, error)

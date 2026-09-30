@@ -32,6 +32,14 @@ GROUP BY handles.id
 ORDER BY max(interactions.started_at) DESC NULLS LAST, handles.id
 LIMIT @row_limit;
 
+-- name: MarkInternal :exec
+-- MarkInternal files the workspace's own addresses and domains as internal,
+-- unless a person decided otherwise.
+UPDATE handles SET triage = 'internal', decided_by = NULL, reason = ''
+WHERE workspace_id = @workspace_id AND kind = 'email'
+  AND (triage = 'pending' OR (triage = 'skipped' AND decided_by IN ('rule', 'agent')))
+  AND (value = ANY(@addresses::text[]) OR split_part(value, '@', 2) = ANY(@domains::text[]));
+
 -- name: EngagedHandles :many
 -- EngagedHandles are undecided or heuristically skipped handles someone in the
 -- workspace wrote to, or met with, in a conversation of at most max_size

@@ -7,10 +7,11 @@ package connections
 
 import (
 	"context"
+	"time"
 )
 
 const activeConnections = `-- name: ActiveConnections :many
-SELECT id, workspace_id, user_id, provider, account, refresh_token, status, created_at FROM connections WHERE status = 'active' ORDER BY created_at
+SELECT id, workspace_id, user_id, provider, account, refresh_token, status, created_at, aliases FROM connections WHERE status = 'active' ORDER BY created_at
 `
 
 func (q *Queries) ActiveConnections(ctx context.Context) ([]Connection, error) {
@@ -31,6 +32,7 @@ func (q *Queries) ActiveConnections(ctx context.Context) ([]Connection, error) {
 			&i.RefreshToken,
 			&i.Status,
 			&i.CreatedAt,
+			&i.Aliases,
 		); err != nil {
 			return nil, err
 		}
@@ -74,7 +76,7 @@ func (q *Queries) DeleteCursor(ctx context.Context, arg DeleteCursorParams) erro
 }
 
 const getConnection = `-- name: GetConnection :one
-SELECT id, workspace_id, user_id, provider, account, refresh_token, status, created_at FROM connections WHERE id = $1
+SELECT id, workspace_id, user_id, provider, account, refresh_token, status, created_at, aliases FROM connections WHERE id = $1
 `
 
 func (q *Queries) GetConnection(ctx context.Context, id string) (Connection, error) {
@@ -89,6 +91,7 @@ func (q *Queries) GetConnection(ctx context.Context, id string) (Connection, err
 		&i.RefreshToken,
 		&i.Status,
 		&i.CreatedAt,
+		&i.Aliases,
 	)
 	return i, err
 }
@@ -113,10 +116,12 @@ const internalAddresses = `-- name: InternalAddresses :many
 SELECT lower(users.email)::text AS address FROM users WHERE users.workspace_id = $1
 UNION
 SELECT lower(connections.account)::text FROM connections WHERE connections.workspace_id = $1
+UNION
+SELECT lower(alias)::text FROM connections, unnest(connections.aliases) AS alias WHERE connections.workspace_id = $1
 `
 
 // InternalAddresses are the workspace's own addresses: its members' emails and
-// its connected accounts.
+// its connected accounts with their aliases.
 func (q *Queries) InternalAddresses(ctx context.Context, workspaceID string) ([]string, error) {
 	rows, err := q.db.Query(ctx, internalAddresses, workspaceID)
 	if err != nil {
@@ -138,7 +143,7 @@ func (q *Queries) InternalAddresses(ctx context.Context, workspaceID string) ([]
 }
 
 const listConnections = `-- name: ListConnections :many
-SELECT id, workspace_id, user_id, provider, account, refresh_token, status, created_at FROM connections WHERE workspace_id = $1 ORDER BY created_at
+SELECT id, workspace_id, user_id, provider, account, refresh_token, status, created_at, aliases FROM connections WHERE workspace_id = $1 ORDER BY created_at
 `
 
 func (q *Queries) ListConnections(ctx context.Context, workspaceID string) ([]Connection, error) {
@@ -159,6 +164,7 @@ func (q *Queries) ListConnections(ctx context.Context, workspaceID string) ([]Co
 			&i.RefreshToken,
 			&i.Status,
 			&i.CreatedAt,
+			&i.Aliases,
 		); err != nil {
 			return nil, err
 		}
@@ -199,12 +205,45 @@ func (q *Queries) ListCursors(ctx context.Context, connectionIds []string) ([]Sy
 	return items, nil
 }
 
+const mailProgress = `-- name: MailProgress :many
+SELECT connection_id::text AS connection_id, count(*)::int AS messages, min(at)::timestamptz AS oldest
+FROM parts WHERE connection_id = ANY($1::uuid[]) AND kind = 'message'
+GROUP BY connection_id
+`
+
+type MailProgressRow struct {
+	ConnectionID string
+	Messages     int32
+	Oldest       time.Time
+}
+
+// MailProgress counts each connection's synced mail and finds its earliest.
+func (q *Queries) MailProgress(ctx context.Context, connectionIds []string) ([]MailProgressRow, error) {
+	rows, err := q.db.Query(ctx, mailProgress, connectionIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []MailProgressRow{}
+	for rows.Next() {
+		var i MailProgressRow
+		if err := rows.Scan(&i.ConnectionID, &i.Messages, &i.Oldest); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const saveConnection = `-- name: SaveConnection :one
 INSERT INTO connections (workspace_id, user_id, provider, account, refresh_token)
 VALUES ($1, $2, $3, $4, $5)
 ON CONFLICT (workspace_id, provider, account) DO UPDATE
 SET user_id = EXCLUDED.user_id, refresh_token = EXCLUDED.refresh_token, status = 'active'
-RETURNING id, workspace_id, user_id, provider, account, refresh_token, status, created_at
+RETURNING id, workspace_id, user_id, provider, account, refresh_token, status, created_at, aliases
 `
 
 type SaveConnectionParams struct {
@@ -233,8 +272,23 @@ func (q *Queries) SaveConnection(ctx context.Context, arg SaveConnectionParams) 
 		&i.RefreshToken,
 		&i.Status,
 		&i.CreatedAt,
+		&i.Aliases,
 	)
 	return i, err
+}
+
+const setAliases = `-- name: SetAliases :exec
+UPDATE connections SET aliases = $1::text[] WHERE id = $2
+`
+
+type SetAliasesParams struct {
+	Aliases []string
+	ID      string
+}
+
+func (q *Queries) SetAliases(ctx context.Context, arg SetAliasesParams) error {
+	_, err := q.db.Exec(ctx, setAliases, arg.Aliases, arg.ID)
+	return err
 }
 
 const setConnectionStatus = `-- name: SetConnectionStatus :exec

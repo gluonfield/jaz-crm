@@ -740,6 +740,26 @@ func (q *Queries) ListHandles(ctx context.Context, arg ListHandlesParams) ([]Lis
 	return items, nil
 }
 
+const markInternal = `-- name: MarkInternal :exec
+UPDATE handles SET triage = 'internal', decided_by = NULL, reason = ''
+WHERE workspace_id = $1 AND kind = 'email'
+  AND (triage = 'pending' OR (triage = 'skipped' AND decided_by IN ('rule', 'agent')))
+  AND (value = ANY($2::text[]) OR split_part(value, '@', 2) = ANY($3::text[]))
+`
+
+type MarkInternalParams struct {
+	WorkspaceID string
+	Addresses   []string
+	Domains     []string
+}
+
+// MarkInternal files the workspace's own addresses and domains as internal,
+// unless a person decided otherwise.
+func (q *Queries) MarkInternal(ctx context.Context, arg MarkInternalParams) error {
+	_, err := q.db.Exec(ctx, markInternal, arg.WorkspaceID, arg.Addresses, arg.Domains)
+	return err
+}
+
 const markTranscriptChecked = `-- name: MarkTranscriptChecked :exec
 UPDATE interactions SET transcript_checked_at = now() WHERE id = $1
 `

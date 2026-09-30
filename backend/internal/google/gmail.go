@@ -146,6 +146,23 @@ func (c *Client) Watch(ctx context.Context, topic string) (historyID string, exp
 	return raw.HistoryID, time.UnixMilli(raw.Expiration).UTC(), nil
 }
 
+// SendAs lists the verified addresses the mailbox sends as, its own included.
+func (c *Client) SendAs(ctx context.Context) ([]string, error) {
+	var raw struct {
+		SendAs []struct{ SendAsEmail, VerificationStatus string }
+	}
+	if err := c.get(ctx, c.gmail("settings/sendAs"), nil, &raw); err != nil {
+		return nil, err
+	}
+	addresses := []string{}
+	for _, s := range raw.SendAs {
+		if s.VerificationStatus == "" || s.VerificationStatus == "accepted" {
+			addresses = append(addresses, strings.ToLower(s.SendAsEmail))
+		}
+	}
+	return addresses, nil
+}
+
 func (c *Client) gmail(path string) string {
 	return c.endpoints.Gmail + "/gmail/v1/users/me/" + path
 }

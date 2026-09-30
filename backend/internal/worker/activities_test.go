@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -31,6 +32,8 @@ func (s *started) Start(_ context.Context, id string) error {
 }
 
 func (s *started) Stop(context.Context, string) error { return nil }
+
+func (s *started) Step(context.Context, string) (string, error) { return "", nil }
 
 // fakeGoogle serves the mailbox, calendar and Meet of owner@cas.dev.
 type fakeGoogle struct {
@@ -60,6 +63,8 @@ func (f *fakeGoogle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, `{"access_token":"at","token_type":"Bearer","expires_in":3600,"refresh_token":"rt"}`)
 	case path == "/gmail/v1/users/me/profile":
 		fmt.Fprint(w, `{"emailAddress":"owner@cas.dev","historyId":"100"}`)
+	case path == "/gmail/v1/users/me/settings/sendAs":
+		fmt.Fprint(w, `{"sendAs":[{"sendAsEmail":"owner@cas.dev","isPrimary":true},{"sendAsEmail":"Sales@CAS-Alias.dev","verificationStatus":"accepted"},{"sendAsEmail":"unverified@elsewhere.dev","verificationStatus":"pending"}]}`)
 	case path == "/gmail/v1/users/me/messages":
 		var list []map[string]string
 		for _, id := range f.listed {
@@ -134,6 +139,7 @@ func TestSyncAgainstGoogle(t *testing.T) {
 		Google:    google.OAuthConfig{ClientID: "client", ClientSecret: "secret", TokenURL: srv.URL + "/token"},
 		Key:       []byte("0123456789abcdef0123456789abcdef"),
 		Endpoints: google.Endpoints{Gmail: srv.URL, Calendar: srv.URL, Meet: srv.URL},
+		Backfill:  365 * 24 * time.Hour,
 	}, &starts)
 	if err != nil {
 		t.Fatal(err)
@@ -146,7 +152,7 @@ func TestSyncAgainstGoogle(t *testing.T) {
 	}
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestActivityEnvironment()
-	a := NewActivities(conns, convs, Config{Backfill: 365 * 24 * time.Hour})
+	a := NewActivities(conns, convs, Config{})
 	env.RegisterActivity(a)
 	run := func(activity any, out any, args ...any) {
 		t.Helper()
@@ -160,6 +166,10 @@ func TestSyncAgainstGoogle(t *testing.T) {
 			}
 		}
 	}
+	run(a.Aliases, nil, conn.ID)
+	if own, err := store.InternalAddresses(ctx, owner.WorkspaceID); err != nil || !slices.Contains(own, "sales@cas-alias.dev") || slices.Contains(own, "unverified@elsewhere.dev") {
+		t.Fatalf("own addresses: %v %v", own, err)
+	}
 	var done bool
 	run(a.GmailBackfill, &done, conn.ID)
 	run(a.Triage, nil, conn.ID)
@@ -167,6 +177,9 @@ func TestSyncAgainstGoogle(t *testing.T) {
 	run(a.FetchContent, &fetched, conn.ID)
 	if !done || fetched != 2 {
 		t.Fatalf("backfill done %v, fetched %d bodies; want only the kept thread's two", done, fetched)
+	}
+	if views, err := conns.List(ctx, actor); err != nil || len(views) != 1 || !views[0].Backfilled || views[0].Messages != 3 || !views[0].Oldest.Equal(now.Add(-48*time.Hour).Truncate(time.Millisecond)) {
+		t.Fatalf("progress: %+v %v", views, err)
 	}
 	kept, err := convs.Contacts(ctx, actor, interactions.Kept, "", 10)
 	if err != nil || len(kept) != 1 || kept[0].Address != "ada@customer.io" {
@@ -183,11 +196,11 @@ func TestSyncAgainstGoogle(t *testing.T) {
 	if list, _ := convs.Timeline(ctx, actor, ada, nil, nil, 10); len(list) != 2 || list[0].Title != "Next order" || fetched != 1 {
 		t.Fatalf("incremental: %+v, fetched %d", list, fetched)
 	}
-	if cursor, _ := conns.Cursor(ctx, conn.ID, streamHistory); cursor != "120" {
+	if cursor, _ := conns.Cursor(ctx, conn.ID, connections.StreamHistory); cursor != "120" {
 		t.Fatalf("history cursor: %q", cursor)
 	}
 	run(a.GmailIncremental, nil, conn.ID)
-	if backfill, _ := conns.Cursor(ctx, conn.ID, streamBackfill); backfill != "" {
+	if backfill, _ := conns.Cursor(ctx, conn.ID, connections.StreamBackfill); backfill != "" {
 		t.Fatalf("an expired history cursor must restart the backfill: %q", backfill)
 	}
 

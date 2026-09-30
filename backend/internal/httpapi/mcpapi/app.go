@@ -20,8 +20,8 @@ const (
 	appMIME = "text/html;profile=mcp-app"
 )
 
-// glyph is a contact card, line-drawn so hosts can tint it.
-const glyph = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" stroke="STROKE" stroke-width="1.33" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="15" height="12" rx="2"/><circle cx="7.5" cy="9" r="1.8"/><path d="M5 13.3c.6-1.1 1.5-1.7 2.5-1.7s1.9.6 2.5 1.7M12.2 8.5h3M12.2 11.5h3"/></svg>`
+// glyph is two people, line-drawn so hosts can tint it.
+const glyph = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="STROKE" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="4"/><path d="M2 21v-2a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4v2M16 3.13a4 4 0 0 1 0 7.75M22 21v-2a4 4 0 0 0-3-3.87"/></svg>`
 
 func icon(stroke string) string {
 	return "data:image/svg+xml;base64," + base64.StdEncoding.EncodeToString([]byte(strings.Replace(glyph, "STROKE", stroke, 1)))

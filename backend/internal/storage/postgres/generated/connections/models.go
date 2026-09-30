@@ -17,6 +17,7 @@ type Connection struct {
 	RefreshToken []byte
 	Status       string
 	CreatedAt    time.Time
+	Aliases      []string
 }
 
 type SyncCursor struct {

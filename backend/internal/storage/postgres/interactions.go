@@ -56,6 +56,10 @@ func (s *Store) ListHandles(ctx context.Context, q storage.HandleQuery) ([]stora
 	return many(toSummary)(s.in.ListHandles(ctx, intdb.ListHandlesParams(q)))
 }
 
+func (s *Store) MarkInternal(ctx context.Context, workspaceID string, addresses, domains []string) error {
+	return mapError(s.in.MarkInternal(ctx, intdb.MarkInternalParams{WorkspaceID: workspaceID, Addresses: addresses, Domains: domains}))
+}
+
 func (s *Store) EngagedHandles(ctx context.Context, workspaceID string, maxSize int32) ([]string, error) {
 	ids, err := s.in.EngagedHandles(ctx, intdb.EngagedHandlesParams{WorkspaceID: workspaceID, MaxSize: maxSize})
 	return ids, mapError(err)

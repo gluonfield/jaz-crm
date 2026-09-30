@@ -16,6 +16,8 @@ type Connection struct {
 	RefreshToken []byte
 	Status       string
 	CreatedAt    time.Time
+	// Aliases are the other addresses the mailbox sends as.
+	Aliases []string
 }
 
 type NewConnection struct {
@@ -24,6 +26,13 @@ type NewConnection struct {
 	Provider     string
 	Account      string
 	RefreshToken []byte
+}
+
+// MailProgress is how much of a connection's mail is synced.
+type MailProgress struct {
+	ConnectionID string
+	Messages     int
+	Oldest       time.Time
 }
 
 type SyncCursor struct {
@@ -46,6 +55,9 @@ type ConnectionStore interface {
 	SetCursor(ctx context.Context, connectionID, stream, cursor string) error
 	DeleteCursor(ctx context.Context, connectionID, stream string) error
 	Cursors(ctx context.Context, connectionIDs []string) ([]SyncCursor, error)
-	// InternalAddresses are the workspace's members' and connections' emails.
+	// InternalAddresses are the workspace's members' and connections' emails,
+	// aliases included.
 	InternalAddresses(ctx context.Context, workspaceID string) ([]string, error)
+	SetAliases(ctx context.Context, connectionID string, aliases []string) error
+	MailProgress(ctx context.Context, connectionIDs []string) ([]MailProgress, error)
 }

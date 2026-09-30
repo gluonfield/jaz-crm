@@ -3,7 +3,9 @@ package interactions
 import (
 	"cmp"
 	"context"
+	"maps"
 	"net/mail"
+	"slices"
 	"strings"
 	"time"
 
@@ -20,10 +22,20 @@ const smallConversation = 10
 // assessBatch is how many addresses one classifier call judges.
 const assessBatch = 25
 
-// Triage settles what evidence can, strongest first: addresses already on a
-// record, then people someone in the workspace wrote to or met, then asks
-// the classifier about one batch of the rest.
+// Triage settles what evidence can, strongest first: the workspace's own
+// addresses, addresses already on a record, then people someone in the
+// workspace wrote to or met, then asks the classifier about one batch of the
+// rest.
 func (s *Service) Triage(ctx context.Context, workspaceID string) error {
+	known, err := s.Known(ctx, workspaceID)
+	if err != nil {
+		return err
+	}
+	// Own addresses can become known after their mail arrived, such as a
+	// mailbox's aliases.
+	if err := s.store.MarkInternal(ctx, workspaceID, slices.Collect(maps.Keys(known.own)), slices.Collect(maps.Keys(known.domains))); err != nil {
+		return err
+	}
 	onRecords, err := s.store.HandlesOnRecords(ctx, workspaceID)
 	if err != nil {
 		return err

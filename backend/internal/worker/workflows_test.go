@@ -22,7 +22,7 @@ func syncEnv(t *testing.T, backfill func(int) (bool, error)) (*testsuite.TestWor
 		passes = append(passes, env.Now())
 		return backfill(len(passes))
 	})
-	for _, step := range []any{a.GmailIncremental, a.CalendarSync, a.Triage, a.Watch} {
+	for _, step := range []any{a.Aliases, a.GmailIncremental, a.CalendarSync, a.Triage, a.Watch} {
 		env.OnActivity(step, mock.Anything, "c1").Return(nil).Maybe()
 	}
 	env.OnActivity(a.FetchContent, mock.Anything, "c1").Return(0, nil).Maybe()
