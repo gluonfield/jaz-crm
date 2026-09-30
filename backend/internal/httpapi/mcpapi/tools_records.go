@@ -12,6 +12,12 @@ import (
 )
 
 func registerRecords(r *registry, crm *records.Service, conversations *interactions.Service, pics pictures) {
+	add(r, &mcp.Tool{Name: "add_attribute_option", Title: "Add attribute option",
+		Description: "Add a reusable choice to a select attribute, such as company categories. Returns the existing choice when its spelling differs only in case. Assign choices through upsert_record."},
+		func(ctx context.Context, actor auth.Actor, in optionInput) (optionOutput, error) {
+			value, err := crm.AddOption(ctx, actor, in.Object, in.Attribute, in.Value)
+			return optionOutput{Value: value}, err
+		})
 	add(r, &mcp.Tool{Name: "list_objects", Title: "List objects", Annotations: readOnly,
 		Description: "List the objects records belong to, such as people and companies, with their attributes."},
 		func(ctx context.Context, actor auth.Actor, _ empty) (objectsOutput, error) {
@@ -103,6 +109,16 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 			})
 			return objectOf(object), err
 		})
+}
+
+type optionInput struct {
+	Object    string `json:"object"`
+	Attribute string `json:"attribute"`
+	Value     string `json:"value"`
+}
+
+type optionOutput struct {
+	Value string `json:"value"`
 }
 
 type attributeView struct {

@@ -44,6 +44,7 @@ var StandardObjects = []storage.NewObject{
 	}},
 	{Slug: "companies", Name: "Companies", Attributes: []storage.NewAttribute{
 		{Slug: titleAttribute, Name: "Name", Type: Text},
+		{Slug: "categories", Name: "Categories", Type: Select, Multi: true},
 		{Slug: "domains", Name: "Domains", Type: Domain, Multi: true, IsUnique: true},
 		{Slug: "description", Name: "Description", Type: Text},
 	}},

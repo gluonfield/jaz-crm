@@ -10,9 +10,7 @@ export function newQueryClient() {
   const client: QueryClient = new QueryClient({
     defaultOptions: { queries: { retry: 1 } },
     mutationCache: new MutationCache({
-      onSuccess: () => {
-        void client.invalidateQueries()
-      },
+      onSuccess: () => client.invalidateQueries(),
       onError: (error) => {
         toast.error(error.message)
       },
@@ -39,8 +37,17 @@ export function useWorkspace() {
   return useTool<Workspace>('get_workspace').data
 }
 
-export function useRecords(object: string, query = '', limit = 100) {
-  return useTool<{ records: CrmRecord[] }>('search_records', { object, query, limit }, { placeholderData: (previous) => previous })
+export function useRecords(object: string, query = '', limit = 100, where: Record<string, string> = {}) {
+  return useTool<{ records: CrmRecord[] }>('search_records', { object, query, limit, where }, { placeholderData: (previous) => previous })
+}
+
+export function useWrite(record: CrmRecord) {
+  const upsert = useAction<{ object: string; record_id: string; values?: Record<string, string>; remove?: Record<string, string[]> }>('upsert_record')
+  return {
+    pending: upsert.isPending,
+    set: (slug: string, value: string) => upsert.mutate({ object: record.object, record_id: record.id, values: { [slug]: value } }),
+    remove: (slug: string, values: string[]) => upsert.mutate({ object: record.object, record_id: record.id, remove: { [slug]: values } }),
+  }
 }
 
 // useRecordSearch finds records of every object by text.

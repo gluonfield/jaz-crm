@@ -1,7 +1,7 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { MoreHorizontal, Trash2 } from 'lucide-react'
 import { Button, Header, Tab } from '@/components/controls'
-import { Field, TextInput, useWrite } from '@/components/fields'
+import { Field, TextInput } from '@/components/fields'
 import { History } from '@/components/history'
 import { ObjectIcon, RecordIcon } from '@/components/icons'
 import { Related } from '@/components/related'
@@ -9,7 +9,7 @@ import { Composer, InteractionRow } from '@/components/timeline'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
 import { timeAgo } from '@/lib/format'
-import { useAction, useObjects, useTimeline, useTool } from '@/lib/queries'
+import { useAction, useObjects, useTimeline, useTool, useWrite } from '@/lib/queries'
 import type { Attribute, CrmObject, CrmRecord } from '@/lib/types'
 
 export const Route = createFileRoute('/_app/r/$recordId')({

@@ -155,6 +155,14 @@ func TestRecordTools(t *testing.T) {
 // No tool reads, writes or references another workspace's records.
 func TestTenantIsolation(t *testing.T) {
 	a, b := connect(t)
+	mustCall(t, a, "add_attribute_option", map[string]any{"object": "companies", "attribute": "categories", "value": "Manufacturing"})
+	if objects := encode(mustCall(t, b, "list_objects", nil)); strings.Contains(objects, "Manufacturing") {
+		t.Errorf("category options crossed workspaces: %s", objects)
+	}
+	mustCall(t, b, "add_attribute_option", map[string]any{"object": "companies", "attribute": "categories", "value": "Robotics"})
+	if objects := encode(mustCall(t, a, "list_objects", nil)); strings.Contains(objects, "Robotics") {
+		t.Errorf("adding a category changed another workspace: %s", objects)
+	}
 	company := mustCall(t, a, "upsert_record", map[string]any{"object": "companies", "values": map[string]any{"name": "Acme", "domains": "acme.com"}})["record"].(map[string]any)
 	id := company["id"].(string)
 
@@ -178,6 +186,52 @@ func TestTenantIsolation(t *testing.T) {
 	}
 	if got := mustCall(t, a, "get_record", map[string]any{"record_id": id}); encode(got["values"]) != `{"domains":["acme.com"],"name":"Acme"}` {
 		t.Errorf("the owner's record changed: %v", got)
+	}
+}
+
+func TestCompanyCategories(t *testing.T) {
+	a, _ := connect(t)
+	for _, value := range []string{" Manufacturing ", "B2B"} {
+		mustCall(t, a, "add_attribute_option", map[string]any{"object": "companies", "attribute": "categories", "value": value})
+	}
+	args := map[string]any{"object": "companies", "attribute": "categories", "value": "MANUFACTURING"}
+	if out := mustCall(t, a, "add_attribute_option", args); out["value"] != "Manufacturing" {
+		t.Fatalf("case-insensitive option reuse: %v", out)
+	}
+	objects := mustCall(t, a, "list_objects", nil)["objects"].([]any)
+	category := objects[0].(map[string]any)["attributes"].([]any)[1].(map[string]any)
+	if got := encode(category); got != `{"multi":true,"name":"Categories","options":["Manufacturing","B2B"],"slug":"categories","type":"select"}` {
+		t.Fatalf("persisted category schema: %s", got)
+	}
+	company := mustCall(t, a, "upsert_record", map[string]any{"object": "companies", "values": map[string]any{
+		"name": "Acme", "domains": "acme.test", "categories": []any{"manufacturing", "B2B"},
+	}})["record"].(map[string]any)
+	id := company["id"]
+	if got := encode(company["values"].(map[string]any)["categories"]); got != `["Manufacturing","B2B"]` {
+		t.Fatalf("multiple canonical categories: %s", got)
+	}
+	search := map[string]any{"object": "companies", "where": map[string]any{"categories": "MANUFACTURING"}, "query": "Acme"}
+	if found := mustCall(t, a, "search_records", search)["records"].([]any); len(found) != 1 || found[0].(map[string]any)["id"] != id {
+		t.Fatalf("category filter combined with search: %v", found)
+	}
+	mustCall(t, a, "upsert_record", map[string]any{"object": "companies", "record_id": id, "remove": map[string]any{"categories": []any{"Manufacturing"}}})
+	if found := mustCall(t, a, "search_records", search)["records"].([]any); len(found) != 0 {
+		t.Fatalf("removed category still matched: %v", found)
+	}
+	if got := encode(mustCall(t, a, "get_record", map[string]any{"record_id": id})["values"].(map[string]any)["categories"]); got != `["B2B"]` {
+		t.Fatalf("removing one category affected another: %s", got)
+	}
+	if schema := encode(mustCall(t, a, "list_objects", nil)); !strings.Contains(schema, `"options":["Manufacturing","B2B"]`) {
+		t.Fatalf("an unassigned category was forgotten: %s", schema)
+	}
+	for _, input := range []map[string]any{
+		{"object": "companies", "attribute": "domains", "value": "B2B"},
+		{"object": "companies", "attribute": "categories", "value": "  "},
+		{"object": "companies", "attribute": "categories", "value": strings.Repeat("x", 81)},
+	} {
+		if _, failure := call(t, a, "add_attribute_option", input); failure == "" {
+			t.Errorf("invalid option was accepted: %v", input)
+		}
 	}
 }
 

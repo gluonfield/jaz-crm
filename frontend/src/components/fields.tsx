@@ -4,23 +4,13 @@ import { useState } from 'react'
 import { recordName, valueKey, valueText, valuesOf } from '@/lib/crm'
 import { formatDay } from '@/lib/format'
 import { useDebounced } from '@/lib/hooks'
-import { useAction, useRecords } from '@/lib/queries'
+import { useRecords, useWrite } from '@/lib/queries'
 import type { Attribute, CrmRecord, Value } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { Chip } from './controls'
 import { RecordIcon } from './icons'
 import { Picker } from './picker'
-
-type Write = { object: string; record_id: string; values?: Record<string, string | string[]>; remove?: Record<string, string[]> }
-
-// useWrite sets or removes one attribute's values on a record.
-export function useWrite(record: CrmRecord) {
-  const upsert = useAction<Write>('upsert_record')
-  return {
-    set: (slug: string, value: string) => upsert.mutate({ object: record.object, record_id: record.id, values: { [slug]: value } }),
-    remove: (slug: string, values: string[]) => upsert.mutate({ object: record.object, record_id: record.id, remove: { [slug]: values } }),
-  }
-}
+import { SelectField } from './select-field'
 
 const inputType: Partial<Record<Attribute['type'], string>> = { number: 'number', date: 'date', email: 'email', url: 'url', phone: 'tel' }
 
@@ -44,15 +34,7 @@ export function Field({ record, attribute }: { record: CrmRecord; attribute: Att
     )
   }
   if (attribute.type === 'select') {
-    return (
-      <Picker
-        trigger={<button className={cn(valueButton, !values.length && 'text-ink-3')}>{values.length ? valueText(values[0]) : 'Empty'}</button>}
-        placeholder={`Set ${attribute.name.toLowerCase()}...`}
-        options={(attribute.options ?? []).map((o) => ({ value: o, label: o }))}
-        selected={values.map(valueKey)}
-        onSelect={(option) => (values.some((v) => valueKey(v) === option) ? write.remove(slug, [option]) : write.set(slug, option))}
-      />
-    )
+    return <SelectField record={record} attribute={attribute} />
   }
   if (attribute.type === 'reference') {
     return <ReferenceField record={record} attribute={attribute} values={values} />
@@ -179,4 +161,3 @@ function ReferenceField({ record, attribute, values }: { record: CrmRecord; attr
     </div>
   )
 }
-

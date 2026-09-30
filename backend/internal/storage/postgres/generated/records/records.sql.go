@@ -9,6 +9,33 @@ import (
 	"context"
 )
 
+const addAttributeOption = `-- name: AddAttributeOption :one
+WITH updated AS (
+  UPDATE attributes SET options = CASE
+    WHEN EXISTS (SELECT 1 FROM unnest(options) AS option WHERE lower(option) = lower($1::text)) THEN options
+    ELSE array_append(options, $1::text)
+  END
+  FROM objects
+  WHERE attributes.object_id = objects.id AND objects.workspace_id = $2
+    AND attributes.id = $3 AND attributes.type = 'select'
+  RETURNING attributes.options
+)
+SELECT option::text FROM updated, unnest(options) AS option WHERE lower(option) = lower($1::text)
+`
+
+type AddAttributeOptionParams struct {
+	Value       string
+	WorkspaceID string
+	AttributeID string
+}
+
+func (q *Queries) AddAttributeOption(ctx context.Context, arg AddAttributeOptionParams) (string, error) {
+	row := q.db.QueryRow(ctx, addAttributeOption, arg.Value, arg.WorkspaceID, arg.AttributeID)
+	var option string
+	err := row.Scan(&option)
+	return option, err
+}
+
 const closeValues = `-- name: CloseValues :exec
 UPDATE record_values SET active_until = now()
 WHERE record_id = $1 AND id = ANY($2::bigint[]) AND active_until IS NULL

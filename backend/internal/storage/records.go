@@ -120,6 +120,7 @@ type RecordStore interface {
 	Attributes(ctx context.Context, workspaceID string) ([]Attribute, error)
 	CreateObject(ctx context.Context, workspaceID string, object NewObject) error
 	CreateAttribute(ctx context.Context, attr AttributeInput) error
+	AddAttributeOption(ctx context.Context, workspaceID, attributeID, value string) (string, error)
 	DeleteRecord(ctx context.Context, workspaceID, id string) error
 	Records(ctx context.Context, workspaceID string, ids []string) ([]Record, error)
 	SearchRecords(ctx context.Context, query RecordQuery) ([]Record, error)

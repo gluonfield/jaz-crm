@@ -1,5 +1,5 @@
 import { Command as CommandPrimitive } from 'cmdk'
-import { Check } from 'lucide-react'
+import { Check, Plus } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
@@ -16,6 +16,8 @@ export function Picker({
   selected = [],
   onSelect,
   onSearch,
+  onCreate,
+  disabled = false,
   multiple = false,
   align = 'start',
 }: {
@@ -25,11 +27,15 @@ export function Picker({
   selected?: string[]
   onSelect: (value: string) => void
   onSearch?: (search: string) => void
+  onCreate?: (value: string) => void
+  disabled?: boolean
   multiple?: boolean
   align?: 'start' | 'end'
 }) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
+  const newValue = search.trim()
+  const canCreate = onCreate && newValue && !options.some((o) => o.label.toLowerCase() === newValue.toLowerCase())
   const pick = (value: string) => {
     onSelect(value)
     if (!multiple) {
@@ -52,7 +58,7 @@ export function Picker({
           shouldFilter={!onSearch}
           onKeyDown={(e) => {
             const digit = Number(e.key)
-            if (!e.metaKey && !e.ctrlKey && digit >= 1 && digit <= 9 && !search && options[digit - 1]) {
+            if (!onCreate && !disabled && !e.metaKey && !e.ctrlKey && digit >= 1 && digit <= 9 && !search && options[digit - 1]) {
               e.preventDefault()
               pick(options[digit - 1].value)
             }
@@ -60,6 +66,7 @@ export function Picker({
         >
           <CommandPrimitive.Input
             autoFocus
+            aria-label={placeholder}
             value={search}
             onValueChange={(next) => {
               setSearch(next)
@@ -75,9 +82,10 @@ export function Picker({
               return (
                 <CommandPrimitive.Item
                   key={option.value}
+                  disabled={disabled}
                   value={`${option.label} ${option.value}`}
                   onSelect={() => pick(option.value)}
-                  className="flex h-8 cursor-default items-center gap-2.5 rounded-[5px] px-2 text-[13px] text-ink outline-none data-[selected=true]:bg-list-active"
+                  className="flex min-h-10 cursor-default items-center gap-2.5 rounded-[5px] px-2 text-[13px] text-ink outline-none data-[selected=true]:bg-list-active data-[disabled=true]:opacity-50"
                 >
                   {multiple && (
                     <span className={cn('flex size-3.5 items-center justify-center rounded-[4px] border border-ink-3/60', active && 'border-primary bg-primary text-on-primary')}>
@@ -91,6 +99,23 @@ export function Picker({
                 </CommandPrimitive.Item>
               )
             })}
+            {canCreate && (
+              <CommandPrimitive.Item
+                value={`Create ${newValue}`}
+                disabled={disabled}
+                onSelect={() => {
+                  onCreate(newValue)
+                  setSearch('')
+                  if (!multiple) {
+                    setOpen(false)
+                  }
+                }}
+                className="flex min-h-10 cursor-default items-center gap-2.5 rounded-[5px] px-2 text-[13px] text-ink outline-none data-[selected=true]:bg-list-active data-[disabled=true]:opacity-50"
+              >
+                <Plus className="size-3.5 text-ink-3" />
+                <span className="truncate">Create “{newValue}”</span>
+              </CommandPrimitive.Item>
+            )}
           </CommandPrimitive.List>
         </CommandPrimitive>
       </PopoverContent>

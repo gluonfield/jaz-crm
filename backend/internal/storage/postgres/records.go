@@ -32,6 +32,11 @@ func (s *Store) CreateAttribute(ctx context.Context, attr storage.AttributeInput
 	return mapError(err)
 }
 
+func (s *Store) AddAttributeOption(ctx context.Context, workspaceID, attributeID, value string) (string, error) {
+	option, err := s.rec.AddAttributeOption(ctx, recdb.AddAttributeOptionParams{WorkspaceID: workspaceID, AttributeID: attributeID, Value: value})
+	return option, mapError(err)
+}
+
 func (s *Store) DeleteRecord(ctx context.Context, workspaceID, id string) error {
 	return affected(s.rec.DeleteRecord(ctx, recdb.DeleteRecordParams{WorkspaceID: workspaceID, ID: id}))
 }

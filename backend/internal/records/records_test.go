@@ -245,7 +245,6 @@ func TestCustomObjects(t *testing.T) {
 	}
 	for name, bad := range map[string]records.Attribute{
 		"unique select":         {Slug: "x", Name: "X", Type: records.Select, Options: []string{"a"}, Unique: true},
-		"select without option": {Slug: "x", Name: "X", Type: records.Select},
 		"unknown target":        {Slug: "x", Name: "X", Type: records.Reference, Target: "nope"},
 		"taken slug":            {Slug: "amount", Name: "X", Type: records.Number},
 		"bad slug":              {Slug: "Bad Slug", Name: "X", Type: records.Text},

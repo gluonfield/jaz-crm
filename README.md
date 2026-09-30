@@ -20,6 +20,7 @@ claude mcp add --transport http jaz-crm http://localhost:7500/mcp --header "Auth
 ## How it works
 
 - **Records.** Objects are record types; every workspace starts with people and companies and can add its own, such as deals with a stage. Attributes are typed: text, number, date, checkbox, url, select, email, domain, phone and reference. Emails, domains and phone numbers identify records, so writing a known email updates that person instead of creating another.
+- **Companies.** Assign several coloured category tags directly in the table or on a company page. Create reusable labels, filter by a category, search and sort by name; company names stay visible while the table scrolls.
 - **History and provenance.** Values are append-only: a change closes the current value and inserts its successor. Each value records its source, ranked user > agent > sync; a write replaces or removes only values from its own or a lower-ranked source and reports the rest as skipped, so sync never overwrites an agent and neither overwrites a person.
 - **Interactions.** An email thread, meeting, call or note is one interaction with its participants and parts: messages, transcript lines, notes. Threads seen by two teammates' mailboxes merge by Message-ID. Interactions link to the records they concern, and a record's timeline is one query.
 - **Triage.** Every address seen is triaged. Your own addresses and colleagues are internal; automated senders and bulk mail are skipped. Anyone someone in the workspace wrote to, or met in a small meeting, is kept and becomes a person at their company with their conversations linked. An optional LLM judges cold inbound against the workspace's description; the rest wait for a person or an agent. A person's decision, for an address or a whole domain, is final.
@@ -41,6 +42,7 @@ Configuration is documented in `.env.example`.
 | Tool | Does |
 | --- | --- |
 | `list_objects`, `create_object`, `create_attribute` | the schema |
+| `add_attribute_option` | reusable select choices, including company categories |
 | `search_records`, `get_record`, `upsert_record`, `delete_record` | records; `get_record` includes how often and when last they were in touch |
 | `list_interactions`, `get_interaction`, `search_interactions` | timelines, full conversations, full-text search |
 | `log_interaction`, `link_interaction`, `unlink_interaction`, `skip_interaction` | calls and notes, links to records, removal |

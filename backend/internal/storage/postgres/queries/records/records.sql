@@ -6,6 +6,19 @@ INSERT INTO attributes (object_id, slug, name, type, multi, is_unique, target_ob
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING *;
 
+-- name: AddAttributeOption :one
+WITH updated AS (
+  UPDATE attributes SET options = CASE
+    WHEN EXISTS (SELECT 1 FROM unnest(options) AS option WHERE lower(option) = lower(@value::text)) THEN options
+    ELSE array_append(options, @value::text)
+  END
+  FROM objects
+  WHERE attributes.object_id = objects.id AND objects.workspace_id = @workspace_id
+    AND attributes.id = @attribute_id AND attributes.type = 'select'
+  RETURNING attributes.options
+)
+SELECT option::text FROM updated, unnest(options) AS option WHERE lower(option) = lower(@value::text);
+
 -- name: ListObjects :many
 SELECT * FROM objects WHERE workspace_id = $1 ORDER BY created_at, slug;
 

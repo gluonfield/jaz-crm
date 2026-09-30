@@ -66,8 +66,8 @@ func (s *Service) CreateAttribute(ctx context.Context, actor auth.Actor, object 
 		return Object{}, errs.Invalidf("only %s attributes can be unique", strings.Join(uniqueTypes, ", "))
 	case a.Multi && a.Type == Checkbox:
 		return Object{}, errs.Invalidf("a checkbox holds one value")
-	case (a.Type == Select) != (len(a.Options) > 0):
-		return Object{}, errs.Invalidf("select attributes, and only they, list options")
+	case a.Type != Select && len(a.Options) > 0:
+		return Object{}, errs.Invalidf("only select attributes list options")
 	case (a.Type == Reference) != (a.Target != ""):
 		return Object{}, errs.Invalidf("reference attributes, and only they, name a target object")
 	}
@@ -93,6 +93,29 @@ func (s *Service) CreateAttribute(ctx context.Context, actor auth.Actor, object 
 		return Object{}, err
 	}
 	return s.object(ctx, actor, object)
+}
+
+func (s *Service) AddOption(ctx context.Context, actor auth.Actor, object, attribute, value string) (string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" || len([]rune(value)) > 80 {
+		return "", errs.Invalidf("an option is 1 to 80 characters")
+	}
+	sc, err := s.schema(ctx, actor.WorkspaceID)
+	if err != nil {
+		return "", err
+	}
+	o, err := sc.object(object)
+	if err != nil {
+		return "", err
+	}
+	a, err := sc.attribute(o, attribute)
+	if err != nil {
+		return "", err
+	}
+	if a.Type != Select {
+		return "", errs.Invalidf("%s is not a select attribute", attribute)
+	}
+	return s.store.AddAttributeOption(ctx, actor.WorkspaceID, a.ID, value)
 }
 
 func (s *Service) object(ctx context.Context, actor auth.Actor, slug string) (Object, error) {
