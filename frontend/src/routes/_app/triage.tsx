@@ -2,12 +2,13 @@ import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { Check, Inbox, Search, X } from 'lucide-react'
 import { useState } from 'react'
 import { Button, Header, Tab, inputClass } from '@/components/controls'
-import { EmptyState } from '@/components/empty-state'
+import { ConnectGoogle, EmptyState } from '@/components/empty-state'
 import { RecordIcon } from '@/components/icons'
 import { Kbd } from '@/components/kbd'
 import { timeAgo } from '@/lib/format'
 import { useDebounced, useListKeys } from '@/lib/hooks'
 import { useAction, useTool } from '@/lib/queries'
+import { useMail } from '@/lib/sync'
 import type { Contact, Verdict } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -24,7 +25,8 @@ const deciders: Record<string, string> = { rule: 'Rule', agent: 'Agent', user: '
 function TriagePage() {
   const [status, setStatus] = useState<Verdict>('pending')
   const [search, setSearch] = useState('')
-  const contacts = useTool<{ contacts: Contact[] }>('list_triage', { status, query: useDebounced(search), limit: 200 }, { placeholderData: (p) => p }).data?.contacts
+  const query = useDebounced(search.trim())
+  const contacts = useTool<{ contacts: Contact[] }>('list_triage', { status, query, limit: 200 }, { placeholderData: (p) => p }).data?.contacts
   const decide = useAction<object>('decide_triage')
   const navigate = useNavigate()
   const choose = (contact: Contact, decision: 'keep' | 'skip') => decide.mutate({ addresses: [contact.address], decision })
@@ -51,7 +53,7 @@ function TriagePage() {
         </label>
       </Header>
       {contacts?.length === 0 ? (
-        <EmptyState title={status === 'pending' ? 'Nothing to triage' : `No ${status} addresses`} icon={<Inbox />} />
+        <Empty status={status} query={query} />
       ) : (
         <ul className="scrollbar-quiet min-h-0 flex-1 overflow-y-auto py-1">
           {contacts?.map((c, index) => {
@@ -102,5 +104,38 @@ function TriagePage() {
         </ul>
       )}
     </>
+  )
+}
+
+function Empty({ status, query }: { status: Verdict; query: string }) {
+  const mail = useMail()
+  if (query) {
+    return <EmptyState title={`No ${status} addresses match “${query}”`} icon={<Search />} />
+  }
+  if (status === 'kept') {
+    return (
+      <EmptyState title="No one kept yet" icon={<Check />}>
+        People you keep become records in the CRM, together with their conversations.
+      </EmptyState>
+    )
+  }
+  if (status === 'skipped') {
+    return (
+      <EmptyState title="Nothing skipped" icon={<X />}>
+        Addresses you skip, and automated senders, stay out of the CRM along with their mail.
+      </EmptyState>
+    )
+  }
+  if (mail === 'none') {
+    return (
+      <EmptyState title="Nothing to triage" icon={<Inbox />} action={<ConnectGoogle />}>
+        Connect Google, and new people who email you land here for you to keep or skip.
+      </EmptyState>
+    )
+  }
+  return (
+    <EmptyState title={mail === 'importing' ? 'Nothing to triage yet' : 'You’re all caught up'} icon={<Inbox />}>
+      New people who email you land here within minutes for you to keep or skip; anyone you write to or meet is kept automatically.
+    </EmptyState>
   )
 }

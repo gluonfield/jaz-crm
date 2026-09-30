@@ -2,22 +2,30 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { Plus, Search } from 'lucide-react'
 import { useState } from 'react'
 import { Button, Header, inputClass } from '@/components/controls'
-import { EmptyState } from '@/components/empty-state'
+import { ConnectGoogle, EmptyState } from '@/components/empty-state'
 import { ObjectIcon, RecordIcon } from '@/components/icons'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
 import { formatDay } from '@/lib/format'
 import { useDebounced, useListKeys } from '@/lib/hooks'
 import { useAction, useObjects, useRecords } from '@/lib/queries'
+import { useMail } from '@/lib/sync'
 import type { Attribute, CrmObject, CrmRecord } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 export const Route = createFileRoute('/_app/o/$object')({ component: ObjectPage })
 
+// arrivals says how synced objects' records arrive.
+const arrivals: Record<string, string> = {
+  people: 'People you write to or meet appear here automatically, along with anyone you keep in Triage.',
+  companies: 'Companies appear here from the work email domains of the people you keep.',
+}
+
 function ObjectPage() {
   const { object: slug } = Route.useParams()
   const object = useObjects()?.find((o) => o.slug === slug)
   const [search, setSearch] = useState('')
-  const records = useRecords(slug, useDebounced(search)).data?.records
+  const query = useDebounced(search.trim())
+  const records = useRecords(slug, query).data?.records
   const navigate = useNavigate()
   const open = (index: number) => records && navigate({ to: '/r/$recordId', params: { recordId: records[index].id } })
   const [focus] = useListKeys(records?.length ?? 0, { Enter: open, o: open })
@@ -42,7 +50,7 @@ function ObjectPage() {
       </Header>
       {creating && <QuickCreate object={object} onDone={() => setCreating(false)} />}
       {records?.length === 0 && !creating ? (
-        <EmptyState title={search ? 'No matches' : `No ${object.name.toLowerCase()} yet`} icon={<ObjectIcon slug={slug} />} />
+        <Empty object={object} query={query} />
       ) : (
         <div className="scrollbar-quiet min-h-0 flex-1 overflow-auto">
           <table className="w-full border-collapse text-[13px]">
@@ -133,5 +141,19 @@ function QuickCreate({ object, onDone }: { object: CrmObject; onDone: () => void
       </Button>
       <Button onClick={onDone}>Cancel</Button>
     </form>
+  )
+}
+
+function Empty({ object, query }: { object: CrmObject; query: string }) {
+  const mail = useMail()
+  const plural = object.name.toLowerCase()
+  if (query) {
+    return <EmptyState title={`No ${plural} match “${query}”`} icon={<Search />} />
+  }
+  const synced = object.slug in arrivals
+  return (
+    <EmptyState title={`No ${plural} yet`} icon={<ObjectIcon slug={object.slug} />} action={synced && mail === 'none' && <ConnectGoogle />}>
+      {arrivals[object.slug] ?? 'Records you add with New, or that an agent creates, appear here.'}
+    </EmptyState>
   )
 }

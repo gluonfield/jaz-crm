@@ -1,11 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { PlugZap } from 'lucide-react'
 import { Button, Header, Row, Section } from '@/components/controls'
-import { embedded } from '@/lib/api'
 import { formatDate, timeAgo } from '@/lib/format'
-import { app } from '@/lib/mcp-app'
 import { useAction } from '@/lib/queries'
-import { steps, useConnections } from '@/lib/sync'
+import { steps, useConnect, useConnections } from '@/lib/sync'
 import type { Connection } from '@/lib/types'
 
 export const Route = createFileRoute('/_app/connections')({
@@ -32,23 +30,14 @@ function progress(c: Connection, since: string) {
 function ConnectionsPage() {
   const { error } = Route.useSearch()
   const data = useConnections()
+  const connect = useConnect()
   const disconnect = useAction<object>('disconnect')
-  const connect = () => {
-    if (!data?.connect_url) {
-      return
-    }
-    if (embedded()) {
-      void app.openLink({ url: data.connect_url })
-    } else {
-      window.location.assign(data.connect_url)
-    }
-  }
   return (
     <>
       <Header>
         <PlugZap />
         Connections
-        {data?.connect_url && (
+        {connect && (
           <Button primary className="ml-auto" onClick={connect}>
             Connect Google
           </Button>
@@ -59,7 +48,9 @@ function ConnectionsPage() {
           {error && <p className="mb-6 rounded-[var(--radius-card)] border border-danger/40 bg-danger-soft px-4 py-3 text-[13px] text-danger">{error}</p>}
           <Section title="Google accounts">
             {data?.connections.length === 0 && (
-              <Row className="text-ink-3">{data.connect_url ? 'No accounts connected' : 'Google is not configured on this server'}</Row>
+              <Row className="text-ink-3">
+                {connect ? `Connect a Google account to import its mail and meetings since ${formatDate(data.since)}.` : 'Google is not configured on this server.'}
+              </Row>
             )}
             {data?.connections.map((c) => {
               const [now, detail] = progress(c, data.since)

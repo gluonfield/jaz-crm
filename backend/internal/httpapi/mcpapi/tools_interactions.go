@@ -24,7 +24,7 @@ func registerInteractions(r *registry, svc *interactions.Service) {
 			return i, err
 		})
 	add(r, &mcp.Tool{Name: "search_interactions", Title: "Search interactions", Annotations: readOnly,
-		Description: "Find interactions by title or content, newest first."},
+		Description: "Find interactions by title or content, newest first; without a query, list the latest."},
 		func(ctx context.Context, actor auth.Actor, in searchInteractionsInput) (interactionsOutput, error) {
 			list, err := svc.Search(ctx, actor, in.Query, in.Limit)
 			return interactionsOutput{Interactions: list}, err
@@ -84,7 +84,7 @@ type interactionInput struct {
 }
 
 type searchInteractionsInput struct {
-	Query string `json:"query"`
+	Query string `json:"query,omitempty"`
 	Limit int    `json:"limit,omitempty"`
 }
 

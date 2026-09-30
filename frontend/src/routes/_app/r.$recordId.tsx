@@ -92,7 +92,7 @@ function RecordPage() {
             {!tab ? (
               <div className="mt-4">
                 <Composer recordId={record.id} people={emails} />
-                <Timeline recordId={record.id} />
+                <Timeline recordId={record.id} object={object.slug} />
               </div>
             ) : (
               <History recordId={record.id} createdAt={record.created_at} attributes={object.attributes} />
@@ -118,11 +118,22 @@ function ordered(attributes: Attribute[]) {
   return [...attributes].sort((a, b) => Number(b.slug === 'name') - Number(a.slug === 'name'))
 }
 
-function Timeline({ recordId }: { recordId: string }) {
+// arrivals says what fills a record's timeline.
+const arrivals: Record<string, string> = {
+  people: 'Emails and meetings with this person appear here as they sync, along with the calls and notes you log above.',
+  companies: 'Emails and meetings with people at this company appear here as they sync, along with the calls and notes you log above.',
+}
+
+function Timeline({ recordId, object }: { recordId: string; object: string }) {
   const timeline = useTimeline(recordId)
   const items = timeline.data?.pages.flatMap((p) => p.interactions) ?? []
   return (
     <>
+      {timeline.data && items.length === 0 && (
+        <p className="mt-6 text-[13px] leading-[1.5] text-ink-3">
+          {arrivals[object] ?? 'Conversations you link to this record appear here, along with the calls and notes you log above.'}
+        </p>
+      )}
       <ol className="-mx-3 mt-6 flex flex-col gap-0.5">
         {items.map((i) => (
           <InteractionRow key={i.id} interaction={i} />

@@ -204,7 +204,7 @@ LIMIT @row_limit;
 SELECT interactions.* FROM interactions
 WHERE interactions.workspace_id = @workspace_id AND NOT interactions.skipped
   AND EXISTS (SELECT 1 FROM links WHERE links.interaction_id = interactions.id)
-  AND (interactions.title ILIKE '%' || @query::text || '%' OR EXISTS (
+  AND (@query::text = '' OR interactions.title ILIKE '%' || @query::text || '%' OR EXISTS (
     SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.search @@ websearch_to_tsquery('simple', @query::text)
   ))
 ORDER BY interactions.started_at DESC, interactions.id

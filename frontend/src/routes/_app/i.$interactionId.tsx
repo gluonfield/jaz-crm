@@ -86,6 +86,9 @@ function InteractionPage() {
           </div>
           <div className="mt-8 flex flex-col gap-3">
             <Parts parts={interaction.parts ?? []} />
+            {interaction.source === 'calendar' && !interaction.parts?.some((p) => p.kind === 'transcript') && (
+              <p className="text-[12.5px] text-ink-3">If this meeting is transcribed in Google Meet, the transcript appears here within a day.</p>
+            )}
           </div>
         </div>
       </div>

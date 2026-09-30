@@ -1,12 +1,13 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { TextSearch } from 'lucide-react'
 import { Header, inputClass } from '@/components/controls'
-import { EmptyState } from '@/components/empty-state'
+import { ConnectGoogle, EmptyState } from '@/components/empty-state'
 import { InteractionRow } from '@/components/timeline'
 import { useTool } from '@/lib/queries'
 import type { Interaction } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { useDebounced } from '@/lib/hooks'
+import { useMail } from '@/lib/sync'
 import { useState } from 'react'
 
 export const Route = createFileRoute('/_app/search')({
@@ -19,7 +20,7 @@ function SearchPage() {
   const navigate = useNavigate()
   const [text, setText] = useState(q)
   const query = useDebounced(text.trim(), 300)
-  const found = useTool<{ interactions: Interaction[] }>('search_interactions', { query, limit: 50 }, { enabled: !!query }).data?.interactions
+  const found = useTool<{ interactions: Interaction[] }>('search_interactions', { query, limit: 50 }, { placeholderData: (p) => p }).data?.interactions
   return (
     <>
       <Header>
@@ -36,8 +37,8 @@ function SearchPage() {
           className={cn(inputClass, 'ml-3 w-96')}
         />
       </Header>
-      {query && found?.length === 0 ? (
-        <EmptyState title="No conversations match" icon={<TextSearch />} />
+      {found?.length === 0 ? (
+        <Empty query={query} />
       ) : (
         <ol className="scrollbar-quiet mx-auto w-full max-w-[820px] min-h-0 flex-1 overflow-y-auto px-7 py-3">
           {found?.map((i) => (
@@ -46,5 +47,32 @@ function SearchPage() {
         </ol>
       )}
     </>
+  )
+}
+
+function Empty({ query }: { query: string }) {
+  const mail = useMail()
+  if (query) {
+    return (
+      <EmptyState title={`No conversations match “${query}”`} icon={<TextSearch />}>
+        Search covers the subjects and messages of conversations with people you keep.
+      </EmptyState>
+    )
+  }
+  if (mail === 'none') {
+    return (
+      <EmptyState title="No conversations yet" icon={<TextSearch />} action={<ConnectGoogle />}>
+        Connect Google to bring in your email and meetings.
+      </EmptyState>
+    )
+  }
+  return (
+    <EmptyState title="No conversations yet" icon={<TextSearch />}>
+      Emails and meetings appear here once you keep the people in them in{' '}
+      <Link to="/triage" className="text-ink underline-offset-2 hover:underline">
+        Triage
+      </Link>
+      , along with the calls and notes you log.
+    </EmptyState>
   )
 }

@@ -67,13 +67,10 @@ func (s *Service) Timeline(ctx context.Context, actor auth.Actor, recordID strin
 	return s.views(ctx, actor.WorkspaceID, list, false)
 }
 
-// Search finds linked interactions by title or content.
+// Search finds linked interactions by title or content, or lists the latest
+// without a query.
 func (s *Service) Search(ctx context.Context, actor auth.Actor, query string, limit int) ([]Interaction, error) {
-	query = strings.TrimSpace(query)
-	if query == "" {
-		return nil, errs.Invalidf("a search needs a query")
-	}
-	list, err := s.store.SearchInteractions(ctx, actor.WorkspaceID, query, limitOf(limit))
+	list, err := s.store.SearchInteractions(ctx, actor.WorkspaceID, strings.TrimSpace(query), limitOf(limit))
 	if err != nil {
 		return nil, err
 	}

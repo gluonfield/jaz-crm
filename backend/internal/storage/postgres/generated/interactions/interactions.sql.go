@@ -855,7 +855,7 @@ const searchInteractions = `-- name: SearchInteractions :many
 SELECT interactions.id, interactions.workspace_id, interactions.kind, interactions.source, interactions.external_id, interactions.connection_id, interactions.user_id, interactions.title, interactions.started_at, interactions.ended_at, interactions.meet_code, interactions.transcript_checked_at, interactions.skipped, interactions.created_at FROM interactions
 WHERE interactions.workspace_id = $1 AND NOT interactions.skipped
   AND EXISTS (SELECT 1 FROM links WHERE links.interaction_id = interactions.id)
-  AND (interactions.title ILIKE '%' || $2::text || '%' OR EXISTS (
+  AND ($2::text = '' OR interactions.title ILIKE '%' || $2::text || '%' OR EXISTS (
     SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.search @@ websearch_to_tsquery('simple', $2::text)
   ))
 ORDER BY interactions.started_at DESC, interactions.id

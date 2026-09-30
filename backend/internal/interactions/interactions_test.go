@@ -305,6 +305,12 @@ func TestLogLinkAndSkip(t *testing.T) {
 	if len(e.timeline(t, person)) != 1 || len(e.timeline(t, acme.ID)) != 1 {
 		t.Fatal("a logged call is on its person's and record's timelines")
 	}
+	if latest, err := e.svc.Search(ctx, e.a, " ", 10); err != nil || len(latest) != 1 || latest[0].ID != call.ID {
+		t.Fatalf("with no query, search lists the latest conversations: %+v %v", latest, err)
+	}
+	if latest, err := e.svc.Search(ctx, e.b, "", 10); err != nil || len(latest) != 0 {
+		t.Fatalf("listed another workspace's conversations: %+v %v", latest, err)
+	}
 	half := interactions.Entry{Kind: interactions.Call, Title: "Half", People: []string{"bo@x.io", "nobody"}, Records: []string{acme.ID}}
 	if _, err := e.svc.Log(ctx, e.a, "manual", half); err == nil || e.contacts(t, interactions.Pending)["bo@x.io"].Address != "" {
 		t.Fatalf("a rejected log must leave nothing behind: %v", err)

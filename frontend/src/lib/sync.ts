@@ -1,5 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
+import { embedded } from './api'
+import { app } from './mcp-app'
 import { useTool } from './queries'
 import type { Connection, Connections } from './types'
 
@@ -10,8 +12,9 @@ export const steps: Record<string, string> = {
   GmailIncremental: 'Checking new mail',
   CalendarSync: 'Syncing calendar',
   Triage: 'Sorting contacts',
+  CompanyLogos: 'Fetching company logos',
   FetchContent: 'Fetching conversations',
-  Photos: 'Fetching pictures and logos',
+  Photos: 'Fetching profile pictures',
   Watch: 'Checking for updates',
   DueMeetings: 'Checking meetings',
 }
@@ -23,6 +26,34 @@ export const syncing = (c: Connection) => c.status === 'active' && (!c.backfille
 // one syncs and every half minute otherwise.
 export function useConnections() {
   return useTool<Connections>('list_connections', {}, { refetchInterval: (query) => (query.state.data?.connections.some(syncing) ? 3000 : 30_000) }).data
+}
+
+// useMail says whether any mail is connected and whether it is still
+// importing, once the connections are known.
+export function useMail() {
+  const active = useConnections()?.connections.filter((c) => c.status === 'active')
+  if (!active) {
+    return undefined
+  }
+  if (active.length === 0) {
+    return 'none'
+  }
+  return active.some((c) => !c.backfilled) ? 'importing' : 'ready'
+}
+
+// useConnect starts connecting a Google account, when the server can.
+export function useConnect() {
+  const url = useConnections()?.connect_url
+  if (!url) {
+    return undefined
+  }
+  return () => {
+    if (embedded()) {
+      void app.openLink({ url })
+    } else {
+      window.location.assign(url)
+    }
+  }
 }
 
 // useLiveWhileSyncing refreshes what is on screen while mail arrives.
