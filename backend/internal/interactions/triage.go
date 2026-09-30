@@ -276,16 +276,16 @@ func deref(s *string) string {
 
 // Contact is an address with its verdict and how much it has been seen.
 type Contact struct {
-	Address      string
-	Kind         string
-	Name         string
-	Triage       string
-	DecidedBy    string
-	Reason       string
-	PersonID     string
-	Interactions int
-	LastSeen     time.Time
-	Photo        string
+	Address      string    `json:"address"`
+	Kind         string    `json:"kind"`
+	Name         string    `json:"name,omitempty"`
+	Triage       string    `json:"status"`
+	DecidedBy    string    `json:"decided_by,omitempty"`
+	Reason       string    `json:"reason,omitempty"`
+	PersonID     string    `json:"person_id,omitempty"`
+	Interactions int       `json:"interactions"`
+	LastSeen     time.Time `json:"last_seen"`
+	Photo        string    `json:"photo,omitempty"`
 }
 
 // Contacts lists addresses with a verdict, most recently seen first.

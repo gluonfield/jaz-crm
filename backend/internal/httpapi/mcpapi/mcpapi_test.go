@@ -5,14 +5,15 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
-	"github.com/gluonfield/jaz-crm/backend/internal/logos"
-	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/gluonfield/jaz-crm/backend/internal/logos"
+	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 
 	"github.com/charmbracelet/log"
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"

@@ -147,21 +147,21 @@ func (s *Service) Revoke(ctx context.Context, id string) error {
 
 // View is a connection with its sync progress.
 type View struct {
-	ID        string
-	Account   string
-	Owner     string
-	Status    string
-	CreatedAt time.Time
+	ID        string    `json:"id"`
+	Account   string    `json:"account"`
+	Owner     string    `json:"owner_id"`
+	Status    string    `json:"status"`
+	CreatedAt time.Time `json:"created_at"`
 	// Streams maps each stream to when it last moved.
-	Streams map[string]time.Time
+	Streams map[string]time.Time `json:"synced"`
 	// Step is the sync step running now, such as GmailBackfill; empty
 	// between passes.
-	Step string
+	Step string `json:"step,omitempty"`
 	// Backfilled reports whether the mail history is in.
-	Backfilled bool
+	Backfilled bool `json:"backfilled"`
 	// Messages counts the synced mail; Oldest is the earliest.
-	Messages int
-	Oldest   *time.Time
+	Messages int        `json:"messages"`
+	Oldest   *time.Time `json:"oldest,omitempty"`
 }
 
 func (s *Service) List(ctx context.Context, actor auth.Actor) ([]View, error) {

@@ -15,31 +15,31 @@ func registerInteractions(r *registry, svc *interactions.Service) {
 		Description: "A record's emails, meetings, calls and notes, newest first."},
 		func(ctx context.Context, actor auth.Actor, in timelineInput) (interactionsOutput, error) {
 			list, err := svc.Timeline(ctx, actor, in.RecordID, in.Kinds, in.Before, in.Limit)
-			return interactionsOutput{Interactions: interactionViews(list)}, err
+			return interactionsOutput{Interactions: list}, err
 		})
 	add(r, &mcp.Tool{Name: "get_interaction", Title: "Get interaction", Annotations: readOnly,
 		Description: "One interaction in full: every message, transcript line and note."},
-		func(ctx context.Context, actor auth.Actor, in interactionInput) (interactionView, error) {
+		func(ctx context.Context, actor auth.Actor, in interactionInput) (interactions.Interaction, error) {
 			i, err := svc.Get(ctx, actor, in.InteractionID)
-			return interactionOf(i), err
+			return i, err
 		})
 	add(r, &mcp.Tool{Name: "search_interactions", Title: "Search interactions", Annotations: readOnly,
 		Description: "Find interactions by title or content, newest first."},
 		func(ctx context.Context, actor auth.Actor, in searchInteractionsInput) (interactionsOutput, error) {
 			list, err := svc.Search(ctx, actor, in.Query, in.Limit)
-			return interactionsOutput{Interactions: interactionViews(list)}, err
+			return interactionsOutput{Interactions: list}, err
 		})
 	add(r, &mcp.Tool{Name: "log_interaction", Title: "Log interaction",
 		Description: "Log a call, a meeting outside the calendar, or a note, with the people in it and the records it concerns. The people are kept in the CRM."},
-		func(ctx context.Context, actor auth.Actor, in logInput) (interactionView, error) {
+		func(ctx context.Context, actor auth.Actor, in logInput) (interactions.Interaction, error) {
 			i, err := svc.Log(ctx, actor, "manual", in.entry())
-			return interactionOf(i), err
+			return i, err
 		})
 	add(r, &mcp.Tool{Name: "link_interaction", Title: "Link interaction",
 		Description: "Attach an interaction to a record, such as a deal."},
-		func(ctx context.Context, actor auth.Actor, in linkInput) (interactionView, error) {
+		func(ctx context.Context, actor auth.Actor, in linkInput) (interactions.Interaction, error) {
 			i, err := svc.Link(ctx, actor, in.InteractionID, in.RecordID)
-			return interactionOf(i), err
+			return i, err
 		})
 	add(r, &mcp.Tool{Name: "unlink_interaction", Title: "Unlink interaction",
 		Description: "Detach an interaction from a record."},
@@ -55,11 +55,7 @@ func registerInteractions(r *registry, svc *interactions.Service) {
 		Description: "Addresses by triage status: pending ones await a decision; kept ones are people in the CRM; skipped ones are not."},
 		func(ctx context.Context, actor auth.Actor, in triageInput) (contactsOutput, error) {
 			contacts, err := svc.Contacts(ctx, actor, in.Status, in.Query, in.Limit)
-			out := contactsOutput{Contacts: []contactView{}}
-			for _, c := range contacts {
-				out.Contacts = append(out.Contacts, contactView(c))
-			}
-			return out, err
+			return contactsOutput{Contacts: contacts}, err
 		})
 	add(r, &mcp.Tool{Name: "decide_triage", Title: "Decide triage",
 		Description: "Keep or skip addresses, or whole domains including addresses not seen yet. Kept addresses become people with their conversations; skipped ones leave the CRM."},
@@ -72,65 +68,8 @@ func registerInteractions(r *registry, svc *interactions.Service) {
 		})
 }
 
-type partyView struct {
-	Address  string `json:"address"`
-	Name     string `json:"name,omitempty"`
-	Role     string `json:"role"`
-	PersonID string `json:"person_id,omitempty"`
-	Photo    string `json:"photo,omitempty"`
-}
-
-type recordRefView struct {
-	ID     string `json:"id"`
-	Object string `json:"object"`
-	Name   string `json:"name,omitempty"`
-}
-
-type partView struct {
-	Kind    string    `json:"kind"`
-	At      time.Time `json:"at"`
-	Author  string    `json:"author,omitempty"`
-	Content string    `json:"content"`
-}
-
-type interactionView struct {
-	ID           string          `json:"id"`
-	Kind         string          `json:"kind"`
-	Source       string          `json:"source"`
-	Title        string          `json:"title"`
-	StartedAt    time.Time       `json:"started_at"`
-	EndedAt      *time.Time      `json:"ended_at,omitempty"`
-	Participants []partyView     `json:"participants"`
-	Records      []recordRefView `json:"records"`
-	Preview      string          `json:"preview,omitempty"`
-	Parts        []partView      `json:"parts,omitempty"`
-}
-
 type interactionsOutput struct {
-	Interactions []interactionView `json:"interactions"`
-}
-
-func interactionOf(i interactions.Interaction) interactionView {
-	v := interactionView{ID: i.ID, Kind: i.Kind, Source: i.Source, Title: i.Title, StartedAt: i.StartedAt, EndedAt: i.EndedAt,
-		Participants: []partyView{}, Records: []recordRefView{}, Preview: i.Preview}
-	for _, p := range i.Participants {
-		v.Participants = append(v.Participants, partyView(p))
-	}
-	for _, r := range i.Records {
-		v.Records = append(v.Records, recordRefView(r))
-	}
-	for _, p := range i.Parts {
-		v.Parts = append(v.Parts, partView(p))
-	}
-	return v
-}
-
-func interactionViews(list []interactions.Interaction) []interactionView {
-	out := []interactionView{}
-	for _, i := range list {
-		out = append(out, interactionOf(i))
-	}
-	return out
+	Interactions []interactions.Interaction `json:"interactions"`
 }
 
 type timelineInput struct {
@@ -179,21 +118,8 @@ type triageInput struct {
 	Limit  int    `json:"limit,omitempty" jsonschema:"at most 200, default 50"`
 }
 
-type contactView struct {
-	Address      string    `json:"address"`
-	Kind         string    `json:"kind"`
-	Name         string    `json:"name,omitempty"`
-	Triage       string    `json:"status"`
-	DecidedBy    string    `json:"decided_by,omitempty"`
-	Reason       string    `json:"reason,omitempty"`
-	PersonID     string    `json:"person_id,omitempty"`
-	Interactions int       `json:"interactions"`
-	LastSeen     time.Time `json:"last_seen"`
-	Photo        string    `json:"photo,omitempty"`
-}
-
 type contactsOutput struct {
-	Contacts []contactView `json:"contacts"`
+	Contacts []interactions.Contact `json:"contacts"`
 }
 
 type decideInput struct {

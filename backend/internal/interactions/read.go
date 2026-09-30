@@ -12,39 +12,41 @@ import (
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 )
 
+// The views below are also the wire shape of the tools that return them.
+
 type Party struct {
-	Address  string
-	Name     string
-	Role     string
-	PersonID string
-	Photo    string
+	Address  string `json:"address"`
+	Name     string `json:"name,omitempty"`
+	Role     string `json:"role"`
+	PersonID string `json:"person_id,omitempty"`
+	Photo    string `json:"photo,omitempty"`
 }
 
 type Ref struct {
-	ID     string
-	Object string
-	Name   string
+	ID     string `json:"id"`
+	Object string `json:"object"`
+	Name   string `json:"name,omitempty"`
 }
 
 type Piece struct {
-	Kind    string
-	At      time.Time
-	Author  string
-	Content string
+	Kind    string    `json:"kind"`
+	At      time.Time `json:"at"`
+	Author  string    `json:"author,omitempty"`
+	Content string    `json:"content"`
 }
 
 type Interaction struct {
-	ID           string
-	Kind         string
-	Source       string
-	Title        string
-	StartedAt    time.Time
-	EndedAt      *time.Time
-	Participants []Party
-	Records      []Ref
+	ID           string     `json:"id"`
+	Kind         string     `json:"kind"`
+	Source       string     `json:"source"`
+	Title        string     `json:"title"`
+	StartedAt    time.Time  `json:"started_at"`
+	EndedAt      *time.Time `json:"ended_at,omitempty"`
+	Participants []Party    `json:"participants"`
+	Records      []Ref      `json:"records"`
 	// Preview opens a list entry; Parts fill a full view.
-	Preview string
-	Parts   []Piece
+	Preview string  `json:"preview,omitempty"`
+	Parts   []Piece `json:"parts,omitempty"`
 }
 
 func limitOf(limit int) int32 {

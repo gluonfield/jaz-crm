@@ -3,8 +3,6 @@ package authapi_test
 import (
 	"context"
 	"encoding/json"
-	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/logosapi"
-	"github.com/gluonfield/jaz-crm/backend/internal/logos"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
@@ -13,6 +11,9 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/logosapi"
+	"github.com/gluonfield/jaz-crm/backend/internal/logos"
 
 	"github.com/charmbracelet/log"
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
