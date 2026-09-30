@@ -56,5 +56,3 @@
 
 - Test at the lowest boundary that protects behavior. Service tests run against a throwaway Postgres database (`postgrestest.New`); workflow tests use Temporal's `testsuite` with mocked activities; activity tests run the real services against a fake Google; MCP, auth and webhook tests drive the real HTTP handlers. Start Postgres with `docker compose up -d postgres`.
 - Verification before every push: `go build ./... && go vet ./... && go test ./...` in `backend`, and `bun run check` in `frontend`.
-
-## Scope
