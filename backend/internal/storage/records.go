@@ -132,4 +132,6 @@ type RecordStore interface {
 	// WriteRecord locks the record, creating it when id is empty, and applies
 	// mutate's changes in one transaction, returning the record's id.
 	WriteRecord(ctx context.Context, workspaceID, objectID, id string, mutate RecordMutation) (string, error)
+	// Users lists a workspace's members, whom member attributes name.
+	Users(ctx context.Context, workspaceID string) ([]User, error)
 }

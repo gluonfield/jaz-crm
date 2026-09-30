@@ -22,6 +22,7 @@ const (
 	URL       = "url"
 	Select    = "select"
 	Status    = "status"
+	Member    = "member"
 	Email     = "email"
 	Domain    = "domain"
 	Phone     = "phone"
@@ -53,6 +54,7 @@ var StandardObjects = []storage.NewObject{
 	{Slug: "deals", Name: "Deals", Attributes: []storage.NewAttribute{
 		{Slug: titleAttribute, Name: "Name", Type: Text},
 		{Slug: "stage", Name: "Stage", Type: Status, Options: []string{"Lead", "In progress", "Won", "Lost"}},
+		{Slug: "owner", Name: "Owner", Type: Member},
 		{Slug: "value", Name: "Value", Type: Number},
 		{Slug: "company", Name: "Company", Type: Reference, Target: "companies"},
 		{Slug: "people", Name: "People", Type: Reference, Target: "people", Multi: true},

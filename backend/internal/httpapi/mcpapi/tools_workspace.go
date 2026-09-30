@@ -55,7 +55,11 @@ func registerWorkspace(r *registry, members *workspaces.Service, keys *auth.Serv
 			users, invites, err := members.Members(ctx, actor)
 			out := workspaceView{Name: workspace.Name, Description: workspace.Description, Members: []memberView{}, Invited: []string{}}
 			for _, u := range users {
-				out.Members = append(out.Members, memberView{Name: u.Name, Email: u.Email, Admin: u.Admin, IsMe: u.ID == actor.UserID})
+				m := memberView{Name: u.Name, Email: u.Email, Admin: u.Admin, IsMe: u.ID == actor.UserID}
+				if u.AvatarURL != nil {
+					m.Photo = *u.AvatarURL
+				}
+				out.Members = append(out.Members, m)
 			}
 			for _, i := range invites {
 				out.Invited = append(out.Invited, i.Email)
@@ -81,6 +85,7 @@ type memberView struct {
 	Email string `json:"email"`
 	Admin bool   `json:"admin,omitempty"`
 	IsMe  bool   `json:"is_me,omitempty"`
+	Photo string `json:"photo,omitempty"`
 }
 
 type workspaceView struct {

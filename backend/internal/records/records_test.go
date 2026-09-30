@@ -273,13 +273,23 @@ func TestCustomObjects(t *testing.T) {
 	}
 }
 
-// A new record starts in the first stage of a status it is not given; a
-// given stage is matched to its option, and a later write keeps it.
-func TestNewRecordsStartInTheFirstStage(t *testing.T) {
+// A new record starts in the first stage of a status it is not given and
+// belongs to whoever creates it; a given stage is matched to its option, a
+// later write keeps it, and an owner must be a member of the workspace.
+func TestNewRecordDefaults(t *testing.T) {
 	svc, a, _ := setup(t)
 	lead, _ := upsert(t, svc, a, records.SourceUser, records.Write{Object: "deals", Set: set("name", "Press line")})
 	if got := values(lead, "stage"); !slices.Equal(got, []string{"Lead"}) {
 		t.Errorf("a new deal's stage: %v", got)
+	}
+	if got := values(lead, "owner"); !slices.Equal(got, []string{"a@jaz.test"}) {
+		t.Errorf("a new deal's owner: %v", got)
+	}
+	if _, _, err := svc.Upsert(ctx, a, records.SourceUser, records.Write{Object: "deals", RecordID: lead.ID, Set: set("owner", "b@jaz.test")}); err == nil {
+		t.Error("an owner from another workspace was accepted")
+	}
+	if got, _ := upsert(t, svc, a, records.SourceUser, records.Write{Object: "deals", RecordID: lead.ID, Set: set("owner", "A@Jaz.test")}); !slices.Equal(values(got, "owner"), []string{"a@jaz.test"}) {
+		t.Errorf("an owner by email: %v", values(got, "owner"))
 	}
 	won, _ := upsert(t, svc, a, records.SourceUser, records.Write{Object: "deals", Set: set("name", "Dies", "stage", "won")})
 	won, _ = upsert(t, svc, a, records.SourceUser, records.Write{Object: "deals", RecordID: won.ID, Set: set("name", "Dies for Acme")})

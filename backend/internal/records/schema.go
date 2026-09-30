@@ -14,7 +14,7 @@ import (
 
 var slugPattern = regexp.MustCompile(`^[a-z][a-z0-9_]{0,39}$`)
 
-var types = []string{Text, Number, Date, Checkbox, URL, Select, Status, Email, Domain, Phone, Reference}
+var types = []string{Text, Number, Date, Checkbox, URL, Select, Status, Member, Email, Domain, Phone, Reference}
 
 func validName(slug, name string) error {
 	if !slugPattern.MatchString(slug) {

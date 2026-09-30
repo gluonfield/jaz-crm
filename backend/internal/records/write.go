@@ -90,10 +90,10 @@ func (s *Service) upsert(ctx context.Context, actor auth.Actor, source Source, w
 	if id == "" && !slices.ContainsFunc(set, func(c change) bool { return len(c.entries) > 0 }) {
 		return Record{}, nil, errs.Invalidf("a new %s record needs at least one value", object.Slug)
 	}
-	// A new record starts in the first stage of each status it is not given.
-	for _, attr := range sc.attributes(object.ID) {
-		if id == "" && attr.Type == Status && !slices.ContainsFunc(set, func(c change) bool { return c.attr.ID == attr.ID }) {
-			set = append(set, change{attr: attr, entries: []entry{{text: &attr.Options[0]}}})
+	if id == "" {
+		set, err = s.defaults(ctx, actor, sc.attributes(object.ID), set)
+		if err != nil {
+			return Record{}, nil, err
 		}
 	}
 	var skips []Skip
@@ -110,6 +110,36 @@ func (s *Service) upsert(ctx context.Context, actor auth.Actor, source Source, w
 	}
 	record, err := s.get(ctx, actor.WorkspaceID, sc, id)
 	return record, skips, err
+}
+
+// defaults fills what a new record is not given: each status starts in its
+// first stage, and each member attribute names whoever creates the record.
+func (s *Service) defaults(ctx context.Context, actor auth.Actor, attributes []storage.Attribute, set []change) ([]change, error) {
+	var creator *string
+	for _, attr := range attributes {
+		if slices.ContainsFunc(set, func(c change) bool { return c.attr.ID == attr.ID }) {
+			continue
+		}
+		switch {
+		case attr.Type == Status:
+			set = append(set, change{attr: attr, entries: []entry{{text: &attr.Options[0]}}})
+		case attr.Type == Member && actor.UserID != "":
+			if creator == nil {
+				users, err := s.store.Users(ctx, actor.WorkspaceID)
+				if err != nil {
+					return nil, err
+				}
+				i := slices.IndexFunc(users, func(u storage.User) bool { return u.ID == actor.UserID })
+				if i < 0 {
+					continue
+				}
+				email := strings.ToLower(users[i].Email)
+				creator = &email
+			}
+			set = append(set, change{attr: attr, entries: []entry{{text: creator}}})
+		}
+	}
+	return set, nil
 }
 
 // changes validates raw values by attribute, in a stable order.

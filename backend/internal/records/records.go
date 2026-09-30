@@ -222,11 +222,30 @@ func (s *Service) Search(ctx context.Context, actor auth.Actor, q Search) ([]Rec
 
 // entry validates a raw value, resolving a reference to its record.
 func (s *Service) entry(ctx context.Context, workspaceID string, sc schema, attr storage.Attribute, raw string) (entry, error) {
-	if attr.Type != Reference {
-		return normalize(attr, raw)
+	switch attr.Type {
+	case Reference:
+		id, err := s.resolve(ctx, workspaceID, sc, attr, strings.TrimSpace(raw))
+		return entry{ref: &id}, err
+	case Member:
+		return s.member(ctx, workspaceID, attr, raw)
 	}
-	id, err := s.resolve(ctx, workspaceID, sc, attr, strings.TrimSpace(raw))
-	return entry{ref: &id}, err
+	return normalize(attr, raw)
+}
+
+// member names a member of the workspace by their email.
+func (s *Service) member(ctx context.Context, workspaceID string, attr storage.Attribute, raw string) (entry, error) {
+	e, err := normalize(storage.Attribute{Slug: attr.Slug, Type: Email}, raw)
+	if err != nil {
+		return entry{}, err
+	}
+	users, err := s.store.Users(ctx, workspaceID)
+	if err != nil {
+		return entry{}, err
+	}
+	if !slices.ContainsFunc(users, func(u storage.User) bool { return strings.EqualFold(u.Email, *e.text) }) {
+		return entry{}, errs.Invalidf("%s: %s is not a member of this workspace", attr.Slug, *e.text)
+	}
+	return e, nil
 }
 
 // resolve finds the record a reference names: its id, or a unique value of

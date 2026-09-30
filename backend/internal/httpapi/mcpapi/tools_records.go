@@ -101,7 +101,7 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 			return objectOf(object), err
 		})
 	add(r, &mcp.Tool{Name: "create_attribute", Title: "Create attribute",
-		Description: "Add an attribute to an object. Types: text, number, date, checkbox, url, select (with options), status (with its stages in order as options; a new record starts in the first), email, domain, phone, reference (with target)."},
+		Description: "Add an attribute to an object. Types: text, number, date, checkbox, url, select (with options), status (with its stages in order as options; a new record starts in the first), member (a workspace member by email; a new record names its creator), email, domain, phone, reference (with target)."},
 		func(ctx context.Context, actor auth.Actor, in attributeInput) (objectView, error) {
 			object, err := crm.CreateAttribute(ctx, actor, in.Object, records.Attribute{
 				Slug: in.Slug, Name: in.Name, Type: in.Type, Multi: in.Multi, Unique: in.Unique, Target: in.Target, Options: in.Options,
