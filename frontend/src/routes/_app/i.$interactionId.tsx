@@ -9,6 +9,7 @@ import { formatDateTime } from '@/lib/format'
 import { useDebounced } from '@/lib/hooks'
 import { useAction, useRecordSearch, useTool } from '@/lib/queries'
 import type { Interaction, Part } from '@/lib/types'
+import { cn } from '@/lib/utils'
 
 export const Route = createFileRoute('/_app/i/$interactionId')({ component: InteractionPage })
 
@@ -43,12 +44,15 @@ function InteractionPage() {
       <div className="scrollbar-quiet min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-[780px] px-10 pb-16 pt-8">
           <h1 className="text-[20px] font-semibold tracking-[-0.01em] text-ink">{interaction.title || 'No subject'}</h1>
-          <p className="mt-1 text-[12.5px] text-ink-3">
-            {formatDateTime(interaction.started_at)}
-            {interaction.participants.map((p, index) => (
-              <span key={p.address} title={`${p.address} · ${p.role}`} className={p.role === 'declined' ? 'line-through' : undefined}>
-                {index === 0 ? ' · ' : ', '}
-                <RecordIcon object="people" name={p.name || p.address} photo={p.photo} size={14} className="mr-1 align-[-3px]" />
+          <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-ink-3">
+            <span>{formatDateTime(interaction.started_at)}</span>
+            {interaction.participants.map((p) => (
+              <span
+                key={p.address}
+                title={`${p.address} · ${p.role}`}
+                className={cn('inline-flex items-center gap-1.5', p.role === 'declined' && 'line-through')}
+              >
+                <RecordIcon object="people" name={p.name || p.address} photo={p.photo} size={16} />
                 {p.person_id ? (
                   <Link to="/r/$recordId" params={{ recordId: p.person_id }} className="text-ink-2 hover:text-ink hover:underline">
                     {p.name || p.address}
