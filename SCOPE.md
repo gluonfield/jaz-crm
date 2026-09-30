@@ -56,7 +56,7 @@ record_values  (id, workspace_id, record_id, attribute_id,
 
 ```
 interactions  (id, workspace_id, kind, source, external_id, connection_id,
-               title, started_at, ended_at, owner_member_id, visibility)
+               title, started_at, ended_at, owner_member_id)
                unique (workspace_id, source, external_id)
 parts         (id, interaction_id, kind, author_handle_id, at, content, content_tsv)
 participants  (interaction_id, handle_id, role)
@@ -75,11 +75,7 @@ handles       (id, workspace_id, kind, value, person_record_id, triage, reason, 
 
 A connection is one member's Google account in one workspace, with encrypted OAuth tokens. The CRM owns its connections, so each teammate connects their own account. Jaz keeps its own sync for memory and reads the CRM through MCP.
 
-Scopes: `gmail.readonly`, `calendar.readonly`, `meetings.space.readonly`. The Gmail scope is restricted:
-
-- An Internal app on a Google Workspace domain needs no verification.
-- An External app in Testing gets refresh tokens that expire after 7 days.
-- An unverified External app in production shows a warning screen and is capped at 100 users; wider use needs verification and a security assessment.
+Google app: the Google Cloud project behind Jaz's Gmail and Calendar connectors. Jaz bundles a desktop client, which only allows loopback redirects, so jaz-crm adds a Web client in the same project with the redirect `{PUBLIC_URL}/connections/google/callback`. Scopes: `gmail.readonly`, `calendar.readonly`, `meetings.space.readonly`; the Meet scope is new to that project's consent screen.
 
 ### Backfill and incremental sync
 
@@ -113,17 +109,17 @@ Other recorders (Zoom, Granola, Fireflies) post to `/webhooks/interactions` with
 
 ## Manual interactions
 
-- `log_interaction` (MCP tool and UI form) takes a kind, time, participants (email, phone, name or record), title, notes and an optional transcript.
-- An uploaded audio file is transcribed by the worker, and the text is attached as parts. The transcription provider is not chosen yet.
+- `log_interaction` (MCP tool and UI form) takes a kind, time, participants (email, phone, name or record), title, notes and an optional pasted transcript.
 - Phone numbers are handles, matched against person phone attributes.
 
 ## Workspaces and sharing
 
 - A workspace is the tenant boundary, using the jaz-tasks model: a person has one member row per workspace, invites are the only way in, and every query is scoped by `workspace_id`, with tenant-isolation tests for every endpoint and tool.
-- All members of a workspace share its records.
-- A connection belongs to one member and has a sharing level for teammates: `full`, `metadata` (who, when, subject) or `private`. The owner can change it for a single interaction.
+- Every member sees every record and the full content of every interaction in the workspace. Privacy comes from triage, which stores full content only for kept contacts, and from choosing which mailbox feeds which workspace. Skipping a contact or a thread removes it from the CRM.
+- One role, copied from jaz-tasks: an `admin` flag on the member. The workspace creator is an admin, and admins manage invites and members.
+- A connection belongs to the member who connected it.
 - One mailbox can feed two workspaces, such as two businesses, as two connections, each triaged against its own workspace description.
-- Sub-teams and per-record permissions are not in v1.
+- Sub-teams, sharing levels and per-record permissions are not in v1.
 
 ## MCP tools (v1)
 
@@ -132,12 +128,12 @@ Other recorders (Zoom, Granola, Fireflies) post to `/webhooks/interactions` with
 | `search_records` | Find records by text or attribute filters |
 | `get_record` | Attributes plus derived stats: last contact, counts |
 | `list_interactions` | Timeline for a record, filtered by kind and time |
-| `get_interaction` | Full content, subject to sharing |
+| `get_interaction` | Full content with parts and participants |
 | `search_interactions` | Full-text search over parts |
 | `upsert_record` | Create or update with `source=agent` |
 | `log_interaction` | Log a call, meeting or note |
 | `link_interaction` | Attach an interaction to a record |
-| `list_triage`, `decide_triage` | Review and override keep and skip decisions |
+| `list_triage`, `decide_triage` | Review and override keep and skip decisions for addresses, domains and threads |
 
 ## Architecture
 
@@ -148,7 +144,7 @@ Other recorders (Zoom, Granola, Fireflies) post to `/webhooks/interactions` with
   - `HandleHistory`: backfills one newly kept address.
   - `MeetingArtifacts`: a durable timer until the meeting ends, then transcript fetch with retries.
   - `Triage`: batched agent classification.
-  - `Transcribe`: turns uploaded audio into parts.
+- The Temporal client config has `address`, `namespace` and `cloudapikey`. With an API key it connects to Temporal Cloud over TLS; without one it connects to a plain local server. docker-compose runs `temporalio/auto-setup` and the Temporal UI on the same Postgres for development.
 - `internal/google` holds provider clients only, with no storage or workflow knowledge.
 - `auth` and `workspaces` start as copies from jaz-tasks. A shared module comes when a third app needs them.
 
@@ -172,12 +168,9 @@ Ordered by dependency.
 1. Foundation: repo, auth and workspaces, records model with people and companies, MCP record tools, tenant-isolation tests.
 2. Gmail: connect, backfill, incremental sync, rules and engagement triage, interactions and timeline tools.
 3. Calendar and Meet: meeting interactions and transcript fetch.
-4. Agent triage, manual interactions, audio transcription, and the inbound interactions webhook.
+4. Agent triage, manual interactions, and the inbound interactions webhook.
 5. Web record page and timeline (also as a Jaz MCP App), and custom objects and attributes.
 
-## Open decisions
+## Setup before milestone 2
 
-1. Default sharing level for teammates: `metadata` or `full`.
-2. Temporal in production: Temporal Cloud or self-hosted.
-3. First account: a Google Workspace domain (Internal app, transcripts available) or personal Gmail (unverified-app warning, or 7-day tokens in Testing).
-4. Transcription provider for uploaded audio.
+- Create the Web OAuth client in Jaz's Google Cloud project and add the Meet scope to its consent screen.
