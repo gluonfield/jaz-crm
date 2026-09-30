@@ -34,6 +34,16 @@ WHERE records.workspace_id = @workspace_id AND record_values.record_id = ANY(@re
   AND record_values.active_until IS NULL
 ORDER BY record_values.id;
 
+-- name: RecordHistory :many
+-- RecordHistory lists values a record has had, newest first, with the name
+-- of the member who set each.
+SELECT sqlc.embed(record_values), coalesce(users.name, '')::text AS actor_name FROM record_values
+JOIN records ON records.id = record_values.record_id
+LEFT JOIN users ON users.id = record_values.actor_id
+WHERE records.workspace_id = @workspace_id AND record_values.record_id = @record_id
+ORDER BY record_values.active_from DESC, record_values.id DESC
+LIMIT @row_limit;
+
 -- name: RecordsByUniqueKeys :many
 -- RecordsByUniqueKeys finds the records holding any of the (attribute,
 -- unique key) pairs.

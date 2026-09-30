@@ -2,6 +2,7 @@ package records_test
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"strings"
 	"sync"
@@ -268,5 +269,33 @@ func TestCustomObjects(t *testing.T) {
 	}
 	if deal, _ = svc.Get(ctx, a, deal.ID); len(values(deal, "company")) != 0 {
 		t.Errorf("a deleted company is still referenced: %v", values(deal, "company"))
+	}
+}
+
+// History shows what changed, from which source and by whom: replacing a
+// value is one change, removing one is another, and another workspace sees
+// nothing.
+func TestHistory(t *testing.T) {
+	svc, a, b := setup(t)
+	ada, _ := upsert(t, svc, a, records.SourceSync, records.Write{Object: "people", Set: set("name", "Ada", "email_addresses", "ada@example.com")})
+	upsert(t, svc, a, records.SourceUser, records.Write{Object: "people", RecordID: ada.ID, Set: set("name", "Ada Lovelace")})
+	upsert(t, svc, a, records.SourceUser, records.Write{Object: "people", RecordID: ada.ID, Remove: set("email_addresses", "ada@example.com")})
+	changes, err := svc.History(ctx, a, ada.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, c := range changes {
+		got = append(got, fmt.Sprintf("%s %s=%s removed=%v actor=%v", c.Source, c.Attribute, c.Value.Text, c.Removed, c.Actor != ""))
+	}
+	want := []string{
+		" email_addresses=ada@example.com removed=true actor=false",
+		"user name=Ada Lovelace removed=false actor=true",
+	}
+	if len(got) != 4 || !slices.Equal(got[:2], want) || !slices.Contains(got, "sync name=Ada removed=false actor=true") {
+		t.Fatalf("history:\n%s", strings.Join(got, "\n"))
+	}
+	if _, err := svc.History(ctx, b, ada.ID); err == nil {
+		t.Fatal("another workspace read the history")
 	}
 }

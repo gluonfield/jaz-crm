@@ -55,6 +55,18 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 			view.Photo = photos[record.ID]
 			return view, err
 		})
+	add(r, &mcp.Tool{Name: "record_history", Title: "Record history", Annotations: readOnly,
+		Description: "A record's recent changes, newest first: the value each attribute got, from which source (user, agent or sync), who made it and when; removed marks a value taken away with nothing in its place."},
+		func(ctx context.Context, actor auth.Actor, in recordInput) (historyOutput, error) {
+			changes, err := crm.History(ctx, actor, in.RecordID)
+			out := historyOutput{Changes: []changeView{}}
+			for _, c := range changes {
+				out.Changes = append(out.Changes, changeView{
+					Attribute: c.Attribute, Value: c.Value.Text, RecordID: c.Value.RecordID, Removed: c.Removed, Source: string(c.Source), Actor: c.Actor, At: c.At,
+				})
+			}
+			return out, err
+		})
 	add(r, &mcp.Tool{Name: "upsert_record", Title: "Upsert record",
 		Description: "Create or update a record. Without record_id it updates the record holding a given email, domain or phone number, else creates one."},
 		func(ctx context.Context, actor auth.Actor, in upsertInput) (upsertOutput, error) {
@@ -241,4 +253,18 @@ type attributeInput struct {
 	Unique  bool     `json:"unique,omitempty" jsonschema:"values identify a record, like an email"`
 	Target  string   `json:"target,omitempty" jsonschema:"object slug a reference points at"`
 	Options []string `json:"options,omitempty" jsonschema:"allowed values of a select, such as pipeline stages"`
+}
+
+type changeView struct {
+	Attribute string    `json:"attribute"`
+	Value     string    `json:"value"`
+	RecordID  string    `json:"record_id,omitempty"`
+	Removed   bool      `json:"removed,omitempty"`
+	Source    string    `json:"source,omitempty"`
+	Actor     string    `json:"actor,omitempty"`
+	At        time.Time `json:"at"`
+}
+
+type historyOutput struct {
+	Changes []changeView `json:"changes"`
 }

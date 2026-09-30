@@ -44,6 +44,12 @@ func (s *Store) SearchRecords(ctx context.Context, query storage.RecordQuery) ([
 	return many(toRecord)(s.rec.SearchRecords(ctx, recdb.SearchRecordsParams(query)))
 }
 
+func (s *Store) History(ctx context.Context, workspaceID, recordID string, limit int32) ([]storage.PastValue, error) {
+	return many(func(r recdb.RecordHistoryRow) storage.PastValue {
+		return storage.PastValue{RecordValue: toValue(r.RecordValue), ActorName: r.ActorName}
+	})(s.rec.RecordHistory(ctx, recdb.RecordHistoryParams{WorkspaceID: workspaceID, RecordID: recordID, Limit: limit}))
+}
+
 func (s *Store) CurrentValues(ctx context.Context, workspaceID string, recordIDs []string) ([]storage.RecordValue, error) {
 	return many(toValue)(s.rec.CurrentValues(ctx, recdb.CurrentValuesParams{WorkspaceID: workspaceID, RecordIDs: recordIDs}))
 }

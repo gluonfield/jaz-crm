@@ -325,6 +325,60 @@ func (q *Queries) LockRecord(ctx context.Context, arg LockRecordParams) (Record,
 	return i, err
 }
 
+const recordHistory = `-- name: RecordHistory :many
+SELECT record_values.id, record_values.record_id, record_values.attribute_id, record_values.text, record_values.ref_record_id, record_values.unique_key, record_values.source, record_values.actor_id, record_values.active_from, record_values.active_until, coalesce(users.name, '')::text AS actor_name FROM record_values
+JOIN records ON records.id = record_values.record_id
+LEFT JOIN users ON users.id = record_values.actor_id
+WHERE records.workspace_id = $1 AND record_values.record_id = $2
+ORDER BY record_values.active_from DESC, record_values.id DESC
+LIMIT $3
+`
+
+type RecordHistoryParams struct {
+	WorkspaceID string
+	RecordID    string
+	Limit       int32
+}
+
+type RecordHistoryRow struct {
+	RecordValue RecordValue
+	ActorName   string
+}
+
+// RecordHistory lists values a record has had, newest first, with the name
+// of the member who set each.
+func (q *Queries) RecordHistory(ctx context.Context, arg RecordHistoryParams) ([]RecordHistoryRow, error) {
+	rows, err := q.db.Query(ctx, recordHistory, arg.WorkspaceID, arg.RecordID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []RecordHistoryRow{}
+	for rows.Next() {
+		var i RecordHistoryRow
+		if err := rows.Scan(
+			&i.RecordValue.ID,
+			&i.RecordValue.RecordID,
+			&i.RecordValue.AttributeID,
+			&i.RecordValue.Text,
+			&i.RecordValue.RefRecordID,
+			&i.RecordValue.UniqueKey,
+			&i.RecordValue.Source,
+			&i.RecordValue.ActorID,
+			&i.RecordValue.ActiveFrom,
+			&i.RecordValue.ActiveUntil,
+			&i.ActorName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const recordsByUniqueKeys = `-- name: RecordsByUniqueKeys :many
 SELECT DISTINCT record_values.record_id FROM record_values
 JOIN records ON records.id = record_values.record_id

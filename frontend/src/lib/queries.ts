@@ -21,7 +21,7 @@ export function newQueryClient() {
   return client
 }
 
-const toolQuery = <T>(tool: string, args: object) => ({ queryKey: [tool, args], queryFn: () => call<T>(tool, args) })
+export const toolQuery = <T>(tool: string, args: object) => ({ queryKey: [tool, args], queryFn: () => call<T>(tool, args) })
 
 export function useTool<T>(tool: string, args: object = {}, options: Omit<UseQueryOptions<T>, 'queryKey' | 'queryFn'> = {}) {
   return useQuery({ ...toolQuery<T>(tool, args), ...options })

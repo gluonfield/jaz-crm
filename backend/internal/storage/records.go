@@ -60,6 +60,12 @@ type RecordValue struct {
 	ActiveUntil *time.Time
 }
 
+// PastValue is a value from a record's history with who set it.
+type PastValue struct {
+	RecordValue
+	ActorName string
+}
+
 type NewRecordValue struct {
 	RecordID    string
 	AttributeID string
@@ -118,6 +124,8 @@ type RecordStore interface {
 	Records(ctx context.Context, workspaceID string, ids []string) ([]Record, error)
 	SearchRecords(ctx context.Context, query RecordQuery) ([]Record, error)
 	CurrentValues(ctx context.Context, workspaceID string, recordIDs []string) ([]RecordValue, error)
+	// History returns a record's values, current and closed, newest first.
+	History(ctx context.Context, workspaceID, recordID string, limit int32) ([]PastValue, error)
 	// RecordsByUniqueKeys returns the records holding any (attribute, key) pair.
 	RecordsByUniqueKeys(ctx context.Context, workspaceID string, attributeIDs, keys []string) ([]string, error)
 	// WriteRecord locks the record, creating it when id is empty, and applies

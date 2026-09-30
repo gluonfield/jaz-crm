@@ -1,8 +1,10 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { MoreHorizontal, Trash2 } from 'lucide-react'
-import { Button, Header } from '@/components/controls'
+import { Button, Header, Tab } from '@/components/controls'
 import { Field } from '@/components/fields'
+import { History } from '@/components/history'
 import { ObjectIcon, RecordIcon } from '@/components/icons'
+import { Related } from '@/components/related'
 import { Composer, InteractionRow } from '@/components/timeline'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
@@ -10,15 +12,20 @@ import { timeAgo } from '@/lib/format'
 import { useAction, useObjects, useTimeline, useTool } from '@/lib/queries'
 import type { Attribute, CrmRecord } from '@/lib/types'
 
-export const Route = createFileRoute('/_app/r/$recordId')({ component: RecordPage })
+export const Route = createFileRoute('/_app/r/$recordId')({
+  validateSearch: (search: Record<string, unknown>): { tab?: 'activity' } => (search.tab === 'activity' ? { tab: 'activity' } : {}),
+  component: RecordPage,
+})
 
 function RecordPage() {
   const { recordId } = Route.useParams()
   const record = useTool<CrmRecord>('get_record', { record_id: recordId }).data
-  const object = useObjects()?.find((o) => o.slug === record?.object)
+  const objects = useObjects()
+  const object = objects?.find((o) => o.slug === record?.object)
+  const { tab } = Route.useSearch()
   const navigate = useNavigate()
   const remove = useAction<object>('delete_record')
-  if (!record || !object) {
+  if (!record || !objects || !object) {
     return <Header />
   }
   const name = recordName(record)
@@ -70,9 +77,24 @@ function RecordPage() {
               </div>
             ))}
           </dl>
-          <div className="mt-6 min-w-0 [grid-area:main]">
-            <Composer recordId={record.id} people={emails} />
-            <Timeline recordId={record.id} />
+          <div className="min-w-0 [grid-area:main]">
+            <Related recordId={record.id} object={object.slug} objects={objects} />
+            <div className="mt-8 flex gap-1 border-b border-border pb-2">
+              <Tab active={!tab} onClick={() => void navigate({ to: '.', search: {}, replace: true })}>
+                Conversations
+              </Tab>
+              <Tab active={tab === 'activity'} onClick={() => void navigate({ to: '.', search: { tab: 'activity' }, replace: true })}>
+                Activity
+              </Tab>
+            </div>
+            {!tab ? (
+              <div className="mt-4">
+                <Composer recordId={record.id} people={emails} />
+                <Timeline recordId={record.id} />
+              </div>
+            ) : (
+              <History recordId={record.id} createdAt={record.created_at} attributes={object.attributes} />
+            )}
           </div>
         </div>
       </div>
