@@ -1,0 +1,48 @@
+import { Box, Building2, CalendarDays, Mail, NotebookPen, Phone, Users } from 'lucide-react'
+import type { Kind } from '@/lib/types'
+import { cn } from '@/lib/utils'
+
+function hash(value: string) {
+  let h = 0
+  for (const char of value) {
+    h = (h * 31 + char.charCodeAt(0)) | 0
+  }
+  return Math.abs(h)
+}
+
+function initials(name: string) {
+  const words = name.replace(/[^\p{L}\p{N} ]/gu, ' ').trim().split(/\s+/)
+  return ((words[0]?.[0] ?? '?') + (words.length > 1 ? words[words.length - 1][0] : '')).toUpperCase()
+}
+
+// RecordIcon draws a person as a round avatar and anything else as a square
+// tile, both lettered and tinted by name.
+export function RecordIcon({ object, name, size = 18, className }: { object: string; name: string; size?: number; className?: string }) {
+  return (
+    <span
+      style={{ width: size, height: size, fontSize: size * 0.42, background: `var(--color-avatar-${(hash(name) % 6) + 1})` }}
+      className={cn(
+        'inline-flex shrink-0 select-none items-center justify-center font-semibold leading-none text-avatar-ink',
+        object === 'people' ? 'rounded-full' : 'rounded-[28%]',
+        className,
+      )}
+      aria-hidden
+    >
+      {object === 'people' ? initials(name) : initials(name)[0]}
+    </span>
+  )
+}
+
+const objectIcons: Record<string, typeof Box> = { people: Users, companies: Building2 }
+
+export function ObjectIcon({ slug, className }: { slug: string; className?: string }) {
+  const Icon = objectIcons[slug] ?? Box
+  return <Icon className={className} />
+}
+
+const kindIcons = { email: Mail, meeting: CalendarDays, call: Phone, note: NotebookPen }
+
+export function KindIcon({ kind, className }: { kind: Kind; className?: string }) {
+  const Icon = kindIcons[kind] ?? NotebookPen
+  return <Icon className={cn('size-3.5 shrink-0', className)} />
+}

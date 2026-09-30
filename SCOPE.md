@@ -13,7 +13,7 @@ Status: milestones 1 to 5 are built, 2026-09-30.
 - MCP server for agents, with OIDC sign-in, OAuth 2.1 and API keys as in jaz-tasks.
 - Workspaces from the first migration.
 
-Later, roughly in order: web record page and timeline, custom objects and attributes (deals), workflows, enrichment, WhatsApp and Telegram, Outlook, sending email and sequences.
+Later, roughly in order: workflows, enrichment, WhatsApp and Telegram, Outlook, sending email and sequences.
 
 ## Data model
 

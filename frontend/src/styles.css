@@ -1,0 +1,183 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import '@fontsource-variable/inter';
+
+/* Class-based dark mode, like Jaz: tokens are redefined under :root.dark. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Theme tokens. Names and semantics match the Jaz desktop app so a host can
+ * pass its tokens straight through; each falls back to the MCP Apps standard
+ * variable a host such as Claude sends, then to the default (see THEMING.md):
+ *   bg        main content          panel      sidebar / window chrome
+ *   surface   raised fills           surface-2  deeper fills
+ *   ink 1-3   text hierarchy         border     hairlines
+ *   primary   accent for selection, focus and primary actions
+ * Defaults follow Linear's calm, low-contrast palette.
+ */
+@theme static {
+  --color-bg: var(--color-background-primary, #fdfdfd);
+  /* Surfaces separate by fill, not by outlines: the chrome sits a fixed step
+     below the content whatever background a host sends. */
+  --color-panel: color-mix(in oklab, black 3.5%, var(--color-bg));
+  --color-surface: var(--color-background-tertiary, #f2f2f3);
+  --color-surface-2: #e9e9eb;
+  --color-list-hover: color-mix(in oklab, var(--color-ink) 4%, transparent);
+  --color-list-active: color-mix(in oklab, var(--color-ink) 7.5%, transparent);
+
+  --color-ink: var(--color-text-primary, #1c1d1f);
+  --color-ink-2: var(--color-text-secondary, #5f6168);
+  --color-ink-3: var(--color-text-tertiary, #8f9199);
+
+  --color-primary: var(--color-ring-primary, #5e6ad2);
+  /* Derived from whatever accent the host sends: text on it turns near-black
+     where that reads better than white (OKLab lightness 0.58, where the two
+     contrast equally), and hover and tint lean toward the ink and the page. */
+  --color-primary-strong: color-mix(in oklab, var(--color-primary) 85%, var(--color-ink));
+  --color-primary-soft: color-mix(in oklab, var(--color-primary) 16%, var(--color-bg));
+  --color-on-primary: oklch(from var(--color-primary) clamp(0.2, (0.58 - l) * 1000, 1) 0 h);
+  --color-selection: color-mix(in oklab, var(--color-primary) 22%, transparent);
+
+  --color-running: var(--color-text-warning, #d9a400);
+  --color-ok: var(--color-text-success, #3f9a64);
+  --color-danger: var(--color-text-danger, #d9534f);
+  --color-danger-soft: #fbecec;
+
+  --color-border: var(--color-border-primary, #e8e8ea);
+  --color-scrim: rgb(0 0 0 / 0.18);
+  /* Raised layers (menus, cards) are the page color in light mode and a step
+     up from it in dark mode, where depth reads as lightness. */
+  --color-raised: var(--color-bg);
+
+  --color-avatar-1: #5e6ad2;
+  --color-avatar-2: #26b5ce;
+  --color-avatar-3: #4cb782;
+  --color-avatar-4: #f2994a;
+  --color-avatar-5: #eb5757;
+  --color-avatar-6: #bb87fc;
+  --color-avatar-ink: #ffffff;
+
+  --font-sans: var(--jaz-ui-font, 'Inter Variable'), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--jaz-mono-font, 'JetBrains Mono Variable'), ui-monospace, 'SF Mono', monospace;
+
+  --radius-control: var(--border-radius-md, 6px);
+  --radius-card: var(--border-radius-lg, 10px);
+
+  --shadow-raised: var(--shadow-lg, 0 0 0 1px rgb(0 0 0 / 0.02), 0 4px 16px -2px rgb(0 0 0 / 0.1), 0 2px 4px rgb(0 0 0 / 0.04));
+
+  --animate-rise: rise 160ms cubic-bezier(0.2, 0.9, 0.3, 1);
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+  }
+}
+
+:root {
+  color-scheme: light;
+}
+
+:root:where(.dark) {
+  color-scheme: dark;
+  --color-bg: var(--color-background-primary, #151618);
+  --color-panel: color-mix(in oklab, black 30%, var(--color-bg));
+  --color-surface: var(--color-background-tertiary, #1c1d20);
+  --color-surface-2: #25272b;
+  --color-list-hover: color-mix(in oklab, var(--color-ink) 5%, transparent);
+  --color-list-active: color-mix(in oklab, var(--color-ink) 9%, transparent);
+
+  --color-ink: var(--color-text-primary, #e6e7ea);
+  --color-ink-2: var(--color-text-secondary, #a0a3aa);
+  --color-ink-3: var(--color-text-tertiary, #6e717a);
+
+  --color-primary: var(--color-ring-primary, #7480ea);
+  --color-selection: color-mix(in oklab, var(--color-primary) 35%, transparent);
+
+  --color-running: var(--color-text-warning, #e2b93b);
+  --color-ok: var(--color-text-success, #5fbf85);
+  --color-danger: var(--color-text-danger, #eb6b66);
+  --color-danger-soft: #3a1f1f;
+
+  --color-border: var(--color-border-primary, #26282c);
+  --color-scrim: rgb(0 0 0 / 0.5);
+
+  --shadow-raised: var(--shadow-lg, 0 0 0 1px rgb(0 0 0 / 0.2), 0 8px 24px -4px rgb(0 0 0 / 0.5));
+  --color-raised: var(--color-surface);
+}
+
+/* shadcn/ui variables, derived from the tokens above. */
+:root {
+  --background: var(--color-bg);
+  --foreground: var(--color-ink);
+  --card: var(--color-raised);
+  --card-foreground: var(--color-ink);
+  --popover: var(--color-raised);
+  --popover-foreground: var(--color-ink);
+  --primary: var(--color-primary);
+  --primary-foreground: var(--color-on-primary);
+  --secondary: var(--color-surface);
+  --secondary-foreground: var(--color-ink);
+  --muted: var(--color-surface);
+  --muted-foreground: var(--color-ink-3);
+  --accent: var(--color-list-active);
+  --accent-foreground: var(--color-ink);
+  --destructive: var(--color-danger);
+  --border: var(--color-border);
+  --input: var(--color-border);
+  --ring: color-mix(in oklab, var(--color-primary) 55%, transparent);
+  --radius: var(--radius-control);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-primary-foreground: var(--primary-foreground);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  html,
+  body {
+    height: 100%;
+  }
+  body {
+    margin: 0;
+    background: var(--color-panel);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    font-feature-settings: 'cv11', 'ss01';
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  ::selection {
+    background: var(--color-selection);
+  }
+  button {
+    cursor: default;
+  }
+}
+
+.scrollbar-quiet {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--color-ink-3) 40%, transparent) transparent;
+}

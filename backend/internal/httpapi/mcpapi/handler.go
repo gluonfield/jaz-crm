@@ -46,12 +46,14 @@ func NewHandler(svc Services, keys *auth.Service, logger *log.Logger) *Handler {
 		Name:    "jaz-crm",
 		Title:   "Jaz CRM",
 		Version: "0.1.0",
+		Icons:   icons,
 	}, &mcp.ServerOptions{Instructions: instructions})
 	r := &registry{server: server, logger: logger.WithPrefix("tools"), ops: map[string]func(context.Context, auth.Actor, json.RawMessage) (any, error){}}
 	registerRecords(r, svc.Records, svc.Interactions)
 	registerWorkspace(r, svc.Workspaces)
 	registerInteractions(r, svc.Interactions)
 	registerConnections(r, svc.Connections, keys.Issuer())
+	registerApp(r)
 	verify := func(ctx context.Context, token string, _ *http.Request) (*mcpauth.TokenInfo, error) {
 		actor, err := keys.Authenticate(ctx, token)
 		if errors.Is(err, auth.ErrUnauthenticated) {

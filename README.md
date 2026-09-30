@@ -25,6 +25,7 @@ claude mcp add --transport http jaz-crm http://localhost:7500/mcp --header "Auth
 - **Triage.** Every address seen is triaged. Your own addresses and colleagues are internal; automated senders and bulk mail are skipped. Anyone someone in the workspace wrote to, or met in a small meeting, is kept and becomes a person at their company with their conversations linked. An optional LLM judges cold inbound against the workspace's description; the rest wait for a person or an agent. A person's decision, for an address or a whole domain, is final.
 - **Privacy.** Metadata is stored for every message, but bodies are fetched only for conversations linked to a kept person or a record, and forgotten when they no longer are. Skipping a thread removes it for good.
 - **Sync.** One Temporal workflow per connection backfills mail and calendar (`BACKFILL_DAYS`), then follows Gmail history and Calendar sync tokens every five minutes, or at once on a push. Meet transcripts are fetched after meetings end and kept, since Meet deletes them after 30 days.
+- **Web app.** Triage, conversations, every object as a table, and a page per record with its fields, timeline and a form to log a call or note; ⌘K searches records. In Jaz the same app opens from the sidebar as an MCP App through the `show_crm` tool.
 - **Calls and recorders.** Log a call or note in the app or through `log_interaction`. Recorders post conversations to `POST /webhooks/interactions` with an API key; an `external_id` makes a repeated post update one interaction.
 
 ## Authentication
@@ -46,6 +47,7 @@ Configuration is documented in `.env.example`.
 | `list_triage`, `decide_triage` | who is kept, skipped or waiting, and decisions by address or domain |
 | `list_connections`, `disconnect` | synced Google accounts |
 | `get_workspace`, `update_workspace`, `invite_member` | the workspace, its description and members |
+| `show_crm` | opens the web app in hosts that support MCP Apps |
 
 ## Develop
 

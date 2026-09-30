@@ -1,0 +1,50 @@
+import type { McpUiHostContext } from '@modelcontextprotocol/ext-apps'
+import { RouterProvider, createMemoryHistory, createRouter } from '@tanstack/react-router'
+import { createRoot } from 'react-dom/client'
+import { setTransport } from './lib/api'
+import { app, callTool, connect } from './lib/mcp-app'
+import { newQueryClient } from './lib/queries'
+import { routeTree } from './routeTree.gen'
+import { Route as root } from './routes/__root'
+import './styles.css'
+
+// The MCP App renders the web app's routes inside a host's sandboxed,
+// opaque-origin iframe: no document shell or sign-in, in-memory history,
+// tools called through the host, and external links opened by the host.
+;(root.options as { shellComponent?: unknown }).shellComponent = undefined
+setTransport(callTool)
+
+const router = createRouter({
+  routeTree,
+  history: createMemoryHistory({ initialEntries: ['/'] }),
+  context: { queryClient: newQueryClient() },
+})
+
+function open(path: unknown) {
+  if (typeof path === 'string' && path.startsWith('/')) {
+    void router.navigate({ href: path })
+  }
+}
+
+// show_crm passes the page to open, such as /r/<record id>.
+app.ontoolinput = ({ arguments: args }) => open(args?.path)
+
+// A host's deep link opens the app at a page, at start and whenever the host
+// changes it.
+function follow(context?: McpUiHostContext) {
+  open((context?.['openai/deepLink'] as { url?: unknown } | undefined)?.url)
+}
+app.addEventListener('hostcontextchanged', follow)
+
+document.addEventListener('click', (event) => {
+  const link = (event.target as HTMLElement).closest<HTMLAnchorElement>('a[href^="http"]')
+  if (link) {
+    event.preventDefault()
+    void app.openLink({ url: link.href })
+  }
+})
+
+void connect().finally(() => {
+  follow(app.getHostContext())
+  createRoot(document.getElementById('root')!).render(<RouterProvider router={router} />)
+})
