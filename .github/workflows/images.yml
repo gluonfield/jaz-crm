@@ -66,3 +66,6 @@ jobs:
             --label "org.opencontainers.image.source=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
             --label "org.opencontainers.image.revision=$GITHUB_SHA" \
             --push .
+          docker buildx imagetools inspect "$image:$GITHUB_SHA"
+          docker pull "$image:$GITHUB_SHA"
+          test "$(docker image inspect --format '{{json .Config.Entrypoint}}' "$image:$GITHUB_SHA")" = "[\"/app/$TARGET\"]"
