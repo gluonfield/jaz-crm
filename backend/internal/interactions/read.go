@@ -177,7 +177,7 @@ func (s *Service) views(ctx context.Context, workspaceID string, list []storage.
 		if p.AuthorHandleID != nil && author == "" {
 			author = authors[*p.AuthorHandleID]
 		}
-		content := deref(p.Content)
+		content := readable(p.Kind, deref(p.Content))
 		if v.Preview == "" && content != "" {
 			v.Preview = preview(content)
 		}

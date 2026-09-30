@@ -3,6 +3,7 @@ package google
 import (
 	"context"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -92,6 +93,10 @@ func (c *Client) calendar(path string) string {
 	return c.endpoints.Calendar + "/calendar/v3/" + path
 }
 
+// htmlTag spots a description written in Google Calendar's editor, which
+// stores HTML.
+var htmlTag = regexp.MustCompile(`(?i)<(br|p|div|a|b|i|u|ul|ol|li|span)\b`)
+
 func (raw apiEvent) event() Event {
 	e := raw.Event
 	e.Start = raw.Start.time()
@@ -100,6 +105,9 @@ func (raw apiEvent) event() Event {
 	e.Organizer.Email = strings.ToLower(e.Organizer.Email)
 	for i := range e.Attendees {
 		e.Attendees[i].Email = strings.ToLower(e.Attendees[i].Email)
+	}
+	if htmlTag.MatchString(e.Description) {
+		e.Description = htmlText(e.Description)
 	}
 	e.MeetCode = raw.meetCode()
 	e.Recurring = raw.RecurringEventID != ""
