@@ -17,7 +17,8 @@ func New(authn *authapi.Handler, agents *mcpapi.Handler) http.Handler {
 	mux.Handle("/auth/", authn)
 	mux.Handle("/oauth/", cors(authn))
 	mux.Handle("/.well-known/", cors(authn))
-	mux.Handle("/mcp", cors(agents))
+	mux.Handle("/mcp", cors(agents.MCP))
+	mux.Handle("POST /api/tools/{tool}", authn.Session(agents.API))
 	return mux
 }
 

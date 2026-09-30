@@ -5,11 +5,11 @@ package workspaces
 import (
 	"context"
 	"errors"
-	"fmt"
 	"slices"
 	"strings"
 
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
+	"github.com/gluonfield/jaz-crm/backend/internal/errs"
 	"github.com/gluonfield/jaz-crm/backend/internal/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 )
@@ -17,10 +17,9 @@ import (
 var (
 	ErrEmailUnverified = errors.New("your identity provider has not verified this email address")
 	ErrNotAllowed      = errors.New("this email address is not allowed to sign in here")
-	ErrForbidden       = errors.New("only workspace admins can invite people or rename the workspace")
-	ErrInvalidEmail    = errors.New("enter a valid email address")
-	ErrInvalidName     = errors.New("a workspace name is 1 to 80 characters")
-	ErrAlreadyInvited  = errors.New("already invited")
+	ErrForbidden       = errs.Invalid{Message: "only workspace admins can invite people or change the workspace"}
+	ErrInvalidEmail    = errs.Invalid{Message: "enter a valid email address"}
+	ErrInvalidName     = errs.Invalid{Message: "a workspace name is 1 to 80 characters"}
 )
 
 // Config optionally restricts sign-in; empty lists admit every verified email.
@@ -157,21 +156,39 @@ func (s *Service) Invite(ctx context.Context, actor auth.Actor, email string) (s
 	}
 	invite, err := s.store.CreateInvite(ctx, actor.WorkspaceID, email, actor.UserID)
 	if errors.Is(err, storage.ErrConflict) {
-		return invite, fmt.Errorf("%s is %w", email, ErrAlreadyInvited)
+		return invite, errs.Invalidf("%s is already invited", email)
 	}
 	return invite, err
 }
 
-// Rename lets an admin rename their workspace.
-func (s *Service) Rename(ctx context.Context, actor auth.Actor, name string) (string, error) {
+// Update lets an admin change the workspace's name and description; the
+// description tells the triage agent which contacts belong in the CRM.
+func (s *Service) Update(ctx context.Context, actor auth.Actor, name, description *string) (storage.Workspace, error) {
 	if err := s.requireAdmin(ctx, actor); err != nil {
-		return "", err
+		return storage.Workspace{}, err
 	}
-	name = strings.TrimSpace(name)
-	if name == "" || len([]rune(name)) > 80 {
-		return "", ErrInvalidName
+	workspace, err := s.store.Workspace(ctx, actor.WorkspaceID)
+	if err != nil {
+		return workspace, err
 	}
-	return name, s.store.RenameWorkspace(ctx, actor.WorkspaceID, name)
+	if name != nil {
+		workspace.Name = strings.TrimSpace(*name)
+	}
+	if description != nil {
+		workspace.Description = strings.TrimSpace(*description)
+	}
+	if workspace.Name == "" || len([]rune(workspace.Name)) > 80 {
+		return workspace, ErrInvalidName
+	}
+	if len([]rune(workspace.Description)) > 2000 {
+		return workspace, errs.Invalidf("a workspace description is at most 2000 characters")
+	}
+	return workspace, s.store.UpdateWorkspace(ctx, workspace.ID, workspace.Name, workspace.Description)
+}
+
+// Workspace describes the actor's workspace.
+func (s *Service) Workspace(ctx context.Context, actor auth.Actor) (storage.Workspace, error) {
+	return s.store.Workspace(ctx, actor.WorkspaceID)
 }
 
 func (s *Service) requireAdmin(ctx context.Context, actor auth.Actor) error {

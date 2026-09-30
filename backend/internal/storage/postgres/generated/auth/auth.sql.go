@@ -115,13 +115,18 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) er
 }
 
 const createWorkspace = `-- name: CreateWorkspace :one
-INSERT INTO workspaces (name) VALUES ($1) RETURNING id, name, created_at
+INSERT INTO workspaces (name) VALUES ($1) RETURNING id, name, created_at, description
 `
 
 func (q *Queries) CreateWorkspace(ctx context.Context, name string) (Workspace, error) {
 	row := q.db.QueryRow(ctx, createWorkspace, name)
 	var i Workspace
-	err := row.Scan(&i.ID, &i.Name, &i.CreatedAt)
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.CreatedAt,
+		&i.Description,
+	)
 	return i, err
 }
 
@@ -188,13 +193,18 @@ func (q *Queries) GetUser(ctx context.Context, id string) (User, error) {
 }
 
 const getWorkspace = `-- name: GetWorkspace :one
-SELECT id, name, created_at FROM workspaces WHERE id = $1
+SELECT id, name, created_at, description FROM workspaces WHERE id = $1
 `
 
 func (q *Queries) GetWorkspace(ctx context.Context, id string) (Workspace, error) {
 	row := q.db.QueryRow(ctx, getWorkspace, id)
 	var i Workspace
-	err := row.Scan(&i.ID, &i.Name, &i.CreatedAt)
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.CreatedAt,
+		&i.Description,
+	)
 	return i, err
 }
 
@@ -337,23 +347,6 @@ func (q *Queries) ListUsers(ctx context.Context, workspaceID string) ([]User, er
 	return items, nil
 }
 
-const renameWorkspace = `-- name: RenameWorkspace :execrows
-UPDATE workspaces SET name = $2 WHERE id = $1
-`
-
-type RenameWorkspaceParams struct {
-	ID   string
-	Name string
-}
-
-func (q *Queries) RenameWorkspace(ctx context.Context, arg RenameWorkspaceParams) (int64, error) {
-	result, err := q.db.Exec(ctx, renameWorkspace, arg.ID, arg.Name)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const replaceAPIKey = `-- name: ReplaceAPIKey :one
 WITH replaced AS (
   DELETE FROM api_keys WHERE user_id = $1 AND label = $2 AND key_hash <> $4
@@ -444,6 +437,24 @@ func (q *Queries) ShareIdentity(ctx context.Context, arg ShareIdentityParams) ([
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateWorkspace = `-- name: UpdateWorkspace :execrows
+UPDATE workspaces SET name = $2, description = $3 WHERE id = $1
+`
+
+type UpdateWorkspaceParams struct {
+	ID          string
+	Name        string
+	Description string
+}
+
+func (q *Queries) UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateWorkspace, arg.ID, arg.Name, arg.Description)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const userByAPIKey = `-- name: UserByAPIKey :one

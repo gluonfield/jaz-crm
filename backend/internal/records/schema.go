@@ -1,0 +1,117 @@
+package records
+
+import (
+	"context"
+	"errors"
+	"regexp"
+	"slices"
+	"strings"
+
+	"github.com/gluonfield/jaz-crm/backend/internal/auth"
+	"github.com/gluonfield/jaz-crm/backend/internal/errs"
+	"github.com/gluonfield/jaz-crm/backend/internal/storage"
+)
+
+var slugPattern = regexp.MustCompile(`^[a-z][a-z0-9_]{0,39}$`)
+
+var types = []string{Text, Number, Date, Checkbox, URL, Select, Email, Domain, Phone, Reference}
+
+func validName(slug, name string) error {
+	if !slugPattern.MatchString(slug) {
+		return errs.Invalidf("slug %q must be lowercase letters, digits and underscores, starting with a letter", slug)
+	}
+	if name == "" || len([]rune(name)) > 80 {
+		return errs.Invalidf("a name is 1 to 80 characters")
+	}
+	return nil
+}
+
+// CreateObject adds a record type with a name attribute.
+func (s *Service) CreateObject(ctx context.Context, actor auth.Actor, slug, name string) (Object, error) {
+	name = strings.TrimSpace(name)
+	if err := validName(slug, name); err != nil {
+		return Object{}, err
+	}
+	err := s.store.CreateObject(ctx, actor.WorkspaceID, storage.NewObject{Slug: slug, Name: name, Attributes: []storage.NewAttribute{
+		{Slug: titleAttribute, Name: "Name", Type: Text},
+	}})
+	if errors.Is(err, storage.ErrConflict) {
+		return Object{}, errs.Invalidf("object %q already exists", slug)
+	}
+	if err != nil {
+		return Object{}, err
+	}
+	return s.object(ctx, actor, slug)
+}
+
+// CreateAttribute adds an attribute to an object.
+func (s *Service) CreateAttribute(ctx context.Context, actor auth.Actor, object string, a Attribute) (Object, error) {
+	sc, err := s.schema(ctx, actor.WorkspaceID)
+	if err != nil {
+		return Object{}, err
+	}
+	o, err := sc.object(object)
+	if err != nil {
+		return Object{}, err
+	}
+	a.Name = strings.TrimSpace(a.Name)
+	if err := validName(a.Slug, a.Name); err != nil {
+		return Object{}, err
+	}
+	input := storage.AttributeInput{ObjectID: o.ID, Slug: a.Slug, Name: a.Name, Type: a.Type, Multi: a.Multi, IsUnique: a.Unique, Options: []string{}}
+	switch {
+	case !slices.Contains(types, a.Type):
+		return Object{}, errs.Invalidf("type %q is not one of %s", a.Type, strings.Join(types, ", "))
+	case a.Unique && !slices.Contains(uniqueTypes, a.Type):
+		return Object{}, errs.Invalidf("only %s attributes can be unique", strings.Join(uniqueTypes, ", "))
+	case a.Multi && a.Type == Checkbox:
+		return Object{}, errs.Invalidf("a checkbox holds one value")
+	case (a.Type == Select) != (len(a.Options) > 0):
+		return Object{}, errs.Invalidf("select attributes, and only they, list options")
+	case (a.Type == Reference) != (a.Target != ""):
+		return Object{}, errs.Invalidf("reference attributes, and only they, name a target object")
+	}
+	for _, option := range a.Options {
+		option = strings.TrimSpace(option)
+		if option == "" || slices.ContainsFunc(input.Options, func(o string) bool { return strings.EqualFold(o, option) }) {
+			return Object{}, errs.Invalidf("options must be distinct and non-empty")
+		}
+		input.Options = append(input.Options, option)
+	}
+	if a.Target != "" {
+		target, err := sc.object(a.Target)
+		if err != nil {
+			return Object{}, err
+		}
+		input.TargetObjectID = &target.ID
+	}
+	err = s.store.CreateAttribute(ctx, input)
+	if errors.Is(err, storage.ErrConflict) {
+		return Object{}, errs.Invalidf("%s already has an attribute %q", object, a.Slug)
+	}
+	if err != nil {
+		return Object{}, err
+	}
+	return s.object(ctx, actor, object)
+}
+
+func (s *Service) object(ctx context.Context, actor auth.Actor, slug string) (Object, error) {
+	objects, err := s.Objects(ctx, actor)
+	if err != nil {
+		return Object{}, err
+	}
+	i := slices.IndexFunc(objects, func(o Object) bool { return o.Slug == slug })
+	return objects[i], nil
+}
+
+// Delete removes a record, its values and every reference to it.
+func (s *Service) Delete(ctx context.Context, actor auth.Actor, id string) error {
+	records, err := s.find(ctx, actor.WorkspaceID, id)
+	if err != nil {
+		return err
+	}
+	if len(records) == 0 {
+		return errs.Invalidf("no record %q", id)
+	}
+	return s.store.DeleteRecord(ctx, actor.WorkspaceID, id)
+}

@@ -25,9 +25,9 @@ func (q *Queries) CloseValues(ctx context.Context, arg CloseValuesParams) error 
 }
 
 const createAttribute = `-- name: CreateAttribute :one
-INSERT INTO attributes (object_id, slug, name, type, multi, is_unique, target_object_id)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, object_id, slug, name, type, multi, is_unique, target_object_id, created_at
+INSERT INTO attributes (object_id, slug, name, type, multi, is_unique, target_object_id, options)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING id, object_id, slug, name, type, multi, is_unique, target_object_id, created_at, options
 `
 
 type CreateAttributeParams struct {
@@ -38,6 +38,7 @@ type CreateAttributeParams struct {
 	Multi          bool
 	IsUnique       bool
 	TargetObjectID *string
+	Options        []string
 }
 
 func (q *Queries) CreateAttribute(ctx context.Context, arg CreateAttributeParams) (Attribute, error) {
@@ -49,6 +50,7 @@ func (q *Queries) CreateAttribute(ctx context.Context, arg CreateAttributeParams
 		arg.Multi,
 		arg.IsUnique,
 		arg.TargetObjectID,
+		arg.Options,
 	)
 	var i Attribute
 	err := row.Scan(
@@ -61,6 +63,7 @@ func (q *Queries) CreateAttribute(ctx context.Context, arg CreateAttributeParams
 		&i.IsUnique,
 		&i.TargetObjectID,
 		&i.CreatedAt,
+		&i.Options,
 	)
 	return i, err
 }
@@ -153,6 +156,23 @@ func (q *Queries) CurrentValues(ctx context.Context, arg CurrentValuesParams) ([
 	return items, nil
 }
 
+const deleteRecord = `-- name: DeleteRecord :execrows
+DELETE FROM records WHERE workspace_id = $1 AND id = $2
+`
+
+type DeleteRecordParams struct {
+	WorkspaceID string
+	ID          string
+}
+
+func (q *Queries) DeleteRecord(ctx context.Context, arg DeleteRecordParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteRecord, arg.WorkspaceID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getRecords = `-- name: GetRecords :many
 SELECT id, workspace_id, object_id, created_at FROM records WHERE workspace_id = $1 AND id = ANY($2::uuid[])
 `
@@ -216,7 +236,7 @@ func (q *Queries) InsertValue(ctx context.Context, arg InsertValueParams) error 
 }
 
 const listAttributes = `-- name: ListAttributes :many
-SELECT attributes.id, attributes.object_id, attributes.slug, attributes.name, attributes.type, attributes.multi, attributes.is_unique, attributes.target_object_id, attributes.created_at FROM attributes
+SELECT attributes.id, attributes.object_id, attributes.slug, attributes.name, attributes.type, attributes.multi, attributes.is_unique, attributes.target_object_id, attributes.created_at, attributes.options FROM attributes
 JOIN objects ON objects.id = attributes.object_id
 WHERE objects.workspace_id = $1
 ORDER BY attributes.object_id, attributes.slug
@@ -241,6 +261,7 @@ func (q *Queries) ListAttributes(ctx context.Context, workspaceID string) ([]Att
 			&i.IsUnique,
 			&i.TargetObjectID,
 			&i.CreatedAt,
+			&i.Options,
 		); err != nil {
 			return nil, err
 		}

@@ -21,6 +21,21 @@ func (s *Store) Attributes(ctx context.Context, workspaceID string) ([]storage.A
 	return many(toAttribute)(s.rec.ListAttributes(ctx, workspaceID))
 }
 
+func (s *Store) CreateObject(ctx context.Context, workspaceID string, object storage.NewObject) error {
+	return s.tx(ctx, func(_ *authdb.Queries, r *recdb.Queries) error {
+		return createObjects(ctx, r, workspaceID, []storage.NewObject{object})
+	})
+}
+
+func (s *Store) CreateAttribute(ctx context.Context, attr storage.AttributeInput) error {
+	_, err := s.rec.CreateAttribute(ctx, recdb.CreateAttributeParams(attr))
+	return mapError(err)
+}
+
+func (s *Store) DeleteRecord(ctx context.Context, workspaceID, id string) error {
+	return affected(s.rec.DeleteRecord(ctx, recdb.DeleteRecordParams{WorkspaceID: workspaceID, ID: id}))
+}
+
 func (s *Store) Records(ctx context.Context, workspaceID string, ids []string) ([]storage.Record, error) {
 	return many(toRecord)(s.rec.GetRecords(ctx, recdb.GetRecordsParams{WorkspaceID: workspaceID, IDs: ids}))
 }

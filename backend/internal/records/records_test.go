@@ -224,3 +224,49 @@ func TestConcurrentUpsertsCreateOneRecord(t *testing.T) {
 		}
 	}
 }
+
+// Custom objects hold typed values and references; deleting a record drops
+// the references to it.
+func TestCustomObjects(t *testing.T) {
+	svc, a, _ := setup(t)
+	if _, err := svc.CreateObject(ctx, a, "deals", "Deals"); err != nil {
+		t.Fatal(err)
+	}
+	for _, attr := range []records.Attribute{
+		{Slug: "stage", Name: "Stage", Type: records.Select, Options: []string{"Lead", "Won"}},
+		{Slug: "amount", Name: "Amount", Type: records.Number},
+		{Slug: "closes", Name: "Closes", Type: records.Date},
+		{Slug: "company", Name: "Company", Type: records.Reference, Target: "companies"},
+	} {
+		if _, err := svc.CreateAttribute(ctx, a, "deals", attr); err != nil {
+			t.Fatalf("%s: %v", attr.Slug, err)
+		}
+	}
+	for name, bad := range map[string]records.Attribute{
+		"unique select":         {Slug: "x", Name: "X", Type: records.Select, Options: []string{"a"}, Unique: true},
+		"select without option": {Slug: "x", Name: "X", Type: records.Select},
+		"unknown target":        {Slug: "x", Name: "X", Type: records.Reference, Target: "nope"},
+		"taken slug":            {Slug: "amount", Name: "X", Type: records.Number},
+		"bad slug":              {Slug: "Bad Slug", Name: "X", Type: records.Text},
+	} {
+		if _, err := svc.CreateAttribute(ctx, a, "deals", bad); err == nil {
+			t.Errorf("%s was accepted", name)
+		}
+	}
+	acme, _ := upsert(t, svc, a, records.SourceAgent, records.Write{Object: "companies", Set: set("name", "Acme", "domains", "acme.com")})
+	deal, _ := upsert(t, svc, a, records.SourceAgent, records.Write{Object: "deals", Set: set("name", "Press line", "stage", "won", "amount", "1,200.50", "closes", "2026-10-01T09:00:00Z", "company", "acme.com")})
+	for attr, want := range map[string]string{"stage": "Won", "amount": "1200.5", "closes": "2026-10-01", "company": acme.ID} {
+		if got := values(deal, attr); !slices.Equal(got, []string{want}) {
+			t.Errorf("%s: %v", attr, got)
+		}
+	}
+	if _, _, err := svc.Upsert(ctx, a, records.SourceAgent, records.Write{Object: "deals", RecordID: deal.ID, Set: set("stage", "Lost")}); err == nil {
+		t.Error("a stage outside the options was accepted")
+	}
+	if err := svc.Delete(ctx, a, acme.ID); err != nil {
+		t.Fatal(err)
+	}
+	if deal, _ = svc.Get(ctx, a, deal.ID); len(values(deal, "company")) != 0 {
+		t.Errorf("a deleted company is still referenced: %v", values(deal, "company"))
+	}
+}

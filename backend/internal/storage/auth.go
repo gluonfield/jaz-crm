@@ -6,9 +6,10 @@ import (
 )
 
 type Workspace struct {
-	ID        string
-	Name      string
-	CreatedAt time.Time
+	ID          string
+	Name        string
+	CreatedAt   time.Time
+	Description string
 }
 
 // User is a person's membership of one workspace.
@@ -141,6 +142,7 @@ type WorkspaceInvite struct {
 }
 
 type WorkspaceStore interface {
+	Workspace(ctx context.Context, id string) (Workspace, error)
 	UserByID(ctx context.Context, id string) (User, error)
 	Users(ctx context.Context, workspaceID string) ([]User, error)
 	UsersByIdentity(ctx context.Context, issuer, subject string) ([]User, error)
@@ -150,7 +152,7 @@ type WorkspaceStore interface {
 	// CreateOwnedWorkspace creates a workspace, its owner linked to the
 	// identity, and its objects, atomically.
 	CreateOwnedWorkspace(ctx context.Context, name string, owner NewUser, identity Identity, objects []NewObject) (User, error)
-	RenameWorkspace(ctx context.Context, id, name string) error
+	UpdateWorkspace(ctx context.Context, id, name, description string) error
 	// JoinWorkspace turns an invite into a member linked to the identity.
 	JoinWorkspace(ctx context.Context, invite WorkspaceInvite, member NewUser, identity Identity) (User, error)
 	CreateInvite(ctx context.Context, workspaceID, email, invitedBy string) (WorkspaceInvite, error)

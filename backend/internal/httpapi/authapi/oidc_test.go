@@ -148,8 +148,11 @@ func TestOIDCSignUpGivesEachPersonAWorkspace(t *testing.T) {
 	if first.Email != "ada@example.com" || !first.Admin || first.Workspace.ID == "" {
 		t.Fatalf("new workspace: %+v", first)
 	}
-	if text := callText(t, s.agent(t, ada), "list_objects", nil); !strings.Contains(text, `"slug":"people"`) || !strings.Contains(text, `"slug":"companies"`) {
-		t.Fatalf("a new workspace starts with people and companies: %s", text)
+	if status, text := session(t, s, ada, http.MethodPost, "/api/tools/list_objects", ""); status != http.StatusOK || !strings.Contains(text, `"slug":"people"`) || !strings.Contains(text, `"slug":"companies"`) {
+		t.Fatalf("a new workspace starts with people and companies: %d %s", status, text)
+	}
+	if status, text := session(t, s, ada, http.MethodPost, "/api/tools/get_record", `{"record_id":"nope"}`); status != http.StatusBadRequest || !strings.Contains(text, "no record") {
+		t.Fatalf("a caller's mistake: %d %s", status, text)
 	}
 
 	grace := browser()
@@ -215,14 +218,14 @@ func TestInvites(t *testing.T) {
 	if text := callText(t, s.agent(t, bob), "invite_member", map[string]any{"email": "x@example.com"}); !strings.Contains(text, workspaces.ErrForbidden.Error()) {
 		t.Fatalf("members cannot invite: %s", text)
 	}
-	if text := callText(t, s.agent(t, bob), "rename_workspace", map[string]any{"name": "Mine"}); !strings.Contains(text, workspaces.ErrForbidden.Error()) {
+	if text := callText(t, s.agent(t, bob), "update_workspace", map[string]any{"name": "Mine"}); !strings.Contains(text, workspaces.ErrForbidden.Error()) {
 		t.Fatalf("members cannot rename: %s", text)
 	}
-	callText(t, admin, "rename_workspace", map[string]any{"name": " CAS "})
-	if got := viewer(t, s, bob); got.Workspace.Name != "CAS" {
+	callText(t, admin, "update_workspace", map[string]any{"name": " Acme "})
+	if got := viewer(t, s, bob); got.Workspace.Name != "Acme" {
 		t.Fatalf("renamed workspace: %+v", got)
 	}
-	if text := callText(t, admin, "list_members", nil); !strings.Contains(text, `"email":"bob@example.com"`) || !strings.Contains(text, `"invited":[]`) {
+	if text := callText(t, admin, "get_workspace", nil); !strings.Contains(text, `"email":"bob@example.com"`) || strings.Contains(text, `"invited"`) {
 		t.Fatalf("members after joining: %s", text)
 	}
 

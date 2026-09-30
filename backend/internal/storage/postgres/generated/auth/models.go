@@ -63,9 +63,10 @@ type User struct {
 }
 
 type Workspace struct {
-	ID        string
-	Name      string
-	CreatedAt time.Time
+	ID          string
+	Name        string
+	CreatedAt   time.Time
+	Description string
 }
 
 type WorkspaceInvite struct {

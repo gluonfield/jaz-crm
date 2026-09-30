@@ -23,6 +23,19 @@ type Attribute struct {
 	IsUnique       bool
 	TargetObjectID *string
 	CreatedAt      time.Time
+	Options        []string
+}
+
+// AttributeInput creates one attribute on an existing object.
+type AttributeInput struct {
+	ObjectID       string
+	Slug           string
+	Name           string
+	Type           string
+	Multi          bool
+	IsUnique       bool
+	TargetObjectID *string
+	Options        []string
 }
 
 type Record struct {
@@ -72,6 +85,7 @@ type NewAttribute struct {
 	Multi    bool
 	IsUnique bool
 	Target   string
+	Options  []string
 }
 
 type RecordQuery struct {
@@ -98,6 +112,9 @@ type RecordMutation func(current []RecordValue) (ValueChanges, error)
 type RecordStore interface {
 	Objects(ctx context.Context, workspaceID string) ([]Object, error)
 	Attributes(ctx context.Context, workspaceID string) ([]Attribute, error)
+	CreateObject(ctx context.Context, workspaceID string, object NewObject) error
+	CreateAttribute(ctx context.Context, attr AttributeInput) error
+	DeleteRecord(ctx context.Context, workspaceID, id string) error
 	Records(ctx context.Context, workspaceID string, ids []string) ([]Record, error)
 	SearchRecords(ctx context.Context, query RecordQuery) ([]Record, error)
 	CurrentValues(ctx context.Context, workspaceID string, recordIDs []string) ([]RecordValue, error)

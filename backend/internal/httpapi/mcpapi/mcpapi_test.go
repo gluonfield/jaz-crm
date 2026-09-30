@@ -3,11 +3,13 @@ package mcpapi_test
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/log"
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/mcpapi"
 	"github.com/gluonfield/jaz-crm/backend/internal/records"
@@ -31,7 +33,7 @@ func connect(t *testing.T) (*mcp.ClientSession, *mcp.ClientSession) {
 	store := postgrestest.New(t)
 	keys := auth.NewService(store, auth.Config{PublicURL: "http://crm.test"})
 	people := workspaces.NewService(store, workspaces.Config{})
-	srv := httptest.NewServer(mcpapi.NewHandler(records.NewService(store), people, keys))
+	srv := httptest.NewServer(mcpapi.NewHandler(mcpapi.Services{Records: records.NewService(store), Workspaces: people}, keys, log.New(io.Discard)).MCP)
 	t.Cleanup(srv.Close)
 	var sessions []*mcp.ClientSession
 	for _, email := range []string{"a@jaz.test", "b@jaz.test"} {
@@ -137,8 +139,8 @@ func TestTenantIsolation(t *testing.T) {
 	if found := mustCall(t, b, "search_records", map[string]any{"object": "people", "where": map[string]any{"company": id}})["records"].([]any); len(found) != 0 {
 		t.Errorf("search_records filtered by another workspace's record: %v", found)
 	}
-	if members := encode(mustCall(t, b, "list_members", nil)); strings.Contains(members, "a@jaz.test") {
-		t.Errorf("list_members listed another workspace: %s", members)
+	if members := encode(mustCall(t, b, "get_workspace", nil)); strings.Contains(members, "a@jaz.test") {
+		t.Errorf("get_workspace listed another workspace: %s", members)
 	}
 	if got := mustCall(t, a, "get_record", map[string]any{"record_id": id}); encode(got["values"]) != `{"domains":["acme.com"],"name":"Acme"}` {
 		t.Errorf("the owner's record changed: %v", got)

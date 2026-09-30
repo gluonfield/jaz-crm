@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
+	"github.com/gluonfield/jaz-crm/backend/internal/errs"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 	"github.com/google/uuid"
 )
@@ -36,6 +37,8 @@ type Attribute struct {
 	Unique bool
 	// Target is the object a reference points at.
 	Target string
+	// Options are a select attribute's allowed values.
+	Options []string
 }
 
 type Record struct {
@@ -80,7 +83,7 @@ func (sc schema) object(slug string) (storage.Object, error) {
 		for _, o := range sc.objects {
 			slugs = append(slugs, o.Slug)
 		}
-		return storage.Object{}, invalid("no object %q; objects are %s", slug, strings.Join(slugs, ", "))
+		return storage.Object{}, errs.Invalidf("no object %q; objects are %s", slug, strings.Join(slugs, ", "))
 	}
 	return sc.objects[i], nil
 }
@@ -103,7 +106,7 @@ func (sc schema) attributes(objectID string) []storage.Attribute {
 func (sc schema) attribute(object storage.Object, slug string) (storage.Attribute, error) {
 	i := slices.IndexFunc(sc.attrs, func(a storage.Attribute) bool { return a.ObjectID == object.ID && a.Slug == slug })
 	if i < 0 {
-		return storage.Attribute{}, invalid("%s has no attribute %q; call list_objects for its attributes", object.Slug, slug)
+		return storage.Attribute{}, errs.Invalidf("%s has no attribute %q; call list_objects for its attributes", object.Slug, slug)
 	}
 	return sc.attrs[i], nil
 }
@@ -123,7 +126,7 @@ func (s *Service) Objects(ctx context.Context, actor auth.Actor) ([]Object, erro
 	for _, o := range sc.objects {
 		view := Object{Slug: o.Slug, Name: o.Name}
 		for _, a := range sc.attributes(o.ID) {
-			attr := Attribute{Slug: a.Slug, Name: a.Name, Type: a.Type, Multi: a.Multi, Unique: a.IsUnique}
+			attr := Attribute{Slug: a.Slug, Name: a.Name, Type: a.Type, Multi: a.Multi, Unique: a.IsUnique, Options: a.Options}
 			if a.TargetObjectID != nil {
 				attr.Target = sc.objectByID(*a.TargetObjectID).Slug
 			}
@@ -148,7 +151,7 @@ func (s *Service) get(ctx context.Context, workspaceID string, sc schema, id str
 		return Record{}, err
 	}
 	if len(records) == 0 {
-		return Record{}, invalid("no record %q", id)
+		return Record{}, errs.Invalidf("no record %q", id)
 	}
 	views, err := s.views(ctx, workspaceID, sc, records)
 	if err != nil {
@@ -200,7 +203,7 @@ func (s *Service) Search(ctx context.Context, actor auth.Actor, q Search) ([]Rec
 			return nil, err
 		}
 		e, err := s.entry(ctx, actor.WorkspaceID, sc, attr, raw)
-		var unknown InvalidInputError
+		var unknown errs.Invalid
 		if attr.Type == Reference && errors.As(err, &unknown) {
 			return []Record{}, nil
 		}
@@ -252,7 +255,7 @@ func (s *Service) resolve(ctx context.Context, workspaceID string, sc schema, at
 		return "", err
 	}
 	if len(owners) != 1 {
-		return "", invalid("%s: %q names no single %s record; give its id or a unique value such as a domain", attr.Slug, raw, target.Slug)
+		return "", errs.Invalidf("%s: %q names no single %s record; give its id or a unique value such as a domain", attr.Slug, raw, target.Slug)
 	}
 	return owners[0], nil
 }

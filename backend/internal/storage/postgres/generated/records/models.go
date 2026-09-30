@@ -18,6 +18,7 @@ type Attribute struct {
 	IsUnique       bool
 	TargetObjectID *string
 	CreatedAt      time.Time
+	Options        []string
 }
 
 type Object struct {

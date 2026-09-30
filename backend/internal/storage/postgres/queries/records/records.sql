@@ -2,8 +2,8 @@
 INSERT INTO objects (workspace_id, slug, name) VALUES ($1, $2, $3) RETURNING *;
 
 -- name: CreateAttribute :one
-INSERT INTO attributes (object_id, slug, name, type, multi, is_unique, target_object_id)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO attributes (object_id, slug, name, type, multi, is_unique, target_object_id, options)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING *;
 
 -- name: ListObjects :many
@@ -14,6 +14,9 @@ SELECT attributes.* FROM attributes
 JOIN objects ON objects.id = attributes.object_id
 WHERE objects.workspace_id = $1
 ORDER BY attributes.object_id, attributes.slug;
+
+-- name: DeleteRecord :execrows
+DELETE FROM records WHERE workspace_id = $1 AND id = $2;
 
 -- name: CreateRecord :one
 INSERT INTO records (workspace_id, object_id) VALUES ($1, $2) RETURNING *;

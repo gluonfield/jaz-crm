@@ -44,6 +44,16 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.mux.ServeHTTP(w, r)
 }
 
+// Session admits a signed-in browser, putting its actor in the request context.
+func (h *Handler) Session(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		actor, _, ok := h.sessionActor(w, r)
+		if ok {
+			next.ServeHTTP(w, r.WithContext(auth.WithActor(r.Context(), actor)))
+		}
+	})
+}
+
 func (h *Handler) cookie(name, value string, expires time.Time) *http.Cookie {
 	c := &http.Cookie{
 		Name:     name,

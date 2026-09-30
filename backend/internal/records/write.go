@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
+	"github.com/gluonfield/jaz-crm/backend/internal/errs"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 )
 
@@ -79,7 +80,7 @@ func (s *Service) upsert(ctx context.Context, actor auth.Actor, source Source, w
 		return Record{}, nil, err
 	}
 	if id == "" && !slices.ContainsFunc(set, func(c change) bool { return len(c.entries) > 0 }) {
-		return Record{}, nil, invalid("a new %s record needs at least one value", object.Slug)
+		return Record{}, nil, errs.Invalidf("a new %s record needs at least one value", object.Slug)
 	}
 	var skips []Skip
 	id, err = s.store.WriteRecord(ctx, actor.WorkspaceID, object.ID, id, func(current []storage.RecordValue) (storage.ValueChanges, error) {
@@ -88,7 +89,7 @@ func (s *Service) upsert(ctx context.Context, actor auth.Actor, source Source, w
 		return changes, nil
 	})
 	if errors.Is(err, storage.ErrNotFound) {
-		return Record{}, nil, invalid("no %s record %q", object.Slug, w.RecordID)
+		return Record{}, nil, errs.Invalidf("no %s record %q", object.Slug, w.RecordID)
 	}
 	if err != nil {
 		return Record{}, nil, err
@@ -111,7 +112,7 @@ func (s *Service) changes(ctx context.Context, workspaceID string, sc schema, ob
 			return nil, err
 		}
 		if setting && !attr.Multi && len(raw[slug]) != 1 {
-			return nil, invalid("%s holds one value; remove it to clear it", slug)
+			return nil, errs.Invalidf("%s holds one value; remove it to clear it", slug)
 		}
 		c := change{attr: attr}
 		for _, value := range raw[slug] {
@@ -147,13 +148,13 @@ func (s *Service) target(ctx context.Context, workspaceID string, object storage
 	if id != "" {
 		for _, owner := range owners {
 			if owner != id {
-				return "", invalid("a unique value being set already belongs to %s record %s", object.Slug, owner)
+				return "", errs.Invalidf("a unique value being set already belongs to %s record %s", object.Slug, owner)
 			}
 		}
 		return id, nil
 	}
 	if len(owners) > 1 {
-		return "", invalid("the unique values match several %s records: %s", object.Slug, strings.Join(owners, ", "))
+		return "", errs.Invalidf("the unique values match several %s records: %s", object.Slug, strings.Join(owners, ", "))
 	}
 	if len(owners) == 1 {
 		return owners[0], nil

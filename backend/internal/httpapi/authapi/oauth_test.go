@@ -45,9 +45,9 @@ func TestMCPClientAuthorizes(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer session.Close()
-	res, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "list_members"})
+	res, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "get_workspace"})
 	if err != nil || res.IsError || !strings.Contains(res.Content[0].(*mcp.TextContent).Text, `"is_me":true`) {
-		t.Fatalf("list_members: %+v %v", res, err)
+		t.Fatalf("get_workspace: %+v %v", res, err)
 	}
 }
 
@@ -324,7 +324,7 @@ func TestSessionChangesNeedJSON(t *testing.T) {
 	s := start(t, auth.OIDCConfig{}, workspaces.Config{})
 	b := browser()
 	s.ownerSession(t, b)
-	for _, path := range []string{"/auth/api-keys", "/auth/logout"} {
+	for _, path := range []string{"/auth/api-keys", "/auth/logout", "/api/tools/list_objects"} {
 		req, _ := http.NewRequest(http.MethodPost, s.url+path, strings.NewReader(`{"label":"x"}`))
 		req.Header.Set("Content-Type", "text/plain")
 		res, err := b.Do(req)

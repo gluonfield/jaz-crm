@@ -39,8 +39,8 @@ func (s *Store) CreateOwnedWorkspace(ctx context.Context, name string, owner sto
 	return one(toUser)(user, err)
 }
 
-func (s *Store) RenameWorkspace(ctx context.Context, id, name string) error {
-	return affected(s.auth.RenameWorkspace(ctx, authdb.RenameWorkspaceParams{ID: id, Name: name}))
+func (s *Store) UpdateWorkspace(ctx context.Context, id, name, description string) error {
+	return affected(s.auth.UpdateWorkspace(ctx, authdb.UpdateWorkspaceParams{ID: id, Name: name, Description: description}))
 }
 
 // createObjects creates every object before any attribute, so references
@@ -63,7 +63,7 @@ func createObjects(ctx context.Context, r *recdb.Queries, workspaceID string, ob
 			}
 			if _, err := r.CreateAttribute(ctx, recdb.CreateAttributeParams{
 				ObjectID: ids[object.Slug], Slug: attr.Slug, Name: attr.Name, Type: attr.Type,
-				Multi: attr.Multi, IsUnique: attr.IsUnique, TargetObjectID: target,
+				Multi: attr.Multi, IsUnique: attr.IsUnique, TargetObjectID: target, Options: append([]string{}, attr.Options...),
 			}); err != nil {
 				return err
 			}
