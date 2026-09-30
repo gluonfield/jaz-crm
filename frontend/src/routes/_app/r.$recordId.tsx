@@ -50,7 +50,7 @@ function RecordPage() {
       <div className="scrollbar-quiet min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto grid max-w-[1160px] gap-x-12 px-6 pb-16 pt-8 [grid-template-areas:'title'_'props'_'main'] xl:grid-cols-[minmax(0,1fr)_300px] xl:px-10 xl:[grid-template-areas:'title_props'_'main_props']">
           <div className="flex items-center gap-3 [grid-area:title]">
-            <RecordIcon object={record.object} name={name} size={36} />
+            <RecordIcon object={record.object} name={name} photo={record.photo} size={36} />
             <div className="min-w-0">
               <h1 className="truncate text-[20px] font-semibold tracking-[-0.01em] text-ink">{name}</h1>
               <p className="text-[12.5px] text-ink-3">

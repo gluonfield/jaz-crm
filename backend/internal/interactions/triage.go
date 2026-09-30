@@ -285,6 +285,7 @@ type Contact struct {
 	PersonID     string
 	Interactions int
 	LastSeen     time.Time
+	Photo        string
 }
 
 // Contacts lists addresses with a verdict, most recently seen first.
@@ -315,7 +316,7 @@ func (s *Service) Contacts(ctx context.Context, actor auth.Actor, verdict, query
 		h := r.Handle
 		out = append(out, Contact{
 			Address: h.Value, Kind: h.Kind, Name: cmp.Or(labels[deref(h.PersonID)].Name, h.Name), Triage: h.Triage, DecidedBy: deref(h.DecidedBy), Reason: h.Reason,
-			PersonID: deref(h.PersonID), Interactions: int(r.Interactions), LastSeen: r.LastSeen,
+			PersonID: deref(h.PersonID), Interactions: int(r.Interactions), LastSeen: r.LastSeen, Photo: h.PhotoURL,
 		})
 	}
 	return out, err

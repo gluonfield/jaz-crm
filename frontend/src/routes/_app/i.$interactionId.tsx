@@ -48,6 +48,7 @@ function InteractionPage() {
             {interaction.participants.map((p, index) => (
               <span key={p.address} title={`${p.address} · ${p.role}`} className={p.role === 'declined' ? 'line-through' : undefined}>
                 {index === 0 ? ' · ' : ', '}
+                <RecordIcon object="people" name={p.name || p.address} photo={p.photo} size={14} className="mr-1 align-[-3px]" />
                 {p.person_id ? (
                   <Link to="/r/$recordId" params={{ recordId: p.person_id }} className="text-ink-2 hover:text-ink hover:underline">
                     {p.name || p.address}

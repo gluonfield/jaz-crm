@@ -77,6 +77,7 @@ type partyView struct {
 	Name     string `json:"name,omitempty"`
 	Role     string `json:"role"`
 	PersonID string `json:"person_id,omitempty"`
+	Photo    string `json:"photo,omitempty"`
 }
 
 type recordRefView struct {
@@ -188,6 +189,7 @@ type contactView struct {
 	PersonID     string    `json:"person_id,omitempty"`
 	Interactions int       `json:"interactions"`
 	LastSeen     time.Time `json:"last_seen"`
+	Photo        string    `json:"photo,omitempty"`
 }
 
 type contactsOutput struct {

@@ -27,6 +27,7 @@ type Handle struct {
 	DecidedBy   *string
 	Reason      string
 	CreatedAt   time.Time
+	PhotoURL    string
 }
 
 type Interaction struct {

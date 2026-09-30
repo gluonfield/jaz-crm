@@ -38,7 +38,11 @@ func registerApp(r *registry) {
 	r.server.AddResource(&mcp.Resource{URI: appURI, Name: "jaz-crm", Title: "Jaz CRM", MIMEType: appMIME},
 		func(context.Context, *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
 			return &mcp.ReadResourceResult{Contents: []*mcp.ResourceContents{{
-				URI: appURI, MIMEType: appMIME, Text: appHTML, Meta: mcp.Meta{"ui": map[string]any{"prefersBorder": false}},
+				URI: appURI, MIMEType: appMIME, Text: appHTML, Meta: mcp.Meta{"ui": map[string]any{
+					"prefersBorder": false,
+					// Profile pictures load from Google.
+					"csp": map[string]any{"resourceDomains": []string{"https://*.googleusercontent.com"}},
+				}},
 			}}}, nil
 		})
 	add(r, &mcp.Tool{Name: "show_crm", Title: "CRM", Annotations: readOnly, Icons: []mcp.Icon{{Source: icon("currentColor"), MIMEType: "image/svg+xml", Sizes: []string{"any"}}},

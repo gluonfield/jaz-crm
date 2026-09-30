@@ -26,11 +26,12 @@ export type CrmRecord = {
   created_at: string
   values: Record<string, Value | Value[] | null>
   activity?: { interactions: number; last_at?: string }
+  photo?: string
 }
 
 export type Kind = 'email' | 'meeting' | 'call' | 'note'
 
-export type Party = { address: string; name?: string; role: string; person_id?: string }
+export type Party = { address: string; name?: string; role: string; person_id?: string; photo?: string }
 
 export type RecordRef = { id: string; object: string; name?: string }
 
@@ -55,6 +56,7 @@ export type Contact = {
   address: string
   kind: string
   name?: string
+  photo?: string
   status: string
   decided_by?: string
   reason?: string

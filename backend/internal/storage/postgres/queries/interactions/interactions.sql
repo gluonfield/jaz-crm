@@ -32,6 +32,20 @@ GROUP BY handles.id
 ORDER BY max(interactions.started_at) DESC NULLS LAST, handles.id
 LIMIT @row_limit;
 
+-- name: SetPhotos :exec
+-- SetPhotos records the profile pictures of a workspace's email addresses.
+UPDATE handles SET photo_url = photos.url
+FROM (
+  SELECT (@addresses::text[])[i] AS address, (@urls::text[])[i] AS url FROM generate_subscripts(@addresses::text[], 1) AS i
+) AS photos
+WHERE handles.workspace_id = @workspace_id AND handles.kind = 'email' AND handles.value = photos.address AND handles.photo_url <> photos.url;
+
+-- name: PersonPhotos :many
+-- PersonPhotos picks a profile picture for each person from their addresses.
+SELECT DISTINCT ON (person_id) person_id::text AS person_id, photo_url FROM handles
+WHERE workspace_id = @workspace_id AND person_id = ANY(@person_ids::uuid[]) AND photo_url <> ''
+ORDER BY person_id, created_at;
+
 -- name: MarkInternal :exec
 -- MarkInternal files the workspace's own addresses and domains as internal,
 -- unless a person decided otherwise.

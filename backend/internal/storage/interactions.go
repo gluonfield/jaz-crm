@@ -17,6 +17,8 @@ type Handle struct {
 	DecidedBy   *string
 	Reason      string
 	CreatedAt   time.Time
+	// PhotoURL is the address's profile picture, when Google has one.
+	PhotoURL string
 }
 
 type NewHandle struct {
@@ -180,6 +182,10 @@ type InteractionStore interface {
 	HandlesByValue(ctx context.Context, workspaceID string, values []string) ([]Handle, error)
 	HandlesByDomain(ctx context.Context, workspaceID, domain string) ([]Handle, error)
 	ListHandles(ctx context.Context, q HandleQuery) ([]HandleSummary, error)
+	// SetPhotos records profile pictures by email address.
+	SetPhotos(ctx context.Context, workspaceID string, photos map[string]string) error
+	// PersonPhotos maps people to a profile picture of one of their addresses.
+	PersonPhotos(ctx context.Context, workspaceID string, personIDs []string) (map[string]string, error)
 	// MarkInternal files undecided handles at the given addresses or domains as
 	// internal.
 	MarkInternal(ctx context.Context, workspaceID string, addresses, domains []string) error

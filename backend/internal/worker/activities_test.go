@@ -37,10 +37,11 @@ func (s *started) Step(context.Context, string) (string, error) { return "", nil
 
 // fakeGoogle serves the mailbox, calendar and Meet of owner@cas.dev.
 type fakeGoogle struct {
-	messages map[string]string
-	listed   []string
-	history  map[string]string
-	now      time.Time
+	noContacts bool
+	messages   map[string]string
+	listed     []string
+	history    map[string]string
+	now        time.Time
 }
 
 func gmailMessage(id, thread, from, to, subject, inReplyTo, body string, at time.Time) string {
@@ -63,6 +64,13 @@ func (f *fakeGoogle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, `{"access_token":"at","token_type":"Bearer","expires_in":3600,"refresh_token":"rt"}`)
 	case path == "/gmail/v1/users/me/profile":
 		fmt.Fprint(w, `{"emailAddress":"owner@cas.dev","historyId":"100"}`)
+	case path == "/v1/otherContacts" && f.noContacts:
+		w.WriteHeader(http.StatusForbidden)
+		fmt.Fprint(w, `{"error":{"code":403,"status":"PERMISSION_DENIED","details":[{"reason":"ACCESS_TOKEN_SCOPE_INSUFFICIENT"}]}}`)
+	case path == "/v1/otherContacts" && r.URL.Query().Get("pageToken") == "":
+		fmt.Fprint(w, `{"otherContacts":[{"emailAddresses":[{"value":"Ada@Customer.io"}],"photos":[{"url":"https://lh3.googleusercontent.com/ada"}]}],"nextPageToken":"p2"}`)
+	case path == "/v1/otherContacts":
+		fmt.Fprint(w, `{"otherContacts":[{"emailAddresses":[{"value":"bob@supplier.com"}],"photos":[{"url":"https://lh3.googleusercontent.com/letter-b","default":true}]}]}`)
 	case path == "/gmail/v1/users/me/settings/sendAs":
 		fmt.Fprint(w, `{"sendAs":[{"sendAsEmail":"owner@cas.dev","isPrimary":true},{"sendAsEmail":"Sales@CAS-Alias.dev","verificationStatus":"accepted"},{"sendAsEmail":"unverified@elsewhere.dev","verificationStatus":"pending"}]}`)
 	case path == "/gmail/v1/users/me/messages":
@@ -138,7 +146,7 @@ func TestSyncAgainstGoogle(t *testing.T) {
 	conns, err := connections.NewService(store, connections.Config{
 		Google:    google.OAuthConfig{ClientID: "client", ClientSecret: "secret", TokenURL: srv.URL + "/token"},
 		Key:       []byte("0123456789abcdef0123456789abcdef"),
-		Endpoints: google.Endpoints{Gmail: srv.URL, Calendar: srv.URL, Meet: srv.URL},
+		Endpoints: google.Endpoints{Gmail: srv.URL, Calendar: srv.URL, Meet: srv.URL, People: srv.URL},
 		Backfill:  365 * 24 * time.Hour,
 	}, &starts)
 	if err != nil {
@@ -186,6 +194,19 @@ func TestSyncAgainstGoogle(t *testing.T) {
 		t.Fatalf("kept: %+v %v", kept, err)
 	}
 	ada := kept[0].PersonID
+
+	fake.noContacts = true
+	run(a.Photos, nil, conn.ID)
+	if cursor, _ := conns.Cursor(ctx, conn.ID, connections.StreamPhotos); cursor != "" {
+		t.Fatalf("an account without contacts access must retry after reconnecting: %q", cursor)
+	}
+	fake.noContacts = false
+	run(a.Photos, nil, conn.ID)
+	photos, err := convs.Photos(ctx, actor, []string{ada})
+	pending, _ := convs.Contacts(ctx, actor, interactions.Pending, "", 10)
+	if err != nil || photos[ada] != "https://lh3.googleusercontent.com/ada" || len(pending) != 1 || pending[0].Photo != "" {
+		t.Fatalf("photos: %v %+v %v", photos, pending, err)
+	}
 	thread, err := convs.Timeline(ctx, actor, ada, nil, nil, 10)
 	if err != nil || len(thread) != 1 || thread[0].Preview != "Hello Ada" || len(thread[0].Participants) != 2 {
 		t.Fatalf("thread: %+v %v", thread, err)

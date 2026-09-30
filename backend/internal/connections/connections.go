@@ -35,6 +35,8 @@ const (
 	StreamHistory  = "gmail_history"
 	StreamWatch    = "gmail_watch"
 	StreamCalendar = "calendar"
+	// StreamPhotos holds when profile pictures were last read.
+	StreamPhotos = "photos"
 	// BackfillDone is the backfill's cursor once the mail history is in.
 	BackfillDone = "done"
 )

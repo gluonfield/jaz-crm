@@ -5,6 +5,8 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"maps"
+	"net/http"
 	"strconv"
 	"time"
 
@@ -18,6 +20,9 @@ import (
 
 // contentBatch is how many message bodies one pass fetches.
 const contentBatch = 50
+
+// photoInterval is how often profile pictures are read again.
+const photoInterval = 24 * time.Hour
 
 // Config shapes what a sync reaches for.
 type Config struct {
@@ -93,6 +98,43 @@ func (a *Activities) Aliases(ctx context.Context, id string) error {
 		return classify(err)
 	}
 	return a.Connections.SetAliases(ctx, id, aliases)
+}
+
+// Photos reads the profile pictures of the people the mailbox has written
+// to, once a day. An account connected before it granted contacts access
+// skips until it connects again.
+func (a *Activities) Photos(ctx context.Context, id string) error {
+	last, err := a.Connections.Cursor(ctx, id, connections.StreamPhotos)
+	if err != nil {
+		return err
+	}
+	if at, err := time.Parse(time.RFC3339, last); err == nil && time.Since(at) < photoInterval {
+		return nil
+	}
+	s, err := a.session(ctx, id)
+	if err != nil {
+		return err
+	}
+	photos := map[string]string{}
+	for token := ""; ; {
+		page, next, err := s.google.ContactPhotos(ctx, token)
+		var denied *google.APIError
+		if errors.As(err, &denied) && denied.Status == http.StatusForbidden {
+			return nil
+		}
+		if err != nil {
+			return classify(err)
+		}
+		maps.Copy(photos, page)
+		if token = next; token == "" {
+			break
+		}
+		activity.RecordHeartbeat(ctx, len(photos))
+	}
+	if err := a.Interactions.SetPhotos(ctx, s.conn.WorkspaceID, photos); err != nil {
+		return err
+	}
+	return a.Connections.SetCursor(ctx, id, connections.StreamPhotos, time.Now().UTC().Format(time.RFC3339))
 }
 
 // GmailBackfill ingests one page of the mailbox's history, reporting whether

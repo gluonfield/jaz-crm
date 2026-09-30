@@ -253,7 +253,7 @@ func (q *Queries) ExtendEmailThread(ctx context.Context, arg ExtendEmailThreadPa
 }
 
 const getHandles = `-- name: GetHandles :many
-SELECT id, workspace_id, kind, value, name, person_id, triage, decided_by, reason, created_at FROM handles WHERE workspace_id = $1 AND id = ANY($2::uuid[])
+SELECT id, workspace_id, kind, value, name, person_id, triage, decided_by, reason, created_at, photo_url FROM handles WHERE workspace_id = $1 AND id = ANY($2::uuid[])
 `
 
 type GetHandlesParams struct {
@@ -281,6 +281,7 @@ func (q *Queries) GetHandles(ctx context.Context, arg GetHandlesParams) ([]Handl
 			&i.DecidedBy,
 			&i.Reason,
 			&i.CreatedAt,
+			&i.PhotoURL,
 		); err != nil {
 			return nil, err
 		}
@@ -337,7 +338,7 @@ func (q *Queries) GetInteractions(ctx context.Context, arg GetInteractionsParams
 }
 
 const handlesByDomain = `-- name: HandlesByDomain :many
-SELECT id, workspace_id, kind, value, name, person_id, triage, decided_by, reason, created_at FROM handles WHERE workspace_id = $1 AND kind = 'email' AND split_part(value, '@', 2) = $2
+SELECT id, workspace_id, kind, value, name, person_id, triage, decided_by, reason, created_at, photo_url FROM handles WHERE workspace_id = $1 AND kind = 'email' AND split_part(value, '@', 2) = $2
 `
 
 type HandlesByDomainParams struct {
@@ -365,6 +366,7 @@ func (q *Queries) HandlesByDomain(ctx context.Context, arg HandlesByDomainParams
 			&i.DecidedBy,
 			&i.Reason,
 			&i.CreatedAt,
+			&i.PhotoURL,
 		); err != nil {
 			return nil, err
 		}
@@ -377,7 +379,7 @@ func (q *Queries) HandlesByDomain(ctx context.Context, arg HandlesByDomainParams
 }
 
 const handlesByValue = `-- name: HandlesByValue :many
-SELECT id, workspace_id, kind, value, name, person_id, triage, decided_by, reason, created_at FROM handles WHERE workspace_id = $1 AND value = ANY($2::text[])
+SELECT id, workspace_id, kind, value, name, person_id, triage, decided_by, reason, created_at, photo_url FROM handles WHERE workspace_id = $1 AND value = ANY($2::text[])
 `
 
 type HandlesByValueParams struct {
@@ -405,6 +407,7 @@ func (q *Queries) HandlesByValue(ctx context.Context, arg HandlesByValueParams) 
 			&i.DecidedBy,
 			&i.Reason,
 			&i.CreatedAt,
+			&i.PhotoURL,
 		); err != nil {
 			return nil, err
 		}
@@ -528,7 +531,7 @@ func (q *Queries) InteractionLinks(ctx context.Context, ids []string) ([]Interac
 }
 
 const interactionParticipants = `-- name: InteractionParticipants :many
-SELECT participants.interaction_id, participants.role, handles.id, handles.workspace_id, handles.kind, handles.value, handles.name, handles.person_id, handles.triage, handles.decided_by, handles.reason, handles.created_at FROM participants
+SELECT participants.interaction_id, participants.role, handles.id, handles.workspace_id, handles.kind, handles.value, handles.name, handles.person_id, handles.triage, handles.decided_by, handles.reason, handles.created_at, handles.photo_url FROM participants
 JOIN handles ON handles.id = participants.handle_id
 WHERE participants.interaction_id = ANY($1::uuid[])
 ORDER BY participants.interaction_id, handles.value
@@ -562,6 +565,7 @@ func (q *Queries) InteractionParticipants(ctx context.Context, ids []string) ([]
 			&i.Handle.DecidedBy,
 			&i.Handle.Reason,
 			&i.Handle.CreatedAt,
+			&i.Handle.PhotoURL,
 		); err != nil {
 			return nil, err
 		}
@@ -643,7 +647,7 @@ func (q *Queries) InteractionsOfHandles(ctx context.Context, handleIds []string)
 }
 
 const keptWithoutPerson = `-- name: KeptWithoutPerson :many
-SELECT id, workspace_id, kind, value, name, person_id, triage, decided_by, reason, created_at FROM handles WHERE workspace_id = $1 AND triage = 'kept' AND person_id IS NULL
+SELECT id, workspace_id, kind, value, name, person_id, triage, decided_by, reason, created_at, photo_url FROM handles WHERE workspace_id = $1 AND triage = 'kept' AND person_id IS NULL
 `
 
 func (q *Queries) KeptWithoutPerson(ctx context.Context, workspaceID string) ([]Handle, error) {
@@ -666,6 +670,7 @@ func (q *Queries) KeptWithoutPerson(ctx context.Context, workspaceID string) ([]
 			&i.DecidedBy,
 			&i.Reason,
 			&i.CreatedAt,
+			&i.PhotoURL,
 		); err != nil {
 			return nil, err
 		}
@@ -678,7 +683,7 @@ func (q *Queries) KeptWithoutPerson(ctx context.Context, workspaceID string) ([]
 }
 
 const listHandles = `-- name: ListHandles :many
-SELECT handles.id, handles.workspace_id, handles.kind, handles.value, handles.name, handles.person_id, handles.triage, handles.decided_by, handles.reason, handles.created_at, count(DISTINCT participants.interaction_id)::int AS interactions, coalesce(max(interactions.started_at), handles.created_at)::timestamptz AS last_seen
+SELECT handles.id, handles.workspace_id, handles.kind, handles.value, handles.name, handles.person_id, handles.triage, handles.decided_by, handles.reason, handles.created_at, handles.photo_url, count(DISTINCT participants.interaction_id)::int AS interactions, coalesce(max(interactions.started_at), handles.created_at)::timestamptz AS last_seen
 FROM handles
 LEFT JOIN participants ON participants.handle_id = handles.id
 LEFT JOIN interactions ON interactions.id = participants.interaction_id
@@ -727,6 +732,7 @@ func (q *Queries) ListHandles(ctx context.Context, arg ListHandlesParams) ([]Lis
 			&i.Handle.DecidedBy,
 			&i.Handle.Reason,
 			&i.Handle.CreatedAt,
+			&i.Handle.PhotoURL,
 			&i.Interactions,
 			&i.LastSeen,
 		); err != nil {
@@ -767,6 +773,43 @@ UPDATE interactions SET transcript_checked_at = now() WHERE id = $1
 func (q *Queries) MarkTranscriptChecked(ctx context.Context, id string) error {
 	_, err := q.db.Exec(ctx, markTranscriptChecked, id)
 	return err
+}
+
+const personPhotos = `-- name: PersonPhotos :many
+SELECT DISTINCT ON (person_id) person_id::text AS person_id, photo_url FROM handles
+WHERE workspace_id = $1 AND person_id = ANY($2::uuid[]) AND photo_url <> ''
+ORDER BY person_id, created_at
+`
+
+type PersonPhotosParams struct {
+	WorkspaceID string
+	PersonIds   []string
+}
+
+type PersonPhotosRow struct {
+	PersonID string
+	PhotoURL string
+}
+
+// PersonPhotos picks a profile picture for each person from their addresses.
+func (q *Queries) PersonPhotos(ctx context.Context, arg PersonPhotosParams) ([]PersonPhotosRow, error) {
+	rows, err := q.db.Query(ctx, personPhotos, arg.WorkspaceID, arg.PersonIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PersonPhotosRow{}
+	for rows.Next() {
+		var i PersonPhotosRow
+		if err := rows.Scan(&i.PersonID, &i.PhotoURL); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const recordActivity = `-- name: RecordActivity :many
@@ -893,6 +936,26 @@ type SetPartContentParams struct {
 
 func (q *Queries) SetPartContent(ctx context.Context, arg SetPartContentParams) error {
 	_, err := q.db.Exec(ctx, setPartContent, arg.ID, arg.Content)
+	return err
+}
+
+const setPhotos = `-- name: SetPhotos :exec
+UPDATE handles SET photo_url = photos.url
+FROM (
+  SELECT ($2::text[])[i] AS address, ($3::text[])[i] AS url FROM generate_subscripts($2::text[], 1) AS i
+) AS photos
+WHERE handles.workspace_id = $1 AND handles.kind = 'email' AND handles.value = photos.address AND handles.photo_url <> photos.url
+`
+
+type SetPhotosParams struct {
+	WorkspaceID string
+	Addresses   []string
+	Urls        []string
+}
+
+// SetPhotos records the profile pictures of a workspace's email addresses.
+func (q *Queries) SetPhotos(ctx context.Context, arg SetPhotosParams) error {
+	_, err := q.db.Exec(ctx, setPhotos, arg.WorkspaceID, arg.Addresses, arg.Urls)
 	return err
 }
 
@@ -1141,7 +1204,7 @@ INSERT INTO handles (workspace_id, kind, value, name, triage, decided_by, reason
 VALUES ($1, $2, $3, $4, $5, $6, $7)
 ON CONFLICT (workspace_id, kind, value) DO UPDATE
 SET name = CASE WHEN handles.name = '' THEN EXCLUDED.name ELSE handles.name END
-RETURNING id, workspace_id, kind, value, name, person_id, triage, decided_by, reason, created_at
+RETURNING id, workspace_id, kind, value, name, person_id, triage, decided_by, reason, created_at, photo_url
 `
 
 type UpsertHandleParams struct {
@@ -1176,6 +1239,7 @@ func (q *Queries) UpsertHandle(ctx context.Context, arg UpsertHandleParams) (Han
 		&i.DecidedBy,
 		&i.Reason,
 		&i.CreatedAt,
+		&i.PhotoURL,
 	)
 	return i, err
 }

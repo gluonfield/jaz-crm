@@ -66,7 +66,7 @@ function ObjectPage() {
                 >
                   <td className="max-w-72 px-4">
                     <span className="flex items-center gap-2 truncate font-medium text-ink">
-                      <RecordIcon object={slug} name={recordName(r)} />
+                      <RecordIcon object={slug} name={recordName(r)} photo={r.photo} />
                       {recordName(r)}
                     </span>
                   </td>

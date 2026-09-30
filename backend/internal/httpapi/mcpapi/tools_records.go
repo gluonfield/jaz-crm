@@ -19,12 +19,22 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 			return objectsOutput{Objects: objectViews(objects)}, err
 		})
 	add(r, &mcp.Tool{Name: "search_records", Title: "Search records", Annotations: readOnly,
-		Description: "List an object's records, newest first, filtered by text and attribute values."},
+		Description: "List an object's records, newest first, filtered by text and attribute values. People carry a profile picture when Google has one."},
 		func(ctx context.Context, actor auth.Actor, in searchInput) (recordsOutput, error) {
 			found, err := crm.Search(ctx, actor, records.Search{Object: in.Object, Query: in.Query, Where: in.Where, Limit: in.Limit})
+			if err != nil {
+				return recordsOutput{}, err
+			}
+			ids := make([]string, len(found))
+			for i, record := range found {
+				ids[i] = record.ID
+			}
+			photos, err := conversations.Photos(ctx, actor, ids)
 			out := recordsOutput{Records: []recordView{}}
 			for _, record := range found {
-				out.Records = append(out.Records, recordOf(record))
+				view := recordOf(record)
+				view.Photo = photos[record.ID]
+				out.Records = append(out.Records, view)
 			}
 			return out, err
 		})
@@ -36,8 +46,13 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 				return recordView{}, err
 			}
 			activity, err := conversations.Activity(ctx, actor, record.ID)
+			if err != nil {
+				return recordView{}, err
+			}
+			photos, err := conversations.Photos(ctx, actor, []string{record.ID})
 			view := recordOf(record)
 			view.Activity = &activityView{Interactions: activity.Interactions, LastAt: activity.LastAt}
+			view.Photo = photos[record.ID]
 			return view, err
 		})
 	add(r, &mcp.Tool{Name: "upsert_record", Title: "Upsert record",
@@ -125,6 +140,8 @@ type recordView struct {
 	CreatedAt time.Time      `json:"created_at"`
 	Values    map[string]any `json:"values"`
 	Activity  *activityView  `json:"activity,omitempty"`
+	// Photo is a person's profile picture from one of their addresses.
+	Photo string `json:"photo,omitempty"`
 }
 
 type activityView struct {

@@ -17,6 +17,7 @@ type Party struct {
 	Name     string
 	Role     string
 	PersonID string
+	Photo    string
 }
 
 type Ref struct {
@@ -156,7 +157,7 @@ func (s *Service) views(ctx context.Context, workspaceID string, list []storage.
 		v := &out[index[p.InteractionID]]
 		i := slices.IndexFunc(v.Participants, func(party Party) bool { return party.Address == h.Value })
 		if i < 0 {
-			v.Participants = append(v.Participants, Party{Address: h.Value, Name: name, Role: p.Role, PersonID: deref(h.PersonID)})
+			v.Participants = append(v.Participants, Party{Address: h.Value, Name: name, Role: p.Role, PersonID: deref(h.PersonID), Photo: h.PhotoURL})
 		} else if slices.Index(roles, p.Role) < slices.Index(roles, v.Participants[i].Role) {
 			v.Participants[i].Role = p.Role
 		}
@@ -193,4 +194,14 @@ func preview(text string) string {
 		return string(runes[:240]) + "…"
 	}
 	return string(runes)
+}
+
+// SetPhotos records profile pictures by email address.
+func (s *Service) SetPhotos(ctx context.Context, workspaceID string, photos map[string]string) error {
+	return s.store.SetPhotos(ctx, workspaceID, photos)
+}
+
+// Photos maps people to a profile picture of one of their addresses.
+func (s *Service) Photos(ctx context.Context, actor auth.Actor, personIDs []string) (map[string]string, error) {
+	return s.store.PersonPhotos(ctx, actor.WorkspaceID, personIDs)
 }

@@ -1,4 +1,5 @@
 import { Box, Building2, CalendarDays, Mail, NotebookPen, Phone, Users } from 'lucide-react'
+import { useState } from 'react'
 import type { Kind } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -16,16 +17,27 @@ function initials(name: string) {
 }
 
 // RecordIcon draws a person as a round avatar and anything else as a square
-// tile, both lettered and tinted by name.
-export function RecordIcon({ object, name, size = 18, className }: { object: string; name: string; size?: number; className?: string }) {
+// tile: the profile picture when there is one, else lettered and tinted by
+// name.
+export function RecordIcon({ object, name, photo, size = 18, className }: { object: string; name: string; photo?: string; size?: number; className?: string }) {
+  const [failed, setFailed] = useState<string>()
+  const shape = object === 'people' ? 'rounded-full' : 'rounded-[28%]'
+  if (photo && failed !== photo) {
+    return (
+      <img
+        src={photo}
+        alt=""
+        referrerPolicy="no-referrer"
+        onError={() => setFailed(photo)}
+        style={{ width: size, height: size }}
+        className={cn('inline-block shrink-0 bg-list-active object-cover', shape, className)}
+      />
+    )
+  }
   return (
     <span
       style={{ width: size, height: size, fontSize: size * 0.42, background: `var(--color-avatar-${(hash(name) % 6) + 1})` }}
-      className={cn(
-        'inline-flex shrink-0 select-none items-center justify-center font-semibold leading-none text-avatar-ink',
-        object === 'people' ? 'rounded-full' : 'rounded-[28%]',
-        className,
-      )}
+      className={cn('inline-flex shrink-0 select-none items-center justify-center font-semibold leading-none text-avatar-ink', shape, className)}
       aria-hidden
     >
       {object === 'people' ? initials(name) : initials(name)[0]}

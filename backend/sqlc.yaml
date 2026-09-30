@@ -17,6 +17,7 @@ overrides:
       target_object_id: TargetObjectID
       row_limit: Limit
       avatar_url: AvatarURL
+      photo_url: PhotoURL
       redirect_uris: RedirectURIs
       redirect_uri: RedirectURI
       oauth_client: OAuthClient

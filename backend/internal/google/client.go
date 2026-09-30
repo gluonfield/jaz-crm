@@ -45,13 +45,14 @@ func (e *APIError) Retryable() bool {
 
 // Endpoints are the API base URLs; tests point all three at one httptest server.
 type Endpoints struct {
-	Gmail, Calendar, Meet string
+	Gmail, Calendar, Meet, People string
 }
 
 var Production = Endpoints{
 	Gmail:    "https://gmail.googleapis.com",
 	Calendar: "https://www.googleapis.com",
 	Meet:     "https://meet.googleapis.com",
+	People:   "https://people.googleapis.com",
 }
 
 type Client struct {

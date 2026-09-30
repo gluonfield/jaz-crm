@@ -66,7 +66,7 @@ function Palette() {
         {records.length > 0 && (
           <CommandPrimitive.Group heading="Records" className={groupClass}>
             {records.map((r) => (
-              <Item key={r.id} value={r.id} onSelect={() => go(`/r/${r.id}`)} icon={<RecordIcon object={r.object} name={recordName(r)} />}>
+              <Item key={r.id} value={r.id} onSelect={() => go(`/r/${r.id}`)} icon={<RecordIcon object={r.object} name={recordName(r)} photo={r.photo} />}>
                 {recordName(r)}
                 <span className="ml-2 text-ink-3">{objects.find((o) => o.slug === r.object)?.name}</span>
               </Item>

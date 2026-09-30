@@ -62,7 +62,7 @@ function TriagePage() {
                 data-row={index}
                 className={cn('group flex h-12 items-center gap-3 border-b border-border/50 px-4 text-[13px]', focus === index && 'bg-list-hover')}
               >
-                <RecordIcon object="people" name={c.name || c.address} size={24} />
+                <RecordIcon object="people" name={c.name || c.address} photo={c.photo} size={24} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline gap-2">
                     {c.person_id ? (

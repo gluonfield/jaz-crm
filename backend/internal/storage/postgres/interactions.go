@@ -2,6 +2,8 @@ package postgres
 
 import (
 	"context"
+	"maps"
+	"slices"
 	"time"
 
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
@@ -54,6 +56,24 @@ func (s *Store) HandlesByDomain(ctx context.Context, workspaceID, domain string)
 
 func (s *Store) ListHandles(ctx context.Context, q storage.HandleQuery) ([]storage.HandleSummary, error) {
 	return many(toSummary)(s.in.ListHandles(ctx, intdb.ListHandlesParams(q)))
+}
+
+func (s *Store) SetPhotos(ctx context.Context, workspaceID string, photos map[string]string) error {
+	addresses := slices.Collect(maps.Keys(photos))
+	urls := make([]string, len(addresses))
+	for i, a := range addresses {
+		urls[i] = photos[a]
+	}
+	return mapError(s.in.SetPhotos(ctx, intdb.SetPhotosParams{WorkspaceID: workspaceID, Addresses: addresses, Urls: urls}))
+}
+
+func (s *Store) PersonPhotos(ctx context.Context, workspaceID string, personIDs []string) (map[string]string, error) {
+	rows, err := s.in.PersonPhotos(ctx, intdb.PersonPhotosParams{WorkspaceID: workspaceID, PersonIds: personIDs})
+	photos := map[string]string{}
+	for _, r := range rows {
+		photos[r.PersonID] = r.PhotoURL
+	}
+	return photos, mapError(err)
 }
 
 func (s *Store) MarkInternal(ctx context.Context, workspaceID string, addresses, domains []string) error {
