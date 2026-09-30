@@ -66,10 +66,13 @@ func (p part) decode(data []byte) string {
 	return string(data)
 }
 
+// htmlText keeps an HTML body's text, its list items as "- " lines and the
+// web address of each link after the link's text.
 func htmlText(src string) string {
 	z := html.NewTokenizer(strings.NewReader(src))
 	var b strings.Builder
 	skip := false
+	href, start := "", 0
 	for {
 		token := z.Next()
 		switch token {
@@ -80,16 +83,38 @@ func htmlText(src string) string {
 				b.WriteString(strings.ReplaceAll(string(z.Text()), "\n", " "))
 			}
 		case html.StartTagToken, html.EndTagToken, html.SelfClosingTagToken:
-			name, _ := z.TagName()
+			name, attrs := z.TagName()
 			switch string(name) {
 			case "script", "style", "title":
 				skip = token == html.StartTagToken
-			case "br", "p", "div", "li", "tr", "td", "th", "table", "ul", "ol", "hr", "blockquote", "pre",
+			case "li":
+				if token == html.StartTagToken {
+					b.WriteString("\n- ")
+				}
+			case "a":
+				if token == html.StartTagToken {
+					href, start = linkTarget(z, attrs), b.Len()
+				} else if href != "" && !strings.Contains(b.String()[start:], href) {
+					b.WriteString(" " + href)
+				}
+			case "br", "p", "div", "tr", "td", "th", "table", "ul", "ol", "hr", "blockquote", "pre",
 				"h1", "h2", "h3", "h4", "h5", "h6", "section", "article", "header", "footer":
 				b.WriteByte('\n')
 			}
 		}
 	}
+}
+
+// linkTarget is the web address an anchor opens, if it opens one.
+func linkTarget(z *html.Tokenizer, more bool) string {
+	for more {
+		var key, value []byte
+		key, value, more = z.TagAttr()
+		if string(key) == "href" && (strings.HasPrefix(string(value), "https://") || strings.HasPrefix(string(value), "http://")) {
+			return string(value)
+		}
+	}
+	return ""
 }
 
 // tidy collapses whitespace within lines and runs of blank lines into one.
