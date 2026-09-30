@@ -38,6 +38,7 @@ type env struct {
 	url    string
 	keys   *auth.Service
 	people *workspaces.Service
+	store  storage.LogoStore
 }
 
 // serve runs /mcp over a fresh database.
@@ -54,7 +55,7 @@ func serve(t *testing.T) env {
 	}
 	srv := httptest.NewServer(mcpapi.NewHandler(mcpapi.Services{Records: crm, Workspaces: people, Interactions: convs, Connections: conns, Logos: logos.NewService(store, logos.Fetcher{})}, keys, log.New(io.Discard)).MCP)
 	t.Cleanup(srv.Close)
-	return env{url: srv.URL, keys: keys, people: people}
+	return env{url: srv.URL, keys: keys, people: people, store: store}
 }
 
 // session opens an MCP session that sends token.
@@ -121,9 +122,10 @@ func encode(v any) string {
 }
 
 // Records show single values as values, multi values as lists and
-// references as the record's id and name.
+// references as the record's id, name and picture.
 func TestRecordTools(t *testing.T) {
-	a, _ := connect(t)
+	e := serve(t)
+	a := e.session(t, e.apiKey(t, "a@jaz.test"))
 	objects := encode(mustCall(t, a, "list_objects", nil))
 	if !strings.Contains(objects, `{"name":"Company","slug":"company","target":"companies","type":"reference"}`) {
 		t.Fatalf("list_objects: %s", objects)
@@ -140,14 +142,20 @@ func TestRecordTools(t *testing.T) {
 	if got := encode(mustCall(t, a, "get_record", map[string]any{"record_id": person["id"]})["values"]); got != want {
 		t.Fatalf("get_record: %s", got)
 	}
+	if err := e.store.SaveLogo(context.Background(), storage.Logo{Domain: "acme.com", ContentType: "image/png", Image: []byte("png")}); err != nil {
+		t.Fatal(err)
+	}
 	found := mustCall(t, a, "search_records", map[string]any{"object": "people", "where": map[string]any{"email_addresses": "BOB@personal.dev"}})["records"].([]any)
 	if len(found) != 1 || found[0].(map[string]any)["id"] != person["id"] {
 		t.Fatalf("search_records: %v", found)
 	}
+	if ref := encode(found[0].(map[string]any)["values"].(map[string]any)["company"]); !strings.Contains(ref, `"photo":"http://crm.test/logos/`) {
+		t.Fatalf("a referenced company's logo: %s", ref)
+	}
 	if _, failure := call(t, a, "upsert_record", map[string]any{"object": "people", "values": map[string]any{"name": 7}}); !strings.Contains(failure, "strings") {
 		t.Fatalf("a number value: %q", failure)
 	}
-	if _, failure := call(t, a, "upsert_record", map[string]any{"object": "deals", "values": map[string]any{"name": "x"}}); !strings.Contains(failure, "objects are companies, people") {
+	if _, failure := call(t, a, "upsert_record", map[string]any{"object": "quotes", "values": map[string]any{"name": "x"}}); !strings.Contains(failure, "objects are companies, people, deals") {
 		t.Fatalf("an unknown object: %q", failure)
 	}
 }

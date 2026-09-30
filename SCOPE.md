@@ -19,7 +19,7 @@ Later, roughly in order: workflows, enrichment, WhatsApp and Telegram, Outlook, 
 
 ### Taken from Attio
 
-- Objects, attributes, records. People and companies are seeded rows in `objects`, so custom objects (deals, suppliers, quotes) run on the same code path from day one.
+- Objects, attributes, records. People, companies and deals are seeded rows in `objects`, so custom objects (suppliers, quotes) run on the same code path from day one.
 - Typed attributes with stable slugs that agents address.
 - Append-only values with `active_from`, `active_until` and an actor. One table gives field history, audit, time in stage and "value changed" triggers.
 - Identity attributes: person email addresses and company domains are unique per workspace and drive matching.

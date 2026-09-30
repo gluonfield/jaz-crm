@@ -19,22 +19,16 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 			return objectsOutput{Objects: objectViews(objects)}, err
 		})
 	add(r, &mcp.Tool{Name: "search_records", Title: "Search records", Annotations: readOnly,
-		Description: "List an object's records, newest first, filtered by text and attribute values. People carry a profile picture when Google has one, and records with a domain their website's logo."},
+		Description: "List an object's records, newest first, filtered by text and attribute values. Records, and the records they reference, carry a picture: a person's profile picture when Google has one, else the website logo of a record with a domain."},
 		func(ctx context.Context, actor auth.Actor, in searchInput) (recordsOutput, error) {
 			found, err := crm.Search(ctx, actor, records.Search{Object: in.Object, Query: in.Query, Where: in.Where, Limit: in.Limit})
 			if err != nil {
 				return recordsOutput{}, err
 			}
-			ids := make([]string, len(found))
-			for i, record := range found {
-				ids[i] = record.ID
-			}
-			photos, err := pics.of(ctx, actor, ids)
+			photos, err := pics.of(ctx, actor, found)
 			out := recordsOutput{Records: []recordView{}}
 			for _, record := range found {
-				view := recordOf(record)
-				view.Photo = photos[record.ID]
-				out.Records = append(out.Records, view)
+				out.Records = append(out.Records, recordOf(record, photos))
 			}
 			return out, err
 		})
@@ -49,10 +43,9 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 			if err != nil {
 				return recordView{}, err
 			}
-			photos, err := pics.of(ctx, actor, []string{record.ID})
-			view := recordOf(record)
+			photos, err := pics.of(ctx, actor, []records.Record{record})
+			view := recordOf(record, photos)
 			view.Activity = &activityView{Interactions: activity.Interactions, LastAt: activity.LastAt}
-			view.Photo = photos[record.ID]
 			return view, err
 		})
 	add(r, &mcp.Tool{Name: "record_history", Title: "Record history", Annotations: readOnly,
@@ -78,7 +71,7 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 			if err != nil {
 				return upsertOutput{}, err
 			}
-			out := upsertOutput{Record: recordOf(record), Skipped: []skipView{}}
+			out := upsertOutput{Record: recordOf(record, nil), Skipped: []skipView{}}
 			for _, s := range skips {
 				out.Skipped = append(out.Skipped, skipView{Attribute: s.Attribute, Value: s.Value, SetBy: string(s.Source)})
 			}
@@ -90,13 +83,13 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 			return empty{}, crm.Delete(ctx, actor, in.RecordID)
 		})
 	add(r, &mcp.Tool{Name: "create_object", Title: "Create object",
-		Description: "Create a record type, such as deals or suppliers. It starts with a name attribute."},
+		Description: "Create a record type, such as quotes or suppliers. It starts with a name attribute."},
 		func(ctx context.Context, actor auth.Actor, in objectInput) (objectView, error) {
 			object, err := crm.CreateObject(ctx, actor, in.Slug, in.Name)
 			return objectOf(object), err
 		})
 	add(r, &mcp.Tool{Name: "create_attribute", Title: "Create attribute",
-		Description: "Add an attribute to an object. Types: text, number, date, checkbox, url, select (with options), email, domain, phone, reference (with target)."},
+		Description: "Add an attribute to an object. Types: text, number, date, checkbox, url, select (with options), status (with its stages in order as options; a new record starts in the first), email, domain, phone, reference (with target)."},
 		func(ctx context.Context, actor auth.Actor, in attributeInput) (objectView, error) {
 			object, err := crm.CreateAttribute(ctx, actor, in.Object, records.Attribute{
 				Slug: in.Slug, Name: in.Name, Type: in.Type, Multi: in.Multi, Unique: in.Unique, Target: in.Target, Options: in.Options,
@@ -142,8 +135,9 @@ func objectViews(objects []records.Object) []objectView {
 }
 
 type refView struct {
-	ID   string `json:"id"`
-	Name string `json:"name,omitempty"`
+	ID    string `json:"id"`
+	Name  string `json:"name,omitempty"`
+	Photo string `json:"photo,omitempty"`
 }
 
 type recordView struct {
@@ -162,14 +156,14 @@ type activityView struct {
 }
 
 // recordOf shows a single-valued attribute as its value and a multi-valued
-// one as a list; references appear as the record's id and name.
-func recordOf(r records.Record) recordView {
+// one as a list; references appear as the record's id, name and picture.
+func recordOf(r records.Record, photos map[string]string) recordView {
 	values := map[string]any{}
 	for _, f := range r.Fields {
 		var list []any
 		for _, v := range f.Values {
 			if v.RecordID != "" {
-				list = append(list, refView{ID: v.RecordID, Name: v.Text})
+				list = append(list, refView{ID: v.RecordID, Name: v.Text, Photo: photos[v.RecordID]})
 			} else {
 				list = append(list, v.Text)
 			}
@@ -180,7 +174,7 @@ func recordOf(r records.Record) recordView {
 			values[f.Attribute] = list[0]
 		}
 	}
-	return recordView{ID: r.ID, Object: r.Object, CreatedAt: r.CreatedAt, Values: values}
+	return recordView{ID: r.ID, Object: r.Object, CreatedAt: r.CreatedAt, Values: values, Photo: photos[r.ID]}
 }
 
 type searchInput struct {
@@ -240,8 +234,8 @@ func lists(values map[string]any) (map[string][]string, error) {
 }
 
 type objectInput struct {
-	Slug string `json:"slug" jsonschema:"lowercase identifier, such as deals"`
-	Name string `json:"name" jsonschema:"display name, such as Deals"`
+	Slug string `json:"slug" jsonschema:"lowercase identifier, such as quotes"`
+	Name string `json:"name" jsonschema:"display name, such as Quotes"`
 }
 
 type attributeInput struct {
@@ -252,7 +246,7 @@ type attributeInput struct {
 	Multi   bool     `json:"multi,omitempty"`
 	Unique  bool     `json:"unique,omitempty" jsonschema:"values identify a record, like an email"`
 	Target  string   `json:"target,omitempty" jsonschema:"object slug a reference points at"`
-	Options []string `json:"options,omitempty" jsonschema:"allowed values of a select, such as pipeline stages"`
+	Options []string `json:"options,omitempty" jsonschema:"allowed values of a select, or a status's stages in order"`
 }
 
 type changeView struct {

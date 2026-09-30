@@ -14,7 +14,7 @@ import (
 
 var slugPattern = regexp.MustCompile(`^[a-z][a-z0-9_]{0,39}$`)
 
-var types = []string{Text, Number, Date, Checkbox, URL, Select, Email, Domain, Phone, Reference}
+var types = []string{Text, Number, Date, Checkbox, URL, Select, Status, Email, Domain, Phone, Reference}
 
 func validName(slug, name string) error {
 	if !slugPattern.MatchString(slug) {
@@ -64,10 +64,10 @@ func (s *Service) CreateAttribute(ctx context.Context, actor auth.Actor, object 
 		return Object{}, errs.Invalidf("type %q is not one of %s", a.Type, strings.Join(types, ", "))
 	case a.Unique && !slices.Contains(uniqueTypes, a.Type):
 		return Object{}, errs.Invalidf("only %s attributes can be unique", strings.Join(uniqueTypes, ", "))
-	case a.Multi && a.Type == Checkbox:
-		return Object{}, errs.Invalidf("a checkbox holds one value")
-	case (a.Type == Select) != (len(a.Options) > 0):
-		return Object{}, errs.Invalidf("select attributes, and only they, list options")
+	case a.Multi && (a.Type == Checkbox || a.Type == Status):
+		return Object{}, errs.Invalidf("a %s holds one value", a.Type)
+	case (a.Type == Select || a.Type == Status) != (len(a.Options) > 0):
+		return Object{}, errs.Invalidf("select and status attributes, and only they, list options")
 	case (a.Type == Reference) != (a.Target != ""):
 		return Object{}, errs.Invalidf("reference attributes, and only they, name a target object")
 	}
