@@ -47,14 +47,17 @@ func ConnectionSync(ctx workflow.Context, connectionID string) error {
 	return workflow.NewContinueAsNewError(ctx, ConnectionSync, connectionID)
 }
 
-// pass runs every stream once and reports whether work remains. A failing
-// stream is logged and skipped so the others keep moving; only a revoked or
-// deleted connection stops the pass.
+// pass runs every stream once and reports whether to run again at once:
+// work remains and nothing failed. A failing stream is logged and skipped so
+// the others keep moving, and the sync then waits before retrying, such as
+// out a rate limit; only a revoked or deleted connection stops the pass.
 func pass(ctx workflow.Context, a *Activities, id string) (bool, error) {
+	var failed bool
 	run := func(activity, out any) error {
 		err := workflow.ExecuteActivity(ctx, activity, id).Get(ctx, out)
 		if err != nil && ending(err) == "" {
 			workflow.GetLogger(ctx).Warn("sync step failed", "connection", id, "error", err)
+			failed = true
 			return nil
 		}
 		return err
@@ -82,7 +85,7 @@ func pass(ctx workflow.Context, a *Activities, id string) (bool, error) {
 		})
 		_ = workflow.ExecuteChildWorkflow(child, MeetingTranscript, m).GetChildWorkflowExecution().Get(ctx, nil)
 	}
-	return !backfilled || fetched == contentBatch, nil
+	return (!backfilled || fetched == contentBatch) && !failed, nil
 }
 
 // ending names the error type that ends a sync, if err is one.

@@ -7,7 +7,9 @@ import (
 	"errors"
 	"maps"
 	"net/http"
+	"slices"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/gluonfield/jaz-crm/backend/internal/connections"
@@ -218,23 +220,59 @@ func (a *Activities) GmailIncremental(ctx context.Context, id string) error {
 // were delivered; list mail is left out, as a list may name itself there.
 func (a *Activities) ingest(ctx context.Context, s session, ids []string) error {
 	var delivered []string
-	for _, id := range ids {
-		m, err := s.google.Message(ctx, id, false)
-		if errors.Is(err, google.ErrNotFound) {
-			continue
-		}
+	for chunk := range slices.Chunk(ids, contentBatch) {
+		messages, err := fetch(ctx, s.google, chunk, false)
 		if err != nil {
-			return classify(err)
-		}
-		if err := a.Interactions.IngestEmail(ctx, s.known, emailOf(s.conn, m)); err != nil {
 			return err
 		}
-		if !m.Bulk {
-			delivered = append(delivered, m.DeliveredTo...)
+		for _, m := range messages {
+			if m.ID == "" {
+				continue
+			}
+			if err := a.Interactions.IngestEmail(ctx, s.known, emailOf(s.conn, m)); err != nil {
+				return err
+			}
+			if !m.Bulk {
+				delivered = append(delivered, m.DeliveredTo...)
+			}
 		}
-		activity.RecordHeartbeat(ctx, id)
+		activity.RecordHeartbeat(ctx, len(delivered))
 	}
 	return a.Connections.AddAliases(ctx, s.conn.ID, delivered)
+}
+
+// A sync fetches up to fetchers messages at once, starting fetchRate a
+// second: a fetch costs 5 of the 15,000 quota units Gmail allows a user a
+// minute, and other clients of the account share them.
+const (
+	fetchers  = 8
+	fetchRate = 10
+)
+
+// fetch gets messages concurrently, in the order asked; one deleted since it
+// was listed comes back empty.
+func fetch(ctx context.Context, g *google.Client, ids []string, full bool) ([]google.Message, error) {
+	messages := make([]google.Message, len(ids))
+	errs := make([]error, len(ids))
+	slots := make(chan struct{}, fetchers)
+	pace := time.NewTicker(time.Second / fetchRate)
+	defer pace.Stop()
+	var wg sync.WaitGroup
+	for i, id := range ids {
+		<-pace.C
+		slots <- struct{}{}
+		wg.Go(func() {
+			defer func() { <-slots }()
+			messages[i], errs[i] = g.Message(ctx, id, full)
+		})
+	}
+	wg.Wait()
+	for _, err := range errs {
+		if err != nil && !errors.Is(err, google.ErrNotFound) {
+			return nil, classify(err)
+		}
+	}
+	return messages, nil
 }
 
 func emailOf(c storage.Connection, m google.Message) interactions.EmailMessage {
@@ -334,15 +372,18 @@ func (a *Activities) FetchContent(ctx context.Context, id string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	for _, p := range parts {
-		m, err := s.google.Message(ctx, p.ProviderID, true)
-		if err != nil && !errors.Is(err, google.ErrNotFound) {
-			return 0, classify(err)
-		}
-		if err := a.Interactions.SetContent(ctx, p.ID, m.Text); err != nil {
+	ids := make([]string, len(parts))
+	for i, p := range parts {
+		ids[i] = p.ProviderID
+	}
+	messages, err := fetch(ctx, s.google, ids, true)
+	if err != nil {
+		return 0, err
+	}
+	for i, p := range parts {
+		if err := a.Interactions.SetContent(ctx, p.ID, messages[i].Text); err != nil {
 			return 0, err
 		}
-		activity.RecordHeartbeat(ctx, p.ID)
 	}
 	return len(parts), nil
 }

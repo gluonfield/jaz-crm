@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"time"
 
 	"golang.org/x/oauth2"
 )
@@ -64,11 +65,28 @@ func NewClient(httpClient *http.Client, endpoints Endpoints) *Client {
 	return &Client{http: httpClient, endpoints: endpoints}
 }
 
-// get drops empty query values, which Google treats as unset anyway.
+// backoff spaces the retries of a rate-limited read, as Google asks of
+// clients.
+var backoff = []time.Duration{time.Second, 2 * time.Second, 4 * time.Second, 8 * time.Second, 16 * time.Second}
+
+// get drops empty query values, which Google treats as unset anyway, and
+// retries a read that failed for a rate limit or an outage.
 func (c *Client) get(ctx context.Context, endpoint string, query url.Values, out any) error {
 	maps.DeleteFunc(query, func(_ string, v []string) bool { return len(v) == 1 && v[0] == "" })
 	if len(query) > 0 {
 		endpoint += "?" + query.Encode()
+	}
+	for _, wait := range backoff {
+		err := c.do(ctx, http.MethodGet, endpoint, nil, out)
+		var e *APIError
+		if !errors.As(err, &e) || !e.Retryable() {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(wait):
+		}
 	}
 	return c.do(ctx, http.MethodGet, endpoint, nil, out)
 }

@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"golang.org/x/oauth2"
 )
@@ -42,7 +43,31 @@ func wantQuery(t *testing.T, u *url.URL, want url.Values) {
 	}
 }
 
+// quickBackoff retries at once for the rest of the test.
+func quickBackoff(t *testing.T) {
+	saved := backoff
+	backoff = []time.Duration{0, 0}
+	t.Cleanup(func() { backoff = saved })
+}
+
+// A read turned away by a rate limit is retried until it succeeds.
+func TestRetriesRateLimitedReads(t *testing.T) {
+	quickBackoff(t)
+	calls := 0
+	c := fake(t, map[string]http.HandlerFunc{"/gmail/v1/users/me/profile": func(w http.ResponseWriter, r *http.Request) {
+		if calls++; calls == 1 {
+			respond(http.StatusForbidden, `{"error":{"errors":[{"reason":"rateLimitExceeded"}]}}`)(w, r)
+			return
+		}
+		io.WriteString(w, `{"emailAddress":"a@x.com","historyId":"7"}`)
+	}})
+	if p, err := c.Profile(t.Context()); err != nil || p.HistoryID != "7" || calls != 2 {
+		t.Fatalf("profile %+v, %v after %d calls", p, err, calls)
+	}
+}
+
 func TestErrors(t *testing.T) {
+	quickBackoff(t)
 	cases := []struct {
 		status    int
 		body      string
