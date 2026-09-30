@@ -13,6 +13,7 @@ import (
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"github.com/gluonfield/jaz-crm/backend/internal/connections"
 	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
+	"github.com/gluonfield/jaz-crm/backend/internal/logos"
 	"github.com/gluonfield/jaz-crm/backend/internal/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/workspaces"
 	mcpauth "github.com/modelcontextprotocol/go-sdk/auth"
@@ -39,6 +40,7 @@ type Services struct {
 	Workspaces   *workspaces.Service
 	Interactions *interactions.Service
 	Connections  *connections.Service
+	Logos        *logos.Service
 }
 
 func NewHandler(svc Services, keys *auth.Service, logger *log.Logger) *Handler {
@@ -49,11 +51,11 @@ func NewHandler(svc Services, keys *auth.Service, logger *log.Logger) *Handler {
 		Icons:   icons,
 	}, &mcp.ServerOptions{Instructions: instructions})
 	r := &registry{server: server, logger: logger.WithPrefix("tools"), ops: map[string]func(context.Context, auth.Actor, json.RawMessage) (any, error){}}
-	registerRecords(r, svc.Records, svc.Interactions)
+	registerRecords(r, svc.Records, svc.Interactions, pictures{svc.Interactions, svc.Logos, keys.Issuer()})
 	registerWorkspace(r, svc.Workspaces)
 	registerInteractions(r, svc.Interactions)
 	registerConnections(r, svc.Connections, keys.Issuer())
-	registerApp(r)
+	registerApp(r, keys.Issuer())
 	verify := func(ctx context.Context, token string, _ *http.Request) (*mcpauth.TokenInfo, error) {
 		actor, err := keys.Authenticate(ctx, token)
 		if errors.Is(err, auth.ErrUnauthenticated) {

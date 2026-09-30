@@ -3,6 +3,7 @@ package mcpapi_test
 import (
 	"context"
 	"encoding/json"
+	"github.com/gluonfield/jaz-crm/backend/internal/logos"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -41,7 +42,7 @@ func connect(t *testing.T) (*mcp.ClientSession, *mcp.ClientSession) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv := httptest.NewServer(mcpapi.NewHandler(mcpapi.Services{Records: crm, Workspaces: people, Interactions: convs, Connections: conns}, keys, log.New(io.Discard)).MCP)
+	srv := httptest.NewServer(mcpapi.NewHandler(mcpapi.Services{Records: crm, Workspaces: people, Interactions: convs, Connections: conns, Logos: logos.NewService(store, logos.Fetcher{})}, keys, log.New(io.Discard)).MCP)
 	t.Cleanup(srv.Close)
 	var sessions []*mcp.ClientSession
 	for _, email := range []string{"a@jaz.test", "b@jaz.test"} {

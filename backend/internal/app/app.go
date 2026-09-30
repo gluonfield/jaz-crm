@@ -17,9 +17,11 @@ import (
 	"github.com/gluonfield/jaz-crm/backend/internal/connections"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/authapi"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/connectapi"
+	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/logosapi"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/mcpapi"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/webhooks"
 	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
+	"github.com/gluonfield/jaz-crm/backend/internal/logos"
 	"github.com/gluonfield/jaz-crm/backend/internal/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/server"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
@@ -38,8 +40,10 @@ func shared(cfg Config) fx.Option {
 		fx.Provide(
 			NewLogger,
 			fx.Annotate(OpenStore, fx.As(fx.Self()), fx.As(new(storage.AuthStore)), fx.As(new(storage.WorkspaceStore)),
-				fx.As(new(storage.RecordStore)), fx.As(new(storage.ConnectionStore)), fx.As(new(storage.InteractionStore))),
+				fx.As(new(storage.RecordStore)), fx.As(new(storage.ConnectionStore)), fx.As(new(storage.InteractionStore)), fx.As(new(storage.LogoStore))),
 			records.NewService,
+			logos.NewFetcher,
+			logos.NewService,
 			interactions.NewService,
 			connections.NewService,
 			worker.NewClient,
@@ -63,6 +67,7 @@ func Server(cfg Config) fx.Option {
 			mcpapi.NewHandler,
 			connectapi.NewHandler,
 			webhooks.NewHandler,
+			logosapi.NewHandler,
 			server.New,
 		),
 		fx.Invoke(ProvisionOwner, StartHTTP),

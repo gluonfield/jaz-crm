@@ -11,7 +11,7 @@ export const steps: Record<string, string> = {
   CalendarSync: 'Syncing calendar',
   Triage: 'Sorting contacts',
   FetchContent: 'Fetching conversations',
-  Photos: 'Fetching profile pictures',
+  Photos: 'Fetching pictures and logos',
   Watch: 'Checking for updates',
   DueMeetings: 'Checking meetings',
 }

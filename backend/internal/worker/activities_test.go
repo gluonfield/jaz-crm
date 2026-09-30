@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/gluonfield/jaz-crm/backend/internal/logos"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -76,6 +77,10 @@ func (f *fakeGoogle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, `{"otherContacts":[{"emailAddresses":[{"value":"Ada@Customer.io"}],"photos":[{"url":"https://lh3.googleusercontent.com/ada"}]}],"nextPageToken":"p2"}`)
 	case path == "/v1/otherContacts":
 		fmt.Fprint(w, `{"otherContacts":[{"emailAddresses":[{"value":"bob@supplier.com"}],"photos":[{"url":"https://lh3.googleusercontent.com/letter-b","default":true}]}]}`)
+	case path == "/site/customer.io/":
+		fmt.Fprint(w, `<html><head><link rel="apple-touch-icon" href="touch.png"></head></html>`)
+	case path == "/site/customer.io/touch.png":
+		fmt.Fprint(w, "\x89PNG\r\n\x1a\ncustomer")
 	case path == "/gmail/v1/users/me/settings/sendAs":
 		fmt.Fprint(w, `{"sendAs":[{"sendAsEmail":"owner@cas.dev","isPrimary":true},{"sendAsEmail":"Sales@CAS-Alias.dev","verificationStatus":"accepted"},{"sendAsEmail":"unverified@elsewhere.dev","verificationStatus":"pending"}]}`)
 	case path == "/gmail/v1/users/me/messages":
@@ -166,7 +171,7 @@ func TestSyncAgainstGoogle(t *testing.T) {
 	}
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestActivityEnvironment()
-	a := NewActivities(conns, convs, Config{})
+	a := NewActivities(conns, convs, logos.NewService(store, logos.Fetcher{Client: srv.Client(), Home: func(domain string) string { return srv.URL + "/site/" + domain + "/" }}), Config{})
 	env.RegisterActivity(a)
 	run := func(activity any, out any, args ...any) {
 		t.Helper()
@@ -211,6 +216,21 @@ func TestSyncAgainstGoogle(t *testing.T) {
 	run(a.Photos, nil, conn.ID)
 	if cursor, _ := conns.Cursor(ctx, conn.ID, connections.StreamPhotos); cursor != "" {
 		t.Fatalf("an account without contacts access must retry after reconnecting: %q", cursor)
+	}
+	person, err := crm.Get(ctx, actor, ada)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var company []string
+	for _, f := range person.Fields {
+		for _, v := range f.Values {
+			if f.Attribute == "company" {
+				company = append(company, v.RecordID)
+			}
+		}
+	}
+	if tokens, _ := a.Logos.Tokens(ctx, actor, company); len(company) != 1 || tokens[company[0]] == "" {
+		t.Fatalf("no logo for the company: %v %v", company, tokens)
 	}
 	fake.noContacts = false
 	run(a.Photos, nil, conn.ID)

@@ -11,12 +11,14 @@ import (
 	authdb "github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/generated/auth"
 	conndb "github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/generated/connections"
 	intdb "github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/generated/interactions"
+	logodb "github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/generated/logos"
 	recdb "github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/generated/records"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
+	"github.com/pressly/goose/v3/lock"
 )
 
 //go:embed migrations/*.sql
@@ -28,6 +30,7 @@ type Store struct {
 	rec  *recdb.Queries
 	conn *conndb.Queries
 	in   *intdb.Queries
+	logo *logodb.Queries
 }
 
 // Open connects and migrates to the latest schema.
@@ -40,7 +43,7 @@ func Open(ctx context.Context, url string) (*Store, error) {
 		pool.Close()
 		return nil, err
 	}
-	return &Store{pool: pool, auth: authdb.New(pool), rec: recdb.New(pool), conn: conndb.New(pool), in: intdb.New(pool)}, nil
+	return &Store{pool: pool, auth: authdb.New(pool), rec: recdb.New(pool), conn: conndb.New(pool), in: intdb.New(pool), logo: logodb.New(pool)}, nil
 }
 
 func (s *Store) Close() {
@@ -54,7 +57,13 @@ func migrate(ctx context.Context, pool *pgxpool.Pool) error {
 	}
 	sqlDB := stdlib.OpenDBFromPool(pool)
 	defer sqlDB.Close()
-	provider, err := goose.NewProvider(goose.DialectPostgres, sqlDB, dir, goose.WithDisableGlobalRegistry(true))
+	// The server and worker start together; a session lock runs one's
+	// migrations at a time.
+	locker, err := lock.NewPostgresSessionLocker()
+	if err != nil {
+		return err
+	}
+	provider, err := goose.NewProvider(goose.DialectPostgres, sqlDB, dir, goose.WithDisableGlobalRegistry(true), goose.WithSessionLocker(locker))
 	if err != nil {
 		return fmt.Errorf("create migration provider: %w", err)
 	}

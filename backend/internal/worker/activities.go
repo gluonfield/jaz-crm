@@ -15,6 +15,7 @@ import (
 	"github.com/gluonfield/jaz-crm/backend/internal/connections"
 	"github.com/gluonfield/jaz-crm/backend/internal/google"
 	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
+	"github.com/gluonfield/jaz-crm/backend/internal/logos"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/temporal"
@@ -37,11 +38,12 @@ type Config struct {
 type Activities struct {
 	Connections  *connections.Service
 	Interactions *interactions.Service
+	Logos        *logos.Service
 	Config       Config
 }
 
-func NewActivities(c *connections.Service, i *interactions.Service, cfg Config) *Activities {
-	return &Activities{Connections: c, Interactions: i, Config: cfg}
+func NewActivities(c *connections.Service, i *interactions.Service, l *logos.Service, cfg Config) *Activities {
+	return &Activities{Connections: c, Interactions: i, Logos: l, Config: cfg}
 }
 
 // MeetingRef is a meeting whose transcript is due.
@@ -103,20 +105,24 @@ func (a *Activities) Aliases(ctx context.Context, id string) error {
 	return a.Connections.AddAliases(ctx, id, aliases)
 }
 
-// Photos reads the profile pictures of the people the mailbox has written
-// to, once a day. An account connected before it granted contacts access
-// skips until it connects again.
+// Photos looks up the logos of companies' new domains, and once a day reads
+// the profile pictures of the people the mailbox has written to. An account
+// connected before it granted contacts access skips pictures until it
+// connects again.
 func (a *Activities) Photos(ctx context.Context, id string) error {
+	s, err := a.session(ctx, id)
+	if err != nil {
+		return err
+	}
+	if _, err := a.Logos.Refresh(ctx, s.conn.WorkspaceID); err != nil {
+		return err
+	}
 	last, err := a.Connections.Cursor(ctx, id, connections.StreamPhotos)
 	if err != nil {
 		return err
 	}
 	if at, err := time.Parse(time.RFC3339, last); err == nil && time.Since(at) < photoInterval {
 		return nil
-	}
-	s, err := a.session(ctx, id)
-	if err != nil {
-		return err
 	}
 	photos := map[string]string{}
 	for token := ""; ; {

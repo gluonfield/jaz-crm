@@ -11,7 +11,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-func registerRecords(r *registry, crm *records.Service, conversations *interactions.Service) {
+func registerRecords(r *registry, crm *records.Service, conversations *interactions.Service, pics pictures) {
 	add(r, &mcp.Tool{Name: "list_objects", Title: "List objects", Annotations: readOnly,
 		Description: "List the objects records belong to, such as people and companies, with their attributes."},
 		func(ctx context.Context, actor auth.Actor, _ empty) (objectsOutput, error) {
@@ -19,7 +19,7 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 			return objectsOutput{Objects: objectViews(objects)}, err
 		})
 	add(r, &mcp.Tool{Name: "search_records", Title: "Search records", Annotations: readOnly,
-		Description: "List an object's records, newest first, filtered by text and attribute values. People carry a profile picture when Google has one."},
+		Description: "List an object's records, newest first, filtered by text and attribute values. People carry a profile picture when Google has one, and records with a domain their website's logo."},
 		func(ctx context.Context, actor auth.Actor, in searchInput) (recordsOutput, error) {
 			found, err := crm.Search(ctx, actor, records.Search{Object: in.Object, Query: in.Query, Where: in.Where, Limit: in.Limit})
 			if err != nil {
@@ -29,7 +29,7 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 			for i, record := range found {
 				ids[i] = record.ID
 			}
-			photos, err := conversations.Photos(ctx, actor, ids)
+			photos, err := pics.of(ctx, actor, ids)
 			out := recordsOutput{Records: []recordView{}}
 			for _, record := range found {
 				view := recordOf(record)
@@ -49,7 +49,7 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 			if err != nil {
 				return recordView{}, err
 			}
-			photos, err := conversations.Photos(ctx, actor, []string{record.ID})
+			photos, err := pics.of(ctx, actor, []string{record.ID})
 			view := recordOf(record)
 			view.Activity = &activityView{Interactions: activity.Interactions, LastAt: activity.LastAt}
 			view.Photo = photos[record.ID]

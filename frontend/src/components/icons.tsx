@@ -30,7 +30,13 @@ export function RecordIcon({ object, name, photo, size = 18, className }: { obje
         referrerPolicy="no-referrer"
         onError={() => setFailed(photo)}
         style={{ width: size, height: size }}
-        className={cn('inline-block shrink-0 bg-list-active object-cover', shape, className)}
+        className={cn(
+          'inline-block shrink-0 object-cover',
+          // Logos are often transparent and dark, so they sit on white.
+          object === 'people' ? 'bg-list-active' : 'bg-white object-contain outline outline-1 -outline-offset-1 outline-black/10',
+          shape,
+          className,
+        )}
       />
     )
   }

@@ -34,14 +34,14 @@ var icons = []mcp.Icon{
 
 // registerApp publishes the web app as an MCP App that hosts show in their
 // sidebar, opened at a page by show_crm.
-func registerApp(r *registry) {
+func registerApp(r *registry, publicURL string) {
 	r.server.AddResource(&mcp.Resource{URI: appURI, Name: "jaz-crm", Title: "Jaz CRM", MIMEType: appMIME},
 		func(context.Context, *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
 			return &mcp.ReadResourceResult{Contents: []*mcp.ResourceContents{{
 				URI: appURI, MIMEType: appMIME, Text: appHTML, Meta: mcp.Meta{"ui": map[string]any{
 					"prefersBorder": false,
-					// Profile pictures load from Google.
-					"csp": map[string]any{"resourceDomains": []string{"https://*.googleusercontent.com"}},
+					// Profile pictures load from Google, logos from the CRM.
+					"csp": map[string]any{"resourceDomains": []string{"https://*.googleusercontent.com", publicURL}},
 				}},
 			}}}, nil
 		})

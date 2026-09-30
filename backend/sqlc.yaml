@@ -86,3 +86,14 @@ sql:
         emit_pointers_for_null_types: true
         emit_empty_slices: true
         omit_unused_structs: true
+  - engine: postgresql
+    schema: internal/storage/postgres/migrations
+    queries: internal/storage/postgres/queries/logos
+    gen:
+      go:
+        package: logos
+        out: internal/storage/postgres/generated/logos
+        sql_package: pgx/v5
+        emit_pointers_for_null_types: true
+        emit_empty_slices: true
+        omit_unused_structs: true
