@@ -349,11 +349,10 @@ func (a *Activities) meeting(ctx context.Context, s session, e google.Event) err
 	if e.AllDay || others == 0 {
 		return nil
 	}
-	_, err := a.Interactions.IngestMeeting(ctx, s.known, interactions.CalendarEvent{
+	return a.Interactions.IngestMeeting(ctx, s.known, interactions.CalendarEvent{
 		ConnectionID: s.conn.ID, UserID: s.conn.UserID, ExternalID: e.ID, Title: e.Summary, Description: e.Description,
 		Start: e.Start, End: e.End, MeetCode: e.MeetCode, Attendees: attendees,
 	})
-	return err
 }
 
 // Triage settles the connection's workspace's addresses.

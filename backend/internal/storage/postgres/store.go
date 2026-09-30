@@ -24,8 +24,15 @@ import (
 //go:embed migrations/*.sql
 var migrations embed.FS
 
+// beginner starts transactions: the pool, or a transaction, in which Begin
+// opens a savepoint.
+type beginner interface {
+	Begin(ctx context.Context) (pgx.Tx, error)
+}
+
 type Store struct {
 	pool *pgxpool.Pool
+	db   beginner
 	auth *authdb.Queries
 	rec  *recdb.Queries
 	conn *conndb.Queries
@@ -43,7 +50,7 @@ func Open(ctx context.Context, url string) (*Store, error) {
 		pool.Close()
 		return nil, err
 	}
-	return &Store{pool: pool, auth: authdb.New(pool), rec: recdb.New(pool), conn: conndb.New(pool), in: intdb.New(pool), logo: logodb.New(pool)}, nil
+	return &Store{pool: pool, db: pool, auth: authdb.New(pool), rec: recdb.New(pool), conn: conndb.New(pool), in: intdb.New(pool), logo: logodb.New(pool)}, nil
 }
 
 func (s *Store) Close() {
@@ -75,8 +82,16 @@ func migrate(ctx context.Context, pool *pgxpool.Pool) error {
 
 // tx runs fn with the auth and records queries bound to one transaction.
 func (s *Store) tx(ctx context.Context, fn func(a *authdb.Queries, r *recdb.Queries) error) error {
-	return mapError(pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+	return mapError(pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
 		return fn(s.auth.WithTx(tx), s.rec.WithTx(tx))
+	}))
+}
+
+// Atomically runs fn against a copy of the store bound to one transaction;
+// the store's own transactions nest in it as savepoints.
+func (s *Store) Atomically(ctx context.Context, fn func(storage.InteractionStore) error) error {
+	return mapError(pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
+		return fn(&Store{pool: s.pool, db: tx, auth: s.auth.WithTx(tx), rec: s.rec.WithTx(tx), conn: s.conn.WithTx(tx), in: s.in.WithTx(tx), logo: s.logo.WithTx(tx)})
 	}))
 }
 

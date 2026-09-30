@@ -244,7 +244,7 @@ func TestMeetingsAndTranscripts(t *testing.T) {
 		t.Fatal(err)
 	}
 	now := time.Now()
-	meeting, err := e.svc.IngestMeeting(ctx, known, interactions.CalendarEvent{
+	err = e.svc.IngestMeeting(ctx, known, interactions.CalendarEvent{
 		ConnectionID: e.conn.ID, UserID: e.conn.UserID, ExternalID: "ev1", Title: "Line review", Start: now.Add(-2 * time.Hour), End: now.Add(-time.Hour),
 		MeetCode: "abc-defg-hij", Attendees: []interactions.Attendee{
 			{Email: "owner@cas.dev", Organizer: true, Response: "accepted"},
@@ -261,9 +261,10 @@ func TestMeetingsAndTranscripts(t *testing.T) {
 		t.Fatalf("meeting triage: kept %v", e.contacts(t, interactions.Kept))
 	}
 	due, err := e.svc.DueMeetings(ctx, e.conn.ID)
-	if err != nil || len(due) != 1 || due[0].ID != meeting.ID {
+	if err != nil || len(due) != 1 || due[0].Title != "Line review" {
 		t.Fatalf("due: %+v %v", due, err)
 	}
+	meeting := due[0]
 	if err := e.svc.AddTranscript(ctx, meeting.ID, []interactions.Line{{ID: "e1", Speaker: "Ada", Text: "Can you do 200 a week?", At: now.Add(-2 * time.Hour)}}); err != nil {
 		t.Fatal(err)
 	}
@@ -303,6 +304,10 @@ func TestLogLinkAndSkip(t *testing.T) {
 	person := e.contacts(t, interactions.Kept)["+447598490355"].PersonID
 	if len(e.timeline(t, person)) != 1 || len(e.timeline(t, acme.ID)) != 1 {
 		t.Fatal("a logged call is on its person's and record's timelines")
+	}
+	half := interactions.Entry{Kind: interactions.Call, Title: "Half", People: []string{"bo@x.io", "nobody"}, Records: []string{acme.ID}}
+	if _, err := e.svc.Log(ctx, e.a, "manual", half); err == nil || e.contacts(t, interactions.Pending)["bo@x.io"].Address != "" {
+		t.Fatalf("a rejected log must leave nothing behind: %v", err)
 	}
 	if _, err := e.svc.Get(ctx, e.b, call.ID); err == nil {
 		t.Error("read another workspace's call")

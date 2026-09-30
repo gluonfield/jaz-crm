@@ -128,7 +128,7 @@ func (s *Store) UpsertPart(ctx context.Context, p storage.NewPart) error {
 }
 
 func (s *Store) inTx(ctx context.Context, fn func(q *intdb.Queries) error) error {
-	return mapError(pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+	return mapError(pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
 		return fn(s.in.WithTx(tx))
 	}))
 }

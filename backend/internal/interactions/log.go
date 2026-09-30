@@ -60,46 +60,56 @@ func (s *Service) Log(ctx context.Context, actor auth.Actor, source string, e En
 	if err != nil {
 		return Interaction{}, err
 	}
-	i, err := s.store.UpsertInteraction(ctx, storage.NewInteraction{
-		WorkspaceID: actor.WorkspaceID, Kind: e.Kind, Source: source, ExternalID: e.ExternalID, UserID: &actor.UserID,
-		Title: e.Title, StartedAt: e.At, EndedAt: e.End,
+	var i storage.Interaction
+	var engaged []storage.Handle
+	err = s.store.Atomically(ctx, func(store storage.InteractionStore) error {
+		i, err = store.UpsertInteraction(ctx, storage.NewInteraction{
+			WorkspaceID: actor.WorkspaceID, Kind: e.Kind, Source: source, ExternalID: e.ExternalID, UserID: &actor.UserID,
+			Title: e.Title, StartedAt: e.At, EndedAt: e.End,
+		})
+		if err != nil {
+			return err
+		}
+		for _, raw := range e.People {
+			kind, value, err := address(raw)
+			if err != nil {
+				return err
+			}
+			h, err := store.UpsertHandle(ctx, known.verdict(kind, value))
+			if err != nil {
+				return err
+			}
+			if err := store.AddParticipant(ctx, i.ID, h.ID, "attendee"); err != nil {
+				return err
+			}
+			if h.Triage == Pending || h.Triage == Skipped && deref(h.DecidedBy) != ByUser {
+				engaged = append(engaged, h)
+			}
+		}
+		for kind, text := range map[string]string{"note": e.Notes, "transcript": e.Transcript} {
+			if strings.TrimSpace(text) == "" {
+				continue
+			}
+			if err := store.UpsertPart(ctx, storage.NewPart{InteractionID: i.ID, Kind: kind, ExternalID: kind, At: e.At, Content: &text}); err != nil {
+				return err
+			}
+		}
+		for _, id := range e.Records {
+			if err := store.AddLink(ctx, i.ID, id, linkSource(actor)); err != nil {
+				return err
+			}
+		}
+		return store.Relink(ctx, []string{i.ID})
 	})
 	if err != nil {
 		return Interaction{}, err
 	}
-	for _, raw := range e.People {
-		kind, value, err := address(raw)
-		if err != nil {
+	// People written to become kept once the conversation exists; keeping
+	// writes their records, which the transaction does not cover.
+	for _, h := range engaged {
+		if err := s.keep(ctx, h, "", ByEngagement, "you logged a conversation with them"); err != nil {
 			return Interaction{}, err
 		}
-		h, err := s.store.UpsertHandle(ctx, known.verdict(kind, value))
-		if err != nil {
-			return Interaction{}, err
-		}
-		if err := s.store.AddParticipant(ctx, i.ID, h.ID, "attendee"); err != nil {
-			return Interaction{}, err
-		}
-		if h.Triage == Pending || h.Triage == Skipped && deref(h.DecidedBy) != ByUser {
-			if err := s.keep(ctx, h, "", ByEngagement, "you logged a conversation with them"); err != nil {
-				return Interaction{}, err
-			}
-		}
-	}
-	for kind, text := range map[string]string{"note": e.Notes, "transcript": e.Transcript} {
-		if strings.TrimSpace(text) == "" {
-			continue
-		}
-		if err := s.store.UpsertPart(ctx, storage.NewPart{InteractionID: i.ID, Kind: kind, ExternalID: kind, At: e.At, Content: &text}); err != nil {
-			return Interaction{}, err
-		}
-	}
-	for _, id := range e.Records {
-		if err := s.store.AddLink(ctx, i.ID, id, linkSource(actor)); err != nil {
-			return Interaction{}, err
-		}
-	}
-	if err := s.store.Relink(ctx, []string{i.ID}); err != nil {
-		return Interaction{}, err
 	}
 	return s.Get(ctx, actor, i.ID)
 }

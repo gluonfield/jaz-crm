@@ -32,74 +32,77 @@ type EmailMessage struct {
 	Labels       []string
 }
 
-// IngestEmail files a message's metadata under its thread. Threads merge
-// across mailboxes by Message-ID, since each mailbox has its own thread ids.
+// IngestEmail files a message's metadata under its thread, in one
+// transaction. Threads merge across mailboxes by Message-ID, since each
+// mailbox has its own thread ids.
 func (s *Service) IngestEmail(ctx context.Context, known Known, m EmailMessage) error {
 	if m.From.Email == "" {
 		return nil
 	}
-	author, err := s.handle(ctx, known, "email", m.From)
-	if err != nil {
-		return err
-	}
-	if author.Triage == Pending && (m.Bulk || noise(m.Labels)) {
-		if err := s.store.SkipPendingHandle(ctx, author.ID, "bulk or promotional mail"); err != nil {
+	return s.store.Atomically(ctx, func(store storage.InteractionStore) error {
+		author, err := handle(ctx, store, known, "email", m.From)
+		if err != nil {
 			return err
 		}
-	}
-	id, err := s.thread(ctx, known.WorkspaceID, m)
-	if err != nil {
-		return err
-	}
-	roles := map[string][]Address{"from": {m.From}, "to": m.To, "cc": m.Cc}
-	for role, addresses := range roles {
-		for _, a := range addresses {
-			h, err := s.handle(ctx, known, "email", a)
-			if err != nil {
-				return err
-			}
-			if err := s.store.AddParticipant(ctx, id, h.ID, role); err != nil {
+		if author.Triage == Pending && (m.Bulk || noise(m.Labels)) {
+			if err := store.SkipPendingHandle(ctx, author.ID, "bulk or promotional mail"); err != nil {
 				return err
 			}
 		}
-	}
-	external := m.MessageID
-	if external == "" {
-		external = "gmail:" + m.ProviderID
-	}
-	err = s.store.UpsertPart(ctx, storage.NewPart{
-		InteractionID: id, Kind: "message", ExternalID: external, ConnectionID: &m.ConnectionID, ProviderID: &m.ProviderID,
-		AuthorHandleID: &author.ID, AuthorName: m.From.Name, At: m.Date,
+		id, err := thread(ctx, store, known.WorkspaceID, m)
+		if err != nil {
+			return err
+		}
+		roles := map[string][]Address{"from": {m.From}, "to": m.To, "cc": m.Cc}
+		for role, addresses := range roles {
+			for _, a := range addresses {
+				h, err := handle(ctx, store, known, "email", a)
+				if err != nil {
+					return err
+				}
+				if err := store.AddParticipant(ctx, id, h.ID, role); err != nil {
+					return err
+				}
+			}
+		}
+		external := m.MessageID
+		if external == "" {
+			external = "gmail:" + m.ProviderID
+		}
+		err = store.UpsertPart(ctx, storage.NewPart{
+			InteractionID: id, Kind: "message", ExternalID: external, ConnectionID: &m.ConnectionID, ProviderID: &m.ProviderID,
+			AuthorHandleID: &author.ID, AuthorName: m.From.Name, At: m.Date,
+		})
+		if err != nil {
+			return err
+		}
+		return store.Relink(ctx, []string{id})
 	})
-	if err != nil {
-		return err
-	}
-	return s.store.Relink(ctx, []string{id})
 }
 
-func (s *Service) thread(ctx context.Context, workspaceID string, m EmailMessage) (string, error) {
+func thread(ctx context.Context, store storage.InteractionStore, workspaceID string, m EmailMessage) (string, error) {
 	var ids []string
 	for _, id := range append([]string{m.MessageID, m.InReplyTo}, m.References...) {
 		if id != "" {
 			ids = append(ids, id)
 		}
 	}
-	id, err := s.store.EmailThreadByMessageIDs(ctx, workspaceID, ids)
+	id, err := store.EmailThreadByMessageIDs(ctx, workspaceID, ids)
 	if err == nil {
-		return id, s.store.ExtendEmailThread(ctx, id, m.Date, subject(m.Subject))
+		return id, store.ExtendEmailThread(ctx, id, m.Date, subject(m.Subject))
 	}
 	if !errors.Is(err, storage.ErrNotFound) {
 		return "", err
 	}
-	return s.store.UpsertEmailThread(ctx, storage.EmailThread{
+	return store.UpsertEmailThread(ctx, storage.EmailThread{
 		WorkspaceID: workspaceID, ExternalID: m.ThreadID, ConnectionID: &m.ConnectionID, UserID: &m.UserID, Title: subject(m.Subject), At: m.Date,
 	})
 }
 
-func (s *Service) handle(ctx context.Context, known Known, kind string, a Address) (storage.Handle, error) {
+func handle(ctx context.Context, store storage.InteractionStore, known Known, kind string, a Address) (storage.Handle, error) {
 	h := known.verdict(kind, strings.ToLower(a.Email))
 	h.Name = strings.TrimSpace(a.Name)
-	return s.store.UpsertHandle(ctx, h)
+	return store.UpsertHandle(ctx, h)
 }
 
 type Attendee struct {
@@ -123,42 +126,44 @@ type CalendarEvent struct {
 	Attendees    []Attendee
 }
 
-// IngestMeeting files a meeting with its attendees; a declined attendee
-// keeps a declined role rather than disappearing.
-func (s *Service) IngestMeeting(ctx context.Context, known Known, e CalendarEvent) (storage.Interaction, error) {
-	i, err := s.store.UpsertInteraction(ctx, storage.NewInteraction{
-		WorkspaceID: known.WorkspaceID, Kind: Meeting, Source: "calendar", ExternalID: e.ExternalID, ConnectionID: &e.ConnectionID,
-		UserID: &e.UserID, Title: e.Title, StartedAt: e.Start, EndedAt: &e.End, MeetCode: e.MeetCode,
+// IngestMeeting files a meeting with its attendees, in one transaction; a
+// declined attendee keeps a declined role rather than disappearing.
+func (s *Service) IngestMeeting(ctx context.Context, known Known, e CalendarEvent) error {
+	return s.store.Atomically(ctx, func(store storage.InteractionStore) error {
+		i, err := store.UpsertInteraction(ctx, storage.NewInteraction{
+			WorkspaceID: known.WorkspaceID, Kind: Meeting, Source: "calendar", ExternalID: e.ExternalID, ConnectionID: &e.ConnectionID,
+			UserID: &e.UserID, Title: e.Title, StartedAt: e.Start, EndedAt: &e.End, MeetCode: e.MeetCode,
+		})
+		if err != nil {
+			return err
+		}
+		if err := store.ClearParticipants(ctx, i.ID); err != nil {
+			return err
+		}
+		for _, a := range e.Attendees {
+			h, err := handle(ctx, store, known, "email", Address{Name: a.Name, Email: a.Email})
+			if err != nil {
+				return err
+			}
+			role := "attendee"
+			switch {
+			case a.Organizer:
+				role = "organizer"
+			case a.Response == "declined":
+				role = "declined"
+			}
+			if err := store.AddParticipant(ctx, i.ID, h.ID, role); err != nil {
+				return err
+			}
+		}
+		if e.Description != "" {
+			err := store.UpsertPart(ctx, storage.NewPart{InteractionID: i.ID, Kind: "description", ExternalID: "description", At: e.Start, Content: &e.Description})
+			if err != nil {
+				return err
+			}
+		}
+		return store.Relink(ctx, []string{i.ID})
 	})
-	if err != nil {
-		return i, err
-	}
-	if err := s.store.ClearParticipants(ctx, i.ID); err != nil {
-		return i, err
-	}
-	for _, a := range e.Attendees {
-		h, err := s.handle(ctx, known, "email", Address{Name: a.Name, Email: a.Email})
-		if err != nil {
-			return i, err
-		}
-		role := "attendee"
-		switch {
-		case a.Organizer:
-			role = "organizer"
-		case a.Response == "declined":
-			role = "declined"
-		}
-		if err := s.store.AddParticipant(ctx, i.ID, h.ID, role); err != nil {
-			return i, err
-		}
-	}
-	if e.Description != "" {
-		err := s.store.UpsertPart(ctx, storage.NewPart{InteractionID: i.ID, Kind: "description", ExternalID: "description", At: e.Start, Content: &e.Description})
-		if err != nil {
-			return i, err
-		}
-	}
-	return i, s.store.Relink(ctx, []string{i.ID})
 }
 
 // CancelMeeting hides a cancelled meeting, if it was ever seen.
