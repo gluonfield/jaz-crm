@@ -58,5 +58,3 @@
 - Verification before every push: `go build ./... && go vet ./... && go test ./...` in `backend`, and `bun run check` in `frontend`.
 
 ## Scope
-
-- `SCOPE.md` is the product scope and milestone plan. Update it when a decision changes.
