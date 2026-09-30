@@ -29,13 +29,11 @@
   --color-ink-2: var(--color-text-secondary, #5f6168);
   --color-ink-3: var(--color-text-tertiary, #8f9199);
 
-  --color-primary: var(--color-ring-primary, #5e6ad2);
-  /* Derived from whatever accent the host sends: text on it turns near-black
-     where that reads better than white (OKLab lightness 0.58, where the two
-     contrast equally), and hover and tint lean toward the ink and the page. */
-  --color-primary-strong: color-mix(in oklab, var(--color-primary) 85%, var(--color-ink));
+  /* Keep the host's hue, with a fill dark enough for white labels. */
+  --color-primary: oklch(from var(--color-ring-primary, #5e6ad2) min(l, 0.55) c h);
+  --color-primary-strong: color-mix(in oklab, var(--color-primary) 90%, black);
   --color-primary-soft: color-mix(in oklab, var(--color-primary) 16%, var(--color-bg));
-  --color-on-primary: oklch(from var(--color-primary) clamp(0.2, (0.58 - l) * 1000, 1) 0 h);
+  --color-on-primary: #ffffff;
   --color-selection: color-mix(in oklab, var(--color-primary) 22%, transparent);
 
   --color-running: var(--color-text-warning, #d9a400);
@@ -100,7 +98,6 @@
   --color-ink-2: var(--color-text-secondary, #a0a3aa);
   --color-ink-3: var(--color-text-tertiary, #6e717a);
 
-  --color-primary: var(--color-ring-primary, #7480ea);
   --color-selection: color-mix(in oklab, var(--color-primary) 35%, transparent);
 
   --color-running: var(--color-text-warning, #e2b93b);

@@ -41,7 +41,7 @@ Each token falls back to the matching [MCP Apps](https://github.com/modelcontext
 | `--shadow-raised` | `--shadow-lg` |
 | `--font-sans`, `--font-mono` | same names |
 
-The list hover and active washes derive from `--color-ink`.
+The list hover and active washes derive from `--color-ink`. Primary fills keep the host accent's hue and cap OKLCH lightness at 0.55 for white labels. Hover darkens the fill. Both schemes use the same primary palette.
 
 ## As an MCP App (Jaz, Claude, ChatGPT)
 
