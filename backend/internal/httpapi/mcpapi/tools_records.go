@@ -13,7 +13,7 @@ import (
 
 func registerRecords(r *registry, crm *records.Service, conversations *interactions.Service, pics pictures) {
 	add(r, &mcp.Tool{Name: "add_attribute_option", Title: "Add attribute option",
-		Description: "Add a reusable choice to a select attribute, such as company categories. Returns the existing choice when its spelling differs only in case. Assign choices through upsert_record."},
+		Description: "Add a reusable choice to a select attribute or append a pipeline stage to a status attribute. Returns the existing choice when its spelling differs only in case. Assign choices through upsert_record."},
 		func(ctx context.Context, actor auth.Actor, in optionInput) (optionOutput, error) {
 			value, err := crm.AddOption(ctx, actor, in.Object, in.Attribute, in.Value)
 			return optionOutput{Value: value}, err

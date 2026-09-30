@@ -17,7 +17,7 @@ WITH updated AS (
   END
   FROM objects
   WHERE attributes.object_id = objects.id AND objects.workspace_id = $2
-    AND attributes.id = $3 AND attributes.type = 'select'
+    AND attributes.id = $3 AND attributes.type IN ('select', 'status')
   RETURNING attributes.options
 )
 SELECT option::text FROM updated, unnest(options) AS option WHERE lower(option) = lower($1::text)

@@ -197,6 +197,37 @@ func TestTenantIsolation(t *testing.T) {
 	}
 }
 
+func TestPipelineStages(t *testing.T) {
+	a, b := connect(t)
+	args := map[string]any{"object": "deals", "attribute": "stage", "value": " Negotiation "}
+	if out := mustCall(t, a, "add_attribute_option", args); out["value"] != "Negotiation" {
+		t.Fatalf("new stage: %v", out)
+	}
+	args["value"] = "NEGOTIATION"
+	if out := mustCall(t, a, "add_attribute_option", args); out["value"] != "Negotiation" {
+		t.Fatalf("existing stage: %v", out)
+	}
+	if schema := encode(mustCall(t, a, "list_objects", nil)); !strings.Contains(schema, `"options":["Lead","In progress","Won","Lost","Negotiation"]`) {
+		t.Fatalf("stage was not appended once: %s", schema)
+	}
+	if schema := encode(mustCall(t, b, "list_objects", nil)); strings.Contains(schema, "Negotiation") {
+		t.Fatalf("pipeline stages crossed workspaces: %s", schema)
+	}
+	values := map[string]any{"name": "Acme contract", "stage": "negotiation"}
+	deal := mustCall(t, a, "upsert_record", map[string]any{"object": "deals", "values": values})["record"].(map[string]any)
+	if stage := deal["values"].(map[string]any)["stage"]; stage != "Negotiation" {
+		t.Fatalf("deal in the new stage: %v", deal)
+	}
+	if _, failure := call(t, b, "upsert_record", map[string]any{"object": "deals", "values": values}); failure == "" {
+		t.Fatal("another workspace used the private stage")
+	}
+	mustCall(t, a, "upsert_record", map[string]any{"object": "deals", "record_id": deal["id"], "values": map[string]any{"stage": "Lead"}})
+	mustCall(t, a, "upsert_record", map[string]any{"object": "deals", "record_id": deal["id"], "values": map[string]any{"stage": "Negotiation"}})
+	if saved := mustCall(t, a, "get_record", map[string]any{"record_id": deal["id"]}); saved["values"].(map[string]any)["stage"] != "Negotiation" {
+		t.Fatalf("moving an existing deal to the new stage: %v", saved)
+	}
+}
+
 func TestCompanyCategories(t *testing.T) {
 	a, _ := connect(t)
 	for _, value := range []string{" Manufacturing ", "B2B"} {

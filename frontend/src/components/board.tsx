@@ -6,9 +6,11 @@ import { formatNumber } from '@/lib/format'
 import { useAction } from '@/lib/queries'
 import type { Attribute, CrmObject, CrmRecord, Ref } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { Button, inputClass } from './controls'
 import { CreateRecord, singular } from './create-record'
 import { RecordIcon } from './icons'
 import { StageDot } from './stage'
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
 
 // Board lays an object's records out in columns by the stage of its status,
 // and moves a record to another stage when its card is dropped there.
@@ -80,7 +82,52 @@ export function Board({ object, status, records }: { object: CrmObject; status: 
           </section>
         )
       })}
+      <NewStage object={object} status={status} />
     </div>
+  )
+}
+
+function NewStage({ object, status }: { object: CrmObject; status: Attribute }) {
+  const [open, setOpen] = useState(false)
+  const [name, setName] = useState('')
+  const add = useAction<{ object: string; attribute: string; value: string }>('add_attribute_option')
+  const ready = !!name.trim() && !add.isPending
+  return (
+    <Popover open={open} onOpenChange={(next) => {
+      setOpen(next)
+      if (next) {
+        setName('')
+      }
+    }}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          disabled={add.isPending}
+          className="flex h-9 shrink-0 items-center gap-1.5 self-start rounded-[var(--radius-control)] border border-dashed border-border px-3 text-[12.5px] text-ink-3 outline-none transition-colors hover:bg-list-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+        >
+          <Plus className="size-3.5" /> Add stage
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-[272px] rounded-[12px] border-border bg-raised p-3">
+        <form className="flex gap-2" onSubmit={(e) => {
+          e.preventDefault()
+          if (ready) {
+            add.mutate({ object: object.slug, attribute: status.slug, value: name.trim() }, { onSuccess: () => setOpen(false) })
+          }
+        }}>
+          <input
+            aria-label="Stage name"
+            placeholder="Stage name"
+            maxLength={80}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            disabled={add.isPending}
+            className={cn(inputClass, 'flex-1')}
+          />
+          <Button type="submit" primary disabled={!ready}>Add</Button>
+        </form>
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -106,11 +153,11 @@ function Column({
   return (
     <>
       <header className="flex h-9 shrink-0 items-center gap-2 px-3 text-[13px]">
-        <StageDot attribute={status} stage={stage} />
-        <span className="font-medium text-ink">{stage}</span>
-        <span className="tabular-nums text-ink-3">{count}</span>
+        <StageDot attribute={status} stage={stage} className="shrink-0" />
+        <span className="min-w-0 truncate font-medium text-ink" title={stage}>{stage}</span>
+        <span className="shrink-0 tabular-nums text-ink-3">{count}</span>
         {total !== undefined && (
-          <span className="ml-auto tabular-nums text-ink-3" title={formatNumber(total, amount?.slug)}>
+          <span className="ml-auto shrink-0 tabular-nums text-ink-3" title={formatNumber(total, amount?.slug)}>
             {formatNumber(total, amount?.slug, true)}
           </span>
         )}
@@ -119,7 +166,7 @@ function Column({
           aria-label={`New ${kind} in ${stage}`}
           onClick={() => setAdding(true)}
           className={cn(
-            'flex size-6 items-center justify-center rounded-[var(--radius-control)] text-ink-3 outline-none transition-colors hover:bg-list-active hover:text-ink focus-visible:ring-2 focus-visible:ring-ring',
+            'flex size-6 shrink-0 items-center justify-center rounded-[var(--radius-control)] text-ink-3 outline-none transition-colors hover:bg-list-active hover:text-ink focus-visible:ring-2 focus-visible:ring-ring',
             total === undefined && 'ml-auto',
           )}
         >

@@ -14,7 +14,7 @@ WITH updated AS (
   END
   FROM objects
   WHERE attributes.object_id = objects.id AND objects.workspace_id = @workspace_id
-    AND attributes.id = @attribute_id AND attributes.type = 'select'
+    AND attributes.id = @attribute_id AND attributes.type IN ('select', 'status')
   RETURNING attributes.options
 )
 SELECT option::text FROM updated, unnest(options) AS option WHERE lower(option) = lower(@value::text);

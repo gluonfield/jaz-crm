@@ -114,8 +114,8 @@ func (s *Service) AddOption(ctx context.Context, actor auth.Actor, object, attri
 	if err != nil {
 		return "", err
 	}
-	if a.Type != Select {
-		return "", errs.Invalidf("%s is not a select attribute", attribute)
+	if a.Type != Select && a.Type != Status {
+		return "", errs.Invalidf("%s is not a select or status attribute", attribute)
 	}
 	return s.store.AddAttributeOption(ctx, actor.WorkspaceID, a.ID, value)
 }
