@@ -4,6 +4,14 @@ overrides:
     rename:
       ids: IDs
       record_ids: RecordIDs
+      connection_ids: ConnectionIDs
+      handle_ids: HandleIDs
+      message_ids: MessageIDs
+      handle_values: Values
+      provider_id: ProviderID
+      author_handle_id: AuthorHandleID
+      person_id: PersonID
+      meet_code: MeetCode
       attribute_ids: AttributeIDs
       ref_record_id: RefRecordID
       target_object_id: TargetObjectID
@@ -51,6 +59,28 @@ sql:
       go:
         package: records
         out: internal/storage/postgres/generated/records
+        sql_package: pgx/v5
+        emit_pointers_for_null_types: true
+        emit_empty_slices: true
+        omit_unused_structs: true
+  - engine: postgresql
+    schema: internal/storage/postgres/migrations
+    queries: internal/storage/postgres/queries/connections
+    gen:
+      go:
+        package: connections
+        out: internal/storage/postgres/generated/connections
+        sql_package: pgx/v5
+        emit_pointers_for_null_types: true
+        emit_empty_slices: true
+        omit_unused_structs: true
+  - engine: postgresql
+    schema: internal/storage/postgres/migrations
+    queries: internal/storage/postgres/queries/interactions
+    gen:
+      go:
+        package: interactions
+        out: internal/storage/postgres/generated/interactions
         sql_package: pgx/v5
         emit_pointers_for_null_types: true
         emit_empty_slices: true

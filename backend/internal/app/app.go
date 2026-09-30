@@ -1,108 +1,79 @@
-// Package app wires the process: configuration, storage, services and HTTP.
+// Package app wires the processes: the server, which serves people and
+// agents, and the worker, which syncs connections.
 package app
 
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"net"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
+	"github.com/gluonfield/jaz-crm/backend/internal/classifier"
+	"github.com/gluonfield/jaz-crm/backend/internal/connections"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/authapi"
+	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/connectapi"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/mcpapi"
+	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/webhooks"
+	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
 	"github.com/gluonfield/jaz-crm/backend/internal/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/server"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres"
+	"github.com/gluonfield/jaz-crm/backend/internal/worker"
 	"github.com/gluonfield/jaz-crm/backend/internal/workspaces"
 	"go.uber.org/fx"
+	"go.uber.org/fx/fxevent"
 )
 
-type Config struct {
-	Addr        string
-	DatabaseURL string
-	PublicURL   string
-	OIDC        auth.OIDCConfig
-	Auth        auth.Config
-	Workspaces  workspaces.Config
-	Owner       Owner
-}
-
-// Owner is the account a deployment provisions at startup, and the API key
-// it gives clients such as Jaz, so the deployment works without a sign-in.
-type Owner struct {
-	Email  string
-	APIKey string
-}
-
-// ParseConfig reads flags, each defaulting to an environment variable, and
-// the auth settings, which come from the environment only.
-func ParseConfig(args []string) (Config, error) {
-	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
-	cfg := Config{}
-	fs.StringVar(&cfg.Addr, "addr", env("ADDR", ":7500"), "HTTP listen address (ADDR)")
-	fs.StringVar(&cfg.DatabaseURL, "database-url", env("DATABASE_URL", "postgres://jazcrm:jazcrm@localhost:55532/jazcrm?sslmode=disable"), "Postgres URL (DATABASE_URL)")
-	fs.StringVar(&cfg.PublicURL, "public-url", env("PUBLIC_URL", "http://localhost:7500"), "URL people and agents reach the server at (PUBLIC_URL)")
-	if err := fs.Parse(args); err != nil {
-		return cfg, err
-	}
-	cfg.PublicURL = strings.TrimRight(strings.TrimSpace(cfg.PublicURL), "/")
-	cfg.OIDC = auth.OIDCConfig{
-		Issuer:       strings.TrimSpace(os.Getenv("OIDC_ISSUER")),
-		ClientID:     strings.TrimSpace(os.Getenv("OIDC_CLIENT_ID")),
-		ClientSecret: strings.TrimSpace(os.Getenv("OIDC_CLIENT_SECRET")),
-		RedirectURL:  cfg.PublicURL + "/auth/callback",
-	}
-	cfg.Auth = auth.Config{PublicURL: cfg.PublicURL}
-	cfg.Workspaces = workspaces.Config{
-		AllowedEmailDomains: list(os.Getenv("ALLOWED_EMAIL_DOMAINS")),
-		AllowedEmails:       list(os.Getenv("ALLOWED_EMAILS")),
-	}
-	cfg.Owner = Owner{Email: strings.TrimSpace(os.Getenv("OWNER_EMAIL")), APIKey: strings.TrimSpace(os.Getenv("OWNER_API_KEY"))}
-	if cfg.Owner.APIKey != "" && cfg.Owner.Email == "" {
-		return cfg, errors.New("OWNER_API_KEY needs OWNER_EMAIL, the account it belongs to")
-	}
-	return cfg, nil
-}
-
-func list(raw string) []string {
-	var out []string
-	for _, item := range strings.Split(raw, ",") {
-		if item = strings.TrimSpace(item); item != "" {
-			out = append(out, item)
-		}
-	}
-	return out
-}
-
-func env(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
-}
-
-func Options(cfg Config) fx.Option {
-	return fx.Options(
-		fx.Supply(cfg, cfg.Auth, cfg.Workspaces, cfg.OIDC),
+// shared is what both processes run on: storage, the domain services and
+// the Temporal client.
+func shared(cfg Config) fx.Option {
+	options := []fx.Option{
+		fx.Supply(cfg, cfg.Auth, cfg.Workspaces, cfg.OIDC, cfg.Temporal, cfg.Connections, cfg.Sync, cfg.Webhooks, cfg.WebDir),
 		fx.Provide(
 			NewLogger,
-			fx.Annotate(OpenStore, fx.As(fx.Self()), fx.As(new(storage.AuthStore)), fx.As(new(storage.WorkspaceStore)), fx.As(new(storage.RecordStore))),
+			fx.Annotate(OpenStore, fx.As(fx.Self()), fx.As(new(storage.AuthStore)), fx.As(new(storage.WorkspaceStore)),
+				fx.As(new(storage.RecordStore)), fx.As(new(storage.ConnectionStore)), fx.As(new(storage.InteractionStore))),
+			records.NewService,
+			interactions.NewService,
+			connections.NewService,
+			worker.NewClient,
+			fx.Annotate(worker.NewStarter, fx.As(fx.Self()), fx.As(new(connections.Syncer))),
+		),
+	}
+	if cfg.LLM.Model != "" {
+		options = append(options, fx.Supply(cfg.LLM), fx.Provide(fx.Annotate(classifier.New, fx.As(new(interactions.Classifier)))))
+	}
+	return fx.Options(options...)
+}
+
+func Server(cfg Config) fx.Option {
+	return fx.Options(
+		shared(cfg),
+		fx.Provide(
 			auth.NewService,
 			workspaces.NewService,
 			auth.NewOIDC,
-			records.NewService,
 			authapi.NewHandler,
 			mcpapi.NewHandler,
+			connectapi.NewHandler,
+			webhooks.NewHandler,
 			server.New,
 		),
 		fx.Invoke(ProvisionOwner, StartHTTP),
+	)
+}
+
+func Worker(cfg Config) fx.Option {
+	return fx.Options(
+		shared(cfg),
+		fx.Provide(worker.NewActivities, worker.NewWorker),
+		fx.Invoke(worker.Run),
 	)
 }
 
@@ -171,4 +142,18 @@ func MintAPIKey(ctx context.Context, cfg Config, email, workspace string) (strin
 	}
 	defer store.Close()
 	return auth.NewService(store, cfg.Auth).CreateKeyForEmail(ctx, email, workspace)
+}
+
+// Run starts a process and stops it when the process is told to.
+func Run(process fx.Option) error {
+	fxApp := fx.New(fx.StopTimeout(time.Minute), fx.WithLogger(func() fxevent.Logger { return fxevent.NopLogger }), process)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	if err := fxApp.Start(ctx); err != nil {
+		return err
+	}
+	<-fxApp.Wait()
+	ctx, cancel = context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	return fxApp.Stop(ctx)
 }

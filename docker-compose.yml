@@ -1,3 +1,31 @@
+x-app: &app
+  build: .
+  environment:
+    DATABASE_URL: postgres://jazcrm:jazcrm@postgres:5432/jazcrm?sslmode=disable
+    PUBLIC_URL: ${PUBLIC_URL:-http://localhost:7500}
+    TEMPORAL_ADDRESS: ${TEMPORAL_ADDRESS:-temporal:7233}
+    TEMPORAL_NAMESPACE: ${TEMPORAL_NAMESPACE:-default}
+    TEMPORAL_API_KEY: ${TEMPORAL_API_KEY:-}
+    OIDC_ISSUER: ${OIDC_ISSUER:-}
+    OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+    OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+    ALLOWED_EMAIL_DOMAINS: ${ALLOWED_EMAIL_DOMAINS:-}
+    ALLOWED_EMAILS: ${ALLOWED_EMAILS:-}
+    OWNER_EMAIL: ${OWNER_EMAIL:-}
+    OWNER_API_KEY: ${OWNER_API_KEY:-}
+    GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+    GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+    ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+    BACKFILL_DAYS: ${BACKFILL_DAYS:-730}
+    GMAIL_PUBSUB_TOPIC: ${GMAIL_PUBSUB_TOPIC:-}
+    GMAIL_PUBSUB_SERVICE_ACCOUNT: ${GMAIL_PUBSUB_SERVICE_ACCOUNT:-}
+    LLM_BASE_URL: ${LLM_BASE_URL:-}
+    LLM_API_KEY: ${LLM_API_KEY:-}
+    LLM_MODEL: ${LLM_MODEL:-}
+  depends_on:
+    postgres:
+      condition: service_healthy
+
 services:
   postgres:
     image: postgres:17-alpine
@@ -15,23 +43,37 @@ services:
       timeout: 3s
       retries: 30
 
-  server:
-    build: .
+  temporal:
+    image: temporalio/auto-setup:1.29.4
     environment:
-      DATABASE_URL: postgres://jazcrm:jazcrm@postgres:5432/jazcrm?sslmode=disable
-      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:7500}
-      OIDC_ISSUER: ${OIDC_ISSUER:-}
-      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
-      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
-      ALLOWED_EMAIL_DOMAINS: ${ALLOWED_EMAIL_DOMAINS:-}
-      ALLOWED_EMAILS: ${ALLOWED_EMAILS:-}
-      OWNER_EMAIL: ${OWNER_EMAIL:-}
-      OWNER_API_KEY: ${OWNER_API_KEY:-}
+      DB: postgres12
+      DB_PORT: 5432
+      POSTGRES_USER: jazcrm
+      POSTGRES_PWD: jazcrm
+      POSTGRES_SEEDS: postgres
     ports:
-      - "7500:7500"
+      - "7533:7233"
     depends_on:
       postgres:
         condition: service_healthy
+
+  temporal-ui:
+    image: temporalio/ui:2.36.2
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+    ports:
+      - "8533:8080"
+    depends_on:
+      - temporal
+
+  server:
+    <<: *app
+    ports:
+      - "7500:7500"
+
+  worker:
+    <<: *app
+    entrypoint: ["/app/worker"]
 
 volumes:
   postgres:

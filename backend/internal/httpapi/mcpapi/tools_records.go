@@ -6,11 +6,12 @@ import (
 
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"github.com/gluonfield/jaz-crm/backend/internal/errs"
+	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
 	"github.com/gluonfield/jaz-crm/backend/internal/records"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-func registerRecords(r *registry, crm *records.Service) {
+func registerRecords(r *registry, crm *records.Service, conversations *interactions.Service) {
 	add(r, &mcp.Tool{Name: "list_objects", Title: "List objects", Annotations: readOnly,
 		Description: "List the objects records belong to, such as people and companies, with their attributes."},
 		func(ctx context.Context, actor auth.Actor, _ empty) (objectsOutput, error) {
@@ -28,10 +29,16 @@ func registerRecords(r *registry, crm *records.Service) {
 			return out, err
 		})
 	add(r, &mcp.Tool{Name: "get_record", Title: "Get record", Annotations: readOnly,
-		Description: "Get one record with its current values."},
+		Description: "Get one record with its current values and how often, and when last, it was in touch."},
 		func(ctx context.Context, actor auth.Actor, in recordInput) (recordView, error) {
 			record, err := crm.Get(ctx, actor, in.RecordID)
-			return recordOf(record), err
+			if err != nil {
+				return recordView{}, err
+			}
+			activity, err := conversations.Activity(ctx, actor, record.ID)
+			view := recordOf(record)
+			view.Activity = &activityView{Interactions: activity.Interactions, LastAt: activity.LastAt}
+			return view, err
 		})
 	add(r, &mcp.Tool{Name: "upsert_record", Title: "Upsert record",
 		Description: "Create or update a record. Without record_id it updates the record holding a given email, domain or phone number, else creates one."},
@@ -40,7 +47,7 @@ func registerRecords(r *registry, crm *records.Service) {
 			if err != nil {
 				return upsertOutput{}, err
 			}
-			record, skips, err := crm.Upsert(ctx, actor, records.SourceAgent, records.Write{Object: in.Object, RecordID: in.RecordID, Set: set, Remove: in.Remove})
+			record, skips, err := crm.Upsert(ctx, actor, records.SourceOf(actor), records.Write{Object: in.Object, RecordID: in.RecordID, Set: set, Remove: in.Remove})
 			if err != nil {
 				return upsertOutput{}, err
 			}
@@ -117,6 +124,12 @@ type recordView struct {
 	Object    string         `json:"object"`
 	CreatedAt time.Time      `json:"created_at"`
 	Values    map[string]any `json:"values"`
+	Activity  *activityView  `json:"activity,omitempty"`
+}
+
+type activityView struct {
+	Interactions int        `json:"interactions"`
+	LastAt       *time.Time `json:"last_at,omitempty"`
 }
 
 // recordOf shows a single-valued attribute as its value and a multi-valued

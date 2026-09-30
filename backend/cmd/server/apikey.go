@@ -17,7 +17,7 @@ func runAPIKey(args []string) error {
 	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
 		workspace, args = args[0], args[1:]
 	}
-	cfg, err := app.ParseConfig(args)
+	cfg, err := app.ParseConfig("apikey", args)
 	if err != nil {
 		return err
 	}

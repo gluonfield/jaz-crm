@@ -14,8 +14,12 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
+	"github.com/gluonfield/jaz-crm/backend/internal/connections"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/authapi"
+	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/connectapi"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/mcpapi"
+	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/webhooks"
+	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
 	"github.com/gluonfield/jaz-crm/backend/internal/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/server"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
@@ -51,7 +55,15 @@ func start(t *testing.T, oidc auth.OIDCConfig, members workspaces.Config) stack 
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv.Config.Handler = server.New(authn, mcpapi.NewHandler(mcpapi.Services{Records: records.NewService(store), Workspaces: people}, keys, log.New(io.Discard)))
+	logger := log.New(io.Discard)
+	crm := records.NewService(store)
+	convs := interactions.NewService(interactions.Params{Store: store, Connections: store, Workspaces: store, Records: crm})
+	conns, err := connections.NewService(store, connections.Config{}, idle{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	agents := mcpapi.NewHandler(mcpapi.Services{Records: crm, Workspaces: people, Interactions: convs, Connections: conns}, keys, logger)
+	srv.Config.Handler = server.New(authn, agents, connectapi.NewHandler(conns, keys, logger), webhooks.NewHandler(conns, idle{}, convs, keys, webhooks.Config{}, logger), "")
 	srv.Start()
 	t.Cleanup(srv.Close)
 	return stack{url: base, apiKey: apiKey, keys: keys, owner: owner.ID}
@@ -146,3 +158,9 @@ func callText(t *testing.T, conn *mcp.ClientSession, name string, args map[strin
 	}
 	return res.Content[0].(*mcp.TextContent).Text
 }
+
+// idle stands in for the Temporal worker, which these tests never reach.
+type idle struct{}
+
+func (idle) Start(context.Context, string) error { return nil }
+func (idle) Stop(context.Context, string) error  { return nil }

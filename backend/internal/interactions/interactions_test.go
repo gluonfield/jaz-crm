@@ -1,0 +1,354 @@
+package interactions_test
+
+import (
+	"context"
+	"slices"
+	"testing"
+	"time"
+
+	"github.com/gluonfield/jaz-crm/backend/internal/auth"
+	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
+	"github.com/gluonfield/jaz-crm/backend/internal/records"
+	"github.com/gluonfield/jaz-crm/backend/internal/storage"
+	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres"
+	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
+	"github.com/gluonfield/jaz-crm/backend/internal/workspaces"
+)
+
+var ctx = context.Background()
+
+type env struct {
+	svc   *interactions.Service
+	crm   *records.Service
+	store *postgres.Store
+	a, b  auth.Actor
+	conn  storage.Connection
+}
+
+// setup gives two workspaces; the first has a connected mailbox at its own
+// company domain, cas.dev.
+func setup(t *testing.T, classifier interactions.Classifier) env {
+	t.Helper()
+	store := postgrestest.New(t)
+	people := workspaces.NewService(store, workspaces.Config{})
+	var actors []auth.Actor
+	for _, email := range []string{"owner@cas.dev", "b@other.dev"} {
+		u, err := people.Provision(ctx, email)
+		if err != nil {
+			t.Fatal(err)
+		}
+		actors = append(actors, auth.Actor{UserID: u.ID, WorkspaceID: u.WorkspaceID})
+	}
+	conn, err := store.SaveConnection(ctx, storage.NewConnection{WorkspaceID: actors[0].WorkspaceID, UserID: actors[0].UserID, Provider: "google", Account: "owner@cas.dev", RefreshToken: []byte("sealed")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	crm := records.NewService(store)
+	svc := interactions.NewService(interactions.Params{Store: store, Connections: store, Workspaces: store, Records: crm, Classifier: classifier})
+	return env{svc: svc, crm: crm, store: store, a: actors[0], b: actors[1], conn: conn}
+}
+
+var start = time.Date(2026, 9, 1, 9, 0, 0, 0, time.UTC)
+
+func message(conn storage.Connection, id, thread, from string, to ...string) interactions.EmailMessage {
+	m := interactions.EmailMessage{
+		ConnectionID: conn.ID, UserID: conn.UserID, ProviderID: id, ThreadID: thread, MessageID: id + "@mail",
+		From: interactions.Address{Email: from}, Subject: "Re: Press line quote", Date: start,
+	}
+	for _, a := range to {
+		m.To = append(m.To, interactions.Address{Email: a})
+	}
+	return m
+}
+
+func (e env) ingest(t *testing.T, messages ...interactions.EmailMessage) {
+	t.Helper()
+	known, err := e.svc.Known(ctx, e.a.WorkspaceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range messages {
+		if err := e.svc.IngestEmail(ctx, known, m); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func (e env) triage(t *testing.T) {
+	t.Helper()
+	if err := e.svc.Triage(ctx, e.a.WorkspaceID); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func (e env) contacts(t *testing.T, status string) map[string]interactions.Contact {
+	t.Helper()
+	list, err := e.svc.Contacts(ctx, e.a, status, "", 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := map[string]interactions.Contact{}
+	for _, c := range list {
+		out[c.Address] = c
+	}
+	return out
+}
+
+func (e env) timeline(t *testing.T, recordID string) []interactions.Interaction {
+	t.Helper()
+	list, err := e.svc.Timeline(ctx, e.a, recordID, nil, nil, 50)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return list
+}
+
+func values(r records.Record, attr string) []string {
+	var out []string
+	for _, f := range r.Fields {
+		if f.Attribute == attr {
+			for _, v := range f.Values {
+				out = append(out, v.Text)
+			}
+		}
+	}
+	return out
+}
+
+// Writing to someone keeps them: they become a person at their company with
+// the thread on both timelines. Bulk senders are skipped, colleagues are
+// internal, and cold inbound waits for a decision.
+func TestTriageKeepsPeopleYouWriteTo(t *testing.T) {
+	e := setup(t, nil)
+	news := message(e.conn, "n1", "tn", "news@shop.com", "owner@cas.dev")
+	news.Bulk = true
+	out := message(e.conn, "o1", "t1", "owner@cas.dev", "ada@customer.io")
+	reply := message(e.conn, "r1", "t1", "ada@customer.io", "owner@cas.dev")
+	reply.From.Name = "Ada Lovelace"
+	reply.InReplyTo = "o1@mail"
+	reply.Date = start.Add(time.Hour)
+	e.ingest(t, news, message(e.conn, "c1", "tc", "bob@supplier.com", "owner@cas.dev"), out, reply, message(e.conn, "p1", "tp", "pat@cas.dev", "owner@cas.dev"))
+	e.triage(t)
+
+	if got := e.contacts(t, interactions.Pending); len(got) != 1 || got["bob@supplier.com"].Address == "" {
+		t.Fatalf("pending: %v", got)
+	}
+	if got := e.contacts(t, interactions.Skipped)["news@shop.com"]; got.DecidedBy != interactions.ByRule {
+		t.Fatalf("bulk sender: %+v", got)
+	}
+	if got := e.contacts(t, interactions.Internal); got["pat@cas.dev"].Address == "" || got["owner@cas.dev"].Address == "" {
+		t.Fatalf("internal: %v", got)
+	}
+	ada := e.contacts(t, interactions.Kept)["ada@customer.io"]
+	if ada.DecidedBy != interactions.ByEngagement || ada.PersonID == "" {
+		t.Fatalf("ada: %+v", ada)
+	}
+	person, err := e.crm.Get(ctx, e.a, ada.PersonID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(values(person, "name"), []string{"Ada Lovelace"}) || !slices.Equal(values(person, "company"), []string{"Customer"}) {
+		t.Fatalf("person: %+v", person)
+	}
+	thread := e.timeline(t, ada.PersonID)
+	if len(thread) != 1 || thread[0].Title != "Press line quote" || !thread[0].EndedAt.Equal(start.Add(time.Hour)) {
+		t.Fatalf("timeline: %+v", thread)
+	}
+	company := person.Fields[slices.IndexFunc(person.Fields, func(f records.Field) bool { return f.Attribute == "company" })].Values[0].RecordID
+	if got := e.timeline(t, company); len(got) != 1 || got[0].ID != thread[0].ID {
+		t.Fatalf("company timeline: %+v", got)
+	}
+
+	// The same reply in a teammate's mailbox has other ids but one Message-ID.
+	other, err := e.store.SaveConnection(ctx, storage.NewConnection{WorkspaceID: e.a.WorkspaceID, UserID: e.a.UserID, Provider: "google", Account: "sales@cas.dev", RefreshToken: []byte("sealed")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	copied := reply
+	copied.ConnectionID = other.ID
+	copied.ProviderID = "x9"
+	copied.ThreadID = "their-thread"
+	e.ingest(t, copied)
+	if got := e.timeline(t, ada.PersonID); len(got) != 1 {
+		t.Fatalf("mailboxes did not merge: %+v", got)
+	}
+
+	due, err := e.svc.Unfetched(ctx, e.conn.ID, 50)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ids []string
+	for _, p := range due {
+		ids = append(ids, p.ProviderID)
+	}
+	slices.Sort(ids)
+	if !slices.Equal(ids, []string{"o1", "r1"}) {
+		t.Fatalf("content is fetched for linked threads only: %v", ids)
+	}
+}
+
+// A person's decisions are final and domain decisions reach addresses not
+// seen yet; skipping someone forgets the content of their conversations.
+func TestDecisions(t *testing.T) {
+	e := setup(t, nil)
+	e.ingest(t, message(e.conn, "c1", "tc", "bob@supplier.com", "owner@cas.dev"))
+	if n, err := e.svc.Decide(ctx, e.a, interactions.Decision{Addresses: []string{"Bob <BOB@supplier.com>"}, Keep: true}); err != nil || n != 1 {
+		t.Fatalf("keep: %d %v", n, err)
+	}
+	bob := e.contacts(t, interactions.Kept)["bob@supplier.com"]
+	if bob.DecidedBy != interactions.ByUser || len(e.timeline(t, bob.PersonID)) != 1 {
+		t.Fatalf("kept bob: %+v", bob)
+	}
+	due, _ := e.svc.Unfetched(ctx, e.conn.ID, 50)
+	if err := e.svc.SetContent(ctx, due[0].ID, "Quote attached."); err != nil {
+		t.Fatal(err)
+	}
+	thread := e.timeline(t, bob.PersonID)[0]
+
+	if _, err := e.svc.Decide(ctx, e.a, interactions.Decision{Domains: []string{"@Supplier.com"}, Keep: false, Reason: "vendor spam"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.contacts(t, interactions.Skipped)["bob@supplier.com"]; got.DecidedBy != interactions.ByUser || len(e.timeline(t, bob.PersonID)) != 0 {
+		t.Fatalf("skipped bob: %+v", got)
+	}
+	full, err := e.svc.Get(ctx, e.a, thread.ID)
+	if err != nil || full.Parts[0].Content != "" {
+		t.Fatalf("content of an unlinked thread must be forgotten: %+v %v", full.Parts, err)
+	}
+	e.ingest(t, message(e.conn, "c2", "tc2", "carol@supplier.com", "owner@cas.dev"), message(e.conn, "o2", "tc2", "owner@cas.dev", "carol@supplier.com"))
+	e.triage(t)
+	if got := e.contacts(t, interactions.Skipped)["carol@supplier.com"]; got.Reason != "vendor spam" {
+		t.Fatalf("the domain rule must hold against engagement: %+v", got)
+	}
+	if _, err := e.svc.Decide(ctx, e.a, interactions.Decision{Domains: []string{"cas.dev"}}); err == nil {
+		t.Fatal("skipped the workspace's own domain")
+	}
+}
+
+func TestMeetingsAndTranscripts(t *testing.T) {
+	e := setup(t, nil)
+	known, err := e.svc.Known(ctx, e.a.WorkspaceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	meeting, err := e.svc.IngestMeeting(ctx, known, interactions.CalendarEvent{
+		ConnectionID: e.conn.ID, UserID: e.conn.UserID, ExternalID: "ev1", Title: "Line review", Start: now.Add(-2 * time.Hour), End: now.Add(-time.Hour),
+		MeetCode: "abc-defg-hij", Attendees: []interactions.Attendee{
+			{Email: "owner@cas.dev", Organizer: true, Response: "accepted"},
+			{Email: "ada@customer.io", Name: "Ada", Response: "accepted"},
+			{Email: "zed@x.io", Response: "declined"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.triage(t)
+	ada := e.contacts(t, interactions.Kept)["ada@customer.io"]
+	if ada.PersonID == "" || e.contacts(t, interactions.Pending)["zed@x.io"].Address == "" {
+		t.Fatalf("meeting triage: kept %v", e.contacts(t, interactions.Kept))
+	}
+	due, err := e.svc.DueMeetings(ctx, e.conn.ID)
+	if err != nil || len(due) != 1 || due[0].ID != meeting.ID {
+		t.Fatalf("due: %+v %v", due, err)
+	}
+	if err := e.svc.AddTranscript(ctx, meeting.ID, []interactions.Line{{ID: "e1", Speaker: "Ada", Text: "Can you do 200 a week?", At: now.Add(-2 * time.Hour)}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.svc.TranscriptChecked(ctx, meeting.ID); err != nil {
+		t.Fatal(err)
+	}
+	full, err := e.svc.Get(ctx, e.a, meeting.ID)
+	if err != nil || len(full.Parts) != 1 || full.Parts[0].Author != "Ada" || full.Parts[0].Kind != "transcript" {
+		t.Fatalf("transcript: %+v %v", full.Parts, err)
+	}
+	if due, _ := e.svc.DueMeetings(ctx, e.conn.ID); len(due) != 0 {
+		t.Fatalf("a checked meeting is due again: %+v", due)
+	}
+	if err := e.svc.CancelMeeting(ctx, e.a.WorkspaceID, "ev1"); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.timeline(t, ada.PersonID); len(got) != 0 {
+		t.Fatalf("a cancelled meeting stays on the timeline: %+v", got)
+	}
+}
+
+// Logged conversations keep their people and link their records; nobody
+// in another workspace can read, link or skip them.
+func TestLogLinkAndSkip(t *testing.T) {
+	e := setup(t, nil)
+	acme, _, err := e.crm.Upsert(ctx, e.a, records.SourceUser, records.Write{Object: "companies", Set: map[string][]string{"name": {"Acme"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	call, err := e.svc.Log(ctx, e.a, "manual", interactions.Entry{Kind: interactions.Call, People: []string{"+44 7598 490355"}, Records: []string{acme.ID}, Notes: "Wants a quote by Friday."})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if call.Title != "Call" || len(call.Records) != 2 || call.Parts[0].Content != "Wants a quote by Friday." {
+		t.Fatalf("logged call: %+v", call)
+	}
+	person := e.contacts(t, interactions.Kept)["+447598490355"].PersonID
+	if len(e.timeline(t, person)) != 1 || len(e.timeline(t, acme.ID)) != 1 {
+		t.Fatal("a logged call is on its person's and record's timelines")
+	}
+	if _, err := e.svc.Get(ctx, e.b, call.ID); err == nil {
+		t.Error("read another workspace's call")
+	}
+	if _, err := e.svc.Link(ctx, e.b, call.ID, acme.ID); err == nil {
+		t.Error("linked another workspace's call")
+	}
+	if err := e.svc.Skip(ctx, e.b, call.ID); err == nil {
+		t.Error("skipped another workspace's call")
+	}
+	if _, err := e.svc.Log(ctx, e.b, "manual", interactions.Entry{Kind: interactions.Note, Notes: "x", Records: []string{acme.ID}}); err == nil {
+		t.Error("linked a log to another workspace's record")
+	}
+	if err := e.svc.Unlink(ctx, e.a, call.ID, acme.ID); err != nil || len(e.timeline(t, acme.ID)) != 0 {
+		t.Fatalf("unlink: %v", err)
+	}
+	if err := e.svc.Unlink(ctx, e.a, call.ID, acme.ID); err == nil {
+		t.Error("unlinked twice")
+	}
+	if err := e.svc.Skip(ctx, e.a, call.ID); err != nil || len(e.timeline(t, person)) != 0 {
+		t.Fatalf("skip: %v", err)
+	}
+}
+
+type fakeClassifier struct {
+	calls int
+}
+
+func (f *fakeClassifier) Classify(_ context.Context, _ string, candidates []interactions.Candidate) ([]interactions.Judgement, error) {
+	f.calls++
+	verdicts := map[string]string{"keep@a.io": "keep", "skip@b.io": "skip"}
+	var out []interactions.Judgement
+	for _, c := range candidates {
+		if v, ok := verdicts[c.Address]; ok {
+			out = append(out, interactions.Judgement{Address: c.Address, Verdict: v, Reason: "test"})
+		}
+	}
+	return out, nil
+}
+
+// The classifier judges each undecided address once; one it leaves out
+// stays pending for a person.
+func TestClassifier(t *testing.T) {
+	f := &fakeClassifier{}
+	e := setup(t, f)
+	e.ingest(t, message(e.conn, "1", "t1", "keep@a.io", "owner@cas.dev"), message(e.conn, "2", "t2", "skip@b.io", "owner@cas.dev"), message(e.conn, "3", "t3", "who@c.io", "owner@cas.dev"))
+	e.triage(t)
+	e.triage(t)
+	if got := e.contacts(t, interactions.Kept)["keep@a.io"]; got.DecidedBy != interactions.ByAgent || got.PersonID == "" {
+		t.Errorf("keep: %+v", got)
+	}
+	if got := e.contacts(t, interactions.Skipped)["skip@b.io"]; got.DecidedBy != interactions.ByAgent {
+		t.Errorf("skip: %+v", got)
+	}
+	if got := e.contacts(t, interactions.Pending)["who@c.io"]; got.DecidedBy != interactions.ByAgent {
+		t.Errorf("undecided: %+v", got)
+	}
+	if f.calls != 1 {
+		t.Errorf("classifier calls: %d", f.calls)
+	}
+}

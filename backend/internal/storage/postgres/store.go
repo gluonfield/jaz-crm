@@ -9,6 +9,8 @@ import (
 
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 	authdb "github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/generated/auth"
+	conndb "github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/generated/connections"
+	intdb "github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/generated/interactions"
 	recdb "github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/generated/records"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -24,6 +26,8 @@ type Store struct {
 	pool *pgxpool.Pool
 	auth *authdb.Queries
 	rec  *recdb.Queries
+	conn *conndb.Queries
+	in   *intdb.Queries
 }
 
 // Open connects and migrates to the latest schema.
@@ -36,7 +40,7 @@ func Open(ctx context.Context, url string) (*Store, error) {
 		pool.Close()
 		return nil, err
 	}
-	return &Store{pool: pool, auth: authdb.New(pool), rec: recdb.New(pool)}, nil
+	return &Store{pool: pool, auth: authdb.New(pool), rec: recdb.New(pool), conn: conndb.New(pool), in: intdb.New(pool)}, nil
 }
 
 func (s *Store) Close() {

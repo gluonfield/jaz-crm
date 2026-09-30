@@ -1,57 +1,59 @@
 # Jaz CRM
 
-A self-hosted CRM that agents operate over MCP. One Go server, backed by Postgres, holds people, companies and other objects whose values keep their history and the source that set them. `SCOPE.md` has the full plan: Gmail, Calendar and Meet sync come next.
+A self-hosted CRM that fills itself from Gmail, Google Calendar and Meet transcripts, and that agents operate over MCP. People, companies and any objects you add keep every value's history and who set it; each person's and company's page shows the emails, meetings, calls and notes with them.
 
 ## Run it
 
 ```sh
+cp .env.example .env   # set OIDC_*, GOOGLE_*, ENCRYPTION_KEY
 docker compose up
 ```
 
-This starts Postgres (host port 55532) and the server on http://localhost:7500. To connect an agent without signing in, set `OWNER_EMAIL` and `OWNER_API_KEY` in `.env` (copy `.env.example`) and give the agent the key as its bearer token:
+This starts Postgres (host port 55532), Temporal (7533, UI on 8533), the server on http://localhost:7500 and the sync worker. Sign in, open Connections and connect a Google account; its mail and calendar sync in the background.
+
+Agents connect to `/mcp` with OAuth, or with an API key as a bearer token:
 
 ```sh
 claude mcp add --transport http jaz-crm http://localhost:7500/mcp --header "Authorization: Bearer $OWNER_API_KEY"
 ```
 
-`docker compose exec server /app/server apikey <email>` mints a key for an existing account.
+## How it works
 
-## Data model
-
-- **Objects** are record types. Every workspace starts with `people` and `companies`.
-- **Attributes** are typed: `text`, `email`, `domain`, `phone`, `reference`. Emails, domains and phone numbers are unique within a workspace, so an upsert with a known email updates that person rather than creating a duplicate.
-- **Values** are append-only. A change closes the current value and inserts its successor, so every attribute keeps its history.
-- **Sources** rank `user` > `agent` > `sync`. A write replaces or removes only values from its own or a lower-ranked source; the rest come back as skipped.
+- **Records.** Objects are record types; every workspace starts with people and companies and can add its own, such as deals with a stage. Attributes are typed: text, number, date, checkbox, url, select, email, domain, phone and reference. Emails, domains and phone numbers identify records, so writing a known email updates that person instead of creating another.
+- **History and provenance.** Values are append-only: a change closes the current value and inserts its successor. Each value records its source, ranked user > agent > sync; a write replaces or removes only values from its own or a lower-ranked source and reports the rest as skipped, so sync never overwrites an agent and neither overwrites a person.
+- **Interactions.** An email thread, meeting, call or note is one interaction with its participants and parts: messages, transcript lines, notes. Threads seen by two teammates' mailboxes merge by Message-ID. Interactions link to the records they concern, and a record's timeline is one query.
+- **Triage.** Every address seen is triaged. Your own addresses and colleagues are internal; automated senders and bulk mail are skipped. Anyone someone in the workspace wrote to, or met in a small meeting, is kept and becomes a person at their company with their conversations linked. An optional LLM judges cold inbound against the workspace's description; the rest wait for a person or an agent. A person's decision, for an address or a whole domain, is final.
+- **Privacy.** Metadata is stored for every message, but bodies are fetched only for conversations linked to a kept person or a record, and forgotten when they no longer are. Skipping a thread removes it for good.
+- **Sync.** One Temporal workflow per connection backfills mail and calendar (`BACKFILL_DAYS`), then follows Gmail history and Calendar sync tokens every five minutes, or at once on a push. Meet transcripts are fetched after meetings end and kept, since Meet deletes them after 30 days.
+- **Calls and recorders.** Log a call or note in the app or through `log_interaction`. Recorders post conversations to `POST /webhooks/interactions` with an API key; an `external_id` makes a repeated post update one interaction.
 
 ## Authentication
 
-- **People** sign in with OpenID Connect (Google or any other provider). Anyone with a verified email may sign up unless `ALLOWED_EMAIL_DOMAINS` or `ALLOWED_EMAILS` restrict it. Each new person gets a workspace of their own and joins others only by invite.
-- **Agents** use OAuth 2.1 with dynamic client registration and PKCE: MCP clients discover the server from the 401 on `/mcp` and walk you through sign-in and consent. Personal API keys work as bearer tokens too.
-- **Tenant isolation**: every query and tool is scoped to one workspace; tests attack another workspace's records by id.
+- **People** sign in with OpenID Connect. Anyone with a verified email may sign up unless `ALLOWED_EMAIL_DOMAINS` or `ALLOWED_EMAILS` restrict it. Each new person gets a workspace; invites are the only way into another. Every member sees the whole workspace; admins invite people and edit the workspace.
+- **Agents** use OAuth 2.1 with dynamic client registration and PKCE, discovered from the 401 on `/mcp`. Personal API keys work as bearer tokens too. The web app calls the same operations at `POST /api/tools/{tool}` with its session.
+- **Tenant isolation**: every query and tool is scoped to one workspace; tests attack another workspace's records and interactions by id.
 
-| Variable | Purpose |
-| --- | --- |
-| `PUBLIC_URL` | Base URL; source of the OIDC redirect URI (`PUBLIC_URL/auth/callback`), OAuth issuer and cookie domain |
-| `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` | OpenID Connect provider |
-| `ALLOWED_EMAIL_DOMAINS`, `ALLOWED_EMAILS` | Optional sign-in restriction |
-| `OWNER_EMAIL`, `OWNER_API_KEY` | Optional account and API key provisioned at startup |
-| `DATABASE_URL`, `ADDR`, `LOG_LEVEL` | Server basics |
+Configuration is documented in `.env.example`.
 
 ## MCP
 
 | Tool | Does |
 | --- | --- |
-| `list_objects` | objects and their attributes |
-| `search_records` | an object's records by text and attribute values |
-| `get_record` | one record's current values |
-| `upsert_record` | create or update a record, matched by id or unique values |
-| `list_members`, `invite_member`, `rename_workspace` | workspace members; admins invite by email and rename the workspace |
+| `list_objects`, `create_object`, `create_attribute` | the schema |
+| `search_records`, `get_record`, `upsert_record`, `delete_record` | records; `get_record` includes how often and when last they were in touch |
+| `list_interactions`, `get_interaction`, `search_interactions` | timelines, full conversations, full-text search |
+| `log_interaction`, `link_interaction`, `unlink_interaction`, `skip_interaction` | calls and notes, links to records, removal |
+| `list_triage`, `decide_triage` | who is kept, skipped or waiting, and decisions by address or domain |
+| `list_connections`, `disconnect` | synced Google accounts |
+| `get_workspace`, `update_workspace`, `invite_member` | the workspace, its description and members |
 
 ## Develop
 
 ```sh
-docker compose up -d postgres
+docker compose up -d postgres temporal
 cd backend
 go build ./... && go vet ./... && go test ./...
-sqlc generate   # after changing SQL in internal/storage/postgres/queries
+sqlc generate                      # after changing SQL in internal/storage/postgres/queries
+go run ./cmd/server & go run ./cmd/worker
+cd ../frontend && bun install && bun run dev
 ```

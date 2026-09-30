@@ -22,6 +22,14 @@ const (
 	SourceUser  Source = "user"
 )
 
+// SourceOf is who writes for an actor: a person in their browser, or an agent.
+func SourceOf(actor auth.Actor) Source {
+	if actor.Agent {
+		return SourceAgent
+	}
+	return SourceUser
+}
+
 func (s Source) rank() int {
 	return slices.Index([]Source{SourceSync, SourceAgent, SourceUser}, s)
 }
@@ -170,9 +178,13 @@ func plan(current []storage.RecordValue, set, remove []change, source Source, ac
 	for _, v := range current {
 		held[v.AttributeID] = append(held[v.AttributeID], v)
 	}
+	var actor *string
+	if actorID != "" {
+		actor = &actorID
+	}
 	insert := func(attr storage.Attribute, e entry) {
 		out.Insert = append(out.Insert, storage.NewRecordValue{
-			AttributeID: attr.ID, Text: e.text, RefRecordID: e.ref, UniqueKey: e.key, Source: string(source), ActorID: &actorID,
+			AttributeID: attr.ID, Text: e.text, RefRecordID: e.ref, UniqueKey: e.key, Source: string(source), ActorID: actor,
 		})
 	}
 	// release closes a value unless a higher-ranked source holds it.

@@ -11,7 +11,9 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
+	"github.com/gluonfield/jaz-crm/backend/internal/connections"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/mcpapi"
+	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
 	"github.com/gluonfield/jaz-crm/backend/internal/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
 	"github.com/gluonfield/jaz-crm/backend/internal/workspaces"
@@ -33,7 +35,13 @@ func connect(t *testing.T) (*mcp.ClientSession, *mcp.ClientSession) {
 	store := postgrestest.New(t)
 	keys := auth.NewService(store, auth.Config{PublicURL: "http://crm.test"})
 	people := workspaces.NewService(store, workspaces.Config{})
-	srv := httptest.NewServer(mcpapi.NewHandler(mcpapi.Services{Records: records.NewService(store), Workspaces: people}, keys, log.New(io.Discard)).MCP)
+	crm := records.NewService(store)
+	convs := interactions.NewService(interactions.Params{Store: store, Connections: store, Workspaces: store, Records: crm})
+	conns, err := connections.NewService(store, connections.Config{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(mcpapi.NewHandler(mcpapi.Services{Records: crm, Workspaces: people, Interactions: convs, Connections: conns}, keys, log.New(io.Discard)).MCP)
 	t.Cleanup(srv.Close)
 	var sessions []*mcp.ClientSession
 	for _, email := range []string{"a@jaz.test", "b@jaz.test"} {
@@ -144,5 +152,55 @@ func TestTenantIsolation(t *testing.T) {
 	}
 	if got := mustCall(t, a, "get_record", map[string]any{"record_id": id}); encode(got["values"]) != `{"domains":["acme.com"],"name":"Acme"}` {
 		t.Errorf("the owner's record changed: %v", got)
+	}
+}
+
+// Conversations and triage are per workspace too, and a logged call links
+// the people and records it names.
+func TestInteractionTools(t *testing.T) {
+	a, b := connect(t)
+	company := mustCall(t, a, "upsert_record", map[string]any{"object": "companies", "values": map[string]any{"name": "Acme", "domains": "acme.com"}})["record"].(map[string]any)
+	logged := mustCall(t, a, "log_interaction", map[string]any{
+		"kind": "call", "title": "Pricing", "people": []any{"Ada <ada@acme.com>"}, "records": []any{company["id"]}, "notes": "Wants 200 a week.",
+	})
+	id := logged["id"].(string)
+	if records := encode(logged["records"]); !strings.Contains(records, `"object":"people"`) || !strings.Contains(records, `"name":"Acme"`) {
+		t.Fatalf("logged records: %s", records)
+	}
+	timeline := mustCall(t, a, "list_interactions", map[string]any{"record_id": company["id"]})["interactions"].([]any)
+	if len(timeline) != 1 || timeline[0].(map[string]any)["preview"] != "Wants 200 a week." {
+		t.Fatalf("timeline: %v", timeline)
+	}
+	if found := mustCall(t, a, "search_interactions", map[string]any{"query": "week"})["interactions"].([]any); len(found) != 1 {
+		t.Fatalf("search: %v", found)
+	}
+	kept := encode(mustCall(t, a, "list_triage", map[string]any{"status": "kept"}))
+	if !strings.Contains(kept, `"address":"ada@acme.com"`) {
+		t.Fatalf("triage: %s", kept)
+	}
+	record := mustCall(t, a, "get_record", map[string]any{"record_id": company["id"]})
+	if activity := record["activity"].(map[string]any); activity["interactions"] != float64(1) {
+		t.Fatalf("activity: %v", activity)
+	}
+
+	for tool, args := range map[string]map[string]any{
+		"get_interaction":   {"interaction_id": id},
+		"skip_interaction":  {"interaction_id": id},
+		"link_interaction":  {"interaction_id": id, "record_id": company["id"]},
+		"list_interactions": {"record_id": company["id"]},
+	} {
+		out, failure := call(t, b, tool, args)
+		if failure == "" && tool != "list_interactions" || tool == "list_interactions" && len(out["interactions"].([]any)) != 0 {
+			t.Errorf("%s reached another workspace: %v", tool, out)
+		}
+	}
+	if other := encode(mustCall(t, b, "list_triage", map[string]any{"status": "kept"})); strings.Contains(other, "ada@acme.com") {
+		t.Errorf("list_triage listed another workspace: %s", other)
+	}
+	if _, failure := call(t, a, "decide_triage", map[string]any{"addresses": []any{"x@y.io"}, "decision": "maybe"}); !strings.Contains(failure, "keep or skip") {
+		t.Errorf("a bad decision: %q", failure)
+	}
+	if out := mustCall(t, a, "list_connections", nil); len(out["connections"].([]any)) != 0 || out["connect_url"] != nil {
+		t.Errorf("connections without Google configured: %v", out)
 	}
 }

@@ -312,6 +312,33 @@ func (s *Service) views(ctx context.Context, workspaceID string, sc schema, reco
 	return out, nil
 }
 
+// Label names a record for display elsewhere.
+type Label struct {
+	Object string
+	Name   string
+}
+
+// Labels names records of the workspace; ids of other workspaces are left out.
+func (s *Service) Labels(ctx context.Context, workspaceID string, ids []string) (map[string]Label, error) {
+	out := map[string]Label{}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	sc, err := s.schema(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	records, err := s.store.Records(ctx, workspaceID, ids)
+	if err != nil {
+		return nil, err
+	}
+	names, err := s.names(ctx, workspaceID, sc, ids)
+	for _, r := range records {
+		out[r.ID] = Label{Object: sc.objectByID(r.ObjectID).Slug, Name: names[r.ID]}
+	}
+	return out, err
+}
+
 // names maps records to their title attribute.
 func (s *Service) names(ctx context.Context, workspaceID string, sc schema, ids []string) (map[string]string, error) {
 	out := map[string]string{}

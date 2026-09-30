@@ -27,7 +27,11 @@
 - `internal/records` owns the CRM data model: objects, typed attributes, records and their values. Values are append-only: a change closes the current row (`active_until`) and inserts its successor, so never update or delete a value in place. Every value records its source (`user` > `agent` > `sync`); a write replaces or removes only values from its own or a lower-ranked source and reports the rest as skipped.
 - Unique attributes (emails, domains, phone numbers) identify records within a workspace through `record_values.unique_key` and its partial unique index; an upsert matches on them instead of creating duplicates.
 - Add an attribute type by extending the `attributes.type` check in a new migration and `records.normalize`; add value columns only with the type that needs them.
-- Transports (the MCP endpoint, future adapters) translate protocol shapes only.
+- `internal/interactions` owns conversations and triage. Sync links are derived: whatever changes who is kept calls `Relink` on the affected interactions; never write sync links another way. Provider content (parts with a `provider_id`) exists only while its interaction has a link.
+- `internal/google` is provider-only: no storage, no workflow knowledge, raw HTTP. Test it and its callers against `httptest` fakes of Google's wire format.
+- `internal/worker` owns Temporal. Workflows only orchestrate; activities are idempotent, bounded per call and heartbeat inside loops. Sync position lives in `sync_cursors`, never in workflow state. A deleted or revoked connection surfaces as a non-retryable `Gone` or `Revoked` application error, which ends its sync.
+- Every operation is one transport-neutral `op` registered in `httpapi/mcpapi`, published as an MCP tool and at `POST /api/tools/{tool}`. Only `errs.Invalid` errors reach clients; everything else is logged and reported as an internal error. Writes take their source from the actor: a browser session writes as `user`, a bearer credential as `agent`.
+- Transports (the MCP endpoint, the tools API, webhooks) translate protocol shapes only.
 - Services take the actor explicitly; services never read HTTP headers.
 - Keep multi-record writes atomic in storage methods. `WriteRecord` locks the record and runs the service's mutation inside the transaction.
 
@@ -50,8 +54,8 @@
 
 ## Testing
 
-- Test at the lowest boundary that protects behavior. Records tests run against a throwaway Postgres database (`postgrestest.New`); MCP and auth tests drive the real HTTP handlers. Start Postgres with `docker compose up -d postgres`.
-- Verification before every push: `go build ./... && go vet ./... && go test ./...` in `backend`.
+- Test at the lowest boundary that protects behavior. Service tests run against a throwaway Postgres database (`postgrestest.New`); workflow tests use Temporal's `testsuite` with mocked activities; activity tests run the real services against a fake Google; MCP, auth and webhook tests drive the real HTTP handlers. Start Postgres with `docker compose up -d postgres`.
+- Verification before every push: `go build ./... && go vet ./... && go test ./...` in `backend`, and `bun run check` in `frontend`.
 
 ## Scope
 

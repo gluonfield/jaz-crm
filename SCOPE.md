@@ -2,7 +2,7 @@
 
 jaz-crm is a CRM that fills itself from email, calendar, meeting transcripts and logged calls. Agents operate it through MCP; people review and correct what it records.
 
-Status: milestone 1 (foundation) is built, 2026-09-30.
+Status: milestones 1 to 5 are built, 2026-09-30.
 
 ## v1
 
@@ -80,9 +80,9 @@ Google app: the Google Cloud project behind Jaz's Gmail and Calendar connectors.
 ### Backfill and incremental sync
 
 - Backfill lists messages over a window (default 2 years) and fetches metadata only: headers and labels. It triages participants, then fetches full bodies only for threads with a kept participant. The page token is checkpointed, so backfill resumes after a restart.
-- When a handle becomes kept later, a Gmail search on that address backfills its history.
-- Gmail incremental sync calls `users.history.list` from the stored `historyId`; an expired `historyId` triggers a windowed resync. Push runs through `users.watch` → Pub/Sub → `/webhooks/google/pubsub`, renewed daily because watches expire after 7 days. Polling is the fallback.
-- Calendar incremental sync calls `events.list` with a `syncToken`; `410 Gone` triggers a full resync. Push runs through `events.watch` channels renewed before expiry, with polling as the fallback.
+- Backfill stores metadata for every message, so keeping someone later links their existing threads and fetches the bodies; no per-address backfill is needed.
+- Gmail incremental sync calls `users.history.list` from the stored `historyId`; an expired `historyId` triggers a windowed resync. Optional push runs through `users.watch` → Pub/Sub → `/webhooks/google/gmail`, renewed a day before the 7-day expiry; the push is verified as a Google ID token for the configured service account. Polling every five minutes is the fallback.
+- Calendar incremental sync calls `events.list` with a `syncToken`; `410 Gone` triggers a full resync. With an https `PUBLIC_URL`, push runs through `events.watch` channels renewed a day before expiry and verified by their token, with polling as the fallback.
 - Every write is an upsert keyed by `(source, external_id)`, so replays are harmless.
 
 ### Triage: who the CRM keeps
@@ -90,7 +90,7 @@ Google app: the Google Cloud project behind Jaz's Gmail and Calendar connectors.
 Each stage decides what the previous one could not.
 
 1. Rules drop your own addresses, `noreply`-style senders, messages with `List-Unsubscribe` or `Precedence: bulk`, Gmail's Promotions, Social, Updates and Forums categories, calendar rooms and resources, and blocked domains.
-2. Engagement keeps two-way contacts: you wrote to them and they wrote to you, or you shared a small meeting. This rule decides most real contacts.
+2. Engagement keeps anyone someone in the workspace wrote to, or met, in a conversation of at most 10 participants; an address already on a person record is kept with that person. This rule decides most real contacts, and it overrides rule and agent skips but never a person's decision.
 3. An agent classifies the remaining one-way contacts (cold inbound, vendors, recruiters) in batches and returns keep, skip or ask, with a reason. Its criteria come from the workspace description, for example "Acme: manufacturing customers, suppliers, partners".
 4. People override decisions in the UI or over MCP. Overrides become address or domain rules that the agent never revisits.
 
@@ -142,10 +142,8 @@ Other recorders (Zoom, Granola, Fireflies) post to `/webhooks/interactions` with
 - Stack: Go, Postgres, sqlc, goose, Fx and the MCP go-sdk as in jaz-tasks, plus Temporal.
 - `cmd/server` serves the web app, auth, `/mcp` and webhooks. It never calls Google inside a request; webhooks signal workflows.
 - `cmd/worker` runs Temporal workflows and activities:
-  - `ConnectionSync`: one long-running workflow per connection. It backfills, then waits on push signals or a poll timer, renews watches and channels, and continues-as-new periodically.
-  - `HandleHistory`: backfills one newly kept address.
-  - `MeetingArtifacts`: a durable timer until the meeting ends, then transcript fetch with retries.
-  - `Triage`: batched agent classification.
+  - `ConnectionSync`: one long-running workflow per connection. Each pass runs Gmail backfill and history, Calendar, triage, body fetch, watch renewal and due transcripts as separate activities; a failing stream is logged and skipped, a revoked grant marks the connection and ends it. Passes repeat while work remains, then wait for the poll timer or a wake signal, and the workflow continues-as-new every 100 passes.
+  - `MeetingTranscript`: started for each linked Meet meeting that ended in the last 30 days; retries over most of a day for recent meetings, once for older ones, then marks the meeting checked.
 - The Temporal client config has `address`, `namespace` and `cloudapikey`. With an API key it connects to Temporal Cloud over TLS; without one it connects to a plain local server. docker-compose runs `temporalio/auto-setup` and the Temporal UI on the same Postgres for development.
 - `internal/google` holds provider clients only, with no storage or workflow knowledge.
 - `auth` and `workspaces` start as copies from jaz-tasks. A shared module comes when a third app needs them.
@@ -154,11 +152,11 @@ Other recorders (Zoom, Granola, Fireflies) post to `/webhooks/interactions` with
 backend/
   cmd/server  cmd/worker
   internal/
-    app/ auth/ workspaces/
-    records/ interactions/ triage/
-    google/
-    sync/
-    httpapi/{mcpapi,authapi,webhooks}
+    app/ auth/ workspaces/ errs/
+    records/ interactions/ connections/ classifier/
+    google/                         # Gmail, Calendar and Meet clients
+    worker/                         # Temporal workflows and activities
+    httpapi/{mcpapi,authapi,connectapi,webhooks}
     storage/  storage/postgres/{migrations,queries,generated}
 frontend/
 ```
@@ -173,6 +171,6 @@ Ordered by dependency.
 4. Agent triage, manual interactions, and the inbound interactions webhook.
 5. Web record page and timeline (also as a Jaz MCP App), and custom objects and attributes.
 
-## Setup before milestone 2
+## Setup before syncing real accounts
 
 - Create the Web OAuth client in Jaz's Google Cloud project and add the Meet scope to its consent screen.

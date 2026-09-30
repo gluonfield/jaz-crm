@@ -20,6 +20,9 @@ var ErrUnauthenticated = errors.New("authentication required: sign in, or send a
 type Actor struct {
 	UserID      string
 	WorkspaceID string
+	// Agent is set for bearer credentials: the request comes from software
+	// acting for the user rather than from the person's own browser.
+	Agent bool
 }
 
 func actorOf(user storage.User) Actor {
@@ -63,7 +66,9 @@ func (s *Service) Authenticate(ctx context.Context, token string) (Actor, error)
 	if errors.Is(err, storage.ErrNotFound) {
 		return Actor{}, ErrUnauthenticated
 	}
-	return actorOf(user), err
+	actor := actorOf(user)
+	actor.Agent = true
+	return actor, err
 }
 
 func secret(prefix string) string {

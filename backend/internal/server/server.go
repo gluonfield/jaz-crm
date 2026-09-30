@@ -1,24 +1,40 @@
-// Package server is the HTTP process shell: routing, auth and CORS.
+// Package server is the HTTP process shell: routing, CORS and the web app.
 package server
 
 import (
 	"net/http"
+	"os"
+	"path/filepath"
 
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/authapi"
+	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/connectapi"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/mcpapi"
+	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/webhooks"
 )
 
-func New(authn *authapi.Handler, agents *mcpapi.Handler) http.Handler {
+// WebDir holds the built web app; empty serves a sign-in page instead.
+type WebDir string
+
+func New(authn *authapi.Handler, agents *mcpapi.Handler, connect *connectapi.Handler, hooks *webhooks.Handler, web WebDir) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("ok"))
 	})
-	mux.Handle("GET /{$}", authn)
 	mux.Handle("/auth/", authn)
 	mux.Handle("/oauth/", cors(authn))
 	mux.Handle("/.well-known/", cors(authn))
 	mux.Handle("/mcp", cors(agents.MCP))
 	mux.Handle("POST /api/tools/{tool}", authn.Session(agents.API))
+	mux.Handle("GET /connections/google/start", authn.Session(http.HandlerFunc(connect.Start)))
+	mux.Handle("GET /connections/google/callback", authn.Session(http.HandlerFunc(connect.Callback)))
+	mux.HandleFunc("POST /webhooks/google/gmail", hooks.Gmail)
+	mux.HandleFunc("POST /webhooks/google/calendar", hooks.Calendar)
+	mux.HandleFunc("POST /webhooks/interactions", hooks.Interactions)
+	if web == "" {
+		mux.Handle("GET /{$}", authn)
+	} else {
+		mux.Handle("/", spa(string(web)))
+	}
 	return mux
 }
 
@@ -35,5 +51,17 @@ func cors(next http.Handler) http.Handler {
 			return
 		}
 		next.ServeHTTP(w, r)
+	})
+}
+
+// spa serves the built app, falling back to index.html for client routes.
+func spa(dir string) http.Handler {
+	files := http.FileServer(http.Dir(dir))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if info, err := os.Stat(filepath.Join(dir, filepath.Clean("/"+r.URL.Path))); err != nil || info.IsDir() {
+			http.ServeFile(w, r, filepath.Join(dir, "index.html"))
+			return
+		}
+		files.ServeHTTP(w, r)
 	})
 }
