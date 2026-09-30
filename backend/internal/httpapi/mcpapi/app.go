@@ -45,7 +45,7 @@ func registerApp(r *registry, publicURL string) {
 				}},
 			}}}, nil
 		})
-	add(r, &mcp.Tool{Name: "show_crm", Title: "CRM", Annotations: readOnly, Icons: []mcp.Icon{{Source: icon("currentColor"), MIMEType: "image/svg+xml", Sizes: []string{"any"}}},
+	add(r, &mcp.Tool{Name: "show_crm", Title: "Customers", Annotations: readOnly, Icons: []mcp.Icon{{Source: icon("currentColor"), MIMEType: "image/svg+xml", Sizes: []string{"any"}}},
 		Description: "Open the CRM app at a page: /o/people, /r/<record id> (with ?tab=activity for its changes), /i/<interaction id>, /triage, /connections or /settings.",
 		Meta: mcp.Meta{
 			"ui":             map[string]any{"resourceUri": appURI},
