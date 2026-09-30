@@ -12,7 +12,6 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppConnectionsRouteImport } from './routes/_app/connections'
-import { Route as AppSearchRouteImport } from './routes/_app/search'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppTriageRouteImport } from './routes/_app/triage'
 import { Route as AppIInteractionIdRouteImport } from './routes/_app/i.$interactionId'
@@ -31,11 +30,6 @@ const AppIndexRoute = AppIndexRouteImport.update({
 const AppConnectionsRoute = AppConnectionsRouteImport.update({
   id: '/connections',
   path: '/connections',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppSearchRoute = AppSearchRouteImport.update({
-  id: '/search',
-  path: '/search',
   getParentRoute: () => AppRoute,
 } as any)
 const AppSettingsRoute = AppSettingsRouteImport.update({
@@ -67,7 +61,6 @@ const AppRRecordIdRoute = AppRRecordIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/connections': typeof AppConnectionsRoute
-  '/search': typeof AppSearchRoute
   '/settings': typeof AppSettingsRoute
   '/triage': typeof AppTriageRoute
   '/i/$interactionId': typeof AppIInteractionIdRoute
@@ -76,7 +69,6 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/connections': typeof AppConnectionsRoute
-  '/search': typeof AppSearchRoute
   '/settings': typeof AppSettingsRoute
   '/triage': typeof AppTriageRoute
   '/': typeof AppIndexRoute
@@ -88,7 +80,6 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
   '/_app/connections': typeof AppConnectionsRoute
-  '/_app/search': typeof AppSearchRoute
   '/_app/settings': typeof AppSettingsRoute
   '/_app/triage': typeof AppTriageRoute
   '/_app/': typeof AppIndexRoute
@@ -101,7 +92,6 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/connections'
-    | '/search'
     | '/settings'
     | '/triage'
     | '/i/$interactionId'
@@ -110,7 +100,6 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/connections'
-    | '/search'
     | '/settings'
     | '/triage'
     | '/'
@@ -121,7 +110,6 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_app'
     | '/_app/connections'
-    | '/_app/search'
     | '/_app/settings'
     | '/_app/triage'
     | '/_app/'
@@ -155,13 +143,6 @@ declare module '@tanstack/react-router' {
       path: '/connections'
       fullPath: '/connections'
       preLoaderRoute: typeof AppConnectionsRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/search': {
-      id: '/_app/search'
-      path: '/search'
-      fullPath: '/search'
-      preLoaderRoute: typeof AppSearchRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/settings': {
@@ -204,7 +185,6 @@ declare module '@tanstack/react-router' {
 
 interface AppRouteChildren {
   AppConnectionsRoute: typeof AppConnectionsRoute
-  AppSearchRoute: typeof AppSearchRoute
   AppSettingsRoute: typeof AppSettingsRoute
   AppTriageRoute: typeof AppTriageRoute
   AppIndexRoute: typeof AppIndexRoute
@@ -215,7 +195,6 @@ interface AppRouteChildren {
 
 const AppRouteChildren: AppRouteChildren = {
   AppConnectionsRoute: AppConnectionsRoute,
-  AppSearchRoute: AppSearchRoute,
   AppSettingsRoute: AppSettingsRoute,
   AppTriageRoute: AppTriageRoute,
   AppIndexRoute: AppIndexRoute,

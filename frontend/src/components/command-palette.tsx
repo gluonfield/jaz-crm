@@ -1,6 +1,6 @@
 import { useNavigate } from '@tanstack/react-router'
 import { Command as CommandPrimitive } from 'cmdk'
-import { Inbox, Moon, PlugZap, Settings, Sun, TextSearch } from 'lucide-react'
+import { Inbox, Moon, PlugZap, Settings, Sun } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { recordName } from '@/lib/crm'
@@ -71,13 +71,6 @@ function Palette() {
                 <span className="ml-2 text-ink-3">{objects.find((o) => o.slug === r.object)?.name}</span>
               </Item>
             ))}
-          </CommandPrimitive.Group>
-        )}
-        {query && (
-          <CommandPrimitive.Group heading="Conversations" className={groupClass}>
-            <Item onSelect={() => go(`/search?q=${encodeURIComponent(query)}`)} icon={<TextSearch />}>
-              Search conversations for “{query}”
-            </Item>
           </CommandPrimitive.Group>
         )}
         {pages.length > 0 && (

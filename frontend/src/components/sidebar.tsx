@@ -1,5 +1,5 @@
 import { Link, useRouterState } from '@tanstack/react-router'
-import { Check, ChevronDown, Inbox, LoaderCircle, LogOut, Monitor, Moon, PlugZap, Plus, Search, Settings, Sun, TextSearch } from 'lucide-react'
+import { Check, ChevronDown, Inbox, LoaderCircle, LogOut, Monitor, Moon, PlugZap, Plus, Search, Settings, Sun } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { Button, inputClass } from '@/components/controls'
 import {
@@ -52,9 +52,6 @@ export function Sidebar() {
       </div>
       <NavItem to="/triage" icon={<Inbox />} count={pending}>
         Triage
-      </NavItem>
-      <NavItem to="/search" icon={<TextSearch />}>
-        Conversations
       </NavItem>
       <Section title="Records">
         {objects.map((o) => (

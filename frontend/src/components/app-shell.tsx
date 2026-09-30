@@ -7,7 +7,7 @@ import { CommandPalette } from './command-palette'
 import { Sidebar } from './sidebar'
 import { useLiveWhileSyncing } from '@/lib/sync'
 
-const goKeys: Record<string, string> = { p: '/o/people', c: '/o/companies', t: '/triage', f: '/search', x: '/connections', s: '/settings' }
+const goKeys: Record<string, string> = { p: '/o/people', c: '/o/companies', t: '/triage', x: '/connections', s: '/settings' }
 
 export function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
