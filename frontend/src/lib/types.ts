@@ -45,7 +45,7 @@ export type Party = { address: string; name?: string; role: string; person_id?: 
 
 export type RecordRef = { id: string; object: string; name?: string }
 
-export type Part = { kind: string; at: string; author?: string; content: string }
+export type Part = { kind: string; at: string; author?: string; author_address?: string; direction?: 'sent' | 'received'; content: string }
 
 export type Interaction = {
   id: string
@@ -58,6 +58,7 @@ export type Interaction = {
   records: RecordRef[]
   preview?: string
   parts?: Part[]
+  last_message?: Part
 }
 
 export type Verdict = 'pending' | 'kept' | 'skipped'

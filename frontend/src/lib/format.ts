@@ -25,8 +25,10 @@ export function formatDay(day: string) {
 }
 
 export function formatDateTime(iso: string) {
-  return `${formatDate(iso)}, ${clock.format(new Date(iso))}`
+  return `${formatDate(iso)}, ${formatTime(iso)}`
 }
+
+export const formatTime = (iso: string) => clock.format(new Date(iso))
 
 export function timeAgo(iso: string) {
   const seconds = (new Date(iso).getTime() - Date.now()) / 1000

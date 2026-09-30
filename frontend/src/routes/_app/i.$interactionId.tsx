@@ -2,6 +2,7 @@ import { Link, createFileRoute, useRouter } from '@tanstack/react-router'
 import { EyeOff, Link2, Video } from 'lucide-react'
 import { useState } from 'react'
 import { Button, Chip, Header } from '@/components/controls'
+import { EmailThread } from '@/components/email-thread'
 import { KindIcon, RecordIcon } from '@/components/icons'
 import { ExternalLink, Message } from '@/components/message'
 import { Picker } from '@/components/picker'
@@ -47,7 +48,7 @@ function InteractionPage() {
         </Button>
       </Header>
       <div className="scrollbar-quiet min-h-0 flex-1 overflow-y-auto">
-        <article className="mx-auto max-w-[760px] px-8 pb-20 pt-8">
+        <article className="mx-auto max-w-[760px] px-4 pb-20 pt-8 sm:px-8">
           <h1 className="text-[22px] font-semibold leading-tight tracking-[-0.015em] text-ink">{interaction.title || 'No subject'}</h1>
           <p className="mt-1.5 text-[13px] text-ink-2">
             {interaction.kind === 'meeting' ? meetingTime(interaction.started_at, interaction.ended_at) : formatDateTime(interaction.started_at)}
@@ -132,7 +133,7 @@ function Content({ interaction, parts }: { interaction: Interaction; parts: Part
           <Message text={agenda.content} />
         </section>
       )}
-      {messages.length > 0 && <Thread interaction={interaction} messages={messages} />}
+      {messages.length > 0 && (interaction.kind === 'email' ? <EmailThread interaction={interaction} messages={messages} /> : <Thread interaction={interaction} messages={messages} />)}
       {transcript.length > 0 ? (
         <Transcript lines={transcript} />
       ) : (

@@ -5,6 +5,7 @@ import { useAction, useTimeline, useUpcoming } from '@/lib/queries'
 import type { CrmObject, Interaction, Kind } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { Button } from './controls'
+import { MessageState } from './email-thread'
 import { KindIcon } from './icons'
 
 const filters: { label: string; kinds?: Kind[] }[] = [
@@ -130,7 +131,7 @@ export function InteractionRow({ interaction, when }: { interaction: Interaction
               {when ?? recentOrDate(interaction.started_at)}
             </time>
           </span>
-          <span className="block truncate text-[12px] text-ink-3">{who(interaction)}</span>
+          <span className="block truncate text-[12px] text-ink-3">{interaction.last_message ? <MessageState message={interaction.last_message} /> : who(interaction)}</span>
           {interaction.preview && <span className="mt-1 line-clamp-2 text-[12.5px] leading-[1.5] text-ink-2">{interaction.preview}</span>}
         </span>
       </Link>

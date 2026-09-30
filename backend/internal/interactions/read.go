@@ -29,10 +29,12 @@ type Ref struct {
 }
 
 type Piece struct {
-	Kind    string    `json:"kind"`
-	At      time.Time `json:"at"`
-	Author  string    `json:"author,omitempty"`
-	Content string    `json:"content"`
+	Kind          string    `json:"kind"`
+	At            time.Time `json:"at"`
+	Author        string    `json:"author,omitempty"`
+	AuthorAddress string    `json:"author_address,omitempty"`
+	Direction     string    `json:"direction,omitempty"`
+	Content       string    `json:"content"`
 }
 
 type Interaction struct {
@@ -47,6 +49,8 @@ type Interaction struct {
 	// Preview opens a list entry; Parts fill a full view.
 	Preview string  `json:"preview,omitempty"`
 	Parts   []Piece `json:"parts,omitempty"`
+	// LastMessage includes a short preview, also on list views.
+	LastMessage *Piece `json:"last_message,omitempty"`
 }
 
 func limitOf(limit int) int32 {
@@ -134,6 +138,10 @@ func (s *Service) views(ctx context.Context, workspaceID string, list []storage.
 	if err != nil {
 		return nil, err
 	}
+	own, err := s.conns.InternalAddresses(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
 	recordIDs := []string{}
 	for _, l := range links {
 		recordIDs = append(recordIDs, l.RecordID)
@@ -147,7 +155,7 @@ func (s *Service) views(ctx context.Context, workspaceID string, list []storage.
 	if err != nil {
 		return nil, err
 	}
-	authors := map[string]string{}
+	authors := map[string]Party{}
 	out := make([]Interaction, len(list))
 	index := map[string]int{}
 	for i, it := range list {
@@ -157,11 +165,12 @@ func (s *Service) views(ctx context.Context, workspaceID string, list []storage.
 	for _, p := range participants {
 		h := p.Handle
 		name := cmp.Or(labels[deref(h.PersonID)].Name, h.Name)
-		authors[h.ID] = cmp.Or(name, h.Value)
+		party := Party{Address: h.Value, Name: name, Role: p.Role, PersonID: deref(h.PersonID), Photo: h.PhotoURL}
+		authors[h.ID] = party
 		v := &out[index[p.InteractionID]]
 		i := slices.IndexFunc(v.Participants, func(party Party) bool { return party.Address == h.Value })
 		if i < 0 {
-			v.Participants = append(v.Participants, Party{Address: h.Value, Name: name, Role: p.Role, PersonID: deref(h.PersonID), Photo: h.PhotoURL})
+			v.Participants = append(v.Participants, party)
 		} else if slices.Index(roles, p.Role) < slices.Index(roles, v.Participants[i].Role) {
 			v.Participants[i].Role = p.Role
 		}
@@ -173,16 +182,23 @@ func (s *Service) views(ctx context.Context, workspaceID string, list []storage.
 	}
 	for _, p := range parts {
 		v := &out[index[p.InteractionID]]
-		author := p.AuthorName
-		if p.AuthorHandleID != nil && author == "" {
-			author = authors[*p.AuthorHandleID]
-		}
-		content := readable(p.Kind, deref(p.Content))
-		if v.Preview == "" && content != "" {
-			v.Preview = preview(content)
+		sender := authors[deref(p.AuthorHandleID)]
+		piece := Piece{Kind: p.Kind, At: p.At, Author: cmp.Or(p.AuthorName, sender.Name, sender.Address), AuthorAddress: sender.Address, Content: readable(p.Kind, deref(p.Content))}
+		if v.Kind == Email && p.Kind == "message" {
+			if sender.Address != "" {
+				piece.Direction = "received"
+				if slices.Contains(own, sender.Address) {
+					piece.Direction = "sent"
+				}
+			}
+			latest := piece
+			latest.Content = preview(piece.Content)
+			v.LastMessage, v.Preview = &latest, latest.Content
+		} else if v.Preview == "" && piece.Content != "" {
+			v.Preview = preview(piece.Content)
 		}
 		if full {
-			v.Parts = append(v.Parts, Piece{Kind: p.Kind, At: p.At, Author: author, Content: content})
+			v.Parts = append(v.Parts, piece)
 		}
 	}
 	return out, nil

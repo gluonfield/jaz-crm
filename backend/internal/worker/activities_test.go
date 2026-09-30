@@ -242,7 +242,7 @@ func TestSyncAgainstGoogle(t *testing.T) {
 		t.Fatalf("photos: %v %+v %v", photos, pending, err)
 	}
 	thread, err := convs.Timeline(ctx, actor, ada, nil, nil, false, 10)
-	if err != nil || len(thread) != 1 || thread[0].Preview != "Hello Ada" || len(thread[0].Participants) != 2 {
+	if err != nil || len(thread) != 1 || thread[0].Preview != "Thanks!" || len(thread[0].Participants) != 2 {
 		t.Fatalf("thread: %+v %v", thread, err)
 	}
 
