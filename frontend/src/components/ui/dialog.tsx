@@ -4,6 +4,8 @@ import { XIcon } from "lucide-react"
 import { Dialog as DialogPrimitive } from "radix-ui"
 
 
+const DialogTrigger = DialogPrimitive.Trigger
+
 function Dialog({
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Root>) {
@@ -85,4 +87,5 @@ export {
   DialogOverlay,
   DialogPortal,
   DialogTitle,
+  DialogTrigger,
 }

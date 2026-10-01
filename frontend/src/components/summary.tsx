@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 import { DomainLink } from './domain-link'
 import { RecordIcon } from './icons'
 import { Stage } from './stage'
+import { InteractionDialog } from './interaction-dialog'
 
 const when = new Intl.DateTimeFormat('en', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 
@@ -82,15 +83,16 @@ export function Summary({ record, object, name, upcoming, children }: { record: 
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[12.5px] text-ink-3">
             {touch.length > 0 && <Line>{touch}</Line>}
             {next && (
-              <Link
-                to="/i/$interactionId"
-                params={{ interactionId: next.id }}
-                className="inline-flex h-6 items-center gap-1.5 rounded-full bg-primary-soft px-2.5 text-ink outline-none transition-colors hover:bg-primary/25 focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <CalendarClock className="size-3.5 text-primary" />
-                <span className="font-medium">{when.format(new Date(next.started_at))}</span>
-                <span className="max-w-60 truncate text-ink-2">{next.title}</span>
-              </Link>
+              <InteractionDialog interactionId={next.id}>
+                <button
+                  type="button"
+                  className="inline-flex h-6 items-center gap-1.5 rounded-full bg-primary-soft px-2.5 text-ink outline-none transition-colors hover:bg-primary/25 focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <CalendarClock className="size-3.5 text-primary" />
+                  <span className="font-medium">{when.format(new Date(next.started_at))}</span>
+                  <span className="max-w-60 truncate text-ink-2">{next.title}</span>
+                </button>
+              </InteractionDialog>
             )}
           </div>
         )}

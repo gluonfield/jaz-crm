@@ -1,4 +1,3 @@
-import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import { formatDateTime, recentOrDate } from '@/lib/format'
 import { useAction, useTimeline, useUpcoming } from '@/lib/queries'
@@ -7,6 +6,7 @@ import { cn } from '@/lib/utils'
 import { Button } from './controls'
 import { MessageState } from './email-thread'
 import { KindIcon } from './icons'
+import { InteractionDialog } from './interaction-dialog'
 
 const filters: { label: string; kinds?: Kind[] }[] = [
   { label: 'All' },
@@ -116,25 +116,26 @@ function who(interaction: Interaction) {
 export function InteractionRow({ interaction, when }: { interaction: Interaction; when?: string }) {
   return (
     <li>
-      <Link
-        to="/i/$interactionId"
-        params={{ interactionId: interaction.id }}
-        className="-mx-2.5 flex gap-3 rounded-[var(--radius-card)] px-2.5 py-2.5 outline-none transition-colors hover:bg-list-hover focus-visible:bg-list-hover"
-      >
-        <span className="mt-px flex size-7 shrink-0 items-center justify-center rounded-full bg-list-active text-ink-2">
-          <KindIcon kind={interaction.kind} />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="flex items-baseline gap-3">
-            <span className="truncate text-[13px] font-medium text-ink">{interaction.title || 'No subject'}</span>
-            <time className="ml-auto shrink-0 text-[12px] tabular-nums text-ink-3" dateTime={interaction.started_at} title={formatDateTime(interaction.started_at)}>
-              {when ?? recentOrDate(interaction.started_at)}
-            </time>
+      <InteractionDialog interactionId={interaction.id}>
+        <button
+          type="button"
+          className="-mx-2.5 flex w-[calc(100%+1.25rem)] gap-3 rounded-[var(--radius-card)] px-2.5 py-2.5 text-left outline-none transition-colors hover:bg-list-hover focus-visible:bg-list-hover"
+        >
+          <span className="mt-px flex size-7 shrink-0 items-center justify-center rounded-full bg-list-active text-ink-2">
+            <KindIcon kind={interaction.kind} />
           </span>
-          <span className="block truncate text-[12px] text-ink-3">{interaction.last_message ? <MessageState message={interaction.last_message} /> : who(interaction)}</span>
-          {interaction.preview && <span className="mt-1 line-clamp-2 text-[12.5px] leading-[1.5] text-ink-2">{interaction.preview}</span>}
-        </span>
-      </Link>
+          <span className="min-w-0 flex-1">
+            <span className="flex items-baseline gap-3">
+              <span className="truncate text-[13px] font-medium text-ink">{interaction.title || 'No subject'}</span>
+              <time className="ml-auto shrink-0 text-[12px] tabular-nums text-ink-3" dateTime={interaction.started_at} title={formatDateTime(interaction.started_at)}>
+                {when ?? recentOrDate(interaction.started_at)}
+              </time>
+            </span>
+            <span className="block truncate text-[12px] text-ink-3">{interaction.last_message ? <MessageState message={interaction.last_message} /> : who(interaction)}</span>
+            {interaction.preview && <span className="mt-1 line-clamp-2 text-[12.5px] leading-[1.5] text-ink-2">{interaction.preview}</span>}
+          </span>
+        </button>
+      </InteractionDialog>
     </li>
   )
 }
