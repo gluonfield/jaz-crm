@@ -240,34 +240,34 @@ func (s *Service) In(ctx context.Context, actor auth.Actor, name string) (auth.A
 }
 
 // Create starts a workspace with the actor's person as its admin, reachable
-// by every identity they sign in with, and returns their user there.
-func (s *Service) Create(ctx context.Context, actor auth.Actor, name string) (storage.User, error) {
+// by every identity they sign in with, and returns their membership there.
+func (s *Service) Create(ctx context.Context, actor auth.Actor, name string) (storage.Membership, error) {
 	name = strings.TrimSpace(name)
 	if name == "" || len([]rune(name)) > 80 {
-		return storage.User{}, ErrInvalidName
+		return storage.Membership{}, ErrInvalidName
 	}
 	me, err := s.store.UserByID(ctx, actor.UserID)
 	if err != nil {
-		return storage.User{}, err
+		return storage.Membership{}, err
 	}
 	identities, err := s.store.UserIdentities(ctx, actor.UserID)
 	if err != nil {
-		return storage.User{}, err
+		return storage.Membership{}, err
 	}
 	if len(identities) == 0 {
-		return storage.User{}, errs.Invalidf("sign in to create a workspace")
+		return storage.Membership{}, errs.Invalidf("sign in to create a workspace")
 	}
 	owner := storage.NewUser{Name: me.Name, Email: me.Email, AvatarURL: me.AvatarURL, Admin: true}
 	user, err := s.store.CreateOwnedWorkspace(ctx, name, owner, identities[0], records.StandardObjects)
 	if err != nil {
-		return user, err
+		return storage.Membership{}, err
 	}
 	for _, id := range identities[1:] {
 		if _, err := s.store.ShareIdentity(ctx, identities[0], id); err != nil {
-			return user, err
+			return storage.Membership{}, err
 		}
 	}
-	return user, nil
+	return storage.Membership{UserID: user.ID, WorkspaceID: user.WorkspaceID, Name: name}, nil
 }
 
 // Workspace describes the actor's workspace.

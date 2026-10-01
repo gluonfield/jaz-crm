@@ -28,7 +28,7 @@ func TestWorkspaceDeletion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	otherKey, _, err := e.keys.CreateKey(ctx, other.ID, "other", "")
+	otherKey, _, err := e.keys.CreateKey(ctx, other.UserID, "other", "")
 	if err != nil {
 		t.Fatal(err)
 	}

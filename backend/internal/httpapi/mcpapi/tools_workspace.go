@@ -2,7 +2,6 @@ package mcpapi
 
 import (
 	"context"
-	"strings"
 
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
@@ -43,8 +42,8 @@ func registerWorkspace(r *registry, members *workspaces.Service, keys *auth.Serv
 	addUnscoped(r, &mcp.Tool{Annotations: &mcp.ToolAnnotations{DestructiveHint: new(false)}, Name: "create_workspace", Title: "Create workspace",
 		Description: "Start a workspace with you as its admin, with people, companies and deals; it syncs nothing until someone connects Google in it. Name it in other tools' workspace argument to work there; the default stays the same."},
 		func(ctx context.Context, actor auth.Actor, in createWorkspaceInput) (workspaceRef, error) {
-			user, err := members.Create(ctx, actor, in.Name)
-			return workspaceRef{ID: user.WorkspaceID, Name: strings.TrimSpace(in.Name)}, err
+			m, err := members.Create(ctx, actor, in.Name)
+			return workspaceRef{ID: m.WorkspaceID, Name: m.Name}, err
 		})
 	add(r, &mcp.Tool{Name: "get_workspace", Title: "Get workspace", Annotations: readOnly,
 		Description: "Describe this workspace: its name, description, members and pending invites."},
