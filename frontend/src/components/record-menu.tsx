@@ -23,7 +23,7 @@ import { Dialog, DialogContent, DialogTitle } from './ui/dialog'
 // RecordMenu offers a record's actions when its row or card is right-clicked.
 export function RecordMenu({ object, record, children }: { object: CrmObject; record: CrmRecord; children: ReactNode }) {
   const navigate = useNavigate()
-  const remove = useAction<{ record_id: string }>('delete_record')
+  const remove = useAction<{ record_id: string }>('delete_record', 150)
   const [editing, setEditing] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const description = useId()
@@ -31,7 +31,9 @@ export function RecordMenu({ object, record, children }: { object: CrmObject; re
   return (
     <>
       <ContextMenu>
-        <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
+        <ContextMenuTrigger asChild data-deleting={remove.isPending || undefined}>
+          {children}
+        </ContextMenuTrigger>
         <ContextMenuContent className="w-44">
           <ContextMenuItem onSelect={() => void navigate({ to: '/r/$recordId', params: { recordId: record.id } })}>
             <ArrowUpRight /> Open

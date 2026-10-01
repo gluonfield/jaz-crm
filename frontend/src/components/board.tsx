@@ -3,6 +3,7 @@ import { Plus } from 'lucide-react'
 import { type KeyboardEvent, type PointerEvent, type ReactNode, useState } from 'react'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
 import { formatNumber } from '@/lib/format'
+import { useFlip } from '@/lib/hooks'
 import { useAction } from '@/lib/queries'
 import type { Attribute, CrmObject, CrmRecord, Ref, StageEdit } from '@/lib/types'
 import { useColumnDrag } from '@/lib/use-column-drag'
@@ -25,6 +26,7 @@ export function Board({ object, status, records }: { object: CrmObject; status: 
   const [collapsed, setCollapsed] = useState<string[]>([])
   const edit = useAction<StageEdit>('edit_pipeline_stage')
   const { boardRef, order, view: columnDrag, start: dragColumn } = useColumnDrag(status.options ?? [], (stage, before) => edit.mutateAsync({ object: object.slug, attribute: status.slug, action: 'move', stage, before }))
+  useFlip(boardRef)
   const amount = object.attributes.find((a) => a.type === 'number')
   const saved = (r: CrmRecord) => valueText(valuesOf(r, status.slug)[0] ?? '')
   // A moved card shows its new stage until the saved stage changes.
@@ -96,7 +98,7 @@ export function Board({ object, status, records }: { object: CrmObject; status: 
               onCollapse={() => setCollapsed((current) => [...current, stage])}
               onPointerDown={(e) => dragColumn(stage, e)}>
               {cards.map((r) => (
-                <Card key={r.id} object={object} record={r} amount={amount} dragging={dragging === r.id} onDrag={setDragging} />
+                <Card key={r.id} object={object} record={r} flip={`${stage}:${r.id}`} amount={amount} dragging={dragging === r.id} onDrag={setDragging} />
               ))}
             </Column>}
           </section>
@@ -217,14 +219,14 @@ function Column({
   )
 }
 
-function Card({ object, record, amount, dragging, onDrag }: { object: CrmObject; record: CrmRecord; amount?: Attribute; dragging: boolean; onDrag: (id?: string) => void }) {
+function Card({ object, record, flip, amount, dragging, onDrag }: { object: CrmObject; record: CrmRecord; flip: string; amount?: Attribute; dragging: boolean; onDrag: (id?: string) => void }) {
   const navigate = useNavigate()
   const company = valuesOf(record, 'company')[0] as Ref | undefined
   const people = valuesOf(record, 'people') as Ref[]
   const value = amount && valuesOf(record, amount.slug)[0]
   const open = () => navigate({ to: '/r/$recordId', params: { recordId: record.id } })
   return (
-    <li>
+    <li data-flip={flip}>
       <RecordMenu object={object} record={record}>
         <div
           role="link"

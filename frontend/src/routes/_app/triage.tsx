@@ -1,4 +1,3 @@
-import { useMutation } from '@tanstack/react-query'
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { Check, Inbox, Search, Settings, X } from 'lucide-react'
 import { useState } from 'react'
@@ -6,10 +5,9 @@ import { Button, Header, Tab, inputClass } from '@/components/controls'
 import { ConnectGoogle, EmptyState } from '@/components/empty-state'
 import { RecordIcon } from '@/components/icons'
 import { Kbd } from '@/components/kbd'
-import { call } from '@/lib/api'
 import { timeAgo } from '@/lib/format'
 import { useDebounced, useListKeys } from '@/lib/hooks'
-import { useTool } from '@/lib/queries'
+import { useAction, useTool } from '@/lib/queries'
 import { useMail } from '@/lib/sync'
 import type { Contact, Verdict } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -33,7 +31,7 @@ function TriagePage() {
   // A decided address or domain leaves the list at once and returns if the
   // decision fails. The decision settles no sooner than the row's 300ms exit,
   // so the refetch that unmounts the row cannot cut its animation short.
-  const decide = useMutation({ mutationFn: (args: object) => Promise.all([call('decide_triage', args), new Promise((done) => setTimeout(done, 300))]) })
+  const decide = useAction<object>('decide_triage', 300)
   const [leaving, setLeaving] = useState<string[]>([])
   const leave = (key: string, args: object) => {
     setLeaving((keys) => [...keys, key])

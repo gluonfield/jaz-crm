@@ -1,6 +1,6 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { ArrowDownAZ, Kanban, Plus, Search, Table2, Tags } from 'lucide-react'
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, useRef, useState } from 'react'
 import { Board } from '@/components/board'
 import { Stage } from '@/components/stage'
 import { Button, Header } from '@/components/controls'
@@ -12,7 +12,7 @@ import { RecordMenu } from '@/components/record-menu'
 import { SelectField } from '@/components/select-field'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
 import { formatDay, formatNumber } from '@/lib/format'
-import { useDebounced, useListKeys } from '@/lib/hooks'
+import { useDebounced, useFlip, useListKeys } from '@/lib/hooks'
 import { useObjects, useRecords } from '@/lib/queries'
 import { validateRecordSearch } from '@/lib/record-search'
 import { statusOf } from '@/lib/stages'
@@ -45,6 +45,8 @@ function ObjectPage() {
   const open = (index: number) => records && navigate({ to: '/r/$recordId', params: { recordId: records[index].id } })
   const [focus] = useListKeys(records?.length ?? 0, { Enter: open, o: open })
   const [creating, setCreating] = useState(false)
+  const rows = useRef<HTMLTableSectionElement>(null)
+  useFlip(rows)
   if (!object) {
     return <Header>{slug}</Header>
   }
@@ -129,11 +131,12 @@ function ObjectPage() {
                 ))}
               </tr>
             </thead>
-            <tbody>
+            <tbody ref={rows}>
               {records?.map((r, index) => (
                 <RecordMenu key={r.id} object={object} record={r}>
                   <tr
                     data-row={index}
+                    data-flip={r.id}
                     onClick={() => open(index)}
                     className={cn('group h-10 cursor-default border-b border-border/50 hover:bg-list-hover data-[state=open]:bg-list-hover', focus === index && 'bg-list-hover')}
                   >

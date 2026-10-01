@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { type RefObject, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 export function isTyping(e: KeyboardEvent) {
   const target = e.target as HTMLElement
@@ -48,4 +48,23 @@ export function useDebounced<T>(value: T, ms = 200) {
     return () => window.clearTimeout(timer)
   }, [value, ms])
   return settled
+}
+
+// useFlip slides the elements marked data-flip inside a container from where
+// the last render laid them out to where they are now, so a list closes a gap
+// or makes room instead of jumping.
+export function useFlip(container: RefObject<HTMLElement | null>) {
+  const last = useRef(new Map<string, number>())
+  useLayoutEffect(() => {
+    const still = matchMedia('(prefers-reduced-motion: reduce)').matches
+    const next = new Map<string, number>()
+    for (const el of container.current?.querySelectorAll<HTMLElement>('[data-flip]') ?? []) {
+      const was = last.current.get(el.dataset.flip!)
+      if (was !== undefined && was !== el.offsetTop && !still) {
+        el.animate([{ transform: `translateY(${was - el.offsetTop}px)` }, { transform: 'none' }], { duration: 160, easing: 'cubic-bezier(0.2, 0, 0, 1)' })
+      }
+      next.set(el.dataset.flip!, el.offsetTop)
+    }
+    last.current = next
+  })
 }
