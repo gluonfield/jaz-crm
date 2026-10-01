@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"github.com/gluonfield/jaz-crm/backend/internal/connections"
+	"github.com/gluonfield/jaz-crm/backend/internal/followups"
 	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
 	"github.com/gluonfield/jaz-crm/backend/internal/logos"
 	"github.com/gluonfield/jaz-crm/backend/internal/records"
@@ -21,15 +22,19 @@ import (
 	"go.uber.org/fx"
 )
 
-const instructions = `Jaz CRM holds records of people, companies and other objects, and the emails, meetings and
-calls with them. People have a built-in context attribute for their background and relationship
-summary. Read it with get_record and write values.context with upsert_record; log dated notes with
-log_interaction. Companies have founded_year (a whole year) and size (an employee range). Call
-list_objects to learn each object's attributes and options. Emails, domains and phone
-numbers identify records: upsert_record with an email or domain updates the record that holds it
-instead of creating a duplicate. Values you write are marked as written by an agent; a value a
-person set is never overwritten, and the write reports it as skipped. Tools act in your default
-workspace; to work in another, pass its name as the workspace argument (list_workspaces).`
+const instructions = `Jaz CRM holds records of people, companies and other objects, and the emails, meetings and calls
+with them. People have a built-in context attribute for their background and relationship summary.
+Read it with get_record and write values.context with upsert_record; log dated notes with
+log_interaction. Companies have founded_year (a whole year) and size (an employee range). Follow-ups
+track what we or they owe next on a person, company or deal, with a review date and an optional
+draft: get_record lists a record's follow-ups, and search_records on follow_ups with the Needs
+attention saved filter is the queue. To send an approved LinkedIn draft, set its draft_status to
+Sending, send it, log the conversation with log_interaction, then set Sent. Call list_objects to
+learn each object's attributes and options. Emails, domains and phone numbers identify records:
+upsert_record with an email or domain updates the record that holds it instead of creating a
+duplicate. Values you write are marked as written by an agent; a value a person set is never
+overwritten, and the write reports it as skipped. Tools act in your default workspace; to work in
+another, pass its name as the workspace argument (list_workspaces).`
 
 // Handler serves /mcp to bearer tokens and /api/tools/{tool} to sessions.
 type Handler struct {
@@ -45,6 +50,7 @@ type Services struct {
 	Interactions *interactions.Service
 	Connections  *connections.Service
 	Logos        *logos.Service
+	FollowUps    *followups.Service
 }
 
 func NewHandler(svc Services, keys *auth.Service, logger *log.Logger) *Handler {
@@ -59,6 +65,7 @@ func NewHandler(svc Services, keys *auth.Service, logger *log.Logger) *Handler {
 	registerWorkspace(r, svc.Workspaces, keys)
 	registerInteractions(r, svc.Interactions)
 	registerConnections(r, svc.Connections, keys.Issuer())
+	registerFollowUps(r, svc.FollowUps)
 	registerApp(r, keys.Issuer())
 	registerProfile(r, keys)
 	verify := func(ctx context.Context, token string, _ *http.Request) (*mcpauth.TokenInfo, error) {

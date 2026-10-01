@@ -11,7 +11,7 @@ import (
 )
 
 const activeConnections = `-- name: ActiveConnections :many
-SELECT id, workspace_id, user_id, provider, account, refresh_token, status, created_at, aliases FROM connections WHERE status = 'active' ORDER BY created_at
+SELECT id, workspace_id, user_id, provider, account, refresh_token, status, created_at, aliases, teammates_send FROM connections WHERE status = 'active' ORDER BY created_at
 `
 
 func (q *Queries) ActiveConnections(ctx context.Context) ([]Connection, error) {
@@ -33,6 +33,7 @@ func (q *Queries) ActiveConnections(ctx context.Context) ([]Connection, error) {
 			&i.Status,
 			&i.CreatedAt,
 			&i.Aliases,
+			&i.TeammatesSend,
 		); err != nil {
 			return nil, err
 		}
@@ -93,7 +94,7 @@ func (q *Queries) DeleteCursor(ctx context.Context, arg DeleteCursorParams) erro
 }
 
 const getConnection = `-- name: GetConnection :one
-SELECT id, workspace_id, user_id, provider, account, refresh_token, status, created_at, aliases FROM connections WHERE id = $1
+SELECT id, workspace_id, user_id, provider, account, refresh_token, status, created_at, aliases, teammates_send FROM connections WHERE id = $1
 `
 
 func (q *Queries) GetConnection(ctx context.Context, id string) (Connection, error) {
@@ -109,6 +110,7 @@ func (q *Queries) GetConnection(ctx context.Context, id string) (Connection, err
 		&i.Status,
 		&i.CreatedAt,
 		&i.Aliases,
+		&i.TeammatesSend,
 	)
 	return i, err
 }
@@ -160,7 +162,7 @@ func (q *Queries) InternalAddresses(ctx context.Context, workspaceID string) ([]
 }
 
 const listConnections = `-- name: ListConnections :many
-SELECT id, workspace_id, user_id, provider, account, refresh_token, status, created_at, aliases FROM connections WHERE workspace_id = $1 ORDER BY created_at
+SELECT id, workspace_id, user_id, provider, account, refresh_token, status, created_at, aliases, teammates_send FROM connections WHERE workspace_id = $1 ORDER BY created_at
 `
 
 func (q *Queries) ListConnections(ctx context.Context, workspaceID string) ([]Connection, error) {
@@ -182,6 +184,7 @@ func (q *Queries) ListConnections(ctx context.Context, workspaceID string) ([]Co
 			&i.Status,
 			&i.CreatedAt,
 			&i.Aliases,
+			&i.TeammatesSend,
 		); err != nil {
 			return nil, err
 		}
@@ -260,7 +263,7 @@ INSERT INTO connections (workspace_id, user_id, provider, account, refresh_token
 VALUES ($1, $2, $3, $4, $5)
 ON CONFLICT (workspace_id, provider, account) DO UPDATE
 SET user_id = EXCLUDED.user_id, refresh_token = EXCLUDED.refresh_token, status = 'active'
-RETURNING id, workspace_id, user_id, provider, account, refresh_token, status, created_at, aliases
+RETURNING id, workspace_id, user_id, provider, account, refresh_token, status, created_at, aliases, teammates_send
 `
 
 type SaveConnectionParams struct {
@@ -290,6 +293,7 @@ func (q *Queries) SaveConnection(ctx context.Context, arg SaveConnectionParams) 
 		&i.Status,
 		&i.CreatedAt,
 		&i.Aliases,
+		&i.TeammatesSend,
 	)
 	return i, err
 }
@@ -322,4 +326,29 @@ type SetCursorParams struct {
 func (q *Queries) SetCursor(ctx context.Context, arg SetCursorParams) error {
 	_, err := q.db.Exec(ctx, setCursor, arg.ConnectionID, arg.Stream, arg.Cursor)
 	return err
+}
+
+const setTeammatesSend = `-- name: SetTeammatesSend :execrows
+UPDATE connections SET teammates_send = $1
+WHERE workspace_id = $2 AND id = $3 AND user_id = $4
+`
+
+type SetTeammatesSendParams struct {
+	TeammatesSend bool
+	WorkspaceID   string
+	ID            string
+	UserID        string
+}
+
+func (q *Queries) SetTeammatesSend(ctx context.Context, arg SetTeammatesSendParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setTeammatesSend,
+		arg.TeammatesSend,
+		arg.WorkspaceID,
+		arg.ID,
+		arg.UserID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

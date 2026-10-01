@@ -29,13 +29,15 @@ type Message struct {
 	Labels       []string
 	Date         time.Time
 	From         Address
-	To, Cc       []Address
-	Subject      string
-	MessageID    string
-	InReplyTo    string
-	References   []string
-	Bulk         bool
-	Text         string
+	// ReplyTo is where the sender asks replies to go instead of From.
+	ReplyTo    []Address
+	To, Cc     []Address
+	Subject    string
+	MessageID  string
+	InReplyTo  string
+	References []string
+	Bulk       bool
+	Text       string
 	// DeliveredTo lists the mailboxes that received the message on its way
 	// here, including those that forwarded it.
 	DeliveredTo []string
@@ -46,7 +48,7 @@ type HistoryPage struct {
 	Next, HistoryID string
 }
 
-var metadataHeaders = []string{"From", "To", "Cc", "Subject", "Message-ID", "In-Reply-To", "References", "List-Unsubscribe", "Precedence", "Auto-Submitted", "Delivered-To"}
+var metadataHeaders = []string{"From", "Reply-To", "To", "Cc", "Subject", "Message-ID", "In-Reply-To", "References", "List-Unsubscribe", "Precedence", "Auto-Submitted", "Delivered-To"}
 
 func (c *Client) Profile(ctx context.Context) (Profile, error) {
 	var raw struct {
@@ -137,6 +139,7 @@ func (c *Client) message(ctx context.Context, id string, full bool) (Message, er
 		ThreadID:    raw.ThreadID,
 		Labels:      raw.LabelIDs,
 		Date:        time.UnixMilli(raw.InternalDate).UTC(),
+		ReplyTo:     addresses(h["reply-to"]),
 		To:          addresses(h["to"]),
 		Cc:          addresses(h["cc"]),
 		Subject:     h["subject"],

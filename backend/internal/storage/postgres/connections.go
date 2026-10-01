@@ -30,6 +30,10 @@ func (s *Store) SetConnectionStatus(ctx context.Context, id, status string) erro
 	return mapError(s.conn.SetConnectionStatus(ctx, conndb.SetConnectionStatusParams{ID: id, Status: status}))
 }
 
+func (s *Store) SetTeammatesSend(ctx context.Context, workspaceID, userID, id string, allowed bool) error {
+	return affected(s.conn.SetTeammatesSend(ctx, conndb.SetTeammatesSendParams{TeammatesSend: allowed, WorkspaceID: workspaceID, ID: id, UserID: userID}))
+}
+
 func (s *Store) DeleteConnection(ctx context.Context, workspaceID, id string) error {
 	return affected(s.conn.DeleteConnection(ctx, conndb.DeleteConnectionParams{WorkspaceID: workspaceID, ID: id}))
 }

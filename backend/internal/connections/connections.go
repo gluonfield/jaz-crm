@@ -9,6 +9,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"errors"
+	"slices"
 	"time"
 
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
@@ -152,6 +153,8 @@ type View struct {
 	Owner     string    `json:"owner_id"`
 	Status    string    `json:"status"`
 	CreatedAt time.Time `json:"created_at"`
+	// TeammatesSend lets other members send replies from this mailbox.
+	TeammatesSend bool `json:"teammates_send"`
 	// Streams maps each stream to when it last moved.
 	Streams map[string]time.Time `json:"synced"`
 	// Step is the sync step running now, such as GmailBackfill; empty
@@ -180,7 +183,7 @@ func (s *Service) List(ctx context.Context, actor auth.Actor) ([]View, error) {
 	mail, err := s.store.MailProgress(ctx, ids)
 	out := []View{}
 	for _, c := range list {
-		v := View{ID: c.ID, Account: c.Account, Owner: c.UserID, Status: c.Status, CreatedAt: c.CreatedAt, Streams: map[string]time.Time{}}
+		v := View{ID: c.ID, Account: c.Account, Owner: c.UserID, Status: c.Status, CreatedAt: c.CreatedAt, TeammatesSend: c.TeammatesSend, Streams: map[string]time.Time{}}
 		for _, cur := range cursors {
 			if cur.ConnectionID == c.ID {
 				v.Streams[cur.Stream] = cur.UpdatedAt
@@ -207,6 +210,35 @@ func (s *Service) step(ctx context.Context, connectionID string) string {
 	defer cancel()
 	step, _ := s.syncer.Step(ctx, connectionID)
 	return step
+}
+
+// Mailbox is the connection the actor sends from: the preferred one when it
+// is active and theirs or open to teammates, else the actor's own.
+func (s *Service) Mailbox(ctx context.Context, actor auth.Actor, preferred string) (storage.Connection, error) {
+	list, err := s.store.Connections(ctx, actor.WorkspaceID)
+	if err != nil {
+		return storage.Connection{}, err
+	}
+	usable := func(c storage.Connection) bool {
+		return c.Status == "active" && (c.UserID == actor.UserID || c.TeammatesSend)
+	}
+	if i := slices.IndexFunc(list, func(c storage.Connection) bool { return c.ID == preferred }); i >= 0 && usable(list[i]) {
+		return list[i], nil
+	}
+	if i := slices.IndexFunc(list, func(c storage.Connection) bool { return c.UserID == actor.UserID && usable(c) }); i >= 0 {
+		return list[i], nil
+	}
+	return storage.Connection{}, errs.Invalidf("no mailbox to send from: connect your Google account")
+}
+
+// SetTeammatesSend decides whether the workspace's other members may send
+// replies from the actor's own mailbox.
+func (s *Service) SetTeammatesSend(ctx context.Context, actor auth.Actor, id string, allowed bool) error {
+	err := s.store.SetTeammatesSend(ctx, actor.WorkspaceID, actor.UserID, id, allowed)
+	if errors.Is(err, storage.ErrNotFound) {
+		return errs.Invalidf("no connection %q of yours", id)
+	}
+	return err
 }
 
 // Disconnect stops a connection's sync and deletes it; what it already

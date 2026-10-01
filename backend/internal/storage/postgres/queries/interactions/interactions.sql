@@ -249,7 +249,7 @@ WHERE participants.interaction_id = ANY(@ids::uuid[])
 ORDER BY participants.interaction_id, handles.value;
 
 -- name: InteractionParts :many
-SELECT id, interaction_id, kind, external_id, author_handle_id, author_name, at, content, recipients, direction, date_only, partial FROM parts
+SELECT id, interaction_id, kind, external_id, connection_id, provider_id, author_handle_id, author_name, at, content, recipients, direction, date_only, partial FROM parts
 WHERE interaction_id = ANY(@ids::uuid[]) ORDER BY interaction_id, at, id;
 
 -- name: InteractionLinks :many

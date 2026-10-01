@@ -17,6 +17,10 @@ SELECT * FROM connections WHERE status = 'active' ORDER BY created_at;
 -- name: SetConnectionStatus :exec
 UPDATE connections SET status = $2 WHERE id = $1;
 
+-- name: SetTeammatesSend :execrows
+UPDATE connections SET teammates_send = @teammates_send
+WHERE workspace_id = @workspace_id AND id = @id AND user_id = @user_id;
+
 -- name: DeleteConnection :execrows
 DELETE FROM connections WHERE workspace_id = $1 AND id = $2;
 

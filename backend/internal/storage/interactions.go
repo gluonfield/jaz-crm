@@ -135,10 +135,13 @@ type NewPart struct {
 }
 
 type Part struct {
-	ID             int64
-	InteractionID  string
-	Kind           string
-	ExternalID     string
+	ID            int64
+	InteractionID string
+	Kind          string
+	ExternalID    string
+	// ConnectionID and ProviderID locate a message in the mailbox it came from.
+	ConnectionID   *string
+	ProviderID     *string
 	AuthorHandleID *string
 	AuthorName     string
 	At             time.Time

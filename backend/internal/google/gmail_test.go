@@ -18,9 +18,10 @@ func TestMessage(t *testing.T) {
 	c := fake(t, map[string]http.HandlerFunc{
 		"/gmail/v1/users/me/messages/gone": respond(http.StatusNotFound, `{"error":{"code":404,"message":"Not Found"}}`),
 		"/gmail/v1/users/me/messages/m1": func(w http.ResponseWriter, r *http.Request) {
-			wantQuery(t, r.URL, url.Values{"format": {"metadata"}, "metadataHeaders": {"From", "To", "Cc", "Subject", "Message-ID", "In-Reply-To", "References", "List-Unsubscribe", "Precedence", "Auto-Submitted", "Delivered-To"}})
+			wantQuery(t, r.URL, url.Values{"format": {"metadata"}, "metadataHeaders": {"From", "Reply-To", "To", "Cc", "Subject", "Message-ID", "In-Reply-To", "References", "List-Unsubscribe", "Precedence", "Auto-Submitted", "Delivered-To"}})
 			io.WriteString(w, `{"id":"m1","threadId":"t1","labelIds":["INBOX","UNREAD"],"internalDate":"1760000000123","payload":{"headers":[
 				{"name":"From","value":"\"Doe, Jane\" <Jane@Example.com>"},
+				{"name":"Reply-To","value":"Sales <Sales@Example.com>"},
 				{"name":"To","value":"bob@x.com, 'Carol' <Carol@X.com>"},
 				{"name":"Cc","value":"Acme [Support] <Support@Acme.com>, Doe, John <john@x.com>"},
 				{"name":"Subject","value":"Intro"},
@@ -54,6 +55,7 @@ func TestMessage(t *testing.T) {
 		Labels:      []string{"INBOX", "UNREAD"},
 		Date:        time.UnixMilli(1760000000123).UTC(),
 		From:        Address{Name: "Doe, Jane", Email: "jane@example.com"},
+		ReplyTo:     []Address{{Name: "Sales", Email: "sales@example.com"}},
 		To:          []Address{{Email: "bob@x.com"}, {Name: "Carol", Email: "carol@x.com"}},
 		Cc:          []Address{{Name: "Acme [Support]", Email: "support@acme.com"}, {Name: "John", Email: "john@x.com"}},
 		Subject:     "Intro",

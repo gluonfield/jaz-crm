@@ -15,6 +15,7 @@ import (
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"github.com/gluonfield/jaz-crm/backend/internal/classifier"
 	"github.com/gluonfield/jaz-crm/backend/internal/connections"
+	"github.com/gluonfield/jaz-crm/backend/internal/followups"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/authapi"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/connectapi"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/logosapi"
@@ -46,6 +47,7 @@ func shared(cfg Config) fx.Option {
 			logos.NewService,
 			interactions.NewService,
 			connections.NewService,
+			followups.NewService,
 			worker.NewClient,
 			fx.Annotate(worker.NewStarter, fx.As(fx.Self()), fx.As(new(connections.Syncer))),
 		),

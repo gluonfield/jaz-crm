@@ -18,6 +18,8 @@ type Connection struct {
 	CreatedAt    time.Time
 	// Aliases are the other addresses the mailbox sends as or receives at.
 	Aliases []string
+	// TeammatesSend lets the workspace's other members send from the mailbox.
+	TeammatesSend bool
 }
 
 type NewConnection struct {
@@ -50,6 +52,9 @@ type ConnectionStore interface {
 	ActiveConnections(ctx context.Context) ([]Connection, error)
 	SetConnectionStatus(ctx context.Context, id, status string) error
 	DeleteConnection(ctx context.Context, workspaceID, id string) error
+	// SetTeammatesSend changes the setting on the user's own connection;
+	// ErrNotFound when it is not theirs.
+	SetTeammatesSend(ctx context.Context, workspaceID, userID, id string, allowed bool) error
 	// Cursor returns ErrNotFound for a stream that has not started.
 	Cursor(ctx context.Context, connectionID, stream string) (string, error)
 	SetCursor(ctx context.Context, connectionID, stream, cursor string) error

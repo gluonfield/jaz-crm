@@ -618,7 +618,7 @@ func (q *Queries) InteractionParticipants(ctx context.Context, ids []string) ([]
 }
 
 const interactionParts = `-- name: InteractionParts :many
-SELECT id, interaction_id, kind, external_id, author_handle_id, author_name, at, content, recipients, direction, date_only, partial FROM parts
+SELECT id, interaction_id, kind, external_id, connection_id, provider_id, author_handle_id, author_name, at, content, recipients, direction, date_only, partial FROM parts
 WHERE interaction_id = ANY($1::uuid[]) ORDER BY interaction_id, at, id
 `
 
@@ -627,6 +627,8 @@ type InteractionPartsRow struct {
 	InteractionID  string
 	Kind           string
 	ExternalID     string
+	ConnectionID   *string
+	ProviderID     *string
 	AuthorHandleID *string
 	AuthorName     string
 	At             time.Time
@@ -651,6 +653,8 @@ func (q *Queries) InteractionParts(ctx context.Context, ids []string) ([]Interac
 			&i.InteractionID,
 			&i.Kind,
 			&i.ExternalID,
+			&i.ConnectionID,
+			&i.ProviderID,
 			&i.AuthorHandleID,
 			&i.AuthorName,
 			&i.At,

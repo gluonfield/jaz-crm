@@ -10,6 +10,7 @@ import (
 // Scopes a CRM connection requests in one grant.
 var Scopes = []string{
 	"https://www.googleapis.com/auth/gmail.readonly",
+	"https://www.googleapis.com/auth/gmail.send",
 	"https://www.googleapis.com/auth/calendar.readonly",
 	"https://www.googleapis.com/auth/meetings.space.readonly",
 	"https://www.googleapis.com/auth/contacts.other.readonly",

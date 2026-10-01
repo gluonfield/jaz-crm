@@ -9,15 +9,16 @@ import (
 )
 
 type Connection struct {
-	ID           string
-	WorkspaceID  string
-	UserID       string
-	Provider     string
-	Account      string
-	RefreshToken []byte
-	Status       string
-	CreatedAt    time.Time
-	Aliases      []string
+	ID            string
+	WorkspaceID   string
+	UserID        string
+	Provider      string
+	Account       string
+	RefreshToken  []byte
+	Status        string
+	CreatedAt     time.Time
+	Aliases       []string
+	TeammatesSend bool
 }
 
 type SyncCursor struct {

@@ -18,7 +18,8 @@ const (
 )
 
 // A follow-up's draft is written, approved by a person, claimed once by
-// whoever sends it, and sent.
+// whoever sends it, and sent. A person can return a claimed draft to
+// approved when its sending failed.
 const (
 	DraftWritten  = "Draft"
 	DraftApproved = "Approved"
@@ -93,7 +94,7 @@ func transition(from, to string, source Source, written bool) error {
 		return errs.Invalidf("the follow-up has no draft")
 	case to == DraftApproved && source != SourceUser:
 		return errs.Invalidf("only a person approves a draft, in the CRM")
-	case to == DraftApproved && from != DraftWritten && from != DraftApproved:
+	case to == DraftApproved && from == DraftSent:
 		return errs.Invalidf("the draft is %s", from)
 	case to == DraftSending && from != DraftApproved:
 		return errs.Invalidf("the draft is %s, not %s", cmp.Or(from, "unwritten"), DraftApproved)
