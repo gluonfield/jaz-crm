@@ -69,3 +69,45 @@ func TestCombinedFiltersUseCurrentValues(t *testing.T) {
 		t.Fatalf("query, legacy where and conditions must combine: %v %v", found, err)
 	}
 }
+
+func TestDateFilterComparisons(t *testing.T) {
+	svc, a, _ := setup(t)
+	early, _ := upsert(t, svc, a, records.SourceUser, records.Write{Object: "deals", Set: set("name", "Early", "next_follow_up_date", "2027-01-04")})
+	same, _ := upsert(t, svc, a, records.SourceUser, records.Write{Object: "deals", Set: set("name", "Same", "next_follow_up_date", "2027-01-05")})
+	late, _ := upsert(t, svc, a, records.SourceUser, records.Write{Object: "deals", Set: set("name", "Late", "next_follow_up_date", "2027-01-06")})
+	upsert(t, svc, a, records.SourceUser, records.Write{Object: "deals", Set: set("name", "No date")})
+	for _, test := range []struct {
+		operator string
+		want     []string
+	}{
+		{"before", []string{early.ID}},
+		{"on_or_before", []string{early.ID, same.ID}},
+		{"after", []string{late.ID}},
+		{"on_or_after", []string{same.ID, late.ID}},
+	} {
+		t.Run(test.operator, func(t *testing.T) {
+			found, err := svc.Search(ctx, a, records.Search{Object: "deals", Filters: []records.Filter{{Attribute: "next_follow_up_date", Operator: test.operator, Value: "2027-01-05"}}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var ids []string
+			for _, record := range found {
+				ids = append(ids, record.ID)
+			}
+			slices.Sort(ids)
+			slices.Sort(test.want)
+			if !slices.Equal(ids, test.want) {
+				t.Fatalf("got %v, want %v", ids, test.want)
+			}
+		})
+	}
+	for _, filter := range []records.Filter{
+		{Attribute: "name", Operator: "before", Value: "2027-01-05"},
+		{Attribute: "value", Operator: "after", Value: "10"},
+		{Attribute: "next_follow_up_date", Operator: "on_or_before", Value: "January"},
+	} {
+		if _, err := svc.Search(ctx, a, records.Search{Object: "deals", Filters: []records.Filter{filter}}); err == nil {
+			t.Errorf("invalid date filter accepted: %+v", filter)
+		}
+	}
+}

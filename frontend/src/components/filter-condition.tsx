@@ -9,13 +9,19 @@ import { Picker } from './picker'
 
 export const operatorNames: Record<RecordFilter['operator'], string> = {
   is: 'is', is_not: 'is not', contains: 'contains', not_contains: 'does not contain', is_empty: 'is empty', is_not_empty: 'is not empty',
+  before: 'is before', on_or_before: 'is on or before', after: 'is after', on_or_after: 'is on or after',
 }
 
 export const needsValue = (filter: RecordFilter) => !['is_empty', 'is_not_empty'].includes(filter.operator)
 
 export function FilterCondition({ object, filter, onChange, onRemove }: { object: CrmObject; filter: RecordFilter; onChange: (filter: RecordFilter) => void; onRemove: () => void }) {
   const attribute = object.attributes.find((a) => a.slug === filter.attribute)
-  const operators = filterOperators.filter((op) => !['contains', 'not_contains'].includes(op) || !['reference', 'number', 'date', 'checkbox'].includes(attribute?.type ?? ''))
+  const operators = filterOperators.filter((op) => {
+    if (['before', 'on_or_before', 'after', 'on_or_after'].includes(op)) {
+      return attribute?.type === 'date'
+    }
+    return !['contains', 'not_contains'].includes(op) || !['reference', 'number', 'date', 'checkbox'].includes(attribute?.type ?? '')
+  })
   return (
     <div className="flex flex-wrap items-center gap-1.5 rounded-[var(--radius-control)] bg-list-hover p-1.5">
       <Picker
@@ -50,8 +56,16 @@ function FilterValue({ attribute, filter, onChange }: { attribute: Attribute; fi
   const member = attribute.type === 'member'
   const members = useWorkspace()?.members ?? []
   const choice = ['select', 'status', 'checkbox'].includes(attribute.type) || reference || member
+  if (attribute.type === 'date') {
+    return (
+      <div className="flex min-w-0 flex-1 items-center gap-1">
+        <Button ghost aria-pressed={filter.value === 'today'} onClick={() => onChange(filter.value === 'today' ? '' : 'today')} className={filter.value === 'today' ? 'bg-list-active' : undefined}>Today</Button>
+        {filter.value !== 'today' && <input aria-label={`${attribute.name} value`} value={filter.value ?? ''} onChange={(e) => onChange(e.target.value)} type="date" className={`${inputClass} min-w-0 flex-1`} />}
+      </div>
+    )
+  }
   if (!choice || ['contains', 'not_contains'].includes(filter.operator)) {
-    return <input autoFocus aria-label={`${attribute.name} value`} value={filter.value ?? ''} onChange={(e) => onChange(e.target.value)} type={attribute.type === 'date' ? 'date' : attribute.type === 'number' ? 'number' : 'text'} placeholder="Value…" className={`${inputClass} min-w-28 flex-1`} />
+    return <input autoFocus aria-label={`${attribute.name} value`} value={filter.value ?? ''} onChange={(e) => onChange(e.target.value)} type={attribute.type === 'number' ? 'number' : 'text'} placeholder="Value…" className={`${inputClass} min-w-28 flex-1`} />
   }
   const options = reference
     ? records.map((r) => ({ value: r.id, label: recordName(r) }))
@@ -70,10 +84,4 @@ function FilterValue({ attribute, filter, onChange }: { attribute: Attribute; fi
       onSearch={reference ? setSearch : undefined}
     />
   )
-}
-
-export function FilterLabel({ object, filter }: { object: CrmObject; filter: RecordFilter }) {
-  const attribute = object.attributes.find((a) => a.slug === filter.attribute)
-  const record = useTool<CrmRecord>('get_record', { record_id: filter.value }, { enabled: attribute?.type === 'reference' && !!filter.value }).data
-  return <>{attribute?.name ?? filter.attribute} {operatorNames[filter.operator]}{needsValue(filter) && ` ${record ? recordName(record) : filter.value ?? ''}`}</>
 }

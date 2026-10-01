@@ -82,6 +82,7 @@ type NewObject struct {
 	Slug       string
 	Name       string
 	Attributes []NewAttribute
+	Filters    []SavedFilter
 }
 
 type NewAttribute struct {
@@ -106,8 +107,8 @@ type RecordQuery struct {
 
 type RecordFilter struct {
 	Attribute string `json:"attribute"`
-	Operator  string `json:"operator" jsonschema:"is, is_not, contains, not_contains, is_empty or is_not_empty; all conditions must match"`
-	Value     string `json:"value,omitempty"`
+	Operator  string `json:"operator" jsonschema:"is, is_not, contains, not_contains, is_empty, is_not_empty, before, on_or_before, after or on_or_after; date comparisons require a date field; all conditions must match"`
+	Value     string `json:"value,omitempty" jsonschema:"a matching value; date filters also accept today, evaluated in UTC when searched"`
 }
 
 type SavedFilter struct {

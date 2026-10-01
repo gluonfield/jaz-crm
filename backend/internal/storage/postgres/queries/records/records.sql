@@ -114,6 +114,10 @@ WHERE records.workspace_id = @workspace_id AND records.object_id = @object_id
           WHEN 'is_not_empty' THEN true
           WHEN 'contains' THEN record_values.text ILIKE '%' || (@matches::text[])[i] || '%'
           WHEN 'not_contains' THEN record_values.text ILIKE '%' || (@matches::text[])[i] || '%'
+          WHEN 'before' THEN record_values.text < (@matches::text[])[i]
+          WHEN 'on_or_before' THEN record_values.text <= (@matches::text[])[i]
+          WHEN 'after' THEN record_values.text > (@matches::text[])[i]
+          WHEN 'on_or_after' THEN record_values.text >= (@matches::text[])[i]
           ELSE lower(record_values.text) = (@matches::text[])[i] OR record_values.unique_key = (@matches::text[])[i]
             OR record_values.ref_record_id::text = (@matches::text[])[i]
         END

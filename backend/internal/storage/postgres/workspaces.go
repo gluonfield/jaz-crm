@@ -2,10 +2,12 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 	authdb "github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/generated/auth"
 	recdb "github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/generated/records"
+	"github.com/lithammer/shortuuid/v4"
 )
 
 func toInvite(r authdb.WorkspaceInvite) storage.WorkspaceInvite { return storage.WorkspaceInvite(r) }
@@ -74,6 +76,15 @@ func createObjects(ctx context.Context, r *recdb.Queries, workspaceID string, ob
 				ObjectID: ids[object.Slug], Slug: attr.Slug, Name: attr.Name, Type: attr.Type,
 				Multi: attr.Multi, IsUnique: attr.IsUnique, TargetObjectID: target, Options: append([]string{}, attr.Options...),
 			}); err != nil {
+				return err
+			}
+		}
+		for _, filter := range object.Filters {
+			data, err := json.Marshal(filter.Filters)
+			if err != nil {
+				return err
+			}
+			if _, err := r.CreateSavedFilter(ctx, recdb.CreateSavedFilterParams{ID: shortuuid.New(), WorkspaceID: workspaceID, ObjectID: ids[object.Slug], Name: filter.Name, Query: filter.Query, Filters: data}); err != nil {
 				return err
 			}
 		}

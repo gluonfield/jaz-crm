@@ -13,6 +13,7 @@ import (
 	intdb "github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/generated/interactions"
 	logodb "github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/generated/logos"
 	recdb "github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/generated/records"
+	datamigrations "github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/migrations"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -70,7 +71,7 @@ func migrate(ctx context.Context, pool *pgxpool.Pool) error {
 	if err != nil {
 		return err
 	}
-	provider, err := goose.NewProvider(goose.DialectPostgres, sqlDB, dir, goose.WithDisableGlobalRegistry(true), goose.WithSessionLocker(locker))
+	provider, err := goose.NewProvider(goose.DialectPostgres, sqlDB, dir, goose.WithDisableGlobalRegistry(true), goose.WithSessionLocker(locker), goose.WithGoMigrations(datamigrations.DealFollowups))
 	if err != nil {
 		return fmt.Errorf("create migration provider: %w", err)
 	}

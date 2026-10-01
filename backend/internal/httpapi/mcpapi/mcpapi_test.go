@@ -211,7 +211,7 @@ func TestPipelineStages(t *testing.T) {
 	if out := mustCall(t, a, "add_attribute_option", args); out["value"] != "Negotiation" {
 		t.Fatalf("existing stage: %v", out)
 	}
-	if schema := encode(mustCall(t, a, "list_objects", nil)); !strings.Contains(schema, `"options":["Lead","In progress","Won","Lost","Negotiation"]`) {
+	if schema := encode(mustCall(t, a, "list_objects", nil)); !strings.Contains(schema, `"options":["Lead","In progress","On hold","Won","Lost","Negotiation"]`) {
 		t.Fatalf("stage was not appended once: %s", schema)
 	}
 	if schema := encode(mustCall(t, b, "list_objects", nil)); strings.Contains(schema, "Negotiation") {
@@ -250,7 +250,7 @@ func TestPipelineStageManagement(t *testing.T) {
 		}
 	}
 	edit("rename", "Lead", map[string]any{"name": " Qualified "})
-	assertStages(`["Qualified","In progress","Won","Lost"]`)
+	assertStages(`["Qualified","In progress","On hold","Won","Lost"]`)
 	if saved := mustCall(t, a, "get_record", map[string]any{"record_id": deal["id"]}); encode(saved["values"]) != `{"name":"Contract","owner":"a@jaz.test","stage":"Qualified","value":"1200"}` {
 		t.Fatalf("rename lost deal values: %v", saved)
 	}
@@ -269,21 +269,21 @@ func TestPipelineStageManagement(t *testing.T) {
 		if _, failure := call(t, a, "edit_pipeline_stage", args); failure == "" {
 			t.Fatalf("invalid stage change accepted: %v", args)
 		}
-		assertStages(`["Qualified","In progress","Won","Lost"]`)
+		assertStages(`["Qualified","In progress","On hold","Won","Lost"]`)
 	}
 	if _, failure := call(t, b, "edit_pipeline_stage", map[string]any{"object": "deals", "attribute": "stage", "action": "delete", "stage": "Qualified"}); failure == "" {
 		t.Fatal("another workspace changed the private stage")
 	}
 	edit("move", "Won", map[string]any{"before": "Qualified"})
-	assertStages(`["Won","Qualified","In progress","Lost"]`)
+	assertStages(`["Won","Qualified","In progress","On hold","Lost"]`)
 	created := mustCall(t, a, "upsert_record", map[string]any{"object": "deals", "values": map[string]any{"name": "New contract"}})["record"].(map[string]any)
 	if created["values"].(map[string]any)["stage"] != "Won" {
 		t.Fatalf("new records did not use the reordered first stage: %v", created)
 	}
 	edit("move", "Won", nil)
-	assertStages(`["Qualified","In progress","Lost","Won"]`)
+	assertStages(`["Qualified","In progress","On hold","Lost","Won"]`)
 	edit("delete", "Qualified", map[string]any{"replacement": "In progress"})
-	assertStages(`["In progress","Lost","Won"]`)
+	assertStages(`["In progress","On hold","Lost","Won"]`)
 	if saved := mustCall(t, a, "get_record", map[string]any{"record_id": deal["id"]}); saved["values"].(map[string]any)["stage"] != "In progress" {
 		t.Fatalf("deleting a stage orphaned its deal: %v", saved)
 	}
@@ -294,6 +294,7 @@ func TestPipelineStageManagement(t *testing.T) {
 		}
 	}
 	edit("delete", "Lost", nil)
+	edit("delete", "On hold", nil)
 	edit("delete", "Won", map[string]any{"replacement": "In progress"})
 	if _, failure := call(t, a, "edit_pipeline_stage", map[string]any{"object": "deals", "attribute": "stage", "action": "delete", "stage": "In progress"}); failure == "" {
 		t.Fatal("deleted the last stage")

@@ -1,8 +1,8 @@
 import { useNavigate } from '@tanstack/react-router'
-import { Plus } from 'lucide-react'
+import { CalendarDays, Plus } from 'lucide-react'
 import { type KeyboardEvent, type PointerEvent, type ReactNode, useState } from 'react'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
-import { formatNumber } from '@/lib/format'
+import { formatDay, formatNumber } from '@/lib/format'
 import { useFlip } from '@/lib/hooks'
 import { useAction } from '@/lib/queries'
 import type { Attribute, CrmObject, CrmRecord, Ref, StageEdit } from '@/lib/types'
@@ -224,6 +224,7 @@ function Card({ object, record, flip, amount, dragging, onDrag }: { object: CrmO
   const company = valuesOf(record, 'company')[0] as Ref | undefined
   const people = valuesOf(record, 'people') as Ref[]
   const value = amount && valuesOf(record, amount.slug)[0]
+  const followUp = valueText(valuesOf(record, 'next_follow_up_date')[0] ?? '')
   const open = () => navigate({ to: '/r/$recordId', params: { recordId: record.id } })
   return (
     <li data-flip={flip}>
@@ -252,6 +253,7 @@ function Card({ object, record, flip, amount, dragging, onDrag }: { object: CrmO
               <span className="truncate">{company.name}</span>
             </span>
           )}
+          {followUp && <span className="flex items-center gap-1.5 text-[12px] text-ink-2" aria-label={`Next follow-up: ${formatDay(followUp)}`}><CalendarDays className="size-3.5" />{formatDay(followUp)}</span>}
           {(value || people.length > 0) && (
             <span className="flex items-center gap-2">
               {value && <span className="tabular-nums text-ink">{formatNumber(valueText(value), amount?.slug)}</span>}

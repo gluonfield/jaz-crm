@@ -670,6 +670,10 @@ WHERE records.workspace_id = $1 AND records.object_id = $2
           WHEN 'is_not_empty' THEN true
           WHEN 'contains' THEN record_values.text ILIKE '%' || ($6::text[])[i] || '%'
           WHEN 'not_contains' THEN record_values.text ILIKE '%' || ($6::text[])[i] || '%'
+          WHEN 'before' THEN record_values.text < ($6::text[])[i]
+          WHEN 'on_or_before' THEN record_values.text <= ($6::text[])[i]
+          WHEN 'after' THEN record_values.text > ($6::text[])[i]
+          WHEN 'on_or_after' THEN record_values.text >= ($6::text[])[i]
           ELSE lower(record_values.text) = ($6::text[])[i] OR record_values.unique_key = ($6::text[])[i]
             OR record_values.ref_record_id::text = ($6::text[])[i]
         END

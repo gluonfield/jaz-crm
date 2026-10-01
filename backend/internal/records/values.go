@@ -54,12 +54,18 @@ var StandardObjects = []storage.NewObject{
 	}},
 	{Slug: "deals", Name: "Deals", Attributes: []storage.NewAttribute{
 		{Slug: titleAttribute, Name: "Name", Type: Text},
-		{Slug: "stage", Name: "Stage", Type: Status, Options: []string{"Lead", "In progress", "Won", "Lost"}},
+		{Slug: "stage", Name: "Stage", Type: Status, Options: []string{"Lead", "In progress", "On hold", "Won", "Lost"}},
 		{Slug: "owner", Name: "Owner", Type: Member},
+		{Slug: "next_follow_up_date", Name: "Next follow-up date", Type: Date},
+		{Slug: "next_action", Name: "Next action", Type: Text},
 		{Slug: "value", Name: "Value", Type: Number},
 		{Slug: "company", Name: "Company", Type: Reference, Target: "companies"},
 		{Slug: "people", Name: "People", Type: Reference, Target: "people", Multi: true},
-	}},
+	}, Filters: []storage.SavedFilter{{Name: "Due follow-ups", Filters: []storage.RecordFilter{
+		{Attribute: "next_follow_up_date", Operator: "on_or_before", Value: "today"},
+		{Attribute: "stage", Operator: "is_not", Value: "Won"},
+		{Attribute: "stage", Operator: "is_not", Value: "Lost"},
+	}}}},
 }
 
 // entry is a validated value ready to store: text, or a referenced record,

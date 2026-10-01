@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"github.com/gluonfield/jaz-crm/backend/internal/errs"
@@ -63,8 +64,20 @@ func (s *Service) filterQuery(ctx context.Context, actor auth.Actor, sc schema, 
 			return query, err
 		}
 		match := ""
+		if attr.Type == Date && f.Value == "today" {
+			f.Value = time.Now().UTC().Format(time.DateOnly)
+		}
 		switch f.Operator {
 		case "is_empty", "is_not_empty":
+		case "before", "on_or_before", "after", "on_or_after":
+			if attr.Type != Date {
+				return query, errs.Invalidf("%s does not support %s", attr.Slug, f.Operator)
+			}
+			e, err := normalize(attr, f.Value)
+			if err != nil {
+				return query, err
+			}
+			match = e.match()
 		case "contains", "not_contains":
 			if attr.Type == Reference || attr.Type == Number || attr.Type == Date || attr.Type == Checkbox {
 				return query, errs.Invalidf("%s does not support %s", attr.Slug, f.Operator)

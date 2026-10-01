@@ -5,10 +5,74 @@ import (
 	"encoding/json"
 	"net/url"
 	"reflect"
+	"slices"
 	"testing"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+func TestDefaultDealFollowups(t *testing.T) {
+	e := serve(t)
+	key := e.apiKey(t, "a@jaz.test")
+	a := e.session(t, key)
+	b := e.session(t, e.apiKey(t, "b@jaz.test"))
+	listed := mustCall(t, a, "list_saved_filters", map[string]any{"object": "deals"})["filters"].([]any)
+	if len(listed) != 1 {
+		t.Fatalf("default follow-up filter: %v", listed)
+	}
+	filter := listed[0].(map[string]any)
+	day := time.Now().UTC()
+	var want []string
+	for _, fixture := range []struct {
+		name, stage string
+		days        int
+		dated, due  bool
+	}{
+		{"Today", "On hold", 0, true, true},
+		{"Overdue", "In progress", -1, true, true},
+		{"Tomorrow", "On hold", 1, true, false},
+		{"No date", "On hold", 0, false, false},
+		{"Won", "Won", -1, true, false},
+		{"Lost", "Lost", -1, true, false},
+	} {
+		values := map[string]any{"name": fixture.name, "stage": fixture.stage, "next_action": "Call customer"}
+		if fixture.dated {
+			values["next_follow_up_date"] = day.AddDate(0, 0, fixture.days).Format(time.DateOnly)
+		}
+		record := mustCall(t, a, "upsert_record", map[string]any{"object": "deals", "values": values})["record"].(map[string]any)
+		if fixture.due {
+			want = append(want, record["id"].(string))
+		}
+	}
+	mustCall(t, b, "upsert_record", map[string]any{"object": "deals", "values": map[string]any{"name": "Other workspace", "next_follow_up_date": day.Format(time.DateOnly)}})
+	search := map[string]any{"object": "deals", "filters": filter["filters"]}
+	found := mustCall(t, a, "search_records", search)["records"].([]any)
+	var ids []string
+	for _, record := range found {
+		ids = append(ids, record.(map[string]any)["id"].(string))
+	}
+	slices.Sort(ids)
+	slices.Sort(want)
+	if !slices.Equal(ids, want) {
+		t.Fatalf("due follow-ups: got %v, want %v", ids, want)
+	}
+	mustCall(t, a, "upsert_record", map[string]any{"object": "deals", "record_id": want[0], "values": map[string]any{"next_follow_up_date": day.AddDate(0, 0, 2).Format(time.DateOnly)}})
+	if got := mustCall(t, a, "search_records", search)["records"].([]any); len(got) != 1 || got[0].(map[string]any)["id"] != want[1] {
+		t.Fatalf("rescheduled follow-up still matched its old date: %v", got)
+	}
+	updated := mustCall(t, a, "save_filter", map[string]any{"object": "deals", "id": filter["id"], "name": "My follow-ups", "filters": filter["filters"]})
+	if updated["id"] != filter["id"] || updated["name"] != "My follow-ups" || !reflect.DeepEqual(updated["filters"], filter["filters"]) {
+		t.Fatalf("default was not editable as an ordinary filter: %v", updated)
+	}
+	mustCall(t, a, "delete_saved_filter", map[string]any{"id": filter["id"]})
+	if got := mustCall(t, e.session(t, key), "list_saved_filters", map[string]any{"object": "deals"})["filters"].([]any); len(got) != 0 {
+		t.Fatalf("deleted default returned on reconnect: %v", got)
+	}
+	if got := mustCall(t, b, "list_saved_filters", map[string]any{"object": "deals"})["filters"].([]any); len(got) != 1 || got[0].(map[string]any)["id"] == filter["id"] {
+		t.Fatalf("default filter identities or deletion crossed workspaces: %v", got)
+	}
+}
 
 func TestSavedPeopleFiltersRoundTrip(t *testing.T) {
 	e := serve(t)

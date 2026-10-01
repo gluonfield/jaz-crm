@@ -71,11 +71,15 @@ function ObjectPage() {
           </div>
         )}
         <div className="ml-auto flex min-w-0 items-center gap-1 font-normal">
+          <RecordFilters key={slug} object={object} filters={filters} query={q} selected={saved}
+            onChange={(filters) => void navigate({ to: '.', search: { ...search, filters }, replace: true })}
+            onApply={(filter) => void navigate({ to: '.', search: { ...search, filters: filter?.filters ?? [], q: filter?.query, saved: filter?.id }, replace: true })}
+          />
           <Picker
             trigger={
-              <Button ghost>
+              <Button ghost aria-label="Sort records">
                 <ArrowDownAZ />
-                {sort === 'name' ? 'Name' : 'Recently added'}
+                <span className="hidden xl:inline">{sort === 'name' ? 'Name' : 'Recently added'}</span>
               </Button>
             }
             placeholder="Sort by…"
@@ -101,10 +105,6 @@ function ObjectPage() {
           </Button>
         </div>
       </Header>
-      <RecordFilters key={slug} object={object} filters={filters} query={q} selected={saved}
-        onChange={(filters) => void navigate({ to: '.', search: { ...search, filters }, replace: true })}
-        onApply={(filter) => void navigate({ to: '.', search: { ...search, filters: filter?.filters ?? [], q: filter?.query, saved: filter?.id }, replace: true })}
-      />
       <CreateRecord object={object} open={creating} onOpenChange={setCreating} openCreated />
       {result.isError ? <EmptyState title={result.error.message} icon={<Search />} /> : board ? (
         records && <Board object={object} status={board} records={records} />
