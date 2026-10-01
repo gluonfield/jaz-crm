@@ -25,7 +25,7 @@ func (s *Service) Known(ctx context.Context, workspaceID string) (Known, error) 
 	}
 	for _, address := range addresses {
 		k.own[address] = true
-		if domain := domainOf(address); !freemail(domain) {
+		if domain := workDomain(address); domain != "" {
 			k.domains[domain] = true
 		}
 	}
@@ -67,8 +67,13 @@ var freemailDomains = []string{
 	"mail.com", "yandex.com", "yandex.ru", "fastmail.com", "hey.com", "zoho.com", "qq.com", "163.com",
 }
 
-func freemail(domain string) bool {
-	return slices.Contains(freemailDomains, domain)
+// workDomain is an email address's company domain, or empty for webmail and
+// for anything that is not an email address.
+func workDomain(address string) string {
+	if domain := domainOf(address); !slices.Contains(freemailDomains, domain) {
+		return domain
+	}
+	return ""
 }
 
 func domainOf(address string) string {

@@ -275,6 +275,17 @@ func TestDeletedPeopleStayDeleted(t *testing.T) {
 	}
 }
 
+// A contact names its company domain only for a work address, so webmail
+// is never offered as a domain to skip.
+func TestContactsNameWorkDomains(t *testing.T) {
+	e := setup(t, nil)
+	e.ingest(t, message(e.conn, "c1", "tc", "bob@supplier.com", "owner@cas.dev"), message(e.conn, "c2", "td", "sam@gmail.com", "owner@cas.dev"))
+	pending := e.contacts(t, interactions.Pending)
+	if pending["bob@supplier.com"].Domain != "supplier.com" || pending["sam@gmail.com"].Domain != "" {
+		t.Fatalf("domains: %+v", pending)
+	}
+}
+
 func TestMeetingsAndTranscripts(t *testing.T) {
 	e := setup(t, nil)
 	known, err := e.svc.Known(ctx, e.a.WorkspaceID)

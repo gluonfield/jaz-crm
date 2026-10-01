@@ -143,7 +143,7 @@ func (s *Service) person(ctx context.Context, h storage.Handle) (string, error) 
 	set := map[string][]string{"phone_numbers": {h.Value}}
 	if h.Kind == "email" {
 		set = map[string][]string{"email_addresses": {h.Value}}
-		if domain := domainOf(h.Value); !freemail(domain) {
+		if domain := workDomain(h.Value); domain != "" {
 			_, _, err := s.records.Upsert(ctx, actor, records.SourceSync, records.Write{Object: "companies", Set: map[string][]string{
 				"domains": {domain}, "name": {companyName(domain)},
 			}})
@@ -341,6 +341,8 @@ type Contact struct {
 	Interactions int       `json:"interactions"`
 	LastSeen     time.Time `json:"last_seen"`
 	Photo        string    `json:"photo,omitempty"`
+	// Domain is the company domain of a work email address.
+	Domain string `json:"domain,omitempty"`
 }
 
 // Contacts lists addresses with a verdict, most recently seen first.
@@ -371,7 +373,7 @@ func (s *Service) Contacts(ctx context.Context, actor auth.Actor, verdict, query
 		h := r.Handle
 		out = append(out, Contact{
 			Address: h.Value, Kind: h.Kind, Name: cmp.Or(labels[deref(h.PersonID)].Name, h.Name), Triage: h.Triage, DecidedBy: deref(h.DecidedBy), Reason: h.Reason,
-			PersonID: deref(h.PersonID), Interactions: int(r.Interactions), LastSeen: r.LastSeen, Photo: h.PhotoURL,
+			PersonID: deref(h.PersonID), Interactions: int(r.Interactions), LastSeen: r.LastSeen, Photo: h.PhotoURL, Domain: workDomain(h.Value),
 		})
 	}
 	return out, err

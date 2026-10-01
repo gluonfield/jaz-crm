@@ -70,7 +70,7 @@ function TriagePage() {
       ) : (
         <ul className="scrollbar-quiet min-h-0 flex-1 overflow-y-auto py-1">
           {listed?.map((c) => {
-            const domain = c.address.split('@')[1]
+            const domain = c.domain
             const index = contacts.indexOf(c)
             const focused = index >= 0 && focus === index
             return (
@@ -92,6 +92,14 @@ function TriagePage() {
                     {c.name && <span className="truncate text-ink-3">{c.address}</span>}
                   </div>
                   <div className="truncate text-[12px] text-ink-3">
+                    {domain && (
+                      <>
+                        <a href={`https://${domain}`} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+                          {domain}
+                        </a>
+                        {' · '}
+                      </>
+                    )}
                     {c.interactions} conversation{c.interactions === 1 ? '' : 's'} · {timeAgo(c.last_seen)}
                     {(c.decided_by || c.reason) && ` · ${[deciders[c.decided_by ?? ''], c.reason].filter(Boolean).join(': ')}`}
                   </div>

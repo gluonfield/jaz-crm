@@ -76,6 +76,7 @@ export type Contact = {
   person_id?: string
   interactions: number
   last_seen: string
+  domain?: string
 }
 
 export type Member = { name: string; email: string; admin?: boolean; is_me?: boolean; photo?: string }
