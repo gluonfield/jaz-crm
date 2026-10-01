@@ -144,6 +144,7 @@ function Form({ object, initial = {}, record, openCreated, close }: { object: Cr
   }
   return (
     <form
+      className="min-w-0"
       onSubmit={(e) => {
         e.preventDefault()
         submit()

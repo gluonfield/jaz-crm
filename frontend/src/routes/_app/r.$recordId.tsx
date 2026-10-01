@@ -59,7 +59,7 @@ function RecordPage() {
       </Header>
       <div className="scrollbar-quiet @container min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto grid max-w-[1120px] gap-x-14 gap-y-8 px-6 pb-20 pt-8 [grid-template-areas:'summary'_'details'_'main'] @5xl:grid-cols-[minmax(0,1fr)_272px] @5xl:px-10 @5xl:[grid-template-areas:'summary_details'_'main_details']">
-          <div className="[grid-area:summary]">
+          <div className="min-w-0 [grid-area:summary]">
             <Summary record={record} object={object} name={name} upcoming={upcoming}>
               <h1 className="-ml-1.5 text-[22px] font-semibold leading-tight tracking-[-0.015em] text-ink">
                 <Title key={`${record.id}:${name}`} record={record} object={object} name={name} />
