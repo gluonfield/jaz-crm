@@ -3,6 +3,7 @@ import { Plus, Settings } from 'lucide-react'
 import { useState } from 'react'
 import { Button, Header, Row, Section, inputClass } from '@/components/controls'
 import { DeleteWorkspace } from '@/components/delete-workspace'
+import { McpConnection } from '@/components/mcp-connection'
 import { TriageSettings } from '@/components/triage-settings'
 import { useAPIKeys, useCreateAPIKey, useGrants, useRevoke } from '@/lib/account'
 import { embedded } from '@/lib/api'
@@ -52,6 +53,7 @@ function SettingsPage() {
             ))}
             <NewObject />
           </Section>
+          <Section id="mcp" title="MCP"><McpConnection /></Section>
           {!embedded() && <Credentials />}
           {workspace && admin && <DeleteWorkspace key={workspace.id + workspace.name} workspace={workspace} />}
         </div>

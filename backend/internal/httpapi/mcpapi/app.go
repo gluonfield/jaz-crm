@@ -48,7 +48,7 @@ var icons = []mcp.Icon{
 
 func registerApp(r *registry, publicURL string) {
 	readApp := func(_ context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
-		body := appHTML
+		body := strings.Replace(appHTML, `id="root"`, `id="root" data-mcp-url="`+html.EscapeString(publicURL+"/mcp")+`"`, 1)
 		if req.Params.URI != appURI {
 			uri, err := url.Parse(req.Params.URI)
 			if err != nil {
