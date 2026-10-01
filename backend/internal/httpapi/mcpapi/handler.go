@@ -22,7 +22,9 @@ import (
 )
 
 const instructions = `Jaz CRM holds records of people, companies and other objects, and the emails, meetings and
-calls with them. Call list_objects to learn each object's attributes. Emails, domains and phone
+calls with them. People have a built-in context attribute for their background and relationship
+summary. Read it with get_record and write values.context with upsert_record; log dated notes with
+log_interaction. Call list_objects to learn each object's attributes. Emails, domains and phone
 numbers identify records: upsert_record with an email or domain updates the record that holds it
 instead of creating a duplicate. Values you write are marked as written by an agent; a value a
 person set is never overwritten, and the write reports it as skipped. Tools act in your default

@@ -17,7 +17,7 @@ import (
 	"github.com/pressly/goose/v3"
 )
 
-func TestFollowupUpgradeAndDeletedDefault(t *testing.T) {
+func TestStandardSchemaUpgradeAndDeletedDefault(t *testing.T) {
 	ctx := context.Background()
 	base := os.Getenv("TEST_DATABASE_URL")
 	if base == "" {
@@ -48,7 +48,7 @@ func TestFollowupUpgradeAndDeletedDefault(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	old, err := goose.NewProvider(goose.DialectPostgres, db, os.DirFS("migrations"), goose.WithDisableGlobalRegistry(true), goose.WithExcludeNames([]string{"0015_deal_followups.go"}))
+	old, err := goose.NewProvider(goose.DialectPostgres, db, os.DirFS("migrations"), goose.WithDisableGlobalRegistry(true), goose.WithExcludeNames([]string{"0015_deal_followups.go", "0016_person_context.sql"}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,6 +75,23 @@ FROM records JOIN attributes ON attributes.object_id = records.object_id;
 `); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO workspaces (name) VALUES ('Missing Context'), ('Existing Context');
+INSERT INTO objects (workspace_id, slug, name)
+SELECT id, 'people', 'People' FROM workspaces WHERE name IN ('Missing Context', 'Existing Context');
+INSERT INTO attributes (object_id, slug, name, type)
+SELECT id, 'name', 'Name', 'text' FROM objects WHERE slug = 'people';
+INSERT INTO attributes (object_id, slug, name, type)
+SELECT objects.id, 'context', 'Context', 'text' FROM objects
+JOIN workspaces ON workspaces.id = objects.workspace_id WHERE workspaces.name = 'Existing Context';
+INSERT INTO records (workspace_id, object_id) SELECT workspace_id, id FROM objects WHERE slug = 'people';
+INSERT INTO record_values (record_id, attribute_id, text, source)
+SELECT records.id, attributes.id, CASE attributes.slug WHEN 'name' THEN 'Existing person' ELSE E'Met through a friend.\nDiscussing a pilot.' END, 'user'
+FROM records JOIN attributes ON attributes.object_id = records.object_id
+JOIN objects ON objects.id = records.object_id WHERE objects.slug = 'people';
+`); err != nil {
+		t.Fatal(err)
+	}
 	store, err := postgres.Open(ctx, dsn.String())
 	if err != nil {
 		t.Fatal(err)
@@ -83,6 +100,33 @@ FROM records JOIN attributes ON attributes.object_id = records.object_id;
 		store.Close()
 	})
 	svc := records.NewService(store)
+	for _, name := range []string{"Missing Context", "Existing Context"} {
+		var workspaceID string
+		if err := db.QueryRowContext(ctx, "SELECT id FROM workspaces WHERE name = $1", name).Scan(&workspaceID); err != nil {
+			t.Fatal(err)
+		}
+		personActor := auth.Actor{WorkspaceID: workspaceID}
+		people, err := svc.Search(ctx, personActor, records.Search{Object: "people"})
+		if err != nil || len(people) != 1 {
+			t.Fatalf("upgrade lost %s person: %v %v", name, people, err)
+		}
+		if name == "Missing Context" {
+			if _, _, err := svc.Upsert(ctx, personActor, records.SourceUser, records.Write{Object: "people", RecordID: people[0].ID, Set: map[string][]string{"context": {"Met through a friend.\nDiscussing a pilot."}}}); err != nil {
+				t.Fatalf("migrated person has no usable Context: %v", err)
+			}
+		}
+		person, err := svc.Get(ctx, personActor, people[0].ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		values := map[string]string{}
+		for _, field := range person.Fields {
+			values[field.Attribute] = field.Values[0].Text
+		}
+		if values["name"] != "Existing person" || values["context"] != "Met through a friend.\nDiscussing a pilot." {
+			t.Fatalf("%s upgrade changed existing values: %v", name, values)
+		}
+	}
 	actor := auth.Actor{WorkspaceID: workspace}
 	objects, err := svc.Objects(ctx, actor)
 	if err != nil {

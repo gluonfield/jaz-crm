@@ -161,6 +161,38 @@ func TestRecordTools(t *testing.T) {
 	}
 }
 
+func TestPersonContext(t *testing.T) {
+	e := serve(t)
+	session := e.session(t, e.apiKey(t, "context@jaz.test"))
+	const original = "Introduced at Oxford.\nInterested in factory automation."
+	person := mustCall(t, session, "upsert_record", map[string]any{"object": "people", "values": map[string]any{"name": "Ada", "context": original}})["record"].(map[string]any)
+	id := person["id"]
+	if got := mustCall(t, session, "get_record", map[string]any{"record_id": id})["values"].(map[string]any)["context"]; got != original {
+		t.Fatalf("multiline context did not persist: %v", got)
+	}
+	const revised = "Introduced at Oxford.\nNow exploring a pilot together."
+	mustCall(t, session, "upsert_record", map[string]any{"object": "people", "record_id": id, "values": map[string]any{"context": revised}})
+	found := mustCall(t, session, "search_records", map[string]any{"object": "people", "query": "pilot together"})["records"].([]any)
+	if len(found) != 1 || found[0].(map[string]any)["id"] != id || found[0].(map[string]any)["values"].(map[string]any)["context"] != revised {
+		t.Fatalf("updated context is not searchable: %v", found)
+	}
+	history := mustCall(t, session, "record_history", map[string]any{"record_id": id})["changes"].([]any)
+	var revisions []any
+	for _, entry := range history {
+		change := entry.(map[string]any)
+		if change["attribute"] == "context" {
+			revisions = append(revisions, change["value"])
+		}
+	}
+	if encode(revisions) != encode([]string{revised, original}) {
+		t.Fatalf("context history lost a revision: %v", revisions)
+	}
+	mustCall(t, session, "upsert_record", map[string]any{"object": "people", "record_id": id, "remove": map[string]any{"context": []string{}}})
+	if got := mustCall(t, session, "get_record", map[string]any{"record_id": id})["values"].(map[string]any)["context"]; got != nil {
+		t.Fatalf("context was not cleared: %v", got)
+	}
+}
+
 // No tool reads, writes or references another workspace's records.
 func TestTenantIsolation(t *testing.T) {
 	a, b := connect(t)

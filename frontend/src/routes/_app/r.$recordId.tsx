@@ -5,6 +5,7 @@ import { Header, Tab } from '@/components/controls'
 import { Field, TextInput } from '@/components/fields'
 import { History } from '@/components/history'
 import { ObjectIcon } from '@/components/icons'
+import { PersonContext } from '@/components/person-context'
 import { Related } from '@/components/related'
 import { Summary } from '@/components/summary'
 import { Timeline } from '@/components/timeline'
@@ -64,6 +65,7 @@ function RecordPage() {
                 <Title key={`${record.id}:${name}`} record={record} object={object} name={name} />
               </h1>
             </Summary>
+            {record.object === 'people' && <PersonContext key={`${record.id}:${record.values.context ?? ''}`} record={record} />}
           </div>
           <Details record={record} object={object} />
           <div className="flex min-w-0 flex-col gap-8 [grid-area:main]">
@@ -107,7 +109,7 @@ function Details({ record, object }: { record: CrmRecord; object: CrmObject }) {
       <h2 className="mb-1.5 text-[12px] font-medium text-ink-3">Details</h2>
       <dl className="grid grid-cols-[100px_minmax(0,1fr)] items-center gap-x-2 gap-y-0.5 text-[13px] @3xl:grid-cols-[100px_minmax(0,1fr)_100px_minmax(0,1fr)] @5xl:grid-cols-[100px_minmax(0,1fr)]">
         {object.attributes
-          .filter((a) => a.slug !== 'name')
+          .filter((a) => a.slug !== 'name' && !(record.object === 'people' && a.slug === 'context'))
           .map((a) => (
             <div key={a.slug} className="contents">
               <dt className="truncate text-ink-3">{a.name}</dt>

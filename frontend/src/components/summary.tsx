@@ -20,7 +20,7 @@ const order = ['status', 'number', 'text', 'reference', 'member', 'domain', 'ema
 // identity is one line of a record's short, single facts.
 function identity(record: CrmRecord, object: CrmObject, members: Member[]) {
   const facts: ReactNode[] = []
-  const attributes = object.attributes.filter((a) => a.slug !== 'name' && order.includes(a.type))
+  const attributes = object.attributes.filter((a) => a.slug !== 'name' && a.slug !== 'context' && order.includes(a.type))
   attributes.sort((a, b) => order.indexOf(a.type) - order.indexOf(b.type))
   for (const a of attributes) {
     const values = valuesOf(record, a.slug)

@@ -5,8 +5,9 @@ import { recordName, valueText, valuesOf } from '@/lib/crm'
 import { formatNumber, recentOrDate } from '@/lib/format'
 import { useTool } from '@/lib/queries'
 import type { CrmRecord } from '@/lib/types'
+import { cn } from '@/lib/utils'
 
-const labels: Record<string, string> = { company: 'Company', people: 'Contacts', owner: 'Owner', job_title: 'Job title', domains: 'Website', email_addresses: 'Email', phone_numbers: 'Phone', categories: 'Categories', tags: 'Tags' }
+const labels: Record<string, string> = { company: 'Company', people: 'Contacts', owner: 'Owner', job_title: 'Job title', context: 'Context', domains: 'Website', email_addresses: 'Email', phone_numbers: 'Phone', categories: 'Categories', tags: 'Tags' }
 const kinds: Record<string, string> = { people: 'Person', companies: 'Company', deals: 'Deal' }
 
 export function RecordCard({ recordId, onOpen }: { recordId: string; onOpen: (url: string) => void }) {
@@ -50,7 +51,7 @@ export function RecordCard({ recordId, onOpen }: { recordId: string; onOpen: (ur
           {fields.map((slug) => (
             <div key={slug} className="contents">
               <dt className="truncate text-ink-3">{labels[slug] ?? slug.replaceAll('_', ' ')}</dt>
-              <dd className="m-0 min-w-0 break-words text-ink-2">{valuesOf(record, slug).map(valueText).join(', ')}</dd>
+              <dd className={cn('m-0 min-w-0 whitespace-pre-wrap break-words text-ink-2', slug === 'context' && 'line-clamp-3')}>{valuesOf(record, slug).map(valueText).join(', ')}</dd>
             </div>
           ))}
         </dl>

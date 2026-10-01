@@ -235,6 +235,20 @@ function Property({
 }) {
   const toggle = (value: string) => onChange(attribute.multi ? (values.includes(value) ? values.filter((v) => v !== value) : [...values, value]) : [value])
   const empty = values.length === 0
+  if (attribute.slug === 'context' && attribute.type === 'text') {
+    return (
+      <label className="mt-2 w-full text-[12px] text-ink-3">
+        {attribute.name}
+        <textarea
+          value={values[0] ?? ''}
+          rows={3}
+          placeholder="Add context…"
+          onChange={(e) => onChange(e.target.value ? [e.target.value] : [])}
+          className="field-sizing-content mt-1 block max-h-80 min-h-20 w-full resize-y rounded-[var(--radius-control)] border border-border bg-transparent px-2 py-2 text-[13px] leading-5 text-ink outline-none placeholder:text-ink-3 focus:bg-bg"
+        />
+      </label>
+    )
+  }
   if (attribute.type === 'status') {
     return (
       <Picker
