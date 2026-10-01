@@ -22,6 +22,11 @@ func (p pictures) of(ctx context.Context, actor auth.Actor, shown []records.Reco
 	var ids []string
 	for _, r := range shown {
 		ids = append(ids, r.ID)
+		for _, related := range r.Related {
+			for _, record := range related {
+				ids = append(ids, record.RecordID)
+			}
+		}
 		for _, f := range r.Fields {
 			for _, v := range f.Values {
 				if v.RecordID != "" {

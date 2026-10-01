@@ -624,6 +624,56 @@ func (q *Queries) RecordsByUniqueKeys(ctx context.Context, arg RecordsByUniqueKe
 	return items, nil
 }
 
+const relatedRecords = `-- name: RelatedRecords :many
+SELECT parents.id AS parent_id, children.id FROM records parents
+JOIN LATERAL (
+  SELECT records.id FROM record_values
+  JOIN records ON records.id = record_values.record_id
+  WHERE record_values.ref_record_id = parents.id AND record_values.attribute_id = $1
+    AND record_values.active_until IS NULL AND records.workspace_id = $2
+  ORDER BY records.created_at DESC, records.id
+  LIMIT $3
+) children ON true
+WHERE parents.workspace_id = $2 AND parents.id = ANY($4::uuid[])
+`
+
+type RelatedRecordsParams struct {
+	AttributeID string
+	WorkspaceID string
+	Limit       int32
+	IDs         []string
+}
+
+type RelatedRecordsRow struct {
+	ParentID string
+	ID       string
+}
+
+func (q *Queries) RelatedRecords(ctx context.Context, arg RelatedRecordsParams) ([]RelatedRecordsRow, error) {
+	rows, err := q.db.Query(ctx, relatedRecords,
+		arg.AttributeID,
+		arg.WorkspaceID,
+		arg.Limit,
+		arg.IDs,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []RelatedRecordsRow{}
+	for rows.Next() {
+		var i RelatedRecordsRow
+		if err := rows.Scan(&i.ParentID, &i.ID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const replaceStageValues = `-- name: ReplaceStageValues :exec
 WITH closed AS (
   UPDATE record_values SET active_until = clock_timestamp()

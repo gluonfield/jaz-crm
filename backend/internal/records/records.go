@@ -45,6 +45,7 @@ type Record struct {
 	Object    string
 	CreatedAt time.Time
 	Fields    []Field
+	Related   map[string][]Value
 }
 
 // Field is an attribute's current values; a single-valued one has one.
@@ -305,16 +306,26 @@ func (s *Service) Labels(ctx context.Context, workspaceID string, ids []string) 
 	return out, err
 }
 
-// names maps records to their title attribute.
+// names prefers the title attribute, then the first text value in schema order.
 func (s *Service) names(ctx context.Context, workspaceID string, sc schema, ids []string) (map[string]string, error) {
 	out := map[string]string{}
 	if len(ids) == 0 {
 		return out, nil
 	}
 	values, err := s.store.CurrentValues(ctx, workspaceID, ids)
+	priority := map[string]int{}
+	for i, attr := range sc.attrs {
+		priority[attr.ID] = i
+		if attr.Slug == titleAttribute {
+			priority[attr.ID] = -1
+		}
+	}
+	selected := map[string]int{}
 	for _, v := range values {
-		if v.Text != nil && sc.attributeByID(v.AttributeID).Slug == titleAttribute {
+		rank, found := selected[v.RecordID]
+		if v.Text != nil && (!found || priority[v.AttributeID] < rank) {
 			out[v.RecordID] = *v.Text
+			selected[v.RecordID] = priority[v.AttributeID]
 		}
 	}
 	return out, err

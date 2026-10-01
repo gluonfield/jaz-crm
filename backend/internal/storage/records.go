@@ -105,6 +105,11 @@ type RecordQuery struct {
 	Limit        int32
 }
 
+type RelatedRecord struct {
+	ParentID string
+	ID       string
+}
+
 type RecordFilter struct {
 	Attribute string `json:"attribute"`
 	Operator  string `json:"operator" jsonschema:"is, is_not, contains, not_contains, is_empty, is_not_empty, before, on_or_before, after or on_or_after; date comparisons require a date field; all conditions must match"`
@@ -147,6 +152,7 @@ type RecordStore interface {
 	DeleteRecord(ctx context.Context, workspaceID, id string) error
 	Records(ctx context.Context, workspaceID string, ids []string) ([]Record, error)
 	SearchRecords(ctx context.Context, query RecordQuery) ([]Record, error)
+	RelatedRecords(ctx context.Context, workspaceID, attributeID string, ids []string, limit int32) ([]RelatedRecord, error)
 	SavedFilters(ctx context.Context, workspaceID, objectID string) ([]SavedFilter, error)
 	SaveFilter(ctx context.Context, workspaceID string, filter SavedFilter) (SavedFilter, error)
 	DeleteFilter(ctx context.Context, workspaceID, id string) error

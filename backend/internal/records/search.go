@@ -19,6 +19,13 @@ type Search struct {
 	Where   map[string]string
 	Filters []Filter
 	Limit   int
+	Include []Relation
+}
+
+type Relation struct {
+	Object    string `json:"object"`
+	Attribute string `json:"attribute" jsonschema:"reference attribute pointing to the searched object"`
+	Limit     int    `json:"limit,omitempty" jsonschema:"per searched record, at most 20, default 4"`
 }
 
 func (s *Service) Search(ctx context.Context, actor auth.Actor, q Search) ([]Record, error) {
@@ -50,7 +57,14 @@ func (s *Service) Search(ctx context.Context, actor auth.Actor, q Search) ([]Rec
 	if err != nil {
 		return nil, err
 	}
-	return s.views(ctx, actor.WorkspaceID, sc, found)
+	views, err := s.views(ctx, actor.WorkspaceID, sc, found)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.include(ctx, actor, sc, object, views, q.Include); err != nil {
+		return nil, err
+	}
+	return views, nil
 }
 
 func (s *Service) filterQuery(ctx context.Context, actor auth.Actor, sc schema, object storage.Object, filters []Filter) (storage.RecordQuery, error) {

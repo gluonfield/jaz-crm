@@ -41,7 +41,7 @@ function ObjectPage() {
   const search = Route.useSearch()
   const { sort, view, q = '', filters = [], saved, limit = 100 } = search
   const query = useDebounced(q.trim())
-  const result = useRecords(slug, query, limit, filters)
+  const result = useRecords(slug, query, limit, filters, slug === 'companies' ? [{ object: 'people', attribute: 'company', limit: 4 }] : undefined)
   const found = result.data?.records
   const records = found && (sort === 'name' ? [...found].sort((a, b) => recordName(a).localeCompare(recordName(b))) : found)
   const navigate = useNavigate()

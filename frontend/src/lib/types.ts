@@ -27,6 +27,8 @@ export type StageEdit = {
 
 export type Ref = { id: string; name?: string; photo?: string }
 
+export type Relation = { object: string; attribute: string; limit?: number }
+
 // A value is text, or a referenced record.
 export type Value = string | Ref
 
@@ -35,6 +37,7 @@ export type CrmRecord = {
   object: string
   created_at: string
   values: Record<string, Value | Value[] | null>
+  related?: Record<string, Ref[]>
   activity?: { interactions: number; first_at?: string; last_at?: string }
   photo?: string
 }

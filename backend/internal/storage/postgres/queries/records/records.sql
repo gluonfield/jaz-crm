@@ -126,6 +126,18 @@ WHERE records.workspace_id = @workspace_id AND records.object_id = @object_id
 ORDER BY records.created_at DESC, records.id
 LIMIT @row_limit;
 
+-- name: RelatedRecords :many
+SELECT parents.id AS parent_id, children.id FROM records parents
+JOIN LATERAL (
+  SELECT records.id FROM record_values
+  JOIN records ON records.id = record_values.record_id
+  WHERE record_values.ref_record_id = parents.id AND record_values.attribute_id = @attribute_id
+    AND record_values.active_until IS NULL AND records.workspace_id = @workspace_id
+  ORDER BY records.created_at DESC, records.id
+  LIMIT @row_limit
+) children ON true
+WHERE parents.workspace_id = @workspace_id AND parents.id = ANY(@ids::uuid[]);
+
 -- name: CloseValues :exec
 UPDATE record_values SET active_until = now()
 WHERE record_id = @record_id AND id = ANY(@ids::bigint[]) AND active_until IS NULL;

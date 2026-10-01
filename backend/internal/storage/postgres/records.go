@@ -73,6 +73,12 @@ func (s *Store) SearchRecords(ctx context.Context, query storage.RecordQuery) ([
 	return many(toRecord)(s.rec.SearchRecords(ctx, recdb.SearchRecordsParams(query)))
 }
 
+func (s *Store) RelatedRecords(ctx context.Context, workspaceID, attributeID string, ids []string, limit int32) ([]storage.RelatedRecord, error) {
+	return many(func(r recdb.RelatedRecordsRow) storage.RelatedRecord {
+		return storage.RelatedRecord(r)
+	})(s.rec.RelatedRecords(ctx, recdb.RelatedRecordsParams{WorkspaceID: workspaceID, AttributeID: attributeID, IDs: ids, Limit: limit}))
+}
+
 func (s *Store) History(ctx context.Context, workspaceID, recordID string, limit int32) ([]storage.PastValue, error) {
 	return many(func(r recdb.RecordHistoryRow) storage.PastValue {
 		return storage.PastValue{RecordValue: toValue(r.RecordValue), ActorName: r.ActorName}

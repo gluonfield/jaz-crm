@@ -34,7 +34,7 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 		Description: "List an object's records, newest first, filtered by text and attribute values, with how often and when last each was in touch. Returns a filtered resource_uri that renders the matching CRM list or deal pipeline, and opens it automatically. Records, and the records they reference, carry a picture: a person's profile picture when Google has one, else the website logo of a record with a domain.",
 		Meta:        mcp.Meta{"ui": map[string]any{"resourceUri": appURI}}},
 		func(ctx context.Context, actor auth.Actor, in searchInput) (recordsOutput, error) {
-			found, err := crm.Search(ctx, actor, records.Search{Object: in.Object, Query: in.Query, Where: in.Where, Filters: in.Filters, Limit: in.Limit})
+			found, err := crm.Search(ctx, actor, records.Search{Object: in.Object, Query: in.Query, Where: in.Where, Filters: in.Filters, Limit: in.Limit, Include: in.Include})
 			if err != nil {
 				return recordsOutput{}, err
 			}
@@ -185,6 +185,7 @@ type recordView struct {
 	Object    string                 `json:"object"`
 	CreatedAt time.Time              `json:"created_at"`
 	Values    map[string]any         `json:"values"`
+	Related   map[string][]refView   `json:"related,omitempty"`
 	Activity  *interactions.Activity `json:"activity,omitempty"`
 	// Photo is a person's profile picture from one of their addresses.
 	Photo string `json:"photo,omitempty"`
@@ -217,15 +218,26 @@ func recordOf(r records.Record, photos map[string]string) recordView {
 			values[f.Attribute] = list[0]
 		}
 	}
-	return recordView{ID: r.ID, Object: r.Object, CreatedAt: r.CreatedAt, Values: values, Photo: photos[r.ID]}
+	view := recordView{ID: r.ID, Object: r.Object, CreatedAt: r.CreatedAt, Values: values, Photo: photos[r.ID]}
+	if len(r.Related) > 0 {
+		view.Related = map[string][]refView{}
+		for relation, records := range r.Related {
+			view.Related[relation] = []refView{}
+			for _, record := range records {
+				view.Related[relation] = append(view.Related[relation], refView{ID: record.RecordID, Name: record.Text, Photo: photos[record.RecordID]})
+			}
+		}
+	}
+	return view
 }
 
 type searchInput struct {
-	Object  string            `json:"object" jsonschema:"object slug, such as people or companies"`
-	Query   string            `json:"query,omitempty" jsonschema:"text that any value contains, case-insensitively"`
-	Where   map[string]string `json:"where,omitempty" jsonschema:"attribute slug to a value the record must hold; a reference takes a record id or a unique value such as a domain"`
-	Filters []records.Filter  `json:"filters,omitempty" jsonschema:"multiple attribute conditions; every condition must match, including repeated attributes"`
-	Limit   int               `json:"limit,omitempty" jsonschema:"at most 100, default 20"`
+	Object  string             `json:"object" jsonschema:"object slug, such as people or companies"`
+	Query   string             `json:"query,omitempty" jsonschema:"text that any value contains, case-insensitively"`
+	Where   map[string]string  `json:"where,omitempty" jsonschema:"attribute slug to a value the record must hold; a reference takes a record id or a unique value such as a domain"`
+	Filters []records.Filter   `json:"filters,omitempty" jsonschema:"multiple attribute conditions; every condition must match, including repeated attributes"`
+	Limit   int                `json:"limit,omitempty" jsonschema:"at most 100, default 20"`
+	Include []records.Relation `json:"include,omitempty" jsonschema:"at most 8 reverse relationships to include as compact references, keyed by object.attribute in each record's related field"`
 }
 
 type recordsOutput struct {
