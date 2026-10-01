@@ -63,3 +63,25 @@ func (s *Service) include(ctx context.Context, actor auth.Actor, sc schema, targ
 	}
 	return nil
 }
+
+// Referenced fills a record's Related with what references it, such as a
+// person's deals and follow-ups, up to limit records per relationship.
+func (s *Service) Referenced(ctx context.Context, actor auth.Actor, record Record, limit int) (Record, error) {
+	sc, err := s.schema(ctx, actor.WorkspaceID)
+	if err != nil {
+		return record, err
+	}
+	target, err := sc.object(record.Object)
+	if err != nil {
+		return record, err
+	}
+	var relations []Relation
+	for _, attr := range sc.attrs {
+		if attr.Type == Reference && *attr.TargetObjectID == target.ID && len(relations) < 8 {
+			relations = append(relations, Relation{Object: sc.objectByID(attr.ObjectID).Slug, Attribute: attr.Slug, Limit: limit})
+		}
+	}
+	records := []Record{record}
+	err = s.include(ctx, actor, sc, target, records, relations)
+	return records[0], err
+}

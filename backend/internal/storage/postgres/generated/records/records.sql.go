@@ -730,18 +730,23 @@ WHERE records.workspace_id = $1 AND records.object_id = $2
         END
     ) = (($5::text[])[i] IN ('is_not', 'not_contains', 'is_empty'))
   )
-ORDER BY records.created_at DESC, records.id
-LIMIT $7
+ORDER BY (
+    SELECT min(record_values.text) FROM record_values
+    WHERE record_values.record_id = records.id AND record_values.active_until IS NULL
+      AND record_values.attribute_id = $7::uuid
+  ) NULLS LAST, records.created_at DESC, records.id
+LIMIT $8
 `
 
 type SearchRecordsParams struct {
-	WorkspaceID  string
-	ObjectID     string
-	Query        *string
-	AttributeIDs []string
-	Operators    []string
-	Matches      []string
-	Limit        int32
+	WorkspaceID     string
+	ObjectID        string
+	Query           *string
+	AttributeIDs    []string
+	Operators       []string
+	Matches         []string
+	SortAttributeID *string
+	Limit           int32
 }
 
 func (q *Queries) SearchRecords(ctx context.Context, arg SearchRecordsParams) ([]Record, error) {
@@ -752,6 +757,7 @@ func (q *Queries) SearchRecords(ctx context.Context, arg SearchRecordsParams) ([
 		arg.AttributeIDs,
 		arg.Operators,
 		arg.Matches,
+		arg.SortAttributeID,
 		arg.Limit,
 	)
 	if err != nil {

@@ -79,3 +79,38 @@ func TestFollowUpDraftLifecycle(t *testing.T) {
 		t.Fatal("a sent draft was sent again")
 	}
 }
+
+func TestFollowUpsAreReferencedAndSortedByReviewDate(t *testing.T) {
+	svc, a, _ := setup(t)
+	jane, _ := upsert(t, svc, a, records.SourceUser, records.Write{Object: "people", Set: set("name", "Jane")})
+	var ids []string
+	for _, review := range []string{"2026-10-05", "", "2026-10-02"} {
+		pairs := []string{"name", "Follow up " + review, "person", jane.ID}
+		if review != "" {
+			pairs = append(pairs, "review_on", review)
+		}
+		f, _ := upsert(t, svc, a, records.SourceUser, records.Write{Object: records.FollowUps, Set: set(pairs...)})
+		ids = append(ids, f.ID)
+	}
+	sorted, err := svc.Search(ctx, a, records.Search{Object: records.FollowUps, Sort: "review_on"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := []string{}
+	for _, r := range sorted {
+		got = append(got, r.ID)
+	}
+	if want := []string{ids[2], ids[0], ids[1]}; !slices.Equal(got, want) {
+		t.Fatalf("follow-ups must sort earliest review first, undated last: %v, want %v", got, want)
+	}
+	if _, err := svc.Search(ctx, a, records.Search{Object: records.FollowUps, Sort: "name"}); err == nil {
+		t.Fatal("sorting by a text attribute must be refused")
+	}
+	referenced, err := svc.Referenced(ctx, a, jane, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := referenced.Related["follow_ups.person"]; len(got) != 3 {
+		t.Fatalf("a person must list the follow-ups about them: %+v", referenced.Related)
+	}
+}

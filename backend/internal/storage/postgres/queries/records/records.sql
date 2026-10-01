@@ -123,7 +123,11 @@ WHERE records.workspace_id = @workspace_id AND records.object_id = @object_id
         END
     ) = ((@operators::text[])[i] IN ('is_not', 'not_contains', 'is_empty'))
   )
-ORDER BY records.created_at DESC, records.id
+ORDER BY (
+    SELECT min(record_values.text) FROM record_values
+    WHERE record_values.record_id = records.id AND record_values.active_until IS NULL
+      AND record_values.attribute_id = sqlc.narg(sort_attribute_id)::uuid
+  ) NULLS LAST, records.created_at DESC, records.id
 LIMIT @row_limit;
 
 -- name: RelatedRecords :many

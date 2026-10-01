@@ -102,7 +102,10 @@ type RecordQuery struct {
 	AttributeIDs []string
 	Operators    []string
 	Matches      []string
-	Limit        int32
+	// SortAttributeID orders records by that date attribute, earliest first
+	// and undated last; nil keeps the newest first.
+	SortAttributeID *string
+	Limit           int32
 }
 
 type RelatedRecord struct {

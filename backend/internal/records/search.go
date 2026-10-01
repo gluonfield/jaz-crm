@@ -18,6 +18,9 @@ type Search struct {
 	Query   string
 	Where   map[string]string
 	Filters []Filter
+	// Sort names a date attribute to order by, earliest first and undated
+	// last; empty lists the newest first.
+	Sort    string
 	Limit   int
 	Include []Relation
 }
@@ -44,6 +47,16 @@ func (s *Service) Search(ctx context.Context, actor auth.Actor, q Search) ([]Rec
 	query, err := s.filterQuery(ctx, actor, sc, object, filters)
 	if err != nil {
 		return nil, err
+	}
+	if q.Sort != "" {
+		attr, err := sc.attribute(object, q.Sort)
+		if err != nil {
+			return nil, err
+		}
+		if attr.Type != Date {
+			return nil, errs.Invalidf("sort takes a date attribute; %s is %s", attr.Slug, attr.Type)
+		}
+		query.SortAttributeID = &attr.ID
 	}
 	query.Limit = 20
 	if q.Limit > 0 {

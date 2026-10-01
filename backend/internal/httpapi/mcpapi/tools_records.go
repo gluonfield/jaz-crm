@@ -31,10 +31,10 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 			return objectsOutput{Objects: objectViews(objects)}, err
 		})
 	add(r, &mcp.Tool{Name: "search_records", Title: "Search records", Annotations: readOnly,
-		Description: "List an object's records, newest first, filtered by text and attribute values, with how often and when last each was in touch. Returns a filtered resource_uri that renders the matching CRM list or deal pipeline, and opens it automatically. Records, and the records they reference, carry a picture: a person's profile picture when Google has one, else the website logo of a record with a domain.",
+		Description: "List an object's records, newest first or by a date, filtered by text and attribute values, with how often and when last each was in touch. Returns a filtered resource_uri that renders the matching CRM list or deal pipeline, and opens it automatically. Records, and the records they reference, carry a picture: a person's profile picture when Google has one, else the website logo of a record with a domain.",
 		Meta:        mcp.Meta{"ui": map[string]any{"resourceUri": appURI}}},
 		func(ctx context.Context, actor auth.Actor, in searchInput) (recordsOutput, error) {
-			found, err := crm.Search(ctx, actor, records.Search{Object: in.Object, Query: in.Query, Where: in.Where, Filters: in.Filters, Limit: in.Limit, Include: in.Include})
+			found, err := crm.Search(ctx, actor, records.Search{Object: in.Object, Query: in.Query, Where: in.Where, Filters: in.Filters, Sort: in.Sort, Limit: in.Limit, Include: in.Include})
 			if err != nil {
 				return recordsOutput{}, err
 			}
@@ -54,7 +54,7 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 			return out, err
 		})
 	add(r, &mcp.Tool{Name: "get_record", Title: "Get record", Annotations: readOnly,
-		Description: "Get a person, company, deal or custom record by record_id with its current values and communication activity; upcoming meetings do not count. Returns a resource_uri that automatically renders a compact record card. Clicking the card opens the full CRM record.",
+		Description: "Get a person, company, deal or custom record by record_id with its current values, communication activity, and what references it, such as its follow-ups, as compact references in related keyed by object.attribute, up to 20 each; upcoming meetings do not count. Returns a resource_uri that automatically renders a compact record card. Clicking the card opens the full CRM record.",
 		Meta:        mcp.Meta{"ui": map[string]any{"resourceUri": appURI}, "ui/resourceUri": appURI}},
 		func(ctx context.Context, actor auth.Actor, in recordInput) (recordOutput, error) {
 			record, err := crm.Get(ctx, actor, in.RecordID)
@@ -62,6 +62,10 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 				return recordOutput{}, err
 			}
 			activity, err := conversations.Activities(ctx, actor, []string{record.ID})
+			if err != nil {
+				return recordOutput{}, err
+			}
+			record, err = crm.Referenced(ctx, actor, record, 20)
 			if err != nil {
 				return recordOutput{}, err
 			}
@@ -234,6 +238,7 @@ type searchInput struct {
 	Query   string             `json:"query,omitempty" jsonschema:"text that any value contains, case-insensitively"`
 	Where   map[string]string  `json:"where,omitempty" jsonschema:"attribute slug to a value the record must hold; a reference takes a record id or a unique value such as a domain"`
 	Filters []records.Filter   `json:"filters,omitempty" jsonschema:"multiple attribute conditions; every condition must match, including repeated attributes"`
+	Sort    string             `json:"sort,omitempty" jsonschema:"a date attribute to order by, earliest first and undated last, such as review_on; omit for newest first"`
 	Limit   int                `json:"limit,omitempty" jsonschema:"at most 100, default 20"`
 	Include []records.Relation `json:"include,omitempty" jsonschema:"at most 8 reverse relationships to include as compact references, keyed by object.attribute in each record's related field"`
 }
