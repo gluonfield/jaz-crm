@@ -293,5 +293,14 @@ func (s *Service) UpdateTriageSettings(ctx context.Context, actor auth.Actor, se
 	if err := s.requireAdmin(ctx, actor); err != nil {
 		return err
 	}
+	if settings.AutoKeepAi {
+		workspace, err := s.store.Workspace(ctx, actor.WorkspaceID)
+		if err != nil {
+			return err
+		}
+		if workspace.Description == "" {
+			return errs.Invalidf("enter Who belongs criteria before enabling AI decisions")
+		}
+	}
 	return s.store.UpdateTriageSettings(ctx, actor.WorkspaceID, settings)
 }

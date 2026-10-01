@@ -11,6 +11,17 @@ import (
 )
 
 func registerInteractions(r *registry, svc *interactions.Service) {
+	add(r, &mcp.Tool{Name: "list_triage_rules", Title: "List triage domain rules", Annotations: readOnly,
+		Description: "Explicit keep/skip rules for entire email domains, including exclusions from deleted companies."},
+		func(ctx context.Context, actor auth.Actor, _ empty) (domainRulesOutput, error) {
+			rules, err := svc.DomainRules(ctx, actor)
+			return domainRulesOutput{Rules: rules}, err
+		})
+	add(r, &mcp.Tool{Name: "forget_triage_rule", Title: "Forget triage domain rule",
+		Description: "Stop applying an email domain's rule to new addresses. Existing keep/skip decisions are preserved."},
+		func(ctx context.Context, actor auth.Actor, in domainRuleInput) (empty, error) {
+			return empty{}, svc.ForgetDomainRule(ctx, actor, in.Domain)
+		})
 	add(r, &mcp.Tool{Name: "list_interactions", Title: "List interactions", Annotations: readOnly,
 		Description: "A record's emails, meetings, calls and notes up to now, newest first; with upcoming, its future ones, soonest first."},
 		func(ctx context.Context, actor auth.Actor, in timelineInput) (interactionsOutput, error) {
@@ -66,6 +77,14 @@ func registerInteractions(r *registry, svc *interactions.Service) {
 			n, err := svc.Decide(ctx, actor, interactions.Decision{Addresses: in.Addresses, Domains: in.Domains, Keep: in.Decision == "keep", Reason: in.Reason})
 			return decideOutput{Changed: n}, err
 		})
+}
+
+type domainRulesOutput struct {
+	Rules []interactions.DomainRule `json:"rules"`
+}
+
+type domainRuleInput struct {
+	Domain string `json:"domain"`
 }
 
 type interactionsOutput struct {

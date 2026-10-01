@@ -10,17 +10,15 @@ import (
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 )
 
-// Known is what triage knows about a workspace before it sees an address:
-// its own addresses and company domains, and people's domain rules.
+// Known is the workspace's own addresses and company domains.
 type Known struct {
 	WorkspaceID string
 	own         map[string]bool
 	domains     map[string]bool
-	rules       map[string]storage.DomainRule
 }
 
 func (s *Service) Known(ctx context.Context, workspaceID string) (Known, error) {
-	k := Known{WorkspaceID: workspaceID, own: map[string]bool{}, domains: map[string]bool{}, rules: map[string]storage.DomainRule{}}
+	k := Known{WorkspaceID: workspaceID, own: map[string]bool{}, domains: map[string]bool{}}
 	addresses, err := s.conns.InternalAddresses(ctx, workspaceID)
 	if err != nil {
 		return k, err
@@ -31,11 +29,7 @@ func (s *Service) Known(ctx context.Context, workspaceID string) (Known, error) 
 			k.domains[domain] = true
 		}
 	}
-	rules, err := s.store.DomainRules(ctx, workspaceID)
-	for _, r := range rules {
-		k.rules[r.Domain] = r
-	}
-	return k, err
+	return k, nil
 }
 
 var automated = regexp.MustCompile(`^([^@]*[+._-])?(no-?reply|do-?not-?reply|notifications?|mailer-daemon|postmaster|bounces?)([+._-][^@]*)?@|@(resource\.)?calendar\.google\.com$`)
@@ -47,12 +41,9 @@ func (k Known) verdict(kind, value string) storage.NewHandle {
 		return h
 	}
 	domain := domainOf(value)
-	rule, ruled := k.rules[domain]
 	switch {
 	case k.own[value] || k.domains[domain]:
 		h.Triage = Internal
-	case ruled:
-		h.Triage, h.DecidedBy, h.Reason = rule.Triage, ptr(ByUser), rule.Reason
 	case automated.MatchString(value):
 		h.Triage, h.DecidedBy, h.Reason = Skipped, ptr(ByRule), "automated sender"
 	}

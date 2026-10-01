@@ -104,10 +104,8 @@ func (s *Service) Log(ctx context.Context, actor auth.Actor, source string, e En
 	if err != nil {
 		return Interaction{}, err
 	}
-	// People written to become kept once the conversation exists; keeping
-	// writes their records, which the transaction does not cover.
 	for _, h := range engaged {
-		if err := s.keep(ctx, h, "", ByEngagement, "you logged a conversation with them"); err != nil {
+		if err := s.keepByID(ctx, actor.WorkspaceID, h.ID, "", "you logged a conversation with them"); err != nil {
 			return Interaction{}, err
 		}
 	}

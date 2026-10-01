@@ -63,6 +63,8 @@ export type Interaction = {
 
 export type Verdict = 'pending' | 'kept' | 'skipped'
 
+export type TriageRule = { domain: string; decision: 'kept' | 'skipped'; reason: string }
+
 export type Contact = {
   address: string
   kind: string

@@ -43,6 +43,11 @@ func (s *Store) UpdateWorkspace(ctx context.Context, id, name, description strin
 	return affected(s.auth.UpdateWorkspace(ctx, authdb.UpdateWorkspaceParams{ID: id, Name: name, Description: description}))
 }
 
+func (s *Store) LockWorkspace(ctx context.Context, workspaceID string) error {
+	_, err := s.auth.LockWorkspace(ctx, workspaceID)
+	return mapError(err)
+}
+
 func (s *Store) DeleteWorkspace(ctx context.Context, id, name string) error {
 	return affected(s.auth.DeleteWorkspace(ctx, authdb.DeleteWorkspaceParams{ID: id, Name: name}))
 }

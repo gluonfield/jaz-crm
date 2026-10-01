@@ -45,6 +45,9 @@ INSERT INTO workspaces (name) VALUES ($1) RETURNING *;
 -- name: GetWorkspace :one
 SELECT * FROM workspaces WHERE id = $1;
 
+-- name: LockWorkspace :one
+SELECT id FROM workspaces WHERE id = $1 FOR NO KEY UPDATE;
+
 -- name: UpdateWorkspace :execrows
 UPDATE workspaces SET name = $2, description = $3 WHERE id = $1;
 

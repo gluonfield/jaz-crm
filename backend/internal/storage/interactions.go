@@ -171,10 +171,13 @@ type DomainRule struct {
 }
 
 type InteractionStore interface {
+	RecordStore
 	// Atomically runs fn against the store within one transaction.
 	Atomically(ctx context.Context, fn func(InteractionStore) error) error
+	LockWorkspace(ctx context.Context, workspaceID string) error
 	SetDomainRule(ctx context.Context, workspaceID, domain, triage, reason string) error
 	DomainRules(ctx context.Context, workspaceID string) ([]DomainRule, error)
+	DeleteDomainRule(ctx context.Context, workspaceID, domain string) error
 	// InteractionByExternalID returns ErrNotFound when the source never sent it.
 	InteractionByExternalID(ctx context.Context, workspaceID, source, externalID string) (string, error)
 	// UpsertHandle creates a handle with its first verdict, or returns the

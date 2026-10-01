@@ -395,6 +395,17 @@ func (q *Queries) ListUsers(ctx context.Context, workspaceID string) ([]User, er
 	return items, nil
 }
 
+const lockWorkspace = `-- name: LockWorkspace :one
+SELECT id FROM workspaces WHERE id = $1 FOR NO KEY UPDATE
+`
+
+func (q *Queries) LockWorkspace(ctx context.Context, id string) (string, error) {
+	row := q.db.QueryRow(ctx, lockWorkspace, id)
+	var id_2 string
+	err := row.Scan(&id_2)
+	return id_2, err
+}
+
 const memberships = `-- name: Memberships :many
 SELECT users.id AS user_id, workspaces.id AS workspace_id, workspaces.name FROM users
 JOIN workspaces ON workspaces.id = users.workspace_id

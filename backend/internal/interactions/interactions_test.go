@@ -48,6 +48,9 @@ func setupManual(t *testing.T, classifier interactions.Classifier) env {
 		}
 		actors = append(actors, auth.Actor{UserID: u.ID, WorkspaceID: u.WorkspaceID})
 	}
+	if err := store.UpdateWorkspace(ctx, actors[0].WorkspaceID, "CAS", "Manufacturing customers and partners"); err != nil {
+		t.Fatal(err)
+	}
 	conn, err := store.SaveConnection(ctx, storage.NewConnection{WorkspaceID: actors[0].WorkspaceID, UserID: actors[0].UserID, Provider: "google", Account: "owner@cas.dev", RefreshToken: []byte("sealed")})
 	if err != nil {
 		t.Fatal(err)
@@ -407,11 +410,15 @@ func TestLogLinkAndSkip(t *testing.T) {
 }
 
 type fakeClassifier struct {
-	calls int
+	calls  int
+	before func()
 }
 
 func (f *fakeClassifier) Classify(_ context.Context, _ string, candidates []interactions.Candidate) ([]interactions.Judgement, error) {
 	f.calls++
+	if f.before != nil {
+		f.before()
+	}
 	verdicts := map[string]string{"keep@a.io": "keep", "skip@b.io": "skip"}
 	var out []interactions.Judgement
 	for _, c := range candidates {

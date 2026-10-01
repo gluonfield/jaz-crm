@@ -42,6 +42,9 @@ func (s *Store) AddAttributeOption(ctx context.Context, workspaceID, attributeID
 
 func (s *Store) DeleteRecord(ctx context.Context, workspaceID, id string) error {
 	return mapError(pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
+		if _, err := s.auth.WithTx(tx).LockWorkspace(ctx, workspaceID); err != nil {
+			return err
+		}
 		r := s.rec.WithTx(tx)
 		q := s.in.WithTx(tx)
 		if _, err := r.LockRecordForDeletion(ctx, recdb.LockRecordForDeletionParams{WorkspaceID: workspaceID, ID: id}); err != nil {

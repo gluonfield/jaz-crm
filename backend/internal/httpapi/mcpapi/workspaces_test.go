@@ -156,6 +156,14 @@ func TestTriageSettingsAuthorization(t *testing.T) {
 	if settings = mustCall(t, owner, "get_triage_settings", nil); settings["auto_keep_email"] != true || settings["auto_keep_meetings"] != false {
 		t.Fatalf("settings not persisted independently: %v", settings)
 	}
+	if _, failure := call(t, owner, "update_triage_settings", map[string]any{"auto_keep_email": true, "auto_keep_meetings": false, "auto_keep_records": false, "auto_keep_ai": true}); failure == "" {
+		t.Fatal("AI decisions enabled without criteria")
+	}
+	mustCall(t, owner, "update_workspace", map[string]any{"description": "Manufacturing customers and partners"})
+	mustCall(t, owner, "update_triage_settings", map[string]any{"auto_keep_email": true, "auto_keep_meetings": false, "auto_keep_records": false, "auto_keep_ai": true})
+	if settings = mustCall(t, owner, "get_triage_settings", nil); settings["auto_keep_ai"] != true {
+		t.Fatalf("AI decisions not enabled with criteria: %v", settings)
+	}
 	mustCall(t, owner, "invite_member", map[string]any{"email": "triage-member@example.com"})
 	member, err := e.people.SignIn(ctx, signin.Identity{Issuer: "https://idp.test", Subject: "triage-member", Email: "triage-member@example.com", EmailVerified: true})
 	if err != nil {

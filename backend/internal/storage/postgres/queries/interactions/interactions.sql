@@ -1,6 +1,12 @@
 -- name: UpsertHandle :one
 INSERT INTO handles (workspace_id, kind, value, name, triage, decided_by, reason)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+SELECT @workspace_id, @kind, @value, @name,
+  coalesce(rule.triage, @triage)::text,
+  CASE WHEN rule.domain IS NOT NULL THEN 'user' ELSE sqlc.narg(decided_by)::text END,
+  coalesce(rule.reason, @reason)::text
+FROM (SELECT 1) AS input
+LEFT JOIN domain_rules rule ON rule.workspace_id = @workspace_id AND rule.domain = split_part(@value, '@', 2)
+  AND @kind::text = 'email' AND @triage::text <> 'internal'
 ON CONFLICT (workspace_id, kind, value) DO UPDATE
 SET name = CASE WHEN handles.name = '' THEN EXCLUDED.name ELSE handles.name END
 RETURNING *;
@@ -68,7 +74,7 @@ WHERE handles.workspace_id = @workspace_id
     SELECT 1 FROM participants own
     JOIN handles internal ON internal.id = own.handle_id AND internal.triage = 'internal'
     WHERE own.interaction_id = interactions.id AND ((@auto_keep_email::boolean AND interactions.kind = 'email' AND own.role = 'from')
-      OR (@auto_keep_meetings::boolean AND interactions.kind = 'meeting' AND own.role IN ('organizer', 'attendee')))
+      OR (@auto_keep_meetings::boolean AND interactions.kind = 'meeting' AND interactions.ended_at <= now() AND own.role IN ('organizer', 'attendee')))
   );
 
 -- name: HandlesOnRecords :many
@@ -100,7 +106,7 @@ WHERE handles.workspace_id = @workspace_id AND handles.triage <> 'internal'
 RETURNING id;
 
 -- name: KeptWithoutPerson :many
-SELECT * FROM handles WHERE workspace_id = $1 AND triage = 'kept' AND person_id IS NULL;
+SELECT * FROM handles WHERE workspace_id = $1 AND triage = 'kept' AND person_id IS NULL AND decided_by = 'user';
 
 -- name: UnassessedHandles :many
 -- UnassessedHandles are pending handles no agent has judged, with the titles
@@ -265,6 +271,9 @@ ON CONFLICT (workspace_id, domain) DO UPDATE SET triage = EXCLUDED.triage, reaso
 
 -- name: DomainRules :many
 SELECT * FROM domain_rules WHERE workspace_id = $1 ORDER BY domain;
+
+-- name: DeleteDomainRule :execrows
+DELETE FROM domain_rules WHERE workspace_id = $1 AND domain = $2;
 
 -- name: InteractionByExternalID :one
 SELECT id FROM interactions WHERE workspace_id = $1 AND source = $2 AND external_id = $3;

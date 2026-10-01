@@ -223,6 +223,10 @@ func (s *Store) DomainRules(ctx context.Context, workspaceID string) ([]storage.
 	return many(func(r intdb.DomainRule) storage.DomainRule { return storage.DomainRule(r) })(s.in.DomainRules(ctx, workspaceID))
 }
 
+func (s *Store) DeleteDomainRule(ctx context.Context, workspaceID, domain string) error {
+	return affected(s.in.DeleteDomainRule(ctx, intdb.DeleteDomainRuleParams{WorkspaceID: workspaceID, Domain: domain}))
+}
+
 func (s *Store) InteractionByExternalID(ctx context.Context, workspaceID, source, externalID string) (string, error) {
 	id, err := s.in.InteractionByExternalID(ctx, intdb.InteractionByExternalIDParams{WorkspaceID: workspaceID, Source: source, ExternalID: externalID})
 	return id, mapError(err)

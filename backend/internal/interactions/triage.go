@@ -59,17 +59,30 @@ func (s *Service) Triage(ctx context.Context, workspaceID string) error {
 		return err
 	}
 	for _, h := range approved {
-		if err := s.keep(ctx, h, "", *h.DecidedBy, h.Reason); err != nil {
+		if err := s.keepByID(ctx, workspaceID, h.ID, "", h.Reason); err != nil {
 			return err
 		}
 	}
 	if settings.AutoKeepAi {
-		return s.assess(ctx, workspaceID)
+		workspace, err := s.workspaces.Workspace(ctx, workspaceID)
+		if err != nil {
+			return err
+		}
+		if workspace.Description == "" {
+			return nil
+		}
+		return s.assess(ctx, workspaceID, workspace.Description)
 	}
 	return nil
 }
 
 func (s *Service) keepByID(ctx context.Context, workspaceID, id, personID, reason string) error {
+	return s.write(ctx, workspaceID, func(tx *Service) error {
+		return tx.keepExisting(ctx, workspaceID, id, personID, ByEngagement, reason)
+	})
+}
+
+func (s *Service) keepExisting(ctx context.Context, workspaceID, id, personID, by, reason string) error {
 	handles, err := s.store.Handles(ctx, workspaceID, []string{id})
 	if err != nil || len(handles) == 0 {
 		return err
@@ -78,7 +91,20 @@ func (s *Service) keepByID(ctx context.Context, workspaceID, id, personID, reaso
 	if h.Triage == Skipped && deref(h.DecidedBy) == ByUser {
 		return nil
 	}
-	by := ByEngagement
+	if h.Kind == "email" {
+		rules, err := s.store.DomainRules(ctx, workspaceID)
+		if err != nil {
+			return err
+		}
+		for _, rule := range rules {
+			if rule.Domain == domainOf(h.Value) && rule.Triage == Skipped {
+				if err := s.store.SetTriage(ctx, storage.Verdict{WorkspaceID: workspaceID, ID: h.ID, Triage: Skipped, DecidedBy: ptr(ByUser), Reason: rule.Reason, PersonID: h.PersonID}); err != nil {
+					return err
+				}
+				return s.relink(ctx, h.ID)
+			}
+		}
+	}
 	if h.Triage == Kept {
 		by = *h.DecidedBy
 		reason = h.Reason
@@ -136,7 +162,7 @@ func (s *Service) person(ctx context.Context, h storage.Handle) (string, error) 
 
 // assess asks the classifier about addresses no evidence settled. An address
 // it leaves undecided stays pending for a person to judge.
-func (s *Service) assess(ctx context.Context, workspaceID string) error {
+func (s *Service) assess(ctx context.Context, workspaceID, criteria string) error {
 	if s.classifier == nil {
 		return nil
 	}
@@ -144,16 +170,26 @@ func (s *Service) assess(ctx context.Context, workspaceID string) error {
 	if err != nil || len(pending) == 0 {
 		return err
 	}
-	workspace, err := s.workspaces.Workspace(ctx, workspaceID)
-	if err != nil {
-		return err
-	}
 	candidates := make([]Candidate, len(pending))
 	for i, p := range pending {
 		candidates[i] = Candidate{Address: p.Value, Name: p.Name, Titles: p.Titles}
 	}
-	judgements, err := s.classifier.Classify(ctx, workspace.Description, candidates)
+	judgements, err := s.classifier.Classify(ctx, criteria, candidates)
 	if err != nil {
+		return err
+	}
+	return s.write(ctx, workspaceID, func(tx *Service) error {
+		return tx.assessed(ctx, workspaceID, criteria, pending, judgements)
+	})
+}
+
+func (s *Service) assessed(ctx context.Context, workspaceID, criteria string, pending []storage.UnassessedHandle, judgements []Judgement) error {
+	current, err := s.workspaces.TriageSettings(ctx, workspaceID)
+	if err != nil || !current.AutoKeepAi {
+		return err
+	}
+	workspace, err := s.workspaces.Workspace(ctx, workspaceID)
+	if err != nil || workspace.Description != criteria {
 		return err
 	}
 	verdicts := map[string]Judgement{}
@@ -171,7 +207,7 @@ func (s *Service) assess(ctx context.Context, workspaceID string) error {
 		}
 		switch j.Verdict {
 		case "keep":
-			err = s.keep(ctx, handles[0], "", ByAgent, j.Reason)
+			err = s.keepExisting(ctx, workspaceID, p.ID, "", ByAgent, j.Reason)
 		case "skip":
 			err = s.store.SetTriage(ctx, storage.Verdict{WorkspaceID: workspaceID, ID: p.ID, Triage: Skipped, DecidedBy: ptr(ByAgent), Reason: j.Reason})
 		default:
@@ -195,6 +231,16 @@ type Decision struct {
 
 // Decide applies a person's verdict, returning how many addresses it changed.
 func (s *Service) Decide(ctx context.Context, actor auth.Actor, d Decision) (int, error) {
+	var changed int
+	err := s.write(ctx, actor.WorkspaceID, func(tx *Service) error {
+		var err error
+		changed, err = tx.decide(ctx, actor, d)
+		return err
+	})
+	return changed, err
+}
+
+func (s *Service) decide(ctx context.Context, actor auth.Actor, d Decision) (int, error) {
 	ws := actor.WorkspaceID
 	verdict := Skipped
 	if d.Keep {

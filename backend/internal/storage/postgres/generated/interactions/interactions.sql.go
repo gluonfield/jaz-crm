@@ -62,6 +62,23 @@ func (q *Queries) ClearUnlinkedContent(ctx context.Context, ids []string) error 
 	return err
 }
 
+const deleteDomainRule = `-- name: DeleteDomainRule :execrows
+DELETE FROM domain_rules WHERE workspace_id = $1 AND domain = $2
+`
+
+type DeleteDomainRuleParams struct {
+	WorkspaceID string
+	Domain      string
+}
+
+func (q *Queries) DeleteDomainRule(ctx context.Context, arg DeleteDomainRuleParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteDomainRule, arg.WorkspaceID, arg.Domain)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteLink = `-- name: DeleteLink :execrows
 DELETE FROM links WHERE interaction_id = $1 AND record_id = $2
 `
@@ -203,7 +220,7 @@ WHERE handles.workspace_id = $1
     SELECT 1 FROM participants own
     JOIN handles internal ON internal.id = own.handle_id AND internal.triage = 'internal'
     WHERE own.interaction_id = interactions.id AND (($3::boolean AND interactions.kind = 'email' AND own.role = 'from')
-      OR ($4::boolean AND interactions.kind = 'meeting' AND own.role IN ('organizer', 'attendee')))
+      OR ($4::boolean AND interactions.kind = 'meeting' AND interactions.ended_at <= now() AND own.role IN ('organizer', 'attendee')))
   )
 `
 
@@ -655,7 +672,7 @@ func (q *Queries) InteractionsOfHandles(ctx context.Context, handleIds []string)
 }
 
 const keptWithoutPerson = `-- name: KeptWithoutPerson :many
-SELECT id, workspace_id, kind, value, name, person_id, triage, decided_by, reason, created_at, photo_url FROM handles WHERE workspace_id = $1 AND triage = 'kept' AND person_id IS NULL
+SELECT id, workspace_id, kind, value, name, person_id, triage, decided_by, reason, created_at, photo_url FROM handles WHERE workspace_id = $1 AND triage = 'kept' AND person_id IS NULL AND decided_by = 'user'
 `
 
 func (q *Queries) KeptWithoutPerson(ctx context.Context, workspaceID string) ([]Handle, error) {
@@ -1266,7 +1283,13 @@ func (q *Queries) UpsertEmailThread(ctx context.Context, arg UpsertEmailThreadPa
 
 const upsertHandle = `-- name: UpsertHandle :one
 INSERT INTO handles (workspace_id, kind, value, name, triage, decided_by, reason)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+SELECT $1, $2, $3, $4,
+  coalesce(rule.triage, $5)::text,
+  CASE WHEN rule.domain IS NOT NULL THEN 'user' ELSE $6::text END,
+  coalesce(rule.reason, $7)::text
+FROM (SELECT 1) AS input
+LEFT JOIN domain_rules rule ON rule.workspace_id = $1 AND rule.domain = split_part($3, '@', 2)
+  AND $2::text = 'email' AND $5::text <> 'internal'
 ON CONFLICT (workspace_id, kind, value) DO UPDATE
 SET name = CASE WHEN handles.name = '' THEN EXCLUDED.name ELSE handles.name END
 RETURNING id, workspace_id, kind, value, name, person_id, triage, decided_by, reason, created_at, photo_url

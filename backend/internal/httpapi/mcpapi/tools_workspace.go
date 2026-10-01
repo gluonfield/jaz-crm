@@ -18,7 +18,7 @@ func registerWorkspace(r *registry, members *workspaces.Service, keys *auth.Serv
 			return members.TriageSettings(ctx, actor)
 		})
 	add(r, &mcp.Tool{Name: "update_triage_settings", Title: "Update triage settings",
-		Description: "Replace all four workspace auto-approval settings. Email and meeting rules apply only to conversations of at most 10 participants. AI requires a configured classifier and uses the workspace description. Admins only; enabling rules also processes existing pending contacts."},
+		Description: "Replace all four workspace auto-approval settings. Email and completed-meeting rules apply only to conversations of at most 10 participants. AI requires a configured classifier and nonempty Who belongs criteria in the workspace description. Admins only; enabling rules also processes existing pending contacts."},
 		func(ctx context.Context, actor auth.Actor, in storage.TriageSettings) (empty, error) {
 			return empty{}, members.UpdateTriageSettings(ctx, actor, in)
 		})
