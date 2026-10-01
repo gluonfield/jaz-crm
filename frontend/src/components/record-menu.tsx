@@ -34,7 +34,8 @@ export function RecordMenu({ object, record, children }: { object: CrmObject; re
         <ContextMenuTrigger asChild data-deleting={remove.isPending || undefined}>
           {children}
         </ContextMenuTrigger>
-        <ContextMenuContent className="w-44">
+        {/* Focus returning to the row as the menu closes would pull it out of the dialog an item opens. */}
+        <ContextMenuContent className="w-44" onCloseAutoFocus={(e) => e.preventDefault()}>
           <ContextMenuItem onSelect={() => void navigate({ to: '/r/$recordId', params: { recordId: record.id } })}>
             <ArrowUpRight /> Open
           </ContextMenuItem>
@@ -50,8 +51,17 @@ export function RecordMenu({ object, record, children }: { object: CrmObject; re
       </ContextMenu>
       <CreateRecord object={object} record={record} open={editing} onOpenChange={setEditing} />
       <Dialog open={deleting} onOpenChange={setDeleting}>
-        <DialogContent aria-describedby={description} showCloseButton={false} className="bg-raised text-ink sm:max-w-sm">
-          <DialogTitle className="text-[14px] leading-snug break-words">Delete {recordName(record)}?</DialogTitle>
+        <DialogContent
+          aria-describedby={description}
+          showCloseButton={false}
+          onOpenAutoFocus={(e) => {
+            const dialog = e.currentTarget as HTMLElement
+            e.preventDefault()
+            dialog.focus()
+          }}
+          className="bg-raised text-ink sm:max-w-sm"
+        >
+          <DialogTitle className="text-[14px] leading-snug [overflow-wrap:anywhere]">Delete {recordName(record)}?</DialogTitle>
           <p id={description} className="text-[13px] leading-relaxed text-ink-2">
             Its details and links to conversations will be deleted. This cannot be undone.
             {record.object === 'people' && ' Their addresses move to Skipped in Triage, so sync will not add them back.'}

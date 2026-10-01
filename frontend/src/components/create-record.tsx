@@ -50,6 +50,11 @@ export function CreateRecord({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
+        onOpenAutoFocus={(e) => {
+          const name = (e.currentTarget as HTMLElement).querySelector('input')
+          e.preventDefault()
+          name?.focus()
+        }}
         className="top-[12%] w-[620px] max-w-[calc(100vw-2rem)] translate-y-0 gap-0 rounded-[12px] border-border bg-raised p-0 shadow-[var(--shadow-raised)] sm:max-w-[620px]"
       >
         {open && <Form object={object} initial={initial} record={record} openCreated={openCreated} close={() => onOpenChange(false)} />}
@@ -158,7 +163,6 @@ function Form({ object, initial = {}, record, openCreated, close }: { object: Cr
       </div>
       <div className="px-4 pt-3">
         <input
-          autoFocus
           value={name}
           aria-label="Name"
           onChange={(e) => setName(e.target.value)}
