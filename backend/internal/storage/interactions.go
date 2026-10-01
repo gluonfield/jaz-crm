@@ -196,6 +196,8 @@ type InteractionStore interface {
 	EngagedHandles(ctx context.Context, workspaceID string, maxSize int32) ([]string, error)
 	HandlesOnRecords(ctx context.Context, workspaceID string) ([]HandleRecord, error)
 	KeptWithoutPerson(ctx context.Context, workspaceID string) ([]Handle, error)
+	// SkipPersonHandles skips a person's addresses, returning their ids.
+	SkipPersonHandles(ctx context.Context, workspaceID, personID string) ([]string, error)
 	UnassessedHandles(ctx context.Context, workspaceID string, limit int32) ([]UnassessedHandle, error)
 
 	// EmailThreadByMessageIDs returns ErrNotFound when no message is known.

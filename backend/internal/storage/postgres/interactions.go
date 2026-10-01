@@ -93,6 +93,11 @@ func (s *Store) KeptWithoutPerson(ctx context.Context, workspaceID string) ([]st
 	return many(toHandle)(s.in.KeptWithoutPerson(ctx, workspaceID))
 }
 
+func (s *Store) SkipPersonHandles(ctx context.Context, workspaceID, personID string) ([]string, error) {
+	ids, err := s.in.SkipPersonHandles(ctx, intdb.SkipPersonHandlesParams{WorkspaceID: workspaceID, PersonID: &personID})
+	return ids, mapError(err)
+}
+
 func (s *Store) UnassessedHandles(ctx context.Context, workspaceID string, limit int32) ([]storage.UnassessedHandle, error) {
 	return many(toUnassessed)(s.in.UnassessedHandles(ctx, intdb.UnassessedHandlesParams{WorkspaceID: workspaceID, Limit: limit}))
 }

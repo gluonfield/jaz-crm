@@ -81,6 +81,13 @@ WHERE handles.workspace_id = @workspace_id
   AND (handles.triage IN ('pending', 'kept') AND handles.person_id IS NULL
     OR handles.triage = 'skipped' AND handles.decided_by IN ('rule', 'agent'));
 
+-- name: SkipPersonHandles :many
+-- SkipPersonHandles skips the addresses of a person being deleted, so triage
+-- does not create them again.
+UPDATE handles SET triage = 'skipped', decided_by = 'user', reason = 'record deleted'
+WHERE workspace_id = $1 AND person_id = $2 AND triage <> 'internal'
+RETURNING id;
+
 -- name: KeptWithoutPerson :many
 SELECT * FROM handles WHERE workspace_id = $1 AND triage = 'kept' AND person_id IS NULL;
 

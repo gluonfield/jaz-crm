@@ -237,6 +237,32 @@ func TestDecisions(t *testing.T) {
 	}
 }
 
+// Deleting a person keeps them out: triage does not create them again.
+func TestDeletedPeopleStayDeleted(t *testing.T) {
+	e := setup(t, nil)
+	e.ingest(t, message(e.conn, "o1", "t1", "owner@cas.dev", "ada@customer.io"))
+	e.triage(t)
+	ada := e.contacts(t, interactions.Kept)["ada@customer.io"]
+	if ada.PersonID == "" {
+		t.Fatalf("ada was not kept: %+v", ada)
+	}
+	if err := e.svc.Delete(ctx, e.b, ada.PersonID); err == nil {
+		t.Fatal("deleted another workspace's person")
+	}
+	if err := e.svc.Delete(ctx, e.a, ada.PersonID); err != nil {
+		t.Fatal(err)
+	}
+	e.ingest(t, message(e.conn, "o2", "t2", "owner@cas.dev", "ada@customer.io"))
+	e.triage(t)
+	if got := e.contacts(t, interactions.Skipped)["ada@customer.io"]; got.DecidedBy != interactions.ByUser || got.PersonID != "" {
+		t.Fatalf("ada after deletion: %+v", got)
+	}
+	people, err := e.crm.Search(ctx, e.a, records.Search{Object: "people"})
+	if err != nil || len(people) != 0 {
+		t.Fatalf("triage recreated the person: %d %v", len(people), err)
+	}
+}
+
 func TestMeetingsAndTranscripts(t *testing.T) {
 	e := setup(t, nil)
 	known, err := e.svc.Known(ctx, e.a.WorkspaceID)

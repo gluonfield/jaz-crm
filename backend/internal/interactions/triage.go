@@ -242,6 +242,22 @@ func (s *Service) Decide(ctx context.Context, actor auth.Actor, d Decision) (int
 	return changed, nil
 }
 
+// Delete deletes a record. A deleted person's addresses are skipped first, as
+// though a person had skipped them, so triage does not create them again.
+func (s *Service) Delete(ctx context.Context, actor auth.Actor, recordID string) error {
+	if _, err := s.records.Get(ctx, actor, recordID); err != nil {
+		return err
+	}
+	handles, err := s.store.SkipPersonHandles(ctx, actor.WorkspaceID, recordID)
+	if err != nil {
+		return err
+	}
+	if err := s.relink(ctx, handles...); err != nil {
+		return err
+	}
+	return s.records.Delete(ctx, actor, recordID)
+}
+
 // address normalizes an email or phone number a person typed.
 func address(raw string) (string, string, error) {
 	raw = strings.TrimSpace(raw)

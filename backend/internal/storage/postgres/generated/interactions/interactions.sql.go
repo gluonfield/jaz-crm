@@ -1028,6 +1028,39 @@ func (q *Queries) SkipPendingHandle(ctx context.Context, arg SkipPendingHandlePa
 	return err
 }
 
+const skipPersonHandles = `-- name: SkipPersonHandles :many
+UPDATE handles SET triage = 'skipped', decided_by = 'user', reason = 'record deleted'
+WHERE workspace_id = $1 AND person_id = $2 AND triage <> 'internal'
+RETURNING id
+`
+
+type SkipPersonHandlesParams struct {
+	WorkspaceID string
+	PersonID    *string
+}
+
+// SkipPersonHandles skips the addresses of a person being deleted, so triage
+// does not create them again.
+func (q *Queries) SkipPersonHandles(ctx context.Context, arg SkipPersonHandlesParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, skipPersonHandles, arg.WorkspaceID, arg.PersonID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const timeline = `-- name: Timeline :many
 SELECT interactions.id, interactions.workspace_id, interactions.kind, interactions.source, interactions.external_id, interactions.connection_id, interactions.user_id, interactions.title, interactions.started_at, interactions.ended_at, interactions.meet_code, interactions.transcript_checked_at, interactions.skipped, interactions.created_at FROM interactions
 JOIN links ON links.interaction_id = interactions.id AND links.record_id = $1

@@ -193,6 +193,9 @@ func TestTenantIsolation(t *testing.T) {
 		t.Errorf("get_workspace listed another workspace: %s", members)
 	}
 	if got := mustCall(t, a, "get_record", map[string]any{"record_id": id}); encode(got["values"]) != `{"domains":["acme.com"],"name":"Acme"}` {
+	if _, failure := call(t, b, "delete_record", map[string]any{"record_id": id}); failure == "" {
+		t.Error("delete_record deleted another workspace's record")
+	}
 		t.Errorf("the owner's record changed: %v", got)
 	}
 }
