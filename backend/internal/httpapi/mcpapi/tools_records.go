@@ -53,18 +53,19 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 			return out, err
 		})
 	add(r, &mcp.Tool{Name: "get_record", Title: "Get record", Annotations: readOnly,
-		Description: "Get one record with its current values and how often, since when and when last it was in touch; upcoming meetings do not count."},
-		func(ctx context.Context, actor auth.Actor, in recordInput) (recordView, error) {
+		Description: "Get a person, company, deal or custom record by record_id with its current values and communication activity; upcoming meetings do not count. Returns a resource_uri that automatically renders a compact record card. Clicking the card opens the full CRM record.",
+		Meta:        mcp.Meta{"ui": map[string]any{"resourceUri": appURI}, "ui/resourceUri": appURI}},
+		func(ctx context.Context, actor auth.Actor, in recordInput) (recordOutput, error) {
 			record, err := crm.Get(ctx, actor, in.RecordID)
 			if err != nil {
-				return recordView{}, err
+				return recordOutput{}, err
 			}
 			activity, err := conversations.Activities(ctx, actor, []string{record.ID})
 			if err != nil {
-				return recordView{}, err
+				return recordOutput{}, err
 			}
 			photos, err := pics.of(ctx, actor, []records.Record{record})
-			return recordWith(record, activity, photos), err
+			return recordOutput{recordView: recordWith(record, activity, photos), ResourceURI: "ui://jaz-crm/r/" + record.ID}, err
 		})
 	add(r, &mcp.Tool{Name: "record_history", Title: "Record history", Annotations: readOnly,
 		Description: "A record's recent changes, newest first: the value each attribute got, from which source (user, agent or sync), who made it and when; removed marks a value taken away with nothing in its place."},
@@ -232,6 +233,11 @@ type recordsOutput struct {
 
 type recordInput struct {
 	RecordID string `json:"record_id"`
+}
+
+type recordOutput struct {
+	recordView
+	ResourceURI string `json:"resource_uri"`
 }
 
 type upsertInput struct {

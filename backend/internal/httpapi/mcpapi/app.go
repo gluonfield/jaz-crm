@@ -70,15 +70,19 @@ func registerApp(r *registry, publicURL string) {
 		URITemplate: "ui://jaz-crm/o/{object}{?q,where,limit,view}", Name: "crm-records", Title: "CRM records", MIMEType: appMIME,
 		Description: `Render an object's records with URL filters. q is text; where is a JSON object mapping attribute slugs to values, such as {"stage":"Lead","company":"example.com"}; limit is at most 100; view=table selects a table. URL-encode query values.`,
 	}, readApp)
+	r.server.AddResourceTemplate(&mcp.ResourceTemplate{
+		URITemplate: "ui://jaz-crm/r/{record_id}", Name: "crm-record", Title: "CRM record", MIMEType: appMIME,
+		Description: "Render a compact person, company, deal or custom record card. Clicking it opens the full CRM record. Requires access to the record's workspace.",
+	}, readApp)
 	add(r, &mcp.Tool{Name: "show_crm", Title: "Customers", Annotations: readOnly, Icons: []mcp.Icon{{Source: icon("currentColor"), MIMEType: "image/svg+xml", Sizes: []string{"any"}}},
-		Description: "Open the CRM app at a page: /o/people, /o/companies, /o/deals, /r/<record id> (with ?tab=activity for its changes), /i/<interaction id>, /triage, /connections or /settings. Also accepts a filtered ui://jaz-crm/o/<object> resource URL. Record lists accept q for text, where as a JSON object of attribute filters, limit up to 100, and view=table. search_records returns the matching resource_uri and opens it automatically.",
+		Description: "Open the CRM app at a page: /o/people, /o/companies, /o/deals, /r/<record id> (with ?tab=activity for its changes), /i/<interaction id>, /triage, /connections or /settings. Also accepts ui://jaz-crm/r/<record id> for a record card, or a filtered ui://jaz-crm/o/<object> resource URL. Record lists accept q for text, where as a JSON object of attribute filters, limit up to 100, and view=table. get_record and search_records return the matching resource_uri and open it automatically.",
 		Meta: mcp.Meta{
 			"ui":             map[string]any{"resourceUri": appURI},
 			"ui/resourceUri": appURI,
 			"openai/ui":      map[string]any{"entrypoints": []map[string]any{{"type": "global"}}},
 		}},
 		func(_ context.Context, _ auth.Actor, in showInput) (showOutput, error) {
-			if !strings.HasPrefix(in.Path, "/") && !strings.HasPrefix(in.Path, "ui://jaz-crm/o/") {
+			if !strings.HasPrefix(in.Path, "/") && !strings.HasPrefix(in.Path, "ui://jaz-crm/o/") && !strings.HasPrefix(in.Path, "ui://jaz-crm/r/") {
 				in.Path = "/"
 			}
 			return showOutput{Path: in.Path}, nil

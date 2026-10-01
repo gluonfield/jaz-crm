@@ -2,6 +2,7 @@ import type { McpUiHostContext } from '@modelcontextprotocol/ext-apps'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createMemoryHistory, createRouter } from '@tanstack/react-router'
 import { createRoot } from 'react-dom/client'
+import { RecordCard } from './components/record-card'
 import { RecordResults } from './components/record-results'
 import { setTransport } from './lib/api'
 import { app, callTool, connect } from './lib/mcp-app'
@@ -33,9 +34,14 @@ function render() {
     return
   }
   if (app.getHostContext()?.displayMode === 'inline') {
+    const recordId = new URL(page, 'http://crm').pathname.match(/^\/r\/([^/]+)$/)?.[1]
     renderer.render(
       <QueryClientProvider client={queryClient}>
-        <RecordResults path={page} onOpen={(url) => void app.openLink({ url })} />
+        {recordId ? (
+          <RecordCard recordId={decodeURIComponent(recordId)} onOpen={(url) => void app.openLink({ url })} />
+        ) : (
+          <RecordResults path={page} onOpen={(url) => void app.openLink({ url })} />
+        )}
       </QueryClientProvider>,
     )
   } else {
@@ -59,13 +65,14 @@ function open(path: unknown) {
   }
 }
 
-// show_crm passes the page to open, such as /r/<record id>.
 app.ontoolinput = ({ arguments: args }) => open(args?.path)
 app.ontoolresult = (result) => {
   const content = result.structuredContent
   if (content && typeof content === 'object' && 'resource_uri' in content && typeof content.resource_uri === 'string') {
     if ('records' in content && Array.isArray(content.records)) {
       queryClient.setQueryData(toolQuery('search_records', recordSearchInput(content.resource_uri)).queryKey, content)
+    } else if ('id' in content && typeof content.id === 'string') {
+      queryClient.setQueryData(toolQuery('get_record', { record_id: content.id }).queryKey, content)
     }
     open(content.resource_uri)
   }

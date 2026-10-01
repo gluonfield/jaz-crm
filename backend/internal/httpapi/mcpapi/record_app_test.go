@@ -65,8 +65,12 @@ func TestRecordSearchApp(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(templates.ResourceTemplates) != 1 {
-		t.Fatalf("resource templates: %v", templates.ResourceTemplates)
+	var searchTemplate bool
+	for _, template := range templates.ResourceTemplates {
+		searchTemplate = searchTemplate || template.URITemplate == "ui://jaz-crm/o/{object}{?q,where,limit,view}"
+	}
+	if !searchTemplate {
+		t.Fatal("missing search resource template")
 	}
 	app, err := session.ReadResource(context.Background(), &mcp.ReadResourceParams{URI: uri})
 	if err != nil {
@@ -78,5 +82,47 @@ func TestRecordSearchApp(t *testing.T) {
 	opened := mustCall(t, session, "show_crm", map[string]any{"path": uri})
 	if opened["path"] != uri {
 		t.Fatal("show_crm lost the resource URL")
+	}
+}
+
+func TestRecordCardApp(t *testing.T) {
+	e := serve(t)
+	session := e.session(t, e.apiKey(t, "owner@example.com"))
+	tools, err := session.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var resource string
+	for _, tool := range tools.Tools {
+		if tool.Name == "get_record" {
+			resource, _ = tool.Meta["ui"].(map[string]any)["resourceUri"].(string)
+			if tool.Meta["ui/resourceUri"] != resource {
+				t.Fatal("lookup resource metadata differs between hosts")
+			}
+		}
+	}
+	if resource == "" {
+		t.Fatal("get_record has no interactive view")
+	}
+	for _, object := range []string{"people", "companies", "deals"} {
+		record := mustCall(t, session, "upsert_record", map[string]any{"object": object, "values": map[string]any{"name": "Test " + object}})["record"].(map[string]any)
+		result := mustCall(t, session, "get_record", map[string]any{"record_id": record["id"]})
+		if result["id"] != record["id"] || result["object"] != object || encode(result["values"]) != encode(record["values"]) {
+			t.Fatalf("lookup changed the record shape: %v", result)
+		}
+		uri, _ := result["resource_uri"].(string)
+		if uri != "ui://jaz-crm/r/"+record["id"].(string) {
+			t.Fatalf("lookup opens a different record: %s", uri)
+		}
+		app, err := session.ReadResource(context.Background(), &mcp.ReadResourceParams{URI: uri})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(app.Contents) != 1 || app.Contents[0].URI != uri || !strings.Contains(app.Contents[0].Text, `data-start-path="/r/`+record["id"].(string)+`"`) {
+			t.Fatal("record resource did not preserve its starting route")
+		}
+		if opened := mustCall(t, session, "show_crm", map[string]any{"path": uri}); opened["path"] != uri {
+			t.Fatal("show_crm lost the record resource URL")
+		}
 	}
 }
