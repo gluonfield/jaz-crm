@@ -35,8 +35,10 @@ func (syncer) Step(context.Context, string) (string, error) { return "", nil }
 // gmail is owner@cas.dev's mailbox: it holds Jane's messages m2 and m3 in
 // thread t9 and records what is sent.
 type gmail struct {
-	fail bool
-	sent []*mail.Message
+	// fail answers a send with an error; drop cuts the connection instead,
+	// leaving whether it went out unknown.
+	fail, drop bool
+	sent       []*mail.Message
 }
 
 func (g *gmail) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -52,6 +54,9 @@ func (g *gmail) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			{"name":"From","value":"Jane <jane@acme.com>"},{"name":"Subject","value":"Quote for 500 brackets"},
 			{"name":"Message-ID","value":"<m%s@acme.com>"},{"name":"References","value":"<m1@acme.com>"}]}}`, id, id)
 	case "/gmail/v1/users/me/messages/send":
+		if g.drop {
+			panic(http.ErrAbortHandler)
+		}
 		if g.fail {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
@@ -83,7 +88,7 @@ func TestReleaseSendsEmailRepliesAndApprovesOthers(t *testing.T) {
 	if err != nil || mate.WorkspaceID != owner.WorkspaceID {
 		t.Fatalf("teammate did not join: %+v %v", mate, err)
 	}
-	mateActor := auth.Actor{UserID: mate.ID, WorkspaceID: mate.WorkspaceID, Agent: true}
+	mateActor := auth.Actor{UserID: mate.ID, WorkspaceID: mate.WorkspaceID}
 	g := &gmail{}
 	srv := httptest.NewServer(g)
 	t.Cleanup(srv.Close)
@@ -112,6 +117,14 @@ func TestReleaseSendsEmailRepliesAndApprovesOthers(t *testing.T) {
 		}
 	}
 	message("m2@acme.com", time.Now().Add(-time.Hour))
+	older, err := store.UpsertEmailThread(ctx, storage.EmailThread{WorkspaceID: owner.WorkspaceID, ExternalID: "t8", ConnectionID: &mailbox.ID, Title: "Intro", At: time.Now().Add(-30 * time.Minute)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	gone := "g0"
+	if err := store.UpsertPart(ctx, storage.NewPart{InteractionID: older, Kind: "message", ExternalID: "m0@acme.com", ConnectionID: &mailbox.ID, ProviderID: &gone, At: time.Now().Add(-2 * time.Hour)}); err != nil {
+		t.Fatal(err)
+	}
 	followUp := func(channel string) string {
 		agent := ownerActor
 		agent.Agent = true
@@ -122,8 +135,10 @@ func TestReleaseSendsEmailRepliesAndApprovesOthers(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := store.AddLink(ctx, thread, f.ID, "agent"); err != nil {
-			t.Fatal(err)
+		for _, conversation := range []string{thread, older} {
+			if err := store.AddLink(ctx, conversation, f.ID, "agent"); err != nil {
+				t.Fatal(err)
+			}
 		}
 		return f.ID
 	}
@@ -143,25 +158,44 @@ func TestReleaseSendsEmailRepliesAndApprovesOthers(t *testing.T) {
 		return pick("draft_status"), pick("status")
 	}
 
+	seen := followups.Seen{Draft: "Hi Jane, the revised quote is attached.", To: []string{"jane@acme.com"}, Cc: []string{"bob@acme.com"}}
 	reply := followUp("Email")
+	agent := ownerActor
+	agent.Agent = true
+	if _, err := svc.Release(ctx, agent, reply, seen); err == nil {
+		t.Fatal("an agent sent a draft")
+	}
+	if _, err := svc.Release(ctx, mateActor, reply, followups.Seen{Draft: "An older text", To: seen.To, Cc: seen.Cc}); err == nil {
+		t.Fatal("a draft was sent that differs from what the person saw")
+	}
 	g.fail = true
-	if _, err := svc.Release(ctx, mateActor, reply); err == nil {
+	if _, err := svc.Release(ctx, mateActor, reply, seen); err == nil {
 		t.Fatal("a failed send reported success")
 	}
 	if draft, _ := state(reply); draft != records.DraftApproved || len(g.sent) != 0 {
-		t.Fatalf("a failed send must leave the draft approved for another try: %q", draft)
+		t.Fatalf("a refused send must leave the draft approved for another try: %q", draft)
 	}
-	g.fail = false
+	g.fail, g.drop = false, true
+	if _, err := svc.Release(ctx, mateActor, reply, seen); err == nil {
+		t.Fatal("a send of unknown outcome reported success")
+	}
+	if draft, _ := state(reply); draft != records.DraftSending {
+		t.Fatalf("a send that may have gone out must stay claimed: %q", draft)
+	}
+	if _, _, err := crm.Upsert(ctx, mateActor, records.SourceUser, records.Write{Object: records.FollowUps, RecordID: reply, Set: map[string][]string{"draft_status": {records.DraftApproved}}}); err != nil {
+		t.Fatalf("a person could not release a stuck claim: %v", err)
+	}
+	g.drop = false
 	if err := conns.SetTeammatesSend(ctx, ownerActor, mailbox.ID, false); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := svc.Release(ctx, mateActor, reply); err == nil || len(g.sent) != 0 {
+	if _, err := svc.Release(ctx, mateActor, reply, seen); err == nil || len(g.sent) != 0 {
 		t.Fatalf("a teammate sent from a mailbox closed to teammates: %v", err)
 	}
 	if err := conns.SetTeammatesSend(ctx, ownerActor, mailbox.ID, true); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := svc.Release(ctx, mateActor, reply); err != nil {
+	if _, err := svc.Release(ctx, mateActor, reply, seen); err != nil {
 		t.Fatal(err)
 	}
 	if draft, status := state(reply); draft != records.DraftSent || status != "Done" {
@@ -179,12 +213,12 @@ func TestReleaseSendsEmailRepliesAndApprovesOthers(t *testing.T) {
 
 	stale := followUp("Email")
 	message("m3@acme.com", time.Now().Add(time.Minute))
-	if _, err := svc.Release(ctx, ownerActor, stale); err == nil || len(g.sent) != 1 {
+	if _, err := svc.Release(ctx, ownerActor, stale, seen); err == nil || len(g.sent) != 1 {
 		t.Fatalf("a draft older than the conversation's latest message was sent: %v", err)
 	}
 
 	linkedIn := followUp("LinkedIn")
-	if _, err := svc.Release(ctx, mateActor, linkedIn); err != nil {
+	if _, err := svc.Release(ctx, mateActor, linkedIn, seen); err != nil {
 		t.Fatal(err)
 	}
 	if draft, status := state(linkedIn); draft != records.DraftApproved || status != "Open" || len(g.sent) != 1 {

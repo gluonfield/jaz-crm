@@ -65,8 +65,12 @@ func guardDraft(sc schema, object storage.Object, current []storage.RecordValue,
 	}
 	i := slices.IndexFunc(set, func(c change) bool { return c.attr.ID == status.ID })
 	if i >= 0 {
+		to := *set[i].entries[0].text
+		if edited && to != DraftWritten {
+			return nil, nil, errs.Invalidf("change a draft or its status, not both: editing a draft withdraws its approval")
+		}
 		set[i].force = true
-		return set, remove, transition(now, *set[i].entries[0].text, source, written)
+		return set, remove, transition(now, to, source, written)
 	}
 	if j := slices.IndexFunc(remove, func(c change) bool { return c.attr.ID == status.ID }); j >= 0 {
 		remove[j].force = true

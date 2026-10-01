@@ -369,12 +369,27 @@ func (a *Activities) FetchContent(ctx context.Context, id string) (int, error) {
 }
 
 // FollowUps keeps the connection's workspace's follow-ups current with its
-// changed conversations, returning how many it read.
+// changed conversations, returning how many it read. A model call can outlast
+// the heartbeat timeout, so it heartbeats on a timer.
 func (a *Activities) FollowUps(ctx context.Context, id string) (int, error) {
 	c, err := a.connection(ctx, id)
 	if err != nil {
 		return 0, err
 	}
+	done := make(chan struct{})
+	defer close(done)
+	go func() {
+		tick := time.NewTicker(30 * time.Second)
+		defer tick.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-tick.C:
+				activity.RecordHeartbeat(ctx)
+			}
+		}
+	}()
 	return a.Agent.Run(ctx, c.WorkspaceID)
 }
 

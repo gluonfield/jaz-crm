@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"slices"
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/log"
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"github.com/gluonfield/jaz-crm/backend/internal/connections"
 	"github.com/gluonfield/jaz-crm/backend/internal/followups"
@@ -53,6 +55,10 @@ func TestAgentKeepsFollowUpsCurrent(t *testing.T) {
 			fmt.Fprint(w, `{"access_token":"at","token_type":"Bearer","expires_in":3600,"refresh_token":"rt"}`)
 		case "/gmail/v1/users/me/profile":
 			fmt.Fprint(w, `{"emailAddress":"owner@cas.dev","historyId":"1"}`)
+		case "/gmail/v1/users/me/messages/gm2":
+			fmt.Fprint(w, `{"id":"gm2","threadId":"t9","internalDate":"0","payload":{"headers":[
+				{"name":"From","value":"Jane <jane@acme.com>"},{"name":"To","value":"owner@cas.dev"},
+				{"name":"Cc","value":"bob@acme.com"},{"name":"Message-ID","value":"<m2@acme.com>"}]}}`)
 		default:
 			fmt.Fprint(w, `{"id":"g","threadId":"t9","internalDate":"0","payload":{"headers":[
 				{"name":"From","value":"Jane <jane@acme.com>"},{"name":"To","value":"owner@cas.dev, Sam <sam@acme.com>"},
@@ -75,7 +81,7 @@ func TestAgentKeepsFollowUpsCurrent(t *testing.T) {
 	crm := records.NewService(store)
 	convs := interactions.NewService(interactions.Params{Store: store, Connections: store, Workspaces: store, Records: crm})
 	brain := &planner{}
-	agent := followups.NewAgent(followups.AgentParams{Service: followups.NewService(crm, store, conns), Workspaces: store, Connections: store, Interactions: convs, Planner: brain})
+	agent := followups.NewAgent(followups.AgentParams{Service: followups.NewService(crm, store, conns), Workspaces: store, Connections: store, Interactions: convs, Logger: log.New(io.Discard), Planner: brain})
 	jane, _, err := crm.Upsert(ctx, actor, records.SourceUser, records.Write{Object: "people", Set: map[string][]string{"name": {"Jane"}}})
 	if err != nil {
 		t.Fatal(err)
@@ -156,18 +162,28 @@ func TestAgentKeepsFollowUpsCurrent(t *testing.T) {
 
 	message("m2", "Thanks, got the quote. We will confirm next week.", time.Now())
 	brain.fail = true
-	if _, err := agent.Run(ctx, owner.WorkspaceID); err == nil {
-		t.Fatal("a failed plan reported success")
+	if run() != 0 {
+		t.Fatal("a conversation the model could not plan counted as read")
 	}
 	brain.fail = false
-	brain.plans = []followups.Plan{{FollowUps: []followups.Change{{ID: f.ID, Status: "Done"}}}}
+	brain.plans = []followups.Plan{{FollowUps: []followups.Change{{ID: f.ID, Status: "Done", Reply: "Thanks Jane, speak next week."}}}}
 	if run() != 1 {
-		t.Fatal("a conversation whose plan failed must be read again")
+		t.Fatal("a conversation the model could not plan must be read again")
 	}
 	if seen := brain.read[len(brain.read)-1].FollowUps; len(seen) != 1 || seen[0].ID != f.ID {
 		t.Fatalf("the planner must see the open follow-up: %+v", seen)
 	}
-	if done, err := crm.Get(ctx, actor, f.ID); err != nil || !slices.ContainsFunc(done.Fields, func(field records.Field) bool { return field.Attribute == "status" && field.Values[0].Text == "Done" }) {
-		t.Fatalf("the follow-up must be closed: %+v %v", done, err)
+	done, err := crm.Get(ctx, actor, f.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	after := map[string][]string{}
+	for _, field := range done.Fields {
+		for _, v := range field.Values {
+			after[field.Attribute] = append(after[field.Attribute], v.Text)
+		}
+	}
+	if !slices.Equal(after["status"], []string{"Done"}) || !slices.Equal(after["to"], []string{"jane@acme.com"}) || !slices.Equal(after["cc"], []string{"bob@acme.com"}) {
+		t.Fatalf("the follow-up must be closed, and a new draft must replace its recipients, dropping Sam: %v", after)
 	}
 }

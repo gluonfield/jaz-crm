@@ -29,17 +29,29 @@ func NewService(crm *records.Service, store storage.InteractionStore, conns *con
 	return &Service{crm: crm, store: store, conns: conns}
 }
 
+// Seen is the draft a person released, as they saw it.
+type Seen struct {
+	Draft  string
+	To, Cc []string
+}
+
 // Release is a person letting a follow-up's draft go. An email draft is sent
-// now as a reply in the conversation the follow-up is linked to; any other
-// draft is approved for whoever sends it. Writes are a person's, since only
-// people release drafts.
-func (s *Service) Release(ctx context.Context, actor auth.Actor, id string) (records.Record, error) {
+// now as a reply in its newest linked conversation; any other draft is
+// approved for whoever sends it. A bearer credential is refused, since it may
+// be an agent; and a draft that changed since the person saw it is refused.
+func (s *Service) Release(ctx context.Context, actor auth.Actor, id string, seen Seen) (records.Record, error) {
+	if actor.Agent {
+		return records.Record{}, errs.Invalidf("only a person sends or approves a draft, in the CRM in a browser")
+	}
 	f, err := s.crm.Get(ctx, actor, id)
 	if err != nil {
 		return records.Record{}, err
 	}
 	if f.Object != records.FollowUps {
 		return records.Record{}, errs.Invalidf("%s is not a follow-up", id)
+	}
+	if strings.TrimSpace(value(f, "draft")) != strings.TrimSpace(seen.Draft) || !sameSet(values(f, "to"), seen.To) || !sameSet(values(f, "cc"), seen.Cc) {
+		return records.Record{}, errs.Invalidf("the draft changed since you saw it; review it again")
 	}
 	if value(f, "channel") != "Email" {
 		return s.set(ctx, actor, id, "draft_status", records.DraftApproved)
@@ -56,13 +68,27 @@ func (s *Service) Release(ctx context.Context, actor auth.Actor, id string) (rec
 	if _, err := s.set(ctx, actor, id, "draft_status", records.DraftSending); err != nil {
 		return records.Record{}, err
 	}
-	if err := reply.send(ctx); err != nil {
+	_, err = reply.mailbox.Send(ctx, reply.message)
+	var api *google.APIError
+	switch {
+	case errors.As(err, &api):
 		if _, undo := s.set(ctx, actor, id, "draft_status", records.DraftApproved); undo != nil {
-			err = errors.Join(err, undo)
+			return records.Record{}, errors.Join(err, undo)
+		}
+		if api.Status == http.StatusForbidden {
+			return records.Record{}, errs.Invalidf("%s must reconnect Google to send mail from the CRM", reply.account)
 		}
 		return records.Record{}, err
+	case err != nil:
+		return records.Record{}, errs.Invalidf("the reply may have gone out from %s: check its Sent mail, then set the draft back to Approved to send it again", reply.account)
 	}
 	return s.set(ctx, actor, id, "draft_status", records.DraftSent, "status", "Done")
+}
+
+func sameSet(a, b []string) bool {
+	a = slices.Sorted(slices.Values(a))
+	b = slices.Sorted(slices.Values(b))
+	return slices.Equal(slices.Compact(a), slices.Compact(b))
 }
 
 func (s *Service) set(ctx context.Context, actor auth.Actor, id string, pairs ...string) (records.Record, error) {
@@ -81,17 +107,8 @@ type outgoing struct {
 	message google.Outgoing
 }
 
-func (o outgoing) send(ctx context.Context) error {
-	_, err := o.mailbox.Send(ctx, o.message)
-	var api *google.APIError
-	if errors.As(err, &api) && api.Status == http.StatusForbidden {
-		return errs.Invalidf("%s must reconnect Google to send mail from the CRM", o.account)
-	}
-	return err
-}
-
-// reply addresses a follow-up's draft as a reply to the latest message of
-// the email conversation it is linked to, from the mailbox that holds that
+// reply addresses a follow-up's draft as a reply to the newest message of
+// the email conversations it is linked to, from the mailbox that holds that
 // message when the actor may send from it.
 func (s *Service) reply(ctx context.Context, actor auth.Actor, f records.Record) (outgoing, error) {
 	body := value(f, "draft")
@@ -99,22 +116,23 @@ func (s *Service) reply(ctx context.Context, actor auth.Actor, f records.Record)
 	if strings.TrimSpace(body) == "" || len(to) == 0 {
 		return outgoing{}, errs.Invalidf("an email draft needs text and a recipient")
 	}
-	threads, err := s.store.Timeline(ctx, storage.TimelineQuery{RecordID: f.ID, WorkspaceID: actor.WorkspaceID, Kinds: []string{interactions.Email}, Limit: 1})
+	threads, err := s.store.Timeline(ctx, storage.TimelineQuery{RecordID: f.ID, WorkspaceID: actor.WorkspaceID, Kinds: []string{interactions.Email}, Limit: 20})
 	if err != nil {
 		return outgoing{}, err
 	}
-	if len(threads) == 0 {
-		return outgoing{}, errs.Invalidf("link the email conversation this follow-up replies in")
+	ids := make([]string, len(threads))
+	for i, t := range threads {
+		ids[i] = t.ID
 	}
-	parts, err := s.store.Parts(ctx, []string{threads[0].ID})
+	parts, err := s.store.Parts(ctx, ids)
 	if err != nil {
 		return outgoing{}, err
 	}
 	parts = slices.DeleteFunc(parts, func(p storage.Part) bool { return p.Kind != "message" || p.ConnectionID == nil || p.ProviderID == nil })
 	if len(parts) == 0 {
-		return outgoing{}, errs.Invalidf("the linked conversation has no message to reply to")
+		return outgoing{}, errs.Invalidf("link the email conversation this follow-up replies in")
 	}
-	last := parts[len(parts)-1]
+	last := slices.MaxFunc(parts, func(a, b storage.Part) int { return a.At.Compare(b.At) })
 	written, err := s.draftedAt(ctx, actor, f.ID)
 	if err != nil {
 		return outgoing{}, err

@@ -46,6 +46,9 @@ func TestFollowUpDraftLifecycle(t *testing.T) {
 	if _, err := write(records.SourceUser, "draft_status", records.DraftApproved); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := write(records.SourceAgent, "draft", "Unapproved text", "draft_status", records.DraftSending); err == nil {
+		t.Fatal("an agent rewrote an approved draft and claimed it in one write")
+	}
 	var claims sync.WaitGroup
 	won := make(chan bool, 8)
 	for range 8 {

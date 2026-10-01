@@ -11,19 +11,22 @@ import { RecordIcon } from './icons'
 const text = (record: CrmRecord, slug: string) => valuesOf(record, slug).map(valueText).join(', ')
 const today = () => new Date().toLocaleDateString('en-CA')
 
-// Release sends an email draft or approves any other one for its sender; the
-// server allows it only to a person in the app.
-function Release({ record }: { record: CrmRecord }) {
-  const send = useAction<{ record_id: string }>('send_draft')
+const list = (record: CrmRecord, slug: string) => valuesOf(record, slug).map(valueText)
+
+// Release sends an email draft or approves any other one for its sender, as
+// shown; the server refuses a draft that changed since, and anyone but a
+// person signed in to the CRM.
+function Release({ record, disabled }: { record: CrmRecord; disabled?: boolean }) {
+  const send = useAction<{ record_id: string; draft: string; to: string[]; cc: string[] }>('send_draft')
   const state = text(record, 'draft_status')
   const email = text(record, 'channel') === 'Email'
   if (state === 'Sent' || state === 'Sending' || (!email && state === 'Approved')) {
     return <span className="text-[12px] text-ink-3">{state === 'Approved' ? 'Approved · waiting for the sender' : state}</span>
   }
   return (
-    <Button variant="primary" size="sm" disabled={send.isPending} onClick={(e) => {
+    <Button variant="primary" size="sm" disabled={disabled || send.isPending} onClick={(e) => {
       e.stopPropagation()
-      send.mutate({ record_id: record.id })
+      send.mutate({ record_id: record.id, draft: text(record, 'draft'), to: list(record, 'to'), cc: list(record, 'cc') })
     }}>
       {email ? 'Send' : 'Approve'}
     </Button>
@@ -128,7 +131,7 @@ export function DraftPanel({ record }: { record: CrmRecord }) {
         {current && <Recipients record={record} />}
         {current && (
           <span className="ml-auto">
-            <Release record={record} />
+            <Release record={record} disabled={write.pending || draft.trim() !== current} />
           </span>
         )}
       </div>

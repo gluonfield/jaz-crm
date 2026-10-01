@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -12,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/log"
 	"github.com/gluonfield/jaz-crm/backend/internal/logos"
 
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
@@ -177,7 +179,7 @@ func TestSyncAgainstGoogle(t *testing.T) {
 	}
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestActivityEnvironment()
-	agent := followups.NewAgent(followups.AgentParams{Service: followups.NewService(crm, store, conns), Workspaces: store, Connections: store, Interactions: convs})
+	agent := followups.NewAgent(followups.AgentParams{Service: followups.NewService(crm, store, conns), Workspaces: store, Connections: store, Interactions: convs, Logger: log.New(io.Discard)})
 	a := NewActivities(conns, convs, logos.NewService(store, logos.Fetcher{Client: srv.Client(), Home: func(domain string) string { return srv.URL + "/site/" + domain + "/" }}), agent, Config{})
 	env.RegisterActivity(a)
 	run := func(activity any, out any, args ...any) {

@@ -2,11 +2,11 @@ package followups
 
 import (
 	"context"
-	"errors"
 	"slices"
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/log"
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"github.com/gluonfield/jaz-crm/backend/internal/google"
 	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
@@ -86,6 +86,7 @@ type Agent struct {
 	addresses  storage.ConnectionStore
 	convs      *interactions.Service
 	planner    Planner
+	logger     *log.Logger
 }
 
 type AgentParams struct {
@@ -94,12 +95,13 @@ type AgentParams struct {
 	Workspaces   storage.WorkspaceStore
 	Connections  storage.ConnectionStore
 	Interactions *interactions.Service
+	Logger       *log.Logger
 	// Planner is absent when no model is configured, and the agent idles.
 	Planner Planner `optional:"true"`
 }
 
 func NewAgent(p AgentParams) *Agent {
-	return &Agent{Service: p.Service, workspaces: p.Workspaces, addresses: p.Connections, convs: p.Interactions, planner: p.Planner}
+	return &Agent{Service: p.Service, workspaces: p.Workspaces, addresses: p.Connections, convs: p.Interactions, planner: p.Planner, logger: p.Logger.WithPrefix("follow-ups")}
 }
 
 const (
@@ -111,10 +113,11 @@ const (
 	budget = 24000
 )
 
-// Run reads the workspace's conversations whose content changed since the
-// agent last read them, and reports how many it read. Each is claimed first,
-// so concurrent runs never read one twice; a failed one is left for the next
-// run.
+// Run reads up to a batch of the workspace's conversations whose content
+// changed since the agent last read them, newest first, and reports how many
+// it read. Each is claimed first, so concurrent runs never read one twice. One
+// the model could not plan is left for a later run; one whose plan could not
+// be applied is logged and read again only when it changes.
 func (a *Agent) Run(ctx context.Context, workspaceID string) (int, error) {
 	if a.planner == nil {
 		return 0, nil
@@ -124,7 +127,6 @@ func (a *Agent) Run(ctx context.Context, workspaceID string) (int, error) {
 		return 0, err
 	}
 	read := 0
-	var failed []error
 	for _, c := range candidates {
 		claimed, err := a.store.ClaimFollowUp(ctx, c.ID, c.FollowedUpAt, &c.LatestAt)
 		if err != nil {
@@ -133,39 +135,46 @@ func (a *Agent) Run(ctx context.Context, workspaceID string) (int, error) {
 		if !claimed {
 			continue
 		}
-		if err := a.follow(ctx, workspaceID, c.ID); err != nil {
-			_, undo := a.store.ClaimFollowUp(ctx, c.ID, &c.LatestAt, c.FollowedUpAt)
-			failed = append(failed, err, undo)
+		planned, err := a.follow(ctx, workspaceID, c.ID)
+		if !planned {
+			if _, err := a.store.ClaimFollowUp(ctx, c.ID, &c.LatestAt, c.FollowedUpAt); err != nil {
+				return read, err
+			}
+		}
+		if err != nil {
+			a.logger.Warn("conversation not followed up", "interaction", c.ID, "planned", planned, "error", err)
 			continue
 		}
 		read++
 	}
-	return read, errors.Join(failed...)
+	return read, nil
 }
 
 // subjects maps the objects a follow-up references to its attributes.
 var subjects = map[string]string{"people": "person", "companies": "company", "deals": "deal"}
 
-func (a *Agent) follow(ctx context.Context, workspaceID, id string) error {
+// follow plans a conversation and applies the plan, reporting whether the
+// model planned it.
+func (a *Agent) follow(ctx context.Context, workspaceID, id string) (bool, error) {
 	actor := auth.Actor{WorkspaceID: workspaceID, Agent: true}
 	conv, err := a.convs.Get(ctx, actor, id)
 	if err != nil {
-		return err
+		return true, err
 	}
 	in, err := a.conversation(ctx, actor, conv)
 	if err != nil {
-		return err
+		return true, err
 	}
 	plan, err := a.planner.Plan(ctx, in)
 	if err != nil {
-		return err
+		return false, err
 	}
 	for _, change := range plan.FollowUps {
 		if err := a.apply(ctx, actor, conv, in, change); err != nil {
-			return err
+			return true, err
 		}
 	}
-	return nil
+	return true, nil
 }
 
 func (a *Agent) conversation(ctx context.Context, actor auth.Actor, conv interactions.Interaction) (Conversation, error) {
@@ -272,15 +281,28 @@ func (a *Agent) apply(ctx context.Context, actor auth.Actor, conv interactions.I
 			put(attribute, id)
 		}
 	}
+	remove := map[string][]string{}
 	if strings.TrimSpace(c.Reply) != "" && (conv.Channel == "email" || conv.Channel == "linkedin") {
 		if err := a.draft(ctx, actor, conv, c.Reply, set); err != nil {
 			return err
+		}
+		if c.ID != "" && set["to"] != nil {
+			current, err := a.crm.Get(ctx, actor, c.ID)
+			if err != nil {
+				return err
+			}
+			for _, attribute := range []string{"to", "cc"} {
+				remove[attribute] = slices.DeleteFunc(values(current, attribute), func(address string) bool { return slices.Contains(set[attribute], address) })
+				if len(remove[attribute]) == 0 {
+					delete(remove, attribute)
+				}
+			}
 		}
 	}
 	if c.ID == "" && set["name"] == nil || len(set) == 0 {
 		return nil
 	}
-	f, _, err := a.crm.Upsert(ctx, actor, records.SourceAgent, records.Write{Object: records.FollowUps, RecordID: c.ID, Set: set})
+	f, _, err := a.crm.Upsert(ctx, actor, records.SourceAgent, records.Write{Object: records.FollowUps, RecordID: c.ID, Set: set, Remove: remove})
 	if err != nil {
 		return err
 	}

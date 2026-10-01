@@ -29,12 +29,13 @@ log_interaction. Companies have founded_year (a whole year) and size (an employe
 track what we or they owe next on a person, company or deal, with a review date and an optional
 draft: get_record lists a record's follow-ups, and search_records on follow_ups with the Needs
 attention saved filter is the queue. To send an approved LinkedIn draft, set its draft_status to
-Sending, send it, log the conversation with log_interaction, then set Sent. Call list_objects to
-learn each object's attributes and options. Emails, domains and phone numbers identify records:
-upsert_record with an email or domain updates the record that holds it instead of creating a
-duplicate. Values you write are marked as written by an agent; a value a person set is never
-overwritten, and the write reports it as skipped. Tools act in your default workspace; to work in
-another, pass its name as the workspace argument (list_workspaces).`
+Sending, send it, log the sent message with log_interaction (kind message, channel linkedin,
+direction sent), then set Sent. Call list_objects to learn each object's attributes and options.
+Emails, domains and phone numbers identify records: upsert_record with an email or domain updates
+the record that holds it instead of creating a duplicate. Values you write are marked as written by
+an agent; a value a person set is never overwritten, and the write reports it as skipped. Tools act
+in your default workspace; to work in another, pass its name as the workspace argument
+(list_workspaces).`
 
 // Handler serves /mcp to bearer tokens and /api/tools/{tool} to sessions.
 type Handler struct {

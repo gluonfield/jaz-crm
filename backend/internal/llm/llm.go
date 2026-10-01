@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
@@ -31,7 +32,7 @@ func New(cfg Config) *Client {
 	return &Client{
 		model:  cfg.Model,
 		effort: shared.ReasoningEffort(cfg.Effort),
-		api:    openai.NewClient(option.WithAPIKey(cfg.APIKey), option.WithBaseURL(cfg.BaseURL)),
+		api:    openai.NewClient(option.WithAPIKey(cfg.APIKey), option.WithBaseURL(cfg.BaseURL), option.WithRequestTimeout(2*time.Minute)),
 	}
 }
 
