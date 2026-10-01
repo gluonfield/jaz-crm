@@ -14,13 +14,19 @@ const colours = [
   'bg-orange-500/12 text-orange-700 ring-orange-500/20 dark:text-orange-300',
 ]
 
+const colourOf = (value: string) => colours[[...value.toLowerCase()].reduce((hash, letter) => (hash * 31 + letter.codePointAt(0)!) % colours.length, 0)]
+
 export function ValueTag({ value }: { value: string }) {
-  const colour = [...value.toLowerCase()].reduce((hash, letter) => (hash * 31 + letter.codePointAt(0)!) % colours.length, 0)
   return (
-    <span title={value} className={cn('inline-flex h-6 max-w-48 items-center rounded-full px-2.5 text-[12px] font-medium ring-1 ring-inset', colours[colour])}>
+    <span title={value} className={cn('inline-flex h-6 max-w-48 items-center rounded-full px-2.5 text-[12px] font-medium ring-1 ring-inset', colourOf(value))}>
       <span className="truncate">{value}</span>
     </span>
   )
+}
+
+// ValueDot is a value's colour alone, as menus show it.
+export function ValueDot({ value }: { value: string }) {
+  return <span className={cn(colourOf(value), 'size-2 shrink-0 rounded-full bg-current')} />
 }
 
 export function SelectField({ record, attribute }: { record: CrmRecord; attribute: Attribute }) {

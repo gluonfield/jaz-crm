@@ -1,11 +1,12 @@
 import { useNavigate } from '@tanstack/react-router'
-import { ArrowUpRight, Pencil, Tags, Trash2 } from 'lucide-react'
-import { type ReactNode, useId, useState } from 'react'
+import { ArrowUpRight, Pencil, Plus, Tags, Trash2 } from 'lucide-react'
+import { type KeyboardEvent, type ReactNode, useId, useRef, useState } from 'react'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
 import { useAction, useWrite } from '@/lib/queries'
-import type { CrmObject, CrmRecord } from '@/lib/types'
+import type { Attribute, CrmObject, CrmRecord } from '@/lib/types'
 import { Button } from './controls'
 import { CreateRecord } from './create-record'
+import { ValueDot } from './select-field'
 import {
   ContextMenu,
   ContextMenuCheckboxItem,
@@ -22,13 +23,11 @@ import { Dialog, DialogContent, DialogTitle } from './ui/dialog'
 // RecordMenu offers a record's actions when its row or card is right-clicked.
 export function RecordMenu({ object, record, children }: { object: CrmObject; record: CrmRecord; children: ReactNode }) {
   const navigate = useNavigate()
-  const write = useWrite(record)
   const remove = useAction<{ record_id: string }>('delete_record')
   const [editing, setEditing] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const description = useId()
   const categories = object.attributes.find((a) => a.slug === 'categories' && a.type === 'select')
-  const tagged = valuesOf(record, 'categories').map(valueText)
   return (
     <>
       <ContextMenu>
@@ -40,28 +39,9 @@ export function RecordMenu({ object, record, children }: { object: CrmObject; re
           <ContextMenuItem onSelect={() => setEditing(true)}>
             <Pencil /> Edit…
           </ContextMenuItem>
-          {categories?.options?.length ? (
-            <ContextMenuSub>
-              <ContextMenuSubTrigger>
-                <Tags /> Categories
-              </ContextMenuSubTrigger>
-              <ContextMenuSubContent className="w-48">
-                {categories.options.map((option) => (
-                  <ContextMenuCheckboxItem
-                    key={option}
-                    checked={tagged.includes(option)}
-                    disabled={write.pending}
-                    onSelect={(e) => e.preventDefault()}
-                    onCheckedChange={(checked) => (checked ? write.set(categories.slug, option) : write.remove(categories.slug, [option]))}
-                  >
-                    <span className="truncate">{option}</span>
-                  </ContextMenuCheckboxItem>
-                ))}
-              </ContextMenuSubContent>
-            </ContextMenuSub>
-          ) : null}
+          {categories && <Categories record={record} attribute={categories} />}
           <ContextMenuSeparator />
-          <ContextMenuItem variant="destructive" onSelect={() => setDeleting(true)}>
+          <ContextMenuItem onSelect={() => setDeleting(true)}>
             <Trash2 /> Delete…
           </ContextMenuItem>
         </ContextMenuContent>
@@ -90,5 +70,80 @@ export function RecordMenu({ object, record, children }: { object: CrmObject; re
         </DialogContent>
       </Dialog>
     </>
+  )
+}
+
+// Categories tags a record the way Linear labels an issue: type to filter, tick
+// to toggle, and Enter on a new name to create it and tag the record with it.
+function Categories({ record, attribute }: { record: CrmRecord; attribute: Attribute }) {
+  const write = useWrite(record)
+  const add = useAction<{ object: string; attribute: string; value: string }, { value: string }>('add_attribute_option')
+  const [query, setQuery] = useState('')
+  const input = useRef<HTMLInputElement>(null)
+  const tagged = valuesOf(record, attribute.slug).map(valueText)
+  const text = query.trim()
+  const shown = (attribute.options ?? []).filter((o) => o.toLowerCase().includes(text.toLowerCase()))
+  const exact = shown.find((o) => o.toLowerCase() === text.toLowerCase())
+  const toggle = (option: string) => (tagged.includes(option) ? write.remove(attribute.slug, [option]) : write.set(attribute.slug, option))
+  const create = () => add.mutate({ object: record.object, attribute: attribute.slug, value: text }, { onSuccess: (out) => write.set(attribute.slug, out.value) })
+  // Typing anywhere in the submenu, or on its row, goes to the filter.
+  const typeIn = (e: KeyboardEvent) => {
+    if (e.key.length === 1 && e.key !== ' ' && !e.metaKey && !e.ctrlKey && !e.altKey && e.target !== input.current) {
+      e.stopPropagation()
+      input.current?.focus()
+    }
+  }
+  const choose = () => {
+    if (exact) {
+      toggle(exact)
+    } else {
+      create()
+    }
+    setQuery('')
+  }
+  return (
+    <ContextMenuSub>
+      <ContextMenuSubTrigger onKeyDownCapture={typeIn}>
+        <Tags /> Categories
+      </ContextMenuSubTrigger>
+      <ContextMenuSubContent className="w-56" onKeyDownCapture={typeIn}>
+        <input
+          ref={input}
+          value={query}
+          aria-label="Add categories"
+          placeholder="Add categories…"
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key !== 'Escape') {
+              e.stopPropagation()
+            }
+            if (e.key === 'Enter' && text) {
+              choose()
+            }
+            if (e.key === 'ArrowDown') {
+              e.currentTarget.parentElement?.querySelector<HTMLElement>('[role^=menuitem]')?.focus()
+            }
+          }}
+          className="h-8 w-full bg-transparent px-2 text-[13px] text-ink outline-none placeholder:text-ink-3"
+        />
+        {(shown.length > 0 || (text && !exact)) && <ContextMenuSeparator />}
+        {shown.map((option) => (
+          <ContextMenuCheckboxItem key={option} checked={tagged.includes(option)} disabled={write.pending} onSelect={(e) => e.preventDefault()} onCheckedChange={() => toggle(option)}>
+            <ValueDot value={option} />
+            <span className="truncate">{option}</span>
+          </ContextMenuCheckboxItem>
+        ))}
+        {text && !exact && (
+          <ContextMenuItem
+            onSelect={(e) => {
+              e.preventDefault()
+              choose()
+            }}
+          >
+            <Plus /> Create “{text}”
+          </ContextMenuItem>
+        )}
+      </ContextMenuSubContent>
+    </ContextMenuSub>
   )
 }
