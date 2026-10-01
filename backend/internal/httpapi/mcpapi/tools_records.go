@@ -81,7 +81,7 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 			return out, err
 		})
 	add(r, &mcp.Tool{Name: "upsert_record", Title: "Upsert record",
-		Description: "Create or update a record. Without record_id it updates the record holding a given email, domain or phone number, else creates one."},
+		Description: "Create or update a record. Without record_id it updates the record holding a given email, domain or phone number, else creates one. A follow-up's draft_status moves from Draft to Approved, which only a person sets in the CRM, then to Sending, which claims an approved draft for whoever sends it and succeeds once, then to Sent; editing the draft withdraws its approval."},
 		func(ctx context.Context, actor auth.Actor, in upsertInput) (upsertOutput, error) {
 			set, err := lists(in.Values)
 			if err != nil {

@@ -55,6 +55,8 @@ type Skip struct {
 type change struct {
 	attr    storage.Attribute
 	entries []entry
+	// force replaces values whatever their source's rank.
+	force bool
 }
 
 func (s *Service) Upsert(ctx context.Context, actor auth.Actor, source Source, w Write) (Record, []Skip, error) {
@@ -98,6 +100,10 @@ func (s *Service) upsert(ctx context.Context, actor auth.Actor, source Source, w
 	}
 	var skips []Skip
 	id, err = s.store.WriteRecord(ctx, actor.WorkspaceID, object.ID, id, func(current []storage.RecordValue) (storage.ValueChanges, error) {
+		set, remove, err := guardDraft(sc, object, current, slices.Clone(set), slices.Clone(remove), source)
+		if err != nil {
+			return storage.ValueChanges{}, err
+		}
 		var changes storage.ValueChanges
 		changes, skips = plan(current, set, remove, source, actor.UserID)
 		return changes, nil
@@ -224,9 +230,9 @@ func plan(current []storage.RecordValue, set, remove []change, source Source, ac
 		})
 	}
 	// release closes a value unless a higher-ranked source holds it.
-	release := func(attr storage.Attribute, v storage.RecordValue) bool {
-		if Source(v.Source).rank() > source.rank() {
-			skips = append(skips, Skip{Attribute: attr.Slug, Value: valueIdentity(v), Source: Source(v.Source)})
+	release := func(c change, v storage.RecordValue) bool {
+		if !c.force && Source(v.Source).rank() > source.rank() {
+			skips = append(skips, Skip{Attribute: c.attr.Slug, Value: valueIdentity(v), Source: Source(v.Source)})
 			return false
 		}
 		out.Close = append(out.Close, v.ID)
@@ -241,7 +247,7 @@ func plan(current []storage.RecordValue, set, remove []change, source Source, ac
 			case i >= 0:
 				out.Close = append(out.Close, existing[i].ID)
 				insert(c.attr, e)
-			case c.attr.Multi || len(existing) == 0 || release(c.attr, existing[0]):
+			case c.attr.Multi || len(existing) == 0 || release(c, existing[0]):
 				insert(c.attr, e)
 			}
 		}
@@ -249,7 +255,7 @@ func plan(current []storage.RecordValue, set, remove []change, source Source, ac
 	for _, c := range remove {
 		for _, v := range held[c.attr.ID] {
 			if len(c.entries) == 0 || slices.ContainsFunc(c.entries, func(e entry) bool { return e.identity() == valueIdentity(v) }) {
-				release(c.attr, v)
+				release(c, v)
 			}
 		}
 	}

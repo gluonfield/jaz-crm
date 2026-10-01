@@ -51,7 +51,7 @@ func TestMessageMigration(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	provider, err := goose.NewProvider(goose.DialectPostgres, db, os.DirFS("migrations"), goose.WithDisableGlobalRegistry(true), goose.WithGoMigrations(datamigrations.DealFollowups))
+	provider, err := goose.NewProvider(goose.DialectPostgres, db, os.DirFS("migrations"), goose.WithDisableGlobalRegistry(true), goose.WithGoMigrations(datamigrations.DealFollowups, datamigrations.FollowUps))
 	if err != nil {
 		t.Fatal(err)
 	}

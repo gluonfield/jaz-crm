@@ -70,6 +70,30 @@ var StandardObjects = []storage.NewObject{
 		{Attribute: "stage", Operator: "is_not", Value: "Won"},
 		{Attribute: "stage", Operator: "is_not", Value: "Lost"},
 	}}}},
+	{Slug: FollowUps, Name: "Follow-ups", Attributes: []storage.NewAttribute{
+		{Slug: titleAttribute, Name: "Action", Type: Text},
+		{Slug: "status", Name: "Status", Type: Status, Options: []string{"Open", "Done", "Dismissed"}},
+		{Slug: "waiting_on", Name: "Waiting on", Type: Select, Options: []string{"Us", "Them"}},
+		{Slug: "review_on", Name: "Review on", Type: Date},
+		{Slug: "owner", Name: "Owner", Type: Member},
+		{Slug: "person", Name: "Person", Type: Reference, Target: "people"},
+		{Slug: "company", Name: "Company", Type: Reference, Target: "companies"},
+		{Slug: "deal", Name: "Deal", Type: Reference, Target: "deals"},
+		{Slug: draftAttribute, Name: "Draft", Type: Text},
+		{Slug: "channel", Name: "Channel", Type: Select, Options: []string{"Email", "LinkedIn"}},
+		{Slug: "to", Name: "To", Type: Email, Multi: true},
+		{Slug: "cc", Name: "Cc", Type: Email, Multi: true},
+		{Slug: draftStatusAttribute, Name: "Draft status", Type: Select, Options: []string{DraftWritten, DraftApproved, DraftSending, DraftSent}},
+	}, Filters: []storage.SavedFilter{
+		{Name: "Needs attention", Filters: []storage.RecordFilter{
+			{Attribute: "status", Operator: "is", Value: "Open"},
+			{Attribute: "review_on", Operator: "on_or_before", Value: "today"},
+		}},
+		{Name: "Waiting on them", Filters: []storage.RecordFilter{
+			{Attribute: "status", Operator: "is", Value: "Open"},
+			{Attribute: "waiting_on", Operator: "is", Value: "Them"},
+		}},
+	}},
 }
 
 // entry is a validated value ready to store: text, or a referenced record,
