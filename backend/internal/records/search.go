@@ -1,0 +1,98 @@
+package records
+
+import (
+	"context"
+	"errors"
+	"strings"
+
+	"github.com/gluonfield/jaz-crm/backend/internal/auth"
+	"github.com/gluonfield/jaz-crm/backend/internal/errs"
+	"github.com/gluonfield/jaz-crm/backend/internal/storage"
+)
+
+type Filter = storage.RecordFilter
+
+type Search struct {
+	Object  string
+	Query   string
+	Where   map[string]string
+	Filters []Filter
+	Limit   int
+}
+
+func (s *Service) Search(ctx context.Context, actor auth.Actor, q Search) ([]Record, error) {
+	sc, err := s.schema(ctx, actor.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	object, err := sc.object(q.Object)
+	if err != nil {
+		return nil, err
+	}
+	filters := append([]Filter{}, q.Filters...)
+	for slug, value := range q.Where {
+		filters = append(filters, Filter{Attribute: slug, Operator: "is", Value: value})
+	}
+	query, err := s.filterQuery(ctx, actor, sc, object, filters)
+	if err != nil {
+		return nil, err
+	}
+	query.Limit = 20
+	if q.Limit > 0 {
+		query.Limit = int32(min(q.Limit, 100))
+	}
+	if text := strings.TrimSpace(q.Query); text != "" {
+		escaped := literalPattern(text)
+		query.Query = &escaped
+	}
+	found, err := s.store.SearchRecords(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	return s.views(ctx, actor.WorkspaceID, sc, found)
+}
+
+func (s *Service) filterQuery(ctx context.Context, actor auth.Actor, sc schema, object storage.Object, filters []Filter) (storage.RecordQuery, error) {
+	query := storage.RecordQuery{WorkspaceID: actor.WorkspaceID, ObjectID: object.ID, AttributeIDs: []string{}, Matches: []string{}, Operators: []string{}}
+	if len(filters) > 32 {
+		return query, errs.Invalidf("at most 32 filter conditions")
+	}
+	for _, f := range filters {
+		attr, err := sc.attribute(object, f.Attribute)
+		if err != nil {
+			return query, err
+		}
+		match := ""
+		switch f.Operator {
+		case "is_empty", "is_not_empty":
+		case "contains", "not_contains":
+			if attr.Type == Reference || attr.Type == Number || attr.Type == Date || attr.Type == Checkbox {
+				return query, errs.Invalidf("%s does not support %s", attr.Slug, f.Operator)
+			}
+			if match = strings.TrimSpace(f.Value); match == "" {
+				return query, errs.Invalidf("%s: empty filter value", attr.Slug)
+			}
+			match = literalPattern(match)
+		case "is", "is_not":
+			e, err := s.entry(ctx, actor.WorkspaceID, sc, attr, f.Value)
+			var unknown errs.Invalid
+			if attr.Type == Reference && errors.As(err, &unknown) {
+				match = "unresolved"
+			} else if err != nil {
+				return query, err
+			} else {
+				match = e.match()
+			}
+		default:
+			return query, errs.Invalidf("unknown filter operator %q", f.Operator)
+		}
+		query.AttributeIDs = append(query.AttributeIDs, attr.ID)
+		query.Matches = append(query.Matches, match)
+		query.Operators = append(query.Operators, f.Operator)
+	}
+	return query, nil
+}
+
+func literalPattern(text string) string {
+	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(text)
+}

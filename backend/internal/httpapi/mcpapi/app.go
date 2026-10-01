@@ -107,6 +107,10 @@ func recordSearchURI(in searchInput) string {
 		where, _ := json.Marshal(in.Where)
 		params.Set("where", string(where))
 	}
+	if len(in.Filters) > 0 {
+		filters, _ := json.Marshal(in.Filters)
+		params.Set("filters", string(filters))
+	}
 	if in.Limit > 0 {
 		params.Set("limit", strconv.Itoa(min(in.Limit, 100)))
 	} else {

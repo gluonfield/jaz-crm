@@ -96,9 +96,6 @@ WHERE records.workspace_id = @workspace_id AND record_values.active_until IS NUL
   );
 
 -- name: SearchRecords :many
--- SearchRecords returns an object's records, newest first, whose current
--- values contain the query and satisfy every (attribute, match) filter; a
--- match equals a value's lowercased text, unique key or referenced record id.
 SELECT records.* FROM records
 WHERE records.workspace_id = @workspace_id AND records.object_id = @object_id
   AND (sqlc.narg(query)::text IS NULL OR EXISTS (
@@ -108,13 +105,19 @@ WHERE records.workspace_id = @workspace_id AND records.object_id = @object_id
   ))
   AND NOT EXISTS (
     SELECT 1 FROM generate_subscripts(@attribute_ids::uuid[], 1) AS i
-    WHERE NOT EXISTS (
+    WHERE EXISTS (
       SELECT 1 FROM record_values
       WHERE record_values.record_id = records.id AND record_values.active_until IS NULL
         AND record_values.attribute_id = (@attribute_ids::uuid[])[i]
-        AND (lower(record_values.text) = (@matches::text[])[i] OR record_values.unique_key = (@matches::text[])[i]
-          OR record_values.ref_record_id::text = (@matches::text[])[i])
-    )
+        AND CASE (@operators::text[])[i]
+          WHEN 'is_empty' THEN true
+          WHEN 'is_not_empty' THEN true
+          WHEN 'contains' THEN record_values.text ILIKE '%' || (@matches::text[])[i] || '%'
+          WHEN 'not_contains' THEN record_values.text ILIKE '%' || (@matches::text[])[i] || '%'
+          ELSE lower(record_values.text) = (@matches::text[])[i] OR record_values.unique_key = (@matches::text[])[i]
+            OR record_values.ref_record_id::text = (@matches::text[])[i]
+        END
+    ) = ((@operators::text[])[i] IN ('is_not', 'not_contains', 'is_empty'))
   )
 ORDER BY records.created_at DESC, records.id
 LIMIT @row_limit;
@@ -126,3 +129,19 @@ WHERE record_id = @record_id AND id = ANY(@ids::bigint[]) AND active_until IS NU
 -- name: InsertValue :exec
 INSERT INTO record_values (record_id, attribute_id, text, ref_record_id, unique_key, source, actor_id)
 VALUES ($1, $2, $3, $4, $5, $6, $7);
+
+-- name: ListSavedFilters :many
+SELECT * FROM saved_filters WHERE workspace_id = $1 AND object_id = $2 ORDER BY lower(name), id;
+
+-- name: CreateSavedFilter :one
+INSERT INTO saved_filters (id, workspace_id, object_id, name, query, filters)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING *;
+
+-- name: UpdateSavedFilter :one
+UPDATE saved_filters SET name = @name, query = @query, filters = @filters
+WHERE workspace_id = @workspace_id AND object_id = @object_id AND id = @id
+RETURNING *;
+
+-- name: DeleteFilter :execrows
+DELETE FROM saved_filters WHERE workspace_id = $1 AND id = $2;

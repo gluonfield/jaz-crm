@@ -48,3 +48,12 @@ type RecordValue struct {
 	ActiveFrom  time.Time
 	ActiveUntil *time.Time
 }
+
+type SavedFilter struct {
+	ID          string
+	WorkspaceID string
+	ObjectID    string
+	Name        string
+	Query       string
+	Filters     []byte
+}

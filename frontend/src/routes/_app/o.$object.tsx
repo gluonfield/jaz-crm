@@ -1,5 +1,5 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
-import { ArrowDownAZ, Kanban, Plus, Search, Table2, Tags } from 'lucide-react'
+import { ArrowDownAZ, Kanban, Plus, Search, Table2 } from 'lucide-react'
 import { type ReactNode, useRef, useState } from 'react'
 import { Board } from '@/components/board'
 import { Stage } from '@/components/stage'
@@ -9,6 +9,7 @@ import { DomainLink } from '@/components/domain-link'
 import { ConnectGoogle, EmptyState } from '@/components/empty-state'
 import { ObjectIcon, RecordIcon } from '@/components/icons'
 import { Picker } from '@/components/picker'
+import { RecordFilters } from '@/components/record-filters'
 import { RecordMenu } from '@/components/record-menu'
 import { SelectField } from '@/components/select-field'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
@@ -35,11 +36,10 @@ const arrivals: Record<string, string> = {
 function ObjectPage() {
   const { object: slug } = Route.useParams()
   const object = useObjects()?.find((o) => o.slug === slug)
-  const categories = object?.attributes.find((a) => a.slug === 'categories' && a.type === 'select')
   const search = Route.useSearch()
-  const { category, sort, view, q = '', where = {}, limit = 100 } = search
+  const { sort, view, q = '', filters = [], saved, limit = 100 } = search
   const query = useDebounced(q.trim())
-  const result = useRecords(slug, query, limit, { ...where, ...(category && categories ? { categories: category } : {}) })
+  const result = useRecords(slug, query, limit, filters)
   const found = result.data?.records
   const records = found && (sort === 'name' ? [...found].sort((a, b) => recordName(a).localeCompare(recordName(b))) : found)
   const navigate = useNavigate()
@@ -51,10 +51,9 @@ function ObjectPage() {
   if (!object) {
     return <Header>{slug}</Header>
   }
-  const columns = object.attributes.filter((a) => a.slug !== 'name').sort((a, b) => Number(b.slug === 'categories') - Number(a.slug === 'categories'))
+  const columns = object.attributes.filter((a) => a.slug !== 'name').sort((a, b) => Number(b.type === 'select') - Number(a.type === 'select'))
   const status = statusOf(object.attributes)
   const board = view === 'table' ? undefined : status
-  const filter = (value: string) => void navigate({ to: '.', search: { ...search, category: value || undefined }, replace: true })
   return (
     <>
       <Header>
@@ -72,20 +71,6 @@ function ObjectPage() {
           </div>
         )}
         <div className="ml-auto flex min-w-0 items-center gap-1 font-normal">
-          {categories && (
-            <Picker
-              trigger={
-                <Button ghost className="min-w-0">
-                  <Tags />
-                  <span className="max-w-40 truncate">{category || 'All categories'}</span>
-                </Button>
-              }
-              placeholder="Filter categories…"
-              options={[{ value: '', label: 'All categories' }, ...(categories.options ?? []).map((value) => ({ value, label: value }))]}
-              selected={[category ?? '']}
-              onSelect={filter}
-            />
-          )}
           <Picker
             trigger={
               <Button ghost>
@@ -114,11 +99,15 @@ function ObjectPage() {
           </Button>
         </div>
       </Header>
+      <RecordFilters key={slug} object={object} filters={filters} query={q} selected={saved}
+        onChange={(filters) => void navigate({ to: '.', search: { ...search, filters }, replace: true })}
+        onApply={(filter) => void navigate({ to: '.', search: { ...search, filters: filter?.filters ?? [], q: filter?.query, saved: filter?.id }, replace: true })}
+      />
       <CreateRecord object={object} open={creating} onOpenChange={setCreating} openCreated />
       {result.isError ? <EmptyState title={result.error.message} icon={<Search />} /> : board ? (
         records && <Board object={object} status={board} records={records} />
       ) : records?.length === 0 ? (
-        <Empty object={object} query={query} category={categories ? category : undefined} filtered={Object.keys(where).length > 0} />
+        <Empty object={object} query={query} filtered={filters.length > 0} />
       ) : (
         <div className="scrollbar-quiet min-h-0 flex-1 overflow-auto">
           <table className="w-full border-collapse text-[13px]">
@@ -201,12 +190,9 @@ function cell(record: CrmRecord, attribute: Attribute) {
   return <span className="block truncate" title={values.join(', ')}>{values.join(', ')}</span>
 }
 
-function Empty({ object, query, category, filtered }: { object: CrmObject; query: string; category?: string; filtered: boolean }) {
+function Empty({ object, query, filtered }: { object: CrmObject; query: string; filtered: boolean }) {
   const mail = useMail()
   const plural = object.name.toLowerCase()
-  if (category) {
-    return <EmptyState title={`No ${plural} ${query ? `match “${query}” in` : 'in'} “${category}”`} icon={<Tags />} />
-  }
   if (query) {
     return <EmptyState title={`No ${plural} match “${query}”`} icon={<Search />} />
   }

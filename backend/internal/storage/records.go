@@ -95,15 +95,27 @@ type NewAttribute struct {
 }
 
 type RecordQuery struct {
-	WorkspaceID string
-	ObjectID    string
-	Query       *string
-	// AttributeIDs and Matches pair up: each record must hold a current value
-	// of the attribute whose lowercased text, unique key or reference equals
-	// the match.
+	WorkspaceID  string
+	ObjectID     string
+	Query        *string
 	AttributeIDs []string
+	Operators    []string
 	Matches      []string
 	Limit        int32
+}
+
+type RecordFilter struct {
+	Attribute string `json:"attribute"`
+	Operator  string `json:"operator" jsonschema:"is, is_not, contains, not_contains, is_empty or is_not_empty; all conditions must match"`
+	Value     string `json:"value,omitempty"`
+}
+
+type SavedFilter struct {
+	ID       string         `json:"id"`
+	Name     string         `json:"name"`
+	Query    string         `json:"query,omitempty"`
+	Filters  []RecordFilter `json:"filters"`
+	ObjectID string         `json:"-"`
 }
 
 // ValueChanges closes current values by ID and inserts new ones.
@@ -134,6 +146,9 @@ type RecordStore interface {
 	DeleteRecord(ctx context.Context, workspaceID, id string) error
 	Records(ctx context.Context, workspaceID string, ids []string) ([]Record, error)
 	SearchRecords(ctx context.Context, query RecordQuery) ([]Record, error)
+	SavedFilters(ctx context.Context, workspaceID, objectID string) ([]SavedFilter, error)
+	SaveFilter(ctx context.Context, workspaceID string, filter SavedFilter) (SavedFilter, error)
+	DeleteFilter(ctx context.Context, workspaceID, id string) error
 	CurrentValues(ctx context.Context, workspaceID string, recordIDs []string) ([]RecordValue, error)
 	// History returns a record's values, current and closed, newest first.
 	History(ctx context.Context, workspaceID, recordID string, limit int32) ([]PastValue, error)

@@ -104,3 +104,7 @@ export type TriageSettings = {
   auto_keep_records: boolean
   auto_keep_ai: boolean
 }
+
+export const filterOperators = ['is', 'is_not', 'contains', 'not_contains', 'is_empty', 'is_not_empty'] as const
+export type RecordFilter = { attribute: string; operator: (typeof filterOperators)[number]; value?: string }
+export type SavedFilter = { id: string; name: string; query?: string; filters: RecordFilter[] }

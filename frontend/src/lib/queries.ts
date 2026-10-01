@@ -1,7 +1,7 @@
 import { MutationCache, QueryClient, type UseQueryOptions, useInfiniteQuery, useMutation, useQueries, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { call } from './api'
-import type { CrmObject, CrmRecord, Interaction, Workspace } from './types'
+import type { CrmObject, CrmRecord, Interaction, RecordFilter, Workspace } from './types'
 
 // Every query is a tool call keyed by [tool, args]. Any successful change
 // refetches what is on screen, so views never patch caches by hand, and any
@@ -39,8 +39,8 @@ export function useWorkspace() {
   return useTool<Workspace>('get_workspace').data
 }
 
-export function useRecords(object: string, query = '', limit = 100, where: Record<string, string> = {}) {
-  return useTool<{ records: CrmRecord[] }>('search_records', { object, query, limit, where }, { placeholderData: (previous) => previous })
+export function useRecords(object: string, query = '', limit = 100, filters: RecordFilter[] = []) {
+  return useTool<{ records: CrmRecord[] }>('search_records', { object, query, limit, filters }, { placeholderData: (previous) => previous })
 }
 
 export function useWrite(record: CrmRecord) {

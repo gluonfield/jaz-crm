@@ -139,6 +139,42 @@ func (q *Queries) CreateRecord(ctx context.Context, arg CreateRecordParams) (Rec
 	return i, err
 }
 
+const createSavedFilter = `-- name: CreateSavedFilter :one
+INSERT INTO saved_filters (id, workspace_id, object_id, name, query, filters)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, workspace_id, object_id, name, query, filters
+`
+
+type CreateSavedFilterParams struct {
+	ID          string
+	WorkspaceID string
+	ObjectID    string
+	Name        string
+	Query       string
+	Filters     []byte
+}
+
+func (q *Queries) CreateSavedFilter(ctx context.Context, arg CreateSavedFilterParams) (SavedFilter, error) {
+	row := q.db.QueryRow(ctx, createSavedFilter,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.ObjectID,
+		arg.Name,
+		arg.Query,
+		arg.Filters,
+	)
+	var i SavedFilter
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.ObjectID,
+		&i.Name,
+		&i.Query,
+		&i.Filters,
+	)
+	return i, err
+}
+
 const currentValues = `-- name: CurrentValues :many
 SELECT record_values.id, record_values.record_id, record_values.attribute_id, record_values.text, record_values.ref_record_id, record_values.unique_key, record_values.source, record_values.actor_id, record_values.active_from, record_values.active_until FROM record_values
 JOIN records ON records.id = record_values.record_id
@@ -181,6 +217,23 @@ func (q *Queries) CurrentValues(ctx context.Context, arg CurrentValuesParams) ([
 		return nil, err
 	}
 	return items, nil
+}
+
+const deleteFilter = `-- name: DeleteFilter :execrows
+DELETE FROM saved_filters WHERE workspace_id = $1 AND id = $2
+`
+
+type DeleteFilterParams struct {
+	WorkspaceID string
+	ID          string
+}
+
+func (q *Queries) DeleteFilter(ctx context.Context, arg DeleteFilterParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteFilter, arg.WorkspaceID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const deleteRecord = `-- name: DeleteRecord :execrows
@@ -319,6 +372,42 @@ func (q *Queries) ListObjects(ctx context.Context, workspaceID string) ([]Object
 			&i.Slug,
 			&i.Name,
 			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSavedFilters = `-- name: ListSavedFilters :many
+SELECT id, workspace_id, object_id, name, query, filters FROM saved_filters WHERE workspace_id = $1 AND object_id = $2 ORDER BY lower(name), id
+`
+
+type ListSavedFiltersParams struct {
+	WorkspaceID string
+	ObjectID    string
+}
+
+func (q *Queries) ListSavedFilters(ctx context.Context, arg ListSavedFiltersParams) ([]SavedFilter, error) {
+	rows, err := q.db.Query(ctx, listSavedFilters, arg.WorkspaceID, arg.ObjectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SavedFilter{}
+	for rows.Next() {
+		var i SavedFilter
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.ObjectID,
+			&i.Name,
+			&i.Query,
+			&i.Filters,
 		); err != nil {
 			return nil, err
 		}
@@ -572,16 +661,22 @@ WHERE records.workspace_id = $1 AND records.object_id = $2
   ))
   AND NOT EXISTS (
     SELECT 1 FROM generate_subscripts($4::uuid[], 1) AS i
-    WHERE NOT EXISTS (
+    WHERE EXISTS (
       SELECT 1 FROM record_values
       WHERE record_values.record_id = records.id AND record_values.active_until IS NULL
         AND record_values.attribute_id = ($4::uuid[])[i]
-        AND (lower(record_values.text) = ($5::text[])[i] OR record_values.unique_key = ($5::text[])[i]
-          OR record_values.ref_record_id::text = ($5::text[])[i])
-    )
+        AND CASE ($5::text[])[i]
+          WHEN 'is_empty' THEN true
+          WHEN 'is_not_empty' THEN true
+          WHEN 'contains' THEN record_values.text ILIKE '%' || ($6::text[])[i] || '%'
+          WHEN 'not_contains' THEN record_values.text ILIKE '%' || ($6::text[])[i] || '%'
+          ELSE lower(record_values.text) = ($6::text[])[i] OR record_values.unique_key = ($6::text[])[i]
+            OR record_values.ref_record_id::text = ($6::text[])[i]
+        END
+    ) = (($5::text[])[i] IN ('is_not', 'not_contains', 'is_empty'))
   )
 ORDER BY records.created_at DESC, records.id
-LIMIT $6
+LIMIT $7
 `
 
 type SearchRecordsParams struct {
@@ -589,19 +684,18 @@ type SearchRecordsParams struct {
 	ObjectID     string
 	Query        *string
 	AttributeIDs []string
+	Operators    []string
 	Matches      []string
 	Limit        int32
 }
 
-// SearchRecords returns an object's records, newest first, whose current
-// values contain the query and satisfy every (attribute, match) filter; a
-// match equals a value's lowercased text, unique key or referenced record id.
 func (q *Queries) SearchRecords(ctx context.Context, arg SearchRecordsParams) ([]Record, error) {
 	rows, err := q.db.Query(ctx, searchRecords,
 		arg.WorkspaceID,
 		arg.ObjectID,
 		arg.Query,
 		arg.AttributeIDs,
+		arg.Operators,
 		arg.Matches,
 		arg.Limit,
 	)
@@ -642,6 +736,42 @@ func (q *Queries) StageInUse(ctx context.Context, arg StageInUseParams) (bool, e
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const updateSavedFilter = `-- name: UpdateSavedFilter :one
+UPDATE saved_filters SET name = $1, query = $2, filters = $3
+WHERE workspace_id = $4 AND object_id = $5 AND id = $6
+RETURNING id, workspace_id, object_id, name, query, filters
+`
+
+type UpdateSavedFilterParams struct {
+	Name        string
+	Query       string
+	Filters     []byte
+	WorkspaceID string
+	ObjectID    string
+	ID          string
+}
+
+func (q *Queries) UpdateSavedFilter(ctx context.Context, arg UpdateSavedFilterParams) (SavedFilter, error) {
+	row := q.db.QueryRow(ctx, updateSavedFilter,
+		arg.Name,
+		arg.Query,
+		arg.Filters,
+		arg.WorkspaceID,
+		arg.ObjectID,
+		arg.ID,
+	)
+	var i SavedFilter
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.ObjectID,
+		&i.Name,
+		&i.Query,
+		&i.Filters,
+	)
+	return i, err
 }
 
 const updateStatusOptions = `-- name: UpdateStatusOptions :exec

@@ -9,6 +9,7 @@ require (
 	github.com/go-jose/go-jose/v4 v4.1.4
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.11.0
+	github.com/lithammer/shortuuid/v4 v4.3.0
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/pressly/goose/v3 v3.27.1
 	go.temporal.io/api v1.63.5
@@ -17,6 +18,7 @@ require (
 	golang.org/x/net v0.59.0
 	golang.org/x/oauth2 v0.37.0
 )
+
 
 require (
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect

@@ -4,7 +4,6 @@ package records
 
 import (
 	"context"
-	"errors"
 	"slices"
 	"strings"
 	"time"
@@ -166,58 +165,6 @@ func (s *Service) find(ctx context.Context, workspaceID, id string) ([]storage.R
 		return nil, nil
 	}
 	return s.store.Records(ctx, workspaceID, []string{id})
-}
-
-type Search struct {
-	Object string
-	// Query matches any text value containing it, case-insensitively.
-	Query string
-	// Where requires attribute values: text case-insensitively, emails,
-	// domains and phones by their normalized form, references by record id
-	// or the target's unique value.
-	Where map[string]string
-	Limit int
-}
-
-// Search lists an object's records, newest first.
-func (s *Service) Search(ctx context.Context, actor auth.Actor, q Search) ([]Record, error) {
-	sc, err := s.schema(ctx, actor.WorkspaceID)
-	if err != nil {
-		return nil, err
-	}
-	object, err := sc.object(q.Object)
-	if err != nil {
-		return nil, err
-	}
-	query := storage.RecordQuery{WorkspaceID: actor.WorkspaceID, ObjectID: object.ID, AttributeIDs: []string{}, Matches: []string{}, Limit: 20}
-	if q.Limit > 0 {
-		query.Limit = int32(min(q.Limit, 100))
-	}
-	if text := strings.TrimSpace(q.Query); text != "" {
-		escaped := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(text)
-		query.Query = &escaped
-	}
-	for slug, raw := range q.Where {
-		attr, err := sc.attribute(object, slug)
-		if err != nil {
-			return nil, err
-		}
-		e, err := s.entry(ctx, actor.WorkspaceID, sc, attr, raw)
-		var unknown errs.Invalid
-		if attr.Type == Reference && errors.As(err, &unknown) {
-			return []Record{}, nil
-		}
-		if err != nil {
-			return nil, err
-		}
-		query.AttributeIDs = append(query.AttributeIDs, attr.ID)
-		query.Matches = append(query.Matches, e.match())
-	}
-	records, err := s.store.SearchRecords(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-	return s.views(ctx, actor.WorkspaceID, sc, records)
 }
 
 // entry validates a raw value, resolving a reference to its record.

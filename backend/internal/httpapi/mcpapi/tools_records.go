@@ -12,6 +12,7 @@ import (
 )
 
 func registerRecords(r *registry, crm *records.Service, conversations *interactions.Service, pics pictures) {
+	registerFilters(r, crm)
 	add(r, &mcp.Tool{Name: "edit_pipeline_stage", Title: "Edit pipeline stage",
 		Description: "Rename, move or delete a status stage. Move places it before another stage, or last when before is omitted. Delete requires a replacement when records use the stage, and moves them there. At least one stage remains; history is preserved."},
 		func(ctx context.Context, actor auth.Actor, in stageInput) (empty, error) {
@@ -33,7 +34,7 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 		Description: "List an object's records, newest first, filtered by text and attribute values, with how often and when last each was in touch. Returns a filtered resource_uri that renders the matching CRM list or deal pipeline, and opens it automatically. Records, and the records they reference, carry a picture: a person's profile picture when Google has one, else the website logo of a record with a domain.",
 		Meta:        mcp.Meta{"ui": map[string]any{"resourceUri": appURI}}},
 		func(ctx context.Context, actor auth.Actor, in searchInput) (recordsOutput, error) {
-			found, err := crm.Search(ctx, actor, records.Search{Object: in.Object, Query: in.Query, Where: in.Where, Limit: in.Limit})
+			found, err := crm.Search(ctx, actor, records.Search{Object: in.Object, Query: in.Query, Where: in.Where, Filters: in.Filters, Limit: in.Limit})
 			if err != nil {
 				return recordsOutput{}, err
 			}
@@ -220,10 +221,11 @@ func recordOf(r records.Record, photos map[string]string) recordView {
 }
 
 type searchInput struct {
-	Object string            `json:"object" jsonschema:"object slug, such as people or companies"`
-	Query  string            `json:"query,omitempty" jsonschema:"text that any value contains, case-insensitively"`
-	Where  map[string]string `json:"where,omitempty" jsonschema:"attribute slug to a value the record must hold; a reference takes a record id or a unique value such as a domain"`
-	Limit  int               `json:"limit,omitempty" jsonschema:"at most 100, default 20"`
+	Object  string            `json:"object" jsonschema:"object slug, such as people or companies"`
+	Query   string            `json:"query,omitempty" jsonschema:"text that any value contains, case-insensitively"`
+	Where   map[string]string `json:"where,omitempty" jsonschema:"attribute slug to a value the record must hold; a reference takes a record id or a unique value such as a domain"`
+	Filters []records.Filter  `json:"filters,omitempty" jsonschema:"multiple attribute conditions; every condition must match, including repeated attributes"`
+	Limit   int               `json:"limit,omitempty" jsonschema:"at most 100, default 20"`
 }
 
 type recordsOutput struct {
