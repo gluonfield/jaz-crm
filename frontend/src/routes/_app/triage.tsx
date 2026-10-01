@@ -1,3 +1,4 @@
+import { useMutation } from '@tanstack/react-query'
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { Check, Inbox, Search, X } from 'lucide-react'
 import { useState } from 'react'
@@ -5,9 +6,10 @@ import { Button, Header, Tab, inputClass } from '@/components/controls'
 import { ConnectGoogle, EmptyState } from '@/components/empty-state'
 import { RecordIcon } from '@/components/icons'
 import { Kbd } from '@/components/kbd'
+import { call } from '@/lib/api'
 import { timeAgo } from '@/lib/format'
 import { useDebounced, useListKeys } from '@/lib/hooks'
-import { useAction, useTool } from '@/lib/queries'
+import { useTool } from '@/lib/queries'
 import { useMail } from '@/lib/sync'
 import type { Contact, Verdict } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -26,14 +28,26 @@ function TriagePage() {
   const [status, setStatus] = useState<Verdict>('pending')
   const [search, setSearch] = useState('')
   const query = useDebounced(search.trim())
-  const contacts = useTool<{ contacts: Contact[] }>('list_triage', { status, query, limit: 200 }, { placeholderData: (p) => p }).data?.contacts
-  const decide = useAction<object>('decide_triage')
+  const listed = useTool<{ contacts: Contact[] }>('list_triage', { status, query, limit: 200 }, { placeholderData: (p) => p }).data?.contacts
   const navigate = useNavigate()
-  const choose = (contact: Contact, decision: 'keep' | 'skip') => decide.mutate({ addresses: [contact.address], decision })
-  const [focus] = useListKeys(contacts?.length ?? 0, {
-    y: (i) => contacts && choose(contacts[i], 'keep'),
-    n: (i) => contacts && choose(contacts[i], 'skip'),
-    Enter: (i) => contacts?.[i].person_id && navigate({ to: '/r/$recordId', params: { recordId: contacts[i].person_id } }),
+  // A decided address or domain leaves the list at once and returns if the
+  // decision fails. The decision settles no sooner than the row's 300ms exit,
+  // so the refetch that unmounts the row cannot cut its animation short.
+  const decide = useMutation({ mutationFn: (args: object) => Promise.all([call('decide_triage', args), new Promise((done) => setTimeout(done, 300))]) })
+  const [leaving, setLeaving] = useState<string[]>([])
+  const leave = (key: string, args: object) => {
+    setLeaving((keys) => [...keys, key])
+    decide
+      .mutateAsync(args)
+      .catch(() => {})
+      .finally(() => setLeaving((keys) => keys.filter((k) => k !== key)))
+  }
+  const contacts = listed?.filter((c) => !leaving.some((key) => c.address === key || c.address.endsWith(`@${key}`))) ?? []
+  const choose = (contact: Contact, decision: 'keep' | 'skip') => leave(contact.address, { addresses: [contact.address], decision })
+  const [focus] = useListKeys(contacts.length, {
+    y: (i) => choose(contacts[i], 'keep'),
+    n: (i) => choose(contacts[i], 'skip'),
+    Enter: (i) => contacts[i].person_id && navigate({ to: '/r/$recordId', params: { recordId: contacts[i].person_id } }),
   })
   return (
     <>
@@ -52,17 +66,19 @@ function TriagePage() {
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search" aria-label="Search addresses" className={cn(inputClass, 'w-56 pl-7')} />
         </label>
       </Header>
-      {contacts?.length === 0 ? (
+      {listed?.length === 0 ? (
         <Empty status={status} query={query} />
       ) : (
         <ul className="scrollbar-quiet min-h-0 flex-1 overflow-y-auto py-1">
-          {contacts?.map((c, index) => {
+          {listed?.map((c) => {
             const domain = c.address.split('@')[1]
+            const index = contacts.indexOf(c)
+            const focused = index >= 0 && focus === index
             return (
               <li
                 key={c.address}
                 data-row={index}
-                className={cn('group flex h-12 items-center gap-3 border-b border-border/50 px-4 text-[13px]', focus === index && 'bg-list-hover')}
+                className={cn('leavable group flex h-12 items-center gap-3 border-b border-border/50 px-4 text-[13px]', index < 0 && 'leaving', focused && 'bg-list-hover')}
               >
                 <RecordIcon object="people" name={c.name || c.address} photo={c.photo} size={24} />
                 <div className="min-w-0 flex-1">
@@ -84,16 +100,16 @@ function TriagePage() {
                 <div className="flex items-center gap-1.5 opacity-60 group-hover:opacity-100">
                   {status !== 'kept' && (
                     <Button onClick={() => choose(c, 'keep')}>
-                      <Check /> Keep {focus === index && <Kbd>Y</Kbd>}
+                      <Check /> Keep {focused && <Kbd>Y</Kbd>}
                     </Button>
                   )}
                   {status !== 'skipped' && (
                     <Button onClick={() => choose(c, 'skip')}>
-                      <X /> Skip {focus === index && <Kbd>N</Kbd>}
+                      <X /> Skip {focused && <Kbd>N</Kbd>}
                     </Button>
                   )}
                   {domain && status !== 'skipped' && (
-                    <Button onClick={() => decide.mutate({ domains: [domain], decision: 'skip' })} title={`Skip everyone at ${domain}, now and later`}>
+                    <Button onClick={() => leave(domain, { domains: [domain], decision: 'skip' })} title={`Skip everyone at ${domain}, now and later`}>
                       Skip {domain}
                     </Button>
                   )}
