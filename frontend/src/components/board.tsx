@@ -96,7 +96,7 @@ export function Board({ object, status, records }: { object: CrmObject; status: 
               onCollapse={() => setCollapsed((current) => [...current, stage])}
               onPointerDown={(e) => dragColumn(stage, e)}>
               {cards.map((r) => (
-                <Card key={r.id} record={r} amount={amount} dragging={dragging === r.id} onDrag={setDragging} />
+                <Card key={r.id} object={object} record={r} amount={amount} dragging={dragging === r.id} onDrag={setDragging} />
               ))}
             </Column>}
           </section>
@@ -217,7 +217,7 @@ function Column({
   )
 }
 
-function Card({ record, amount, dragging, onDrag }: { record: CrmRecord; amount?: Attribute; dragging: boolean; onDrag: (id?: string) => void }) {
+function Card({ object, record, amount, dragging, onDrag }: { object: CrmObject; record: CrmRecord; amount?: Attribute; dragging: boolean; onDrag: (id?: string) => void }) {
   const navigate = useNavigate()
   const company = valuesOf(record, 'company')[0] as Ref | undefined
   const people = valuesOf(record, 'people') as Ref[]
@@ -225,7 +225,7 @@ function Card({ record, amount, dragging, onDrag }: { record: CrmRecord; amount?
   const open = () => navigate({ to: '/r/$recordId', params: { recordId: record.id } })
   return (
     <li>
-      <RecordMenu record={record}>
+      <RecordMenu object={object} record={record}>
         <div
           role="link"
           tabIndex={0}

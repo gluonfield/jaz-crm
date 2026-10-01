@@ -2,7 +2,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { X } from 'lucide-react'
 import { type ReactNode, forwardRef, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
-import { recordName } from '@/lib/crm'
+import { recordName, valueKey, valuesOf } from '@/lib/crm'
 import { useDebounced } from '@/lib/hooks'
 import { useAction, useRecords, useWorkspace } from '@/lib/queries'
 import type { Attribute, CrmObject, CrmRecord, Member } from '@/lib/types'
@@ -29,18 +29,21 @@ const capitalized = (text: string) => text[0].toUpperCase() + text.slice(1)
 
 // CreateRecord adds a record: its name, the value that identifies it, and a
 // row of its other properties. A board opens it in a stage and stays; the
-// New button opens the record once created.
+// New button opens the record once created. Given a record, it edits that
+// record instead and writes only what changed.
 export function CreateRecord({
   object,
   open,
   onOpenChange,
   initial,
+  record,
   openCreated = false,
 }: {
   object: CrmObject
   open: boolean
   onOpenChange: (open: boolean) => void
   initial?: Record<string, string>
+  record?: CrmRecord
   openCreated?: boolean
 }) {
   return (
@@ -49,28 +52,35 @@ export function CreateRecord({
         showCloseButton={false}
         className="top-[12%] w-[620px] max-w-[calc(100vw-2rem)] translate-y-0 gap-0 rounded-[12px] border-border bg-raised p-0 shadow-[var(--shadow-raised)] sm:max-w-[620px]"
       >
-        {open && <Form object={object} initial={initial} openCreated={openCreated} close={() => onOpenChange(false)} />}
+        {open && <Form object={object} initial={initial} record={record} openCreated={openCreated} close={() => onOpenChange(false)} />}
       </DialogContent>
     </Dialog>
   )
 }
 
-function Form({ object, initial = {}, openCreated, close }: { object: CrmObject; initial?: Record<string, string>; openCreated: boolean; close: () => void }) {
+function Form({ object, initial = {}, record, openCreated, close }: { object: CrmObject; initial?: Record<string, string>; record?: CrmRecord; openCreated: boolean; close: () => void }) {
   const members = useWorkspace()?.members ?? []
   const me = members.find((m) => m.is_me)
   const identity = object.attributes.find((a) => a.unique)
   const properties = object.attributes.filter((a) => a.slug !== 'name' && a !== identity && a.type !== 'checkbox')
-  const [name, setName] = useState('')
-  const [key, setKey] = useState('')
+  const held = (slug: string) => (record ? valuesOf(record, slug).map(valueKey) : [])
+  const [name, setName] = useState(held('name')[0] ?? '')
+  const [key, setKey] = useState(identity ? held(identity.slug).join(', ') : '')
   const [draft, setDraft] = useState<Draft>(() =>
     Object.fromEntries(
       properties.flatMap((a) => {
+        if (record) {
+          const values = held(a.slug)
+          return values.length ? [[a.slug, typed(a) ? [values.join(', ')] : values]] : []
+        }
         const value = initial[a.slug] ?? (a.type === 'status' ? a.options?.[0] : a.type === 'member' ? me?.email : undefined)
         return value ? [[a.slug, [value]]] : []
       }),
     ),
   )
-  const [labels, setLabels] = useState<Record<string, Label>>({})
+  const [labels, setLabels] = useState<Record<string, Label>>(() =>
+    Object.fromEntries(Object.values(record?.values ?? {}).flat().flatMap((v) => (v && typeof v !== 'string' ? [[v.id, { name: v.name ?? '', photo: v.photo }]] : []))),
+  )
   const upsert = useAction<object, { record: CrmRecord }>('upsert_record')
   const navigate = useNavigate()
   const set = (slug: string, values: string[]) => setDraft((d) => ({ ...d, [slug]: values }))
@@ -79,21 +89,43 @@ function Form({ object, initial = {}, openCreated, close }: { object: CrmObject;
     if (!ready) {
       return
     }
+    // Multi-valued attributes gain values and lose the ones taken out; others
+    // are replaced, or cleared when emptied.
     const values: Record<string, string | string[]> = {}
-    for (const a of properties) {
-      const chosen = (draft[a.slug] ?? []).map((v) => v.trim()).filter(Boolean)
-      if (chosen.length) {
-        values[a.slug] = a.multi ? chosen : chosen[0]
+    const remove: Record<string, string[]> = {}
+    const write = (a: Attribute, entries: string[]) => {
+      const next = entries.flatMap((v) => (a.multi && typed(a) ? v.split(',') : [v])).map((v) => v.trim()).filter(Boolean)
+      const before = held(a.slug)
+      if (a.multi) {
+        const added = next.filter((v) => !before.includes(v))
+        const gone = before.filter((v) => !next.includes(v))
+        if (added.length) {
+          values[a.slug] = added
+        }
+        if (gone.length) {
+          remove[a.slug] = gone
+        }
+      } else if (next[0] && next[0] !== before[0]) {
+        values[a.slug] = next[0]
+      } else if (!next[0] && before[0]) {
+        remove[a.slug] = []
       }
     }
-    if (name.trim()) {
-      values.name = name.trim()
+    for (const a of object.attributes) {
+      if (a.slug === 'name') {
+        write(a, [name])
+      } else if (a === identity) {
+        write(a, [key])
+      } else if (properties.includes(a)) {
+        write(a, draft[a.slug] ?? [])
+      }
     }
-    if (identity && key.trim()) {
-      values[identity.slug] = key.trim()
+    if (record && !Object.keys(values).length && !Object.keys(remove).length) {
+      close()
+      return
     }
     upsert.mutate(
-      { object: object.slug, values },
+      { object: object.slug, record_id: record?.id, values, remove },
       {
         onSuccess: (out) => {
           close()
@@ -119,7 +151,7 @@ function Form({ object, initial = {}, openCreated, close }: { object: CrmObject;
     >
       <div className="flex items-center gap-2 px-4 pt-3.5 text-[12.5px] text-ink-2">
         <ObjectIcon slug={object.slug} className="size-3.5" />
-        <DialogTitle className="text-[12.5px] font-normal">New {singular(object)}</DialogTitle>
+        <DialogTitle className="text-[12.5px] font-normal">{record ? 'Edit' : 'New'} {singular(object)}</DialogTitle>
         <button type="button" aria-label="Close" onClick={close} className="ml-auto flex size-6 items-center justify-center rounded-[5px] text-ink-3 outline-none hover:bg-list-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-ring">
           <X className="size-4" />
         </button>
@@ -154,7 +186,7 @@ function Form({ object, initial = {}, openCreated, close }: { object: CrmObject;
           disabled={!ready}
           className="flex h-8 items-center gap-2 rounded-full bg-primary px-3.5 text-[13px] font-medium text-on-primary shadow-xs outline-none transition-[background-color,opacity] hover:bg-primary-strong focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
         >
-          Create {singular(object)}
+          {record ? 'Save' : `Create ${singular(object)}`}
           <span className="flex items-center gap-0.5 opacity-70">
             <Kbd className="ml-0 border-on-primary/25 bg-on-primary/15 text-on-primary">⌘</Kbd>
             <Kbd className="ml-0 border-on-primary/25 bg-on-primary/15 text-on-primary">↵</Kbd>
@@ -164,6 +196,9 @@ function Form({ object, initial = {}, openCreated, close }: { object: CrmObject;
     </form>
   )
 }
+
+// typed attributes are entered as text; several values are separated by commas.
+const typed = (attribute: Attribute) => !['status', 'select', 'member', 'reference'].includes(attribute.type)
 
 // Chip is a property of the new record, named until it has a value.
 const Chip = forwardRef<HTMLButtonElement, { icon?: ReactNode; label: ReactNode; empty: boolean } & React.ButtonHTMLAttributes<HTMLButtonElement>>(function Chip(

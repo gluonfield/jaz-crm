@@ -131,7 +131,7 @@ function ObjectPage() {
             </thead>
             <tbody>
               {records?.map((r, index) => (
-                <RecordMenu key={r.id} record={r}>
+                <RecordMenu key={r.id} object={object} record={r}>
                   <tr
                     data-row={index}
                     onClick={() => open(index)}
