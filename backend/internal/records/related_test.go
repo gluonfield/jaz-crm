@@ -37,11 +37,11 @@ func TestRelatedRecordsBatchTheSelectedPage(t *testing.T) {
 		company, _ := upsert(t, svc, actor, records.SourceUser, records.Write{Object: "companies", Set: set("name", fmt.Sprintf("Company %d", i))})
 		upsert(t, svc, actor, records.SourceUser, records.Write{Object: "people", Set: set("name", "Person", "company", company.ID)})
 	}
-	page, err := svc.Search(ctx, actor, records.Search{Object: "companies", Limit: 100, Include: []records.Relation{{Object: "people", Attribute: "company", Limit: 4}}})
+	page, err := svc.Search(ctx, actor, records.Search{Object: "companies", Limit: 10, Include: []records.Relation{{Object: "people", Attribute: "company", Limit: 4}}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(page) != 25 || counted.calls != 1 || counted.parents != 25 {
-		t.Fatalf("25 companies required %d relationship queries covering %d parents; returned %d", counted.calls, counted.parents, len(page))
+	if len(page) != 10 || counted.calls != 1 || counted.parents != 10 {
+		t.Fatalf("a page of 10 companies required %d relationship queries covering %d parents; returned %d", counted.calls, counted.parents, len(page))
 	}
 }

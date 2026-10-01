@@ -306,26 +306,23 @@ func (s *Service) Labels(ctx context.Context, workspaceID string, ids []string) 
 	return out, err
 }
 
-// names prefers the title attribute, then the first text value in schema order.
+// names prefers the title attribute, then the first text attribute alphabetically.
 func (s *Service) names(ctx context.Context, workspaceID string, sc schema, ids []string) (map[string]string, error) {
 	out := map[string]string{}
 	if len(ids) == 0 {
 		return out, nil
 	}
 	values, err := s.store.CurrentValues(ctx, workspaceID, ids)
-	priority := map[string]int{}
-	for i, attr := range sc.attrs {
-		priority[attr.ID] = i
-		if attr.Slug == titleAttribute {
-			priority[attr.ID] = -1
-		}
-	}
-	selected := map[string]int{}
+	selected := map[string]string{}
 	for _, v := range values {
-		rank, found := selected[v.RecordID]
-		if v.Text != nil && (!found || priority[v.AttributeID] < rank) {
+		if v.Text == nil {
+			continue
+		}
+		attr := sc.attributeByID(v.AttributeID).Slug
+		first, found := selected[v.RecordID]
+		if !found || first != titleAttribute && (attr == titleAttribute || attr < first) {
 			out[v.RecordID] = *v.Text
-			selected[v.RecordID] = priority[v.AttributeID]
+			selected[v.RecordID] = attr
 		}
 	}
 	return out, err

@@ -218,17 +218,15 @@ func recordOf(r records.Record, photos map[string]string) recordView {
 			values[f.Attribute] = list[0]
 		}
 	}
-	view := recordView{ID: r.ID, Object: r.Object, CreatedAt: r.CreatedAt, Values: values, Photo: photos[r.ID]}
-	if len(r.Related) > 0 {
-		view.Related = map[string][]refView{}
-		for relation, records := range r.Related {
-			view.Related[relation] = []refView{}
-			for _, record := range records {
-				view.Related[relation] = append(view.Related[relation], refView{ID: record.RecordID, Name: record.Text, Photo: photos[record.RecordID]})
-			}
+	related := map[string][]refView{}
+	for relation, records := range r.Related {
+		list := make([]refView, len(records))
+		for i, record := range records {
+			list[i] = refView{ID: record.RecordID, Name: record.Text, Photo: photos[record.RecordID]}
 		}
+		related[relation] = list
 	}
-	return view
+	return recordView{ID: r.ID, Object: r.Object, CreatedAt: r.CreatedAt, Values: values, Related: related, Photo: photos[r.ID]}
 }
 
 type searchInput struct {

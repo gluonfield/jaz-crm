@@ -627,7 +627,7 @@ func (q *Queries) RecordsByUniqueKeys(ctx context.Context, arg RecordsByUniqueKe
 const relatedRecords = `-- name: RelatedRecords :many
 SELECT parents.id AS parent_id, children.id FROM records parents
 JOIN LATERAL (
-  SELECT records.id FROM record_values
+  SELECT records.id, records.created_at FROM record_values
   JOIN records ON records.id = record_values.record_id
   WHERE record_values.ref_record_id = parents.id AND record_values.attribute_id = $1
     AND record_values.active_until IS NULL AND records.workspace_id = $2
@@ -635,6 +635,7 @@ JOIN LATERAL (
   LIMIT $3
 ) children ON true
 WHERE parents.workspace_id = $2 AND parents.id = ANY($4::uuid[])
+ORDER BY parents.id, children.created_at DESC, children.id
 `
 
 type RelatedRecordsParams struct {

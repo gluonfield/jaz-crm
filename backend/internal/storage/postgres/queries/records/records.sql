@@ -129,14 +129,15 @@ LIMIT @row_limit;
 -- name: RelatedRecords :many
 SELECT parents.id AS parent_id, children.id FROM records parents
 JOIN LATERAL (
-  SELECT records.id FROM record_values
+  SELECT records.id, records.created_at FROM record_values
   JOIN records ON records.id = record_values.record_id
   WHERE record_values.ref_record_id = parents.id AND record_values.attribute_id = @attribute_id
     AND record_values.active_until IS NULL AND records.workspace_id = @workspace_id
   ORDER BY records.created_at DESC, records.id
   LIMIT @row_limit
 ) children ON true
-WHERE parents.workspace_id = @workspace_id AND parents.id = ANY(@ids::uuid[]);
+WHERE parents.workspace_id = @workspace_id AND parents.id = ANY(@ids::uuid[])
+ORDER BY parents.id, children.created_at DESC, children.id;
 
 -- name: CloseValues :exec
 UPDATE record_values SET active_until = now()

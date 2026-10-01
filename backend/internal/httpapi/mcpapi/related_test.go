@@ -85,11 +85,21 @@ func TestSearchIncludesRelatedRecords(t *testing.T) {
 	if preview["id"] != unnamed || preview["name"] != "unnamed@acme.com" {
 		t.Fatalf("a person without a name lost their email label: %v", preview)
 	}
+	mustCall(t, a, "upsert_record", map[string]any{"object": "people", "record_id": unnamed, "values": map[string]any{"context": "Context fallback"}})
+	preview = mustCall(t, a, "search_records", args)["records"].([]any)[0].(map[string]any)["related"].(map[string]any)["people.company"].([]any)[0].(map[string]any)
+	if preview["name"] != "Context fallback" {
+		t.Fatalf("preview differs from the full record's first text label: %v", preview)
+	}
+	mustCall(t, a, "upsert_record", map[string]any{"object": "people", "record_id": unnamed, "values": map[string]any{"name": "Named person"}})
+	preview = mustCall(t, a, "search_records", args)["records"].([]any)[0].(map[string]any)["related"].(map[string]any)["people.company"].([]any)[0].(map[string]any)
+	if preview["name"] != "Named person" {
+		t.Fatalf("a person's name did not take priority: %v", preview)
+	}
 	delete(args, "where")
 	for _, include := range []any{
 		[]any{map[string]any{"object": "people", "attribute": "name"}},
 		[]any{map[string]any{"object": "people", "attribute": "company", "limit": 21}},
-		[]any{map[string]any{"object": "deals", "attribute": "primary_contact"}},
+		[]any{map[string]any{"object": "deals", "attribute": "people"}},
 	} {
 		args["include"] = include
 		if _, failure := call(t, a, "search_records", args); failure == "" {
