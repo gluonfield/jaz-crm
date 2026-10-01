@@ -13,20 +13,14 @@ import { recordName, valueText, valuesOf } from '@/lib/crm'
 import { formatDay, formatNumber } from '@/lib/format'
 import { useDebounced, useListKeys } from '@/lib/hooks'
 import { useObjects, useRecords } from '@/lib/queries'
+import { validateRecordSearch } from '@/lib/record-search'
 import { statusOf } from '@/lib/stages'
 import { useMail } from '@/lib/sync'
 import type { Attribute, CrmObject, CrmRecord } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 export const Route = createFileRoute('/_app/o/$object')({
-  validateSearch: (search: Record<string, unknown>): { category?: string; sort?: 'name'; view?: 'table'; q?: string; where?: Record<string, string>; limit?: number } => ({
-    view: search.view === 'table' ? 'table' : undefined,
-    category: typeof search.category === 'string' ? search.category : undefined,
-    sort: search.sort === 'name' ? 'name' : undefined,
-    q: ['string', 'number', 'boolean'].includes(typeof search.q) ? String(search.q) : undefined,
-    where: search.where && typeof search.where === 'object' && !Array.isArray(search.where) ? Object.fromEntries(Object.entries(search.where).filter(([, value]) => typeof value === 'string')) : undefined,
-    limit: typeof search.limit === 'number' && Number.isInteger(search.limit) ? Math.max(1, Math.min(search.limit, 100)) : undefined,
-  }),
+  validateSearch: validateRecordSearch,
   component: ObjectPage,
 })
 

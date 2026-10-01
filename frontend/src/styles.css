@@ -157,17 +157,11 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
+:root[data-display-mode='inline'],
+:root[data-display-mode='inline'] body,
 :root[data-display-mode='inline'] #root {
-  height: 480px;
-}
-
-:root[data-display-mode='inline'] .crm-shell > aside {
-  display: none;
-}
-
-:root[data-display-mode='inline'] .crm-shell > main {
-  margin: 0;
-  border-radius: 0;
+  height: auto;
+  background: transparent;
 }
 
 @layer base {

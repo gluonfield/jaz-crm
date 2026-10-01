@@ -1,9 +1,12 @@
 import type { McpUiHostContext } from '@modelcontextprotocol/ext-apps'
+import { QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createMemoryHistory, createRouter } from '@tanstack/react-router'
 import { createRoot } from 'react-dom/client'
+import { RecordResults } from './components/record-results'
 import { setTransport } from './lib/api'
 import { app, callTool, connect } from './lib/mcp-app'
-import { newQueryClient } from './lib/queries'
+import { newQueryClient, toolQuery } from './lib/queries'
+import { recordSearchInput } from './lib/record-search'
 import { routeTree } from './routeTree.gen'
 import { Route as root } from './routes/__root'
 import './styles.css'
@@ -14,11 +17,32 @@ import './styles.css'
 ;(root.options as { shellComponent?: unknown }).shellComponent = undefined
 setTransport(callTool)
 
+const container = document.getElementById('root')!
+const renderer = createRoot(container)
+const queryClient = newQueryClient()
+let page = container.dataset.startPath ?? '/'
+let ready = false
 const router = createRouter({
   routeTree,
-  history: createMemoryHistory({ initialEntries: [document.getElementById('root')?.dataset.startPath ?? '/'] }),
-  context: { queryClient: newQueryClient() },
+  history: createMemoryHistory({ initialEntries: [page] }),
+  context: { queryClient },
 })
+
+function render() {
+  if (!ready) {
+    return
+  }
+  if (app.getHostContext()?.displayMode === 'inline') {
+    renderer.render(
+      <QueryClientProvider client={queryClient}>
+        <RecordResults path={page} onOpen={(url) => void app.openLink({ url })} />
+      </QueryClientProvider>,
+    )
+  } else {
+    renderer.render(<RouterProvider router={router} />)
+    void router.navigate({ href: page })
+  }
+}
 
 function open(path: unknown) {
   if (typeof path !== 'string') {
@@ -30,7 +54,8 @@ function open(path: unknown) {
     href = uri.pathname + uri.search
   }
   if (href.startsWith('/')) {
-    void router.navigate({ href })
+    page = href
+    render()
   }
 }
 
@@ -38,7 +63,10 @@ function open(path: unknown) {
 app.ontoolinput = ({ arguments: args }) => open(args?.path)
 app.ontoolresult = (result) => {
   const content = result.structuredContent
-  if (content && typeof content === 'object' && 'resource_uri' in content) {
+  if (content && typeof content === 'object' && 'resource_uri' in content && typeof content.resource_uri === 'string') {
+    if ('records' in content && Array.isArray(content.records)) {
+      queryClient.setQueryData(toolQuery('search_records', recordSearchInput(content.resource_uri)).queryKey, content)
+    }
     open(content.resource_uri)
   }
 }
@@ -59,6 +87,7 @@ document.addEventListener('click', (event) => {
 })
 
 void connect().finally(() => {
+  ready = true
   follow(app.getHostContext())
-  createRoot(document.getElementById('root')!).render(<RouterProvider router={router} />)
+  render()
 })
