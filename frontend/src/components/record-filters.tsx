@@ -66,11 +66,11 @@ export function RecordFilters({ object, filters, query, selected, onChange, onAp
       <Dialog open={saving} onOpenChange={setSaving}>
         <DialogContent className="bg-raised text-ink sm:max-w-sm" aria-describedby={undefined}>
           <DialogTitle className="text-[14px]">Save filter</DialogTitle>
-          <form className="grid gap-4" onSubmit={(e) => {
+          <form autoComplete="off" className="grid gap-4" onSubmit={(e) => {
             e.preventDefault()
             persist(name)
           }}>
-            <input autoFocus aria-label="Filter name" placeholder="Filter name" maxLength={100} value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
+            <input autoFocus name="saved-filter-name" autoComplete="off" data-bwignore="true" aria-label="Filter name" placeholder="Filter name" maxLength={100} value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
             <div className="flex justify-end gap-2"><Button onClick={() => setSaving(false)}>Cancel</Button><Button type="submit" primary disabled={!name.trim() || save.isPending}>Save</Button></div>
           </form>
         </DialogContent>

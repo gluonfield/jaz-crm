@@ -65,6 +65,7 @@ export function Picker({
           }}
         >
           <CommandPrimitive.Input
+            asChild
             autoFocus
             aria-label={placeholder}
             value={search}
@@ -74,7 +75,9 @@ export function Picker({
             }}
             placeholder={placeholder}
             className="h-10 w-full border-b border-border bg-transparent px-3.5 text-[13px] text-ink outline-none placeholder:text-ink-3"
-          />
+          >
+            <input type="search" />
+          </CommandPrimitive.Input>
           <CommandPrimitive.List className="scrollbar-quiet max-h-72 overflow-y-auto p-1.5">
             <CommandPrimitive.Empty className="px-2 py-3 text-center text-[12px] text-ink-3">No results</CommandPrimitive.Empty>
             {options.map((option, index) => {

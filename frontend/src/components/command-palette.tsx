@@ -56,12 +56,15 @@ function Palette() {
   return (
     <CommandPrimitive loop shouldFilter={false} label="Search" value={selected} onValueChange={setSelected}>
       <CommandPrimitive.Input
+        asChild
         autoFocus
         value={search}
         onValueChange={setSearch}
         placeholder="Search people, companies and records..."
         className="h-12 w-full border-b border-border bg-transparent px-4 text-[15px] text-ink outline-none placeholder:text-ink-3"
-      />
+      >
+        <input type="search" />
+      </CommandPrimitive.Input>
       <CommandPrimitive.List className="scrollbar-quiet max-h-[min(420px,60vh)] overflow-y-auto p-1.5">
         {records.length > 0 && (
           <CommandPrimitive.Group heading="Records" className={groupClass}>

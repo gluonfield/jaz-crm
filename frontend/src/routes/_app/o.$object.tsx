@@ -86,6 +86,8 @@ function ObjectPage() {
           <label className="group flex h-7 min-w-0 items-center gap-1.5 rounded-[var(--radius-control)] px-2 text-ink-3 transition-colors focus-within:bg-list-hover hover:bg-list-hover">
             <Search className="size-3.5 shrink-0" />
             <input
+              type="search"
+              autoComplete="off"
               value={q}
               onChange={(e) => void navigate({ to: '.', search: { ...search, q: e.target.value || undefined }, replace: true })}
               onKeyDown={(e) => e.stopPropagation()}
