@@ -6,6 +6,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"html"
+	"io"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -29,6 +31,14 @@ const glyph = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill=
 
 func icon(stroke string) string {
 	return "data:image/svg+xml;base64," + base64.StdEncoding.EncodeToString([]byte(strings.Replace(glyph, "STROKE", stroke, 1)))
+}
+
+// favicon is the glyph for browser tabs, which follows the tab's colour scheme.
+var favicon = strings.Replace(strings.Replace(glyph, "STROKE", "#1f2328", 1), "><", "><style>@media (prefers-color-scheme: dark){svg{stroke:#e8e8e8}}</style><", 1)
+
+func Favicon(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "image/svg+xml")
+	_, _ = io.WriteString(w, favicon)
 }
 
 var icons = []mcp.Icon{
