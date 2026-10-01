@@ -8,6 +8,7 @@ import { CreateRecord } from '@/components/create-record'
 import { ConnectGoogle, EmptyState } from '@/components/empty-state'
 import { ObjectIcon, RecordIcon } from '@/components/icons'
 import { Picker } from '@/components/picker'
+import { RecordMenu } from '@/components/record-menu'
 import { SelectField } from '@/components/select-field'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
 import { formatDay, formatNumber } from '@/lib/format'
@@ -130,24 +131,25 @@ function ObjectPage() {
             </thead>
             <tbody>
               {records?.map((r, index) => (
-                <tr
-                  key={r.id}
-                  data-row={index}
-                  onClick={() => open(index)}
-                  className={cn('group h-10 cursor-default border-b border-border/50 hover:bg-list-hover', focus === index && 'bg-list-hover')}
-                >
-                  <td className={cn('sticky left-0 z-10 max-w-72 bg-bg px-4 group-hover:bg-list-hover', focus === index && 'bg-list-hover')}>
-                    <Link to="/r/$recordId" params={{ recordId: r.id }} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} className="flex items-center gap-2.5 font-medium text-ink">
-                      <RecordIcon object={slug} name={recordName(r)} photo={r.photo} />
-                      <span className="truncate">{recordName(r)}</span>
-                    </Link>
-                  </td>
-                  {columns.map((a) => (
-                    <td key={a.slug} className={cn('max-w-80 px-3 text-ink-2', a.type === 'select' ? 'min-w-56' : 'min-w-40')}>
-                      {a.type === 'select' ? <div onClick={(e) => e.stopPropagation()}><SelectField record={r} attribute={a} /></div> : cell(r, a)}
+                <RecordMenu key={r.id} record={r}>
+                  <tr
+                    data-row={index}
+                    onClick={() => open(index)}
+                    className={cn('group h-10 cursor-default border-b border-border/50 hover:bg-list-hover data-[state=open]:bg-list-hover', focus === index && 'bg-list-hover')}
+                  >
+                    <td className={cn('sticky left-0 z-10 max-w-72 bg-bg px-4 group-hover:bg-list-hover group-data-[state=open]:bg-list-hover', focus === index && 'bg-list-hover')}>
+                      <Link to="/r/$recordId" params={{ recordId: r.id }} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} className="flex items-center gap-2.5 font-medium text-ink">
+                        <RecordIcon object={slug} name={recordName(r)} photo={r.photo} />
+                        <span className="truncate">{recordName(r)}</span>
+                      </Link>
                     </td>
-                  ))}
-                </tr>
+                    {columns.map((a) => (
+                      <td key={a.slug} className={cn('max-w-80 px-3 text-ink-2', a.type === 'select' ? 'min-w-56' : 'min-w-40')}>
+                        {a.type === 'select' ? <div onClick={(e) => e.stopPropagation()}><SelectField record={r} attribute={a} /></div> : cell(r, a)}
+                      </td>
+                    ))}
+                  </tr>
+                </RecordMenu>
               ))}
             </tbody>
           </table>

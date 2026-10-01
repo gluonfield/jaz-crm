@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils'
 import { Button, inputClass } from './controls'
 import { CreateRecord, singular } from './create-record'
 import { RecordIcon } from './icons'
+import { RecordMenu } from './record-menu'
 import { StageDot } from './stage'
 import { StageMenu } from './stage-menu'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
@@ -224,41 +225,43 @@ function Card({ record, amount, dragging, onDrag }: { record: CrmRecord; amount?
   const open = () => navigate({ to: '/r/$recordId', params: { recordId: record.id } })
   return (
     <li>
-      <div
-        role="link"
-        tabIndex={0}
-        draggable
-        onDragStart={(e) => {
-          e.dataTransfer.setData('text/plain', record.id)
-          e.dataTransfer.effectAllowed = 'move'
-          onDrag(record.id)
-        }}
-        onDragEnd={() => onDrag(undefined)}
-        onClick={open}
-        onKeyDown={(e: KeyboardEvent) => e.key === 'Enter' && open()}
-        className={cn(
-          'group flex cursor-grab flex-col gap-2 rounded-[8px] border border-border bg-raised px-3 py-2.5 text-[13px] shadow-xs outline-none transition-[border-color,box-shadow,opacity] duration-150 hover:border-ink-3/40 hover:shadow-sm focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing',
-          dragging && 'opacity-40',
-        )}
-      >
-        <span className="font-medium leading-snug text-ink">{recordName(record)}</span>
-        {company && (
-          <span className="flex min-w-0 items-center gap-1.5 text-[12px] text-ink-2">
-            <RecordIcon object="companies" name={company.name ?? ''} photo={company.photo} size={14} />
-            <span className="truncate">{company.name}</span>
-          </span>
-        )}
-        {(value || people.length > 0) && (
-          <span className="flex items-center gap-2">
-            {value && <span className="tabular-nums text-ink">{formatNumber(valueText(value), amount?.slug)}</span>}
-            <span className="ml-auto flex -space-x-1">
-              {people.slice(0, 4).map((p) => (
-                <RecordIcon key={p.id} object="people" name={p.name ?? ''} photo={p.photo} size={18} className="ring-2 ring-raised" />
-              ))}
+      <RecordMenu record={record}>
+        <div
+          role="link"
+          tabIndex={0}
+          draggable
+          onDragStart={(e) => {
+            e.dataTransfer.setData('text/plain', record.id)
+            e.dataTransfer.effectAllowed = 'move'
+            onDrag(record.id)
+          }}
+          onDragEnd={() => onDrag(undefined)}
+          onClick={open}
+          onKeyDown={(e: KeyboardEvent) => e.key === 'Enter' && open()}
+          className={cn(
+            'group flex cursor-grab flex-col gap-2 rounded-[8px] border border-border bg-raised px-3 py-2.5 text-[13px] shadow-xs outline-none transition-[border-color,box-shadow,opacity] duration-150 hover:border-ink-3/40 hover:shadow-sm data-[state=open]:border-ink-3/40 focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing',
+            dragging && 'opacity-40',
+          )}
+        >
+          <span className="font-medium leading-snug text-ink">{recordName(record)}</span>
+          {company && (
+            <span className="flex min-w-0 items-center gap-1.5 text-[12px] text-ink-2">
+              <RecordIcon object="companies" name={company.name ?? ''} photo={company.photo} size={14} />
+              <span className="truncate">{company.name}</span>
             </span>
-          </span>
-        )}
-      </div>
+          )}
+          {(value || people.length > 0) && (
+            <span className="flex items-center gap-2">
+              {value && <span className="tabular-nums text-ink">{formatNumber(valueText(value), amount?.slug)}</span>}
+              <span className="ml-auto flex -space-x-1">
+                {people.slice(0, 4).map((p) => (
+                  <RecordIcon key={p.id} object="people" name={p.name ?? ''} photo={p.photo} size={18} className="ring-2 ring-raised" />
+                ))}
+              </span>
+            </span>
+          )}
+        </div>
+      </RecordMenu>
     </li>
   )
 }
