@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { useAction, useTool } from '@/lib/queries'
 import type { TriageRule } from '@/lib/types'
 import { cn } from '@/lib/utils'
-import { Button, Row, inputClass } from './controls'
+import { Button } from '@jaz/ui/button'
+import { Row, inputClass } from './controls'
 
 export function TriageDomainRules() {
   const rules = useTool<{ rules: TriageRule[] }>('list_triage_rules').data?.rules ?? []

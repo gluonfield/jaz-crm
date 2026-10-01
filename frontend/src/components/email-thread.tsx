@@ -1,3 +1,4 @@
+import { Button } from '@jaz/ui/button'
 import { ArrowDownLeft, ArrowUpRight } from 'lucide-react'
 import { useState } from 'react'
 import { formatDate, formatDateTime, formatTime, timeAgo } from '@/lib/format'
@@ -26,9 +27,9 @@ export function EmailThread({ interaction, messages }: { interaction: Interactio
     <section aria-label="Email conversation" className="flex min-w-0 flex-col gap-6">
       {latest && <p className="text-[12.5px] text-ink-2"><MessageState message={latest} /></p>}
       {start > 0 && (
-        <button type="button" onClick={() => setVisible((count) => count + 20)} className="self-center rounded-full bg-list-hover px-3 py-1.5 text-[12px] text-ink-2 outline-none hover:bg-list-active focus-visible:ring-2 focus-visible:ring-ring">
+        <Button onClick={() => setVisible((count) => count + 20)} variant="ghost" className="self-center">
           Show {start} earlier {start === 1 ? 'message' : 'messages'}
-        </button>
+        </Button>
       )}
       <ol className="flex min-w-0 flex-col gap-4">
         {messages.slice(start).map((message, index) => {

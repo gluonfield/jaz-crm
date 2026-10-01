@@ -4,7 +4,8 @@ import { useId, useState } from 'react'
 import { call } from '@/lib/api'
 import type { Workspace } from '@/lib/types'
 import { cn } from '@/lib/utils'
-import { Button, Row, Section, inputClass } from './controls'
+import { Button } from '@jaz/ui/button'
+import { Row, Section, inputClass } from './controls'
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog'
 
 export function DeleteWorkspace({ workspace }: { workspace: Workspace }) {
@@ -28,7 +29,7 @@ export function DeleteWorkspace({ workspace }: { workspace: Workspace }) {
       <Section title="Delete workspace">
         <Row className="flex-wrap">
           <p className="min-w-48 flex-1 text-ink-2">Permanently delete this workspace and its CRM data for everyone.</p>
-          <Button className="border-danger/30 text-danger hover:bg-danger/10" onClick={() => changeOpen(true)}>Delete workspace</Button>
+          <Button variant="danger" onClick={() => changeOpen(true)}>Delete workspace</Button>
         </Row>
       </Section>
       <Dialog open={open} onOpenChange={changeOpen}>
@@ -62,7 +63,7 @@ export function DeleteWorkspace({ workspace }: { workspace: Workspace }) {
             {error && <p role="alert" className="text-[13px] text-danger">{error}</p>}
             <div className="flex justify-end gap-2">
               <Button disabled={pending} onClick={() => changeOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={pending || !confirmed} className="border-danger/30 bg-danger/10 text-danger hover:bg-danger/20">
+              <Button type="submit" disabled={pending || !confirmed} variant="danger">
                 {pending ? 'Deleting…' : 'Delete workspace'}
               </Button>
             </div>

@@ -4,7 +4,8 @@ import { type ReactNode, useRef, useState } from 'react'
 import { Board } from '@/components/board'
 import { CompanyPeople } from '@/components/company-people'
 import { Stage } from '@/components/stage'
-import { Button, Header } from '@/components/controls'
+import { Button } from '@jaz/ui/button'
+import { Header } from '@/components/controls'
 import { CreateRecord } from '@/components/create-record'
 import { DomainLink } from '@/components/domain-link'
 import { ConnectGoogle, EmptyState } from '@/components/empty-state'
@@ -78,7 +79,7 @@ function ObjectPage() {
           />
           <Picker
             trigger={
-              <Button ghost aria-label="Sort records">
+              <Button variant="ghost" aria-label="Sort records">
                 <ArrowDownAZ />
                 <span className="hidden xl:inline">{sort === 'name' ? 'Name' : 'Recently added'}</span>
               </Button>
@@ -159,19 +160,9 @@ function ObjectPage() {
 
 function ViewButton({ active, label, onClick, children }: { active: boolean; label: string; onClick: () => void; children: ReactNode }) {
   return (
-    <button
-      type="button"
-      aria-label={label}
-      aria-pressed={active}
-      title={label}
-      onClick={onClick}
-      className={cn(
-        'flex h-full items-center rounded-full px-2 text-ink-3 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-3.5',
-        active ? 'bg-raised text-ink shadow-xs' : 'hover:text-ink',
-      )}
-    >
+    <Button variant="ghost" size="icon-sm" aria-label={label} aria-pressed={active} title={label} onClick={onClick} className={active ? 'bg-raised text-ink' : undefined}>
       {children}
-    </button>
+    </Button>
   )
 }
 

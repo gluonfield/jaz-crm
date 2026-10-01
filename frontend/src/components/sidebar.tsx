@@ -1,7 +1,8 @@
 import { Link, useRouterState } from '@tanstack/react-router'
 import { Check, ChevronDown, Inbox, LoaderCircle, LogOut, Monitor, Moon, PlugZap, Plus, Search, Settings, Sun } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
-import { Button, inputClass } from '@/components/controls'
+import { Button } from '@jaz/ui/button'
+import { inputClass } from '@/components/controls'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -192,7 +193,7 @@ function NewWorkspace({ open, onOpenChange }: { open: boolean; onOpenChange: (op
           }}
         >
           <input autoFocus aria-label="Workspace name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Name, such as Acme" className={cn(inputClass, 'flex-1')} />
-          <Button primary type="submit" disabled={!name.trim() || move.isPending}>
+          <Button variant="primary" type="submit" disabled={!name.trim() || move.isPending}>
             Create
           </Button>
         </form>

@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { PlugZap } from 'lucide-react'
-import { Button, Header, Row, Section } from '@/components/controls'
+import { Button } from '@jaz/ui/button'
+import { Header, Row, Section } from '@/components/controls'
 import { formatDate, timeAgo } from '@/lib/format'
 import { useAction } from '@/lib/queries'
 import { steps, useConnect, useConnections } from '@/lib/sync'
@@ -38,7 +39,7 @@ function ConnectionsPage() {
         <PlugZap />
         Connections
         {connect && (
-          <Button primary className="ml-auto" onClick={connect}>
+          <Button variant="primary" className="ml-auto" onClick={connect}>
             Connect Google
           </Button>
         )}

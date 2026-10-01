@@ -4,7 +4,8 @@ import { useDebounced } from '@/lib/hooks'
 import { useTool, useWorkspace } from '@/lib/queries'
 import { filterOperators, type Attribute, type CrmObject, type CrmRecord, type RecordFilter } from '@/lib/types'
 import { useState } from 'react'
-import { Button, inputClass } from './controls'
+import { Button } from '@jaz/ui/button'
+import { inputClass } from './controls'
 import { Picker } from './picker'
 
 export const operatorNames: Record<RecordFilter['operator'], string> = {
@@ -25,14 +26,14 @@ export function FilterCondition({ object, filter, onChange, onRemove }: { object
   return (
     <div className="flex flex-wrap items-center gap-1.5 rounded-[var(--radius-control)] bg-list-hover p-1.5">
       <Picker
-        trigger={<Button ghost className="max-w-36"><span className="truncate">{attribute?.name ?? filter.attribute}</span><ChevronDown /></Button>}
+        trigger={<Button variant="ghost" className="max-w-36"><span className="truncate">{attribute?.name ?? filter.attribute}</span><ChevronDown /></Button>}
         placeholder="Choose a field…"
         options={object.attributes.map((a) => ({ value: a.slug, label: a.name }))}
         selected={[filter.attribute]}
         onSelect={(value) => onChange({ attribute: value, operator: 'is' })}
       />
       <Picker
-        trigger={<Button ghost>{operatorNames[filter.operator]}<ChevronDown /></Button>}
+        trigger={<Button variant="ghost">{operatorNames[filter.operator]}<ChevronDown /></Button>}
         placeholder="Choose a condition…"
         options={operators.map((op) => ({ value: op, label: operatorNames[op] }))}
         selected={[filter.operator]}
@@ -42,7 +43,7 @@ export function FilterCondition({ object, filter, onChange, onRemove }: { object
         }}
       />
       {attribute && needsValue(filter) && <FilterValue key={filter.attribute} attribute={attribute} filter={filter} onChange={(value) => onChange({ ...filter, value })} />}
-      <Button ghost className="ml-auto px-1.5" aria-label={`Remove ${attribute?.name ?? filter.attribute} condition`} onClick={onRemove}><X /></Button>
+      <Button variant="ghost" size="icon" className="ml-auto" aria-label={`Remove ${attribute?.name ?? filter.attribute} condition`} onClick={onRemove}><X /></Button>
     </div>
   )
 }
@@ -59,7 +60,7 @@ function FilterValue({ attribute, filter, onChange }: { attribute: Attribute; fi
   if (attribute.type === 'date') {
     return (
       <div className="flex min-w-0 flex-1 items-center gap-1">
-        <Button ghost aria-pressed={filter.value === 'today'} onClick={() => onChange(filter.value === 'today' ? '' : 'today')} className={filter.value === 'today' ? 'bg-list-active' : undefined}>Today</Button>
+        <Button variant="ghost" aria-pressed={filter.value === 'today'} onClick={() => onChange(filter.value === 'today' ? '' : 'today')} className={filter.value === 'today' ? 'bg-list-active' : undefined}>Today</Button>
         {filter.value !== 'today' && <input aria-label={`${attribute.name} value`} value={filter.value ?? ''} onChange={(e) => onChange(e.target.value)} type="date" className={`${inputClass} min-w-0 flex-1`} />}
       </div>
     )
@@ -76,7 +77,7 @@ function FilterValue({ attribute, filter, onChange }: { attribute: Attribute; fi
         : (attribute.options ?? []).map((value) => ({ value, label: value }))
   return (
     <Picker
-      trigger={<Button ghost className="min-w-28 flex-1 justify-between"><span className="max-w-48 truncate">{(selected ? recordName(selected) : options.find((o) => o.value === filter.value)?.label) ?? filter.value ?? 'Choose value…'}</span><ChevronDown /></Button>}
+      trigger={<Button variant="ghost" className="min-w-28 flex-1 justify-between"><span className="max-w-48 truncate">{(selected ? recordName(selected) : options.find((o) => o.value === filter.value)?.label) ?? filter.value ?? 'Choose value…'}</span><ChevronDown /></Button>}
       placeholder={`Find ${attribute.name.toLowerCase()}…`}
       options={options}
       selected={filter.value ? [filter.value] : []}

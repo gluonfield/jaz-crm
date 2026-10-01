@@ -4,7 +4,7 @@ import { type ReactNode, useId, useState } from 'react'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
 import { useAction, useWorkspace, useWrite } from '@/lib/queries'
 import type { Attribute, CrmObject, CrmRecord } from '@/lib/types'
-import { Button } from './controls'
+import { Button } from '@jaz/ui/button'
 import { CreateRecord } from './create-record'
 import { RecordIcon } from './icons'
 import { ValueDot } from './select-field'
@@ -68,7 +68,7 @@ export function RecordMenu({ object, record, children }: { object: CrmObject; re
           <div className="flex justify-end gap-2">
             <Button onClick={() => setDeleting(false)}>Cancel</Button>
             <Button
-              className="border-danger/30 bg-danger/10 text-danger hover:bg-danger/20"
+              variant="danger"
               onClick={() => {
                 setDeleting(false)
                 remove.mutate({ record_id: record.id })

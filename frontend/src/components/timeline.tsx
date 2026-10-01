@@ -3,7 +3,7 @@ import { formatDateTime, recentOrDate } from '@/lib/format'
 import { useAction, useTimeline, useUpcoming } from '@/lib/queries'
 import type { CrmObject, Interaction, Kind } from '@/lib/types'
 import { cn } from '@/lib/utils'
-import { Button } from './controls'
+import { Button } from '@jaz/ui/button'
 import { MessageState } from './email-thread'
 import { KindIcon } from './icons'
 import { InteractionDialog } from './interaction-dialog'
@@ -190,22 +190,13 @@ function Composer({ recordId, people }: { recordId: string; people: string[] }) 
       {open && (
         <div className="flex items-center gap-1 px-2 pb-2" onMouseDown={(e) => e.preventDefault()}>
           {kinds.map((k) => (
-            <button
-              key={k.kind}
-              type="button"
-              aria-pressed={kind === k.kind}
-              onClick={() => setKind(k.kind)}
-              className={cn(
-                'inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-[12.5px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring',
-                kind === k.kind ? 'bg-list-active text-ink' : 'text-ink-3 hover:text-ink',
-              )}
-            >
+            <Button key={k.kind} variant="ghost" aria-pressed={kind === k.kind} onClick={() => setKind(k.kind)} className={kind === k.kind ? 'bg-list-active text-ink' : undefined}>
               <KindIcon kind={k.kind} />
               {k.label}
-            </button>
+            </Button>
           ))}
           <span className="ml-auto mr-2 text-[11.5px] text-ink-3">⌘↵</span>
-          <Button primary disabled={!notes.trim() || log.isPending} onClick={submit}>
+          <Button variant="primary" disabled={!notes.trim() || log.isPending} onClick={submit}>
             Log {kind}
           </Button>
         </div>

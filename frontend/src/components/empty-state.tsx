@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { useConnect } from '@/lib/sync'
-import { Button } from './controls'
+import { Button } from '@jaz/ui/button'
 
 // EmptyState says what will appear on an empty page, and when.
 export function EmptyState({ title, icon, children, action }: { title: string; icon: ReactNode; children?: ReactNode; action?: ReactNode }) {
@@ -20,7 +20,7 @@ export function ConnectGoogle() {
   const connect = useConnect()
   return (
     connect && (
-      <Button primary className="mt-1" onClick={connect}>
+      <Button variant="primary" className="mt-1" onClick={connect}>
         Connect Google
       </Button>
     )

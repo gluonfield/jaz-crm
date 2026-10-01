@@ -1,5 +1,6 @@
+import { Button } from '@jaz/ui/button'
 import { X } from 'lucide-react'
-import { type ComponentProps, type ReactNode, useId } from 'react'
+import { type ReactNode, useId } from 'react'
 import { cn } from '@/lib/utils'
 
 export const inputClass =
@@ -13,37 +14,11 @@ export function Header({ children }: { children?: ReactNode }) {
   )
 }
 
-// Button is quiet and raised by default, filled when primary, and bare when
-// ghost, as for toolbar controls.
-export function Button({ primary, ghost, className, ...props }: ComponentProps<'button'> & { primary?: boolean; ghost?: boolean }) {
-  return (
-    <button
-      type="button"
-      {...props}
-      className={cn(
-        'inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full px-3 text-[12.5px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 [&_svg]:size-3.5',
-        primary && 'bg-primary text-on-primary shadow-xs hover:bg-primary-strong',
-        ghost && 'px-2.5 font-normal text-ink-2 hover:bg-list-hover hover:text-ink',
-        !primary && !ghost && 'border border-border bg-raised text-ink shadow-xs hover:bg-list-hover',
-        className,
-      )}
-    />
-  )
-}
-
 export function Tab({ active, children, onClick }: { active: boolean; children: ReactNode; onClick: () => void }) {
   return (
-    <button
-      type="button"
-      aria-pressed={active}
-      onClick={onClick}
-      className={cn(
-        'inline-flex h-7 items-center gap-1.5 rounded-full border border-border px-3 text-[12.5px] font-medium outline-none transition-colors duration-100 [&_svg]:size-3.5',
-        active ? 'bg-list-active text-ink' : 'text-ink-2 hover:bg-list-hover hover:text-ink',
-      )}
-    >
+    <Button aria-pressed={active} onClick={onClick} className={active ? 'bg-list-active' : undefined}>
       {children}
-    </button>
+    </Button>
   )
 }
 

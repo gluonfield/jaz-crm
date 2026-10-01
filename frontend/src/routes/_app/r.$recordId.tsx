@@ -1,6 +1,7 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { MoreHorizontal, Trash2 } from 'lucide-react'
-import { Button, Header, Tab } from '@/components/controls'
+import { Button } from '@jaz/ui/button'
+import { Header, Tab } from '@/components/controls'
 import { Field, TextInput } from '@/components/fields'
 import { History } from '@/components/history'
 import { ObjectIcon } from '@/components/icons'
@@ -42,7 +43,7 @@ function RecordPage() {
         <span className="truncate">{name}</span>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button className="ml-auto border-transparent px-1.5" aria-label="More">
+            <Button variant="ghost" size="icon" className="ml-auto" aria-label="More">
               <MoreHorizontal />
             </Button>
           </DropdownMenuTrigger>

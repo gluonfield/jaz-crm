@@ -2,7 +2,8 @@ import { Bookmark, ChevronDown, ListFilter, Plus, Save, Trash2 } from 'lucide-re
 import { useState } from 'react'
 import { useAction, useTool } from '@/lib/queries'
 import type { CrmObject, RecordFilter, SavedFilter } from '@/lib/types'
-import { Button, inputClass } from './controls'
+import { Button } from '@jaz/ui/button'
+import { inputClass } from './controls'
 import { FilterCondition, needsValue } from './filter-condition'
 import { Picker } from './picker'
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog'
@@ -28,7 +29,7 @@ export function RecordFilters({ object, filters, query, selected, onChange, onAp
   return (
     <div className="flex min-w-0 items-center gap-1">
       <Picker
-        trigger={<Button ghost className="min-w-0 max-w-40 shrink"><Bookmark className="shrink-0" /><span className="truncate">{active ? `${active.name}${changed ? ' · Edited' : ''}` : filters.length || query.trim() ? 'Custom filter' : `All ${object.name.toLowerCase()}`}</span><ChevronDown className="shrink-0" /></Button>}
+        trigger={<Button variant="ghost" className="min-w-0 max-w-40 shrink"><Bookmark className="shrink-0" /><span className="truncate">{active ? `${active.name}${changed ? ' · Edited' : ''}` : filters.length || query.trim() ? 'Custom filter' : `All ${object.name.toLowerCase()}`}</span><ChevronDown className="shrink-0" /></Button>}
         placeholder="Find saved filters…"
         options={[{ value: '', label: `All ${object.name.toLowerCase()}` }, ...saved.map((f) => ({ value: f.id, label: f.name }))]}
         selected={active ? [active.id] : filters.length || query.trim() ? [] : ['']}
@@ -40,11 +41,11 @@ export function RecordFilters({ object, filters, query, selected, onChange, onAp
         }
         setOpen(next)
       }}>
-        <PopoverTrigger asChild><Button ghost><ListFilter />Filter{filters.length > 0 && <span className="tabular-nums text-ink-3">{filters.length}</span>}</Button></PopoverTrigger>
+        <PopoverTrigger asChild><Button variant="ghost"><ListFilter />Filter{filters.length > 0 && <span className="tabular-nums text-ink-3">{filters.length}</span>}</Button></PopoverTrigger>
         <PopoverContent align="start" collisionPadding={8} className="w-[520px] max-w-[calc(100vw-2rem)] p-3" onKeyDown={(e) => e.stopPropagation()}>
           <div className="mb-2 flex items-center justify-between gap-2">
             <span className="text-[12px] text-ink-3">Match all conditions</span>
-            {active && <Button ghost aria-label={`Delete saved filter ${active.name}`} onClick={() => {
+            {active && <Button variant="ghost" aria-label={`Delete saved filter ${active.name}`} onClick={() => {
               setOpen(false)
               setDeleting(true)
             }}><Trash2 /></Button>}
@@ -54,23 +55,23 @@ export function RecordFilters({ object, filters, query, selected, onChange, onAp
           </div>
           <div className="mt-2 flex items-center justify-between gap-2">
             <Picker
-              trigger={<Button ghost disabled={draft.length >= 32}><Plus />Add condition</Button>}
+              trigger={<Button variant="ghost" disabled={draft.length >= 32}><Plus />Add condition</Button>}
               placeholder="Choose a field…"
               options={object.attributes.map((a) => ({ value: a.slug, label: a.name }))}
               onSelect={(attribute) => setDraft([...draft, { attribute, operator: 'is' }])}
             />
-            <Button primary disabled={incomplete} onClick={() => {
+            <Button variant="primary" disabled={incomplete} onClick={() => {
               onChange(draft)
               setOpen(false)
             }}>Apply</Button>
           </div>
           {(active || draft.length > 0 || query.trim()) && <div className="mt-2 flex items-center gap-1 border-t border-border pt-2">
-            <Button ghost disabled={incomplete} onClick={() => {
+            <Button variant="ghost" disabled={incomplete} onClick={() => {
               setOpen(false)
               setName('')
               setSaving(true)
             }}><Bookmark />Save as…</Button>
-            {changed && <Button ghost disabled={incomplete || save.isPending} onClick={() => persist(active.name, active.id)}><Save />Save changes</Button>}
+            {changed && <Button variant="ghost" disabled={incomplete || save.isPending} onClick={() => persist(active.name, active.id)}><Save />Save changes</Button>}
           </div>}
         </PopoverContent>
       </Popover>
@@ -82,7 +83,7 @@ export function RecordFilters({ object, filters, query, selected, onChange, onAp
             persist(name)
           }}>
             <input autoFocus name="saved-filter-name" autoComplete="off" data-bwignore="true" aria-label="Filter name" placeholder="Filter name" maxLength={100} value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
-            <div className="flex justify-end gap-2"><Button onClick={() => setSaving(false)}>Cancel</Button><Button type="submit" primary disabled={!name.trim() || save.isPending}>Save</Button></div>
+            <div className="flex justify-end gap-2"><Button onClick={() => setSaving(false)}>Cancel</Button><Button type="submit" variant="primary" disabled={!name.trim() || save.isPending}>Save</Button></div>
           </form>
         </DialogContent>
       </Dialog>

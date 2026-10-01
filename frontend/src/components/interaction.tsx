@@ -1,7 +1,8 @@
 import { Link } from '@tanstack/react-router'
 import { EyeOff, Link2, Video, X } from 'lucide-react'
 import { useState } from 'react'
-import { Button, Chip, Header } from '@/components/controls'
+import { Button } from '@jaz/ui/button'
+import { Chip, Header } from '@/components/controls'
 import { EmailThread } from '@/components/email-thread'
 import { KindIcon, RecordIcon } from '@/components/icons'
 import { ExternalLink, Message } from '@/components/message'
@@ -20,7 +21,7 @@ const joinLink = /https?:\/\/(teams\.microsoft\.com|[\w.-]*zoom\.us|meet\.google
 export function InteractionDetails({ interactionId, onClose, onNavigate }: { interactionId: string; onClose: () => void; onNavigate?: () => void }) {
   const query = useTool<Interaction>('get_interaction', { interaction_id: interactionId })
   const interaction = query.data
-  const close = <Button ghost aria-label="Close" className="size-10 p-0" onClick={onClose}><X /></Button>
+  const close = <Button variant="ghost" size="icon" aria-label="Close" onClick={onClose}><X /></Button>
   const link = useAction<object>('link_interaction')
   const unlink = useAction<object>('unlink_interaction')
   const skip = useAction<object>('skip_interaction')

@@ -1,3 +1,4 @@
+import { Button } from '@jaz/ui/button'
 import { useNavigate } from '@tanstack/react-router'
 import { X } from 'lucide-react'
 import { type ReactNode, forwardRef, useState } from 'react'
@@ -157,9 +158,9 @@ function Form({ object, initial = {}, record, openCreated, close }: { object: Cr
       <div className="flex items-center gap-2 px-4 pt-3.5 text-[12.5px] text-ink-2">
         <ObjectIcon slug={object.slug} className="size-3.5" />
         <DialogTitle className="text-[12.5px] font-normal">{record ? 'Edit' : 'New'} {singular(object)}</DialogTitle>
-        <button type="button" aria-label="Close" onClick={close} className="ml-auto flex size-6 items-center justify-center rounded-[5px] text-ink-3 outline-none hover:bg-list-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-ring">
+        <Button aria-label="Close" onClick={close} variant="ghost" size="icon-sm" className="ml-auto">
           <X className="size-4" />
-        </button>
+        </Button>
       </div>
       <div className="px-4 pt-3">
         <input
@@ -185,17 +186,17 @@ function Form({ object, initial = {}, record, openCreated, close }: { object: Cr
         ))}
       </div>
       <div className="flex items-center justify-end gap-3 border-t border-border px-4 py-2.5">
-        <button
+        <Button
           type="submit"
           disabled={!ready}
-          className="flex h-8 items-center gap-2 rounded-full bg-primary px-3.5 text-[13px] font-medium text-on-primary shadow-xs outline-none transition-[background-color,opacity] hover:bg-primary-strong focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+          variant="primary" size="lg"
         >
           {record ? 'Save' : `Create ${singular(object)}`}
           <span className="flex items-center gap-0.5 opacity-70">
             <Kbd className="ml-0 border-on-primary/25 bg-on-primary/15 text-on-primary">⌘</Kbd>
             <Kbd className="ml-0 border-on-primary/25 bg-on-primary/15 text-on-primary">↵</Kbd>
           </span>
-        </button>
+        </Button>
       </div>
     </form>
   )

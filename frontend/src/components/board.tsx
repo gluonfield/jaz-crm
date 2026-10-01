@@ -8,7 +8,8 @@ import { useAction } from '@/lib/queries'
 import type { Attribute, CrmObject, CrmRecord, Ref, StageEdit } from '@/lib/types'
 import { useColumnDrag } from '@/lib/use-column-drag'
 import { cn } from '@/lib/utils'
-import { Button, inputClass } from './controls'
+import { Button } from '@jaz/ui/button'
+import { inputClass } from './controls'
 import { CreateRecord, singular } from './create-record'
 import { RecordIcon } from './icons'
 import { RecordMenu } from './record-menu'
@@ -122,13 +123,9 @@ function NewStage({ object, status }: { object: CrmObject; status: Attribute }) 
       }
     }}>
       <PopoverTrigger asChild>
-        <button
-          type="button"
-          disabled={add.isPending}
-          className="flex h-9 shrink-0 items-center gap-1.5 self-start rounded-[var(--radius-control)] border border-dashed border-border px-3 text-[12.5px] text-ink-3 outline-none transition-colors hover:bg-list-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-        >
-          <Plus className="size-3.5" /> Add stage
-        </button>
+        <Button variant="ghost" size="lg" disabled={add.isPending} className="self-start">
+          <Plus /> Add stage
+        </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-[272px] rounded-[12px] border-border bg-raised p-3">
         <form className="flex gap-2" onSubmit={(e) => {
@@ -146,7 +143,7 @@ function NewStage({ object, status }: { object: CrmObject; status: Attribute }) 
             disabled={add.isPending}
             className={cn(inputClass, 'flex-1')}
           />
-          <Button type="submit" primary disabled={!ready}>Add</Button>
+          <Button type="submit" variant="primary" disabled={!ready}>Add</Button>
         </form>
       </PopoverContent>
     </Popover>

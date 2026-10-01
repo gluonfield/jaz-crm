@@ -3,7 +3,8 @@ import { type PointerEvent, useState } from 'react'
 import { useAction } from '@/lib/queries'
 import type { Attribute, CrmObject, StageEdit } from '@/lib/types'
 import { cn } from '@/lib/utils'
-import { Button, inputClass } from './controls'
+import { Button } from '@jaz/ui/button'
+import { inputClass } from './controls'
 import { StageDot } from './stage'
 import { menuItem } from './ui/menu'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
@@ -67,8 +68,8 @@ export function StageMenu({ object, status, stage, onCollapse, onPointerDown, di
             </label>
             <span className="text-[12px] text-ink-3">Deals and their history are kept.</span>
             <div className="flex justify-end gap-1">
-              <Button ghost onClick={() => setDeleting(false)}>Cancel</Button>
-              <Button type="submit" disabled={pending || !replacement} className="border-destructive/20 bg-destructive/10 text-destructive hover:bg-destructive/20">Delete stage</Button>
+              <Button variant="ghost" onClick={() => setDeleting(false)}>Cancel</Button>
+              <Button type="submit" disabled={pending || !replacement} variant="danger">Delete stage</Button>
             </div>
           </form>
         ) : (
@@ -81,7 +82,7 @@ export function StageMenu({ object, status, stage, onCollapse, onPointerDown, di
             }}>
               <StageDot stage={stage} />
               <input aria-label="Stage name" maxLength={80} value={name} onChange={(e) => setName(e.target.value)} disabled={pending} className={cn(inputClass, 'flex-1 focus:border-ink-3/40')} />
-              <Button type="submit" ghost aria-label="Save stage name" disabled={pending || !name.trim() || name.trim() === stage} className="px-1.5"><Check /></Button>
+              <Button type="submit" variant="ghost" size="icon" aria-label="Save stage name" disabled={pending || !name.trim() || name.trim() === stage}><Check /></Button>
             </form>
             <div className="p-1.5">
               <button type="button" className={actionClass} disabled={pending || index === 0} onClick={() => save({ action: 'move', before: options[index - 1] })}><ArrowLeft />Move left</button>

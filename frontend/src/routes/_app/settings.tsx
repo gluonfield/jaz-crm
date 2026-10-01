@@ -1,7 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { Plus, Settings } from 'lucide-react'
 import { useState } from 'react'
-import { Button, Header, Row, Section, inputClass } from '@/components/controls'
+import { Button } from '@jaz/ui/button'
+import { Header, Row, Section, inputClass } from '@/components/controls'
 import { DeleteWorkspace } from '@/components/delete-workspace'
 import { McpConnection } from '@/components/mcp-connection'
 import { TriageSettings } from '@/components/triage-settings'
@@ -86,7 +87,7 @@ function WorkspaceSection({ name, description, admin }: { name: string; descript
       </Row>
       {admin && changed && (
         <Row className="justify-end">
-          <Button primary onClick={() => update.mutate(draft)}>
+          <Button variant="primary" onClick={() => update.mutate(draft)}>
             Save
           </Button>
         </Row>
@@ -123,7 +124,7 @@ function ObjectRow({ object, objects }: { object: CrmObject; objects: CrmObject[
       <div className="flex items-center gap-2 text-[13px]">
         <span className="font-medium text-ink">{object.name}</span>
         <span className="text-ink-3">{object.slug}</span>
-        <Button className="ml-auto border-transparent" aria-label={`Add attribute to ${object.name}`} onClick={() => setAdding(!adding)}>
+        <Button variant="ghost" className="ml-auto" aria-label={`Add attribute to ${object.name}`} onClick={() => setAdding(!adding)}>
           <Plus /> Attribute
         </Button>
       </div>
@@ -188,7 +189,7 @@ function NewAttribute({ object, objects, onDone }: { object: CrmObject; objects:
           <input type="checkbox" checked={multi} onChange={(e) => setMulti(e.target.checked)} /> Many
         </label>
       )}
-      <Button primary type="submit" disabled={!slugify(name)}>
+      <Button variant="primary" type="submit" disabled={!slugify(name)}>
         Add
       </Button>
     </form>
