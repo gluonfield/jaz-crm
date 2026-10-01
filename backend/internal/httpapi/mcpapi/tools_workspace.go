@@ -2,7 +2,6 @@ package mcpapi
 
 import (
 	"context"
-	"errors"
 	"strings"
 
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
@@ -22,39 +21,30 @@ func registerWorkspace(r *registry, members *workspaces.Service, keys *auth.Serv
 		func(ctx context.Context, actor auth.Actor, in storage.TriageSettings) (empty, error) {
 			return empty{}, members.UpdateTriageSettings(ctx, actor, in)
 		})
-	add(r, &mcp.Tool{Name: "list_workspaces", Title: "List workspaces", Annotations: readOnly,
-		Description: "The workspaces you belong to; current is the one these calls act in."},
+	addUnscoped(r, &mcp.Tool{Name: "list_workspaces", Title: "List workspaces", Annotations: readOnly,
+		Description: "The workspaces you belong to. Other tools act in the default one unless their workspace argument names another."},
 		func(ctx context.Context, actor auth.Actor, _ empty) (workspacesOutput, error) {
 			list, err := members.Memberships(ctx, actor)
 			out := workspacesOutput{Workspaces: []workspaceRef{}}
 			for _, m := range list {
-				out.Workspaces = append(out.Workspaces, workspaceRef{ID: m.WorkspaceID, Name: m.Name, Current: m.WorkspaceID == actor.WorkspaceID})
+				out.Workspaces = append(out.Workspaces, workspaceRef{ID: m.WorkspaceID, Name: m.Name, Default: m.WorkspaceID == actor.WorkspaceID})
 			}
 			return out, err
 		})
-	add(r, &mcp.Tool{Name: "switch_workspace", Title: "Switch workspace",
-		Description: "Move this connection, or the web session, to another of your workspaces; later calls act there. An API key stays in its own workspace."},
+	addUnscoped(r, &mcp.Tool{Name: "switch_workspace", Title: "Switch workspace", Meta: mcp.Meta{"ui": map[string]any{"visibility": []string{"app"}}},
+		Description: "Make another of your workspaces the default for this connection or web session, as the workspace menu does. Used by the Jaz CRM app."},
 		func(ctx context.Context, actor auth.Actor, in workspaceInput) (workspaceRef, error) {
 			m, err := members.Member(ctx, actor, in.WorkspaceID)
 			if err != nil {
 				return workspaceRef{}, err
 			}
-			return workspaceRef{ID: m.WorkspaceID, Name: m.Name, Current: true}, keys.Switch(ctx, actor, m.UserID)
+			return workspaceRef{ID: m.WorkspaceID, Name: m.Name, Default: true}, keys.Switch(ctx, actor, m.UserID)
 		})
-	add(r, &mcp.Tool{Annotations: &mcp.ToolAnnotations{DestructiveHint: new(false)}, Name: "create_workspace", Title: "Create workspace",
-		Description: "Start a workspace with you as its admin and move there, unless these calls use an API key. It has people, companies and deals, and syncs nothing until someone connects Google in it."},
+	addUnscoped(r, &mcp.Tool{Annotations: &mcp.ToolAnnotations{DestructiveHint: new(false)}, Name: "create_workspace", Title: "Create workspace",
+		Description: "Start a workspace with you as its admin, with people, companies and deals; it syncs nothing until someone connects Google in it. Name it in other tools' workspace argument to work there; the default stays the same."},
 		func(ctx context.Context, actor auth.Actor, in createWorkspaceInput) (workspaceRef, error) {
 			user, err := members.Create(ctx, actor, in.Name)
-			if err != nil {
-				return workspaceRef{}, err
-			}
-			created := workspaceRef{ID: user.WorkspaceID, Name: strings.TrimSpace(in.Name), Current: true}
-			if err := keys.Switch(ctx, actor, user.ID); errors.Is(err, auth.ErrFixedWorkspace) {
-				created.Current = false
-			} else if err != nil {
-				return workspaceRef{}, err
-			}
-			return created, nil
+			return workspaceRef{ID: user.WorkspaceID, Name: strings.TrimSpace(in.Name)}, err
 		})
 	add(r, &mcp.Tool{Name: "get_workspace", Title: "Get workspace", Annotations: readOnly,
 		Description: "Describe this workspace: its name, description, members and pending invites."},
@@ -90,7 +80,7 @@ func registerWorkspace(r *registry, members *workspaces.Service, keys *auth.Serv
 			return workspaceView{ID: workspace.ID, Name: workspace.Name, Description: workspace.Description}, err
 		})
 	add(r, &mcp.Tool{Name: "delete_workspace", Title: "Delete workspace", Annotations: &mcp.ToolAnnotations{DestructiveHint: new(true)},
-		Description: "Permanently delete the current workspace and all its CRM data, memberships, connections and credentials. Admins only. Confirm with its ID and current name from get_workspace. Every connection to it loses access; other workspaces are preserved."},
+		Description: "Permanently delete the workspace this call acts in and all its CRM data, memberships, connections and credentials. Admins only. Confirm with its ID and current name from get_workspace. Every connection to it loses access; other workspaces are preserved."},
 		func(ctx context.Context, actor auth.Actor, in deleteWorkspaceInput) (empty, error) {
 			return empty{}, members.Delete(ctx, actor, in.WorkspaceID, in.Name)
 		})
@@ -128,7 +118,7 @@ type updateWorkspaceInput struct {
 type workspaceRef struct {
 	ID      string `json:"id"`
 	Name    string `json:"name"`
-	Current bool   `json:"current,omitempty"`
+	Default bool   `json:"default,omitempty"`
 }
 
 type workspacesOutput struct {

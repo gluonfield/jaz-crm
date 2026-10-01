@@ -55,6 +55,17 @@ func (s *Service) Switch(ctx context.Context, actor Actor, userID string) error 
 	return ErrFixedWorkspace
 }
 
+// In is the actor acting as the person's user in another workspace for one
+// request; an API key acts only in its own workspace.
+func (a Actor) In(userID, workspaceID string) (Actor, error) {
+	if a.session == nil && a.grant == "" && workspaceID != a.WorkspaceID {
+		return a, ErrFixedWorkspace
+	}
+	a.UserID = userID
+	a.WorkspaceID = workspaceID
+	return a, nil
+}
+
 func actorOf(user storage.User) Actor {
 	return Actor{UserID: user.ID, WorkspaceID: user.WorkspaceID}
 }

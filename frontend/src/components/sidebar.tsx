@@ -122,10 +122,10 @@ function WorkspaceMenu() {
         <DropdownMenuContent align="start" className="w-56">
           {me && <DropdownMenuLabel>{me.email}</DropdownMenuLabel>}
           {workspaces.map((w) => (
-            <DropdownMenuItem key={w.id} onSelect={() => !w.current && move.mutate({ workspace_id: w.id })}>
+            <DropdownMenuItem key={w.id} onSelect={() => !w.default && move.mutate({ workspace_id: w.id })}>
               <RecordIcon object="companies" name={w.name} size={16} />
               <span className="flex-1 truncate">{w.name}</span>
-              {w.current && <Check aria-label="Current" />}
+              {w.default && <Check aria-label="Current" />}
             </DropdownMenuItem>
           ))}
           <DropdownMenuItem onSelect={() => setCreating(true)}>

@@ -211,6 +211,34 @@ func (s *Service) Member(ctx context.Context, actor auth.Actor, workspaceID stri
 	return memberships[i], nil
 }
 
+// In returns the actor acting in their workspace of that name, or as they
+// are when no name is given.
+func (s *Service) In(ctx context.Context, actor auth.Actor, name string) (auth.Actor, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return actor, nil
+	}
+	memberships, err := s.store.Memberships(ctx, actor.UserID)
+	if err != nil {
+		return actor, err
+	}
+	var named []storage.Membership
+	names := make([]string, len(memberships))
+	for i, m := range memberships {
+		names[i] = m.Name
+		if strings.EqualFold(m.Name, name) {
+			named = append(named, m)
+		}
+	}
+	switch len(named) {
+	case 0:
+		return actor, errs.Invalidf("you have no workspace named %q; yours are %s", name, strings.Join(names, ", "))
+	case 1:
+		return actor.In(named[0].UserID, named[0].WorkspaceID)
+	}
+	return actor, errs.Invalidf("several of your workspaces are named %q; rename one to tell them apart", name)
+}
+
 // Create starts a workspace with the actor's person as its admin, reachable
 // by every identity they sign in with, and returns their user there.
 func (s *Service) Create(ctx context.Context, actor auth.Actor, name string) (storage.User, error) {

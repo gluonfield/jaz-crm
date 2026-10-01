@@ -10,6 +10,8 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"github.com/gluonfield/jaz-crm/backend/internal/errs"
+	"github.com/gluonfield/jaz-crm/backend/internal/workspaces"
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -19,12 +21,47 @@ type op[In, Out any] func(ctx context.Context, actor auth.Actor, in In) (Out, er
 // registry publishes each operation as an MCP tool for agents and the MCP
 // App, and at POST /api/tools/{tool} for the web app.
 type registry struct {
-	server *mcp.Server
-	logger *log.Logger
-	ops    map[string]func(ctx context.Context, actor auth.Actor, raw json.RawMessage) (any, error)
+	server  *mcp.Server
+	logger  *log.Logger
+	members *workspaces.Service
+	ops     map[string]func(ctx context.Context, actor auth.Actor, raw json.RawMessage) (any, error)
 }
 
+// add publishes an operation that acts in one workspace: the one its optional
+// workspace argument names, else the caller's default.
 func add[In, Out any](r *registry, tool *mcp.Tool, fn op[In, Out]) {
+	schema, err := jsonschema.For[In](nil)
+	if err != nil {
+		panic(err)
+	}
+	if schema.Properties == nil {
+		schema.Properties = map[string]*jsonschema.Schema{}
+	}
+	schema.Properties["workspace"] = &jsonschema.Schema{Type: "string", Description: "name of the workspace to act in; omit for the default one (list_workspaces)"}
+	tool.InputSchema = schema
+	publish(r, tool, func(ctx context.Context, actor auth.Actor, raw json.RawMessage, in In) (Out, error) {
+		var args struct {
+			Workspace string `json:"workspace"`
+		}
+		_ = json.Unmarshal(raw, &args)
+		actor, err := r.members.In(ctx, actor, args.Workspace)
+		if err != nil {
+			var none Out
+			return none, err
+		}
+		return fn(ctx, actor, in)
+	})
+}
+
+// addUnscoped publishes an operation without the workspace argument: it acts
+// across the person's workspaces, or in the default one as the app does.
+func addUnscoped[In, Out any](r *registry, tool *mcp.Tool, fn op[In, Out]) {
+	publish(r, tool, func(ctx context.Context, actor auth.Actor, _ json.RawMessage, in In) (Out, error) {
+		return fn(ctx, actor, in)
+	})
+}
+
+func publish[In, Out any](r *registry, tool *mcp.Tool, fn func(ctx context.Context, actor auth.Actor, raw json.RawMessage, in In) (Out, error)) {
 	if tool.Meta == nil {
 		tool.Meta = mcp.Meta{}
 	}
@@ -37,7 +74,7 @@ func add[In, Out any](r *registry, tool *mcp.Tool, fn op[In, Out]) {
 	}
 	tool.Annotations.OpenWorldHint = new(false)
 	mcp.AddTool(r.server, tool, func(ctx context.Context, req *mcp.CallToolRequest, in In) (*mcp.CallToolResult, Out, error) {
-		out, err := fn(ctx, req.Extra.TokenInfo.Extra[actorKey].(auth.Actor), in)
+		out, err := fn(ctx, req.Extra.TokenInfo.Extra[actorKey].(auth.Actor), req.Params.Arguments, in)
 		return nil, out, r.public(tool.Name, err)
 	})
 	r.ops[tool.Name] = func(ctx context.Context, actor auth.Actor, raw json.RawMessage) (any, error) {
@@ -47,7 +84,7 @@ func add[In, Out any](r *registry, tool *mcp.Tool, fn op[In, Out]) {
 				return nil, errs.Invalidf("invalid arguments: %v", err)
 			}
 		}
-		out, err := fn(ctx, actor, in)
+		out, err := fn(ctx, actor, raw, in)
 		return out, r.public(tool.Name, err)
 	}
 }

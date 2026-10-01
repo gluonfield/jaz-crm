@@ -25,7 +25,8 @@ const instructions = `Jaz CRM holds records of people, companies and other objec
 calls with them. Call list_objects to learn each object's attributes. Emails, domains and phone
 numbers identify records: upsert_record with an email or domain updates the record that holds it
 instead of creating a duplicate. Values you write are marked as written by an agent; a value a
-person set is never overwritten, and the write reports it as skipped.`
+person set is never overwritten, and the write reports it as skipped. Tools act in your default
+workspace; to work in another, pass its name as the workspace argument (list_workspaces).`
 
 // Handler serves /mcp to bearer tokens and /api/tools/{tool} to sessions.
 type Handler struct {
@@ -50,7 +51,7 @@ func NewHandler(svc Services, keys *auth.Service, logger *log.Logger) *Handler {
 		Version: "0.1.0",
 		Icons:   icons,
 	}, &mcp.ServerOptions{Instructions: instructions})
-	r := &registry{server: server, logger: logger.WithPrefix("tools"), ops: map[string]func(context.Context, auth.Actor, json.RawMessage) (any, error){}}
+	r := &registry{server: server, logger: logger.WithPrefix("tools"), members: svc.Workspaces, ops: map[string]func(context.Context, auth.Actor, json.RawMessage) (any, error){}}
 	registerRecords(r, svc.Records, svc.Interactions, pictures{svc.Interactions, svc.Logos, keys.Issuer()})
 	registerWorkspace(r, svc.Workspaces, keys)
 	registerInteractions(r, svc.Interactions)

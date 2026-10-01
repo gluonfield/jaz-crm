@@ -429,10 +429,10 @@ func (e env) oauth(t *testing.T, user storage.User) string {
 	return tokens.AccessToken
 }
 
-// A person creates a workspace and switches between theirs over one MCP
-// session, the way Jaz stays connected; each workspace sees only its own
-// records. An API key can create a workspace but stays in its own.
-func TestWorkspacesCreateAndSwitch(t *testing.T) {
+// An agent names the workspace each call acts in over one MCP session, the
+// way Jaz stays connected; leaving it out keeps the default, which only the
+// app's workspace menu moves. An API key acts only in its own workspace.
+func TestWorkspacesPerCall(t *testing.T) {
 	e := serve(t)
 	pat, err := e.people.SignIn(context.Background(), signin.Identity{Issuer: "https://idp.test", Subject: "pat", Email: "pat@example.com", EmailVerified: true, Name: "Pat"})
 	if err != nil {
@@ -442,38 +442,52 @@ func TestWorkspacesCreateAndSwitch(t *testing.T) {
 	before := mustCall(t, jaz, "get_profile", nil)
 	mustCall(t, jaz, "upsert_record", map[string]any{"object": "companies", "values": map[string]any{"name": "Home Co"}})
 	created := mustCall(t, jaz, "create_workspace", map[string]any{"name": " Side project "})
-	if created["name"] != "Side project" || created["current"] != true {
+	if created["name"] != "Side project" || created["default"] != nil {
 		t.Fatalf("created: %v", created)
 	}
-	after := mustCall(t, jaz, "get_profile", nil)
-	if after["id"] == before["id"] || after["email"] != before["email"] || after["nickname"] != "Side project" {
-		t.Fatalf("profile did not follow the connection's workspace: before=%v after=%v", before, after)
+	if after := mustCall(t, jaz, "get_profile", nil); after["id"] != before["id"] {
+		t.Fatalf("creating moved the default workspace: before=%v after=%v", before, after)
 	}
-	if got := mustCall(t, jaz, "get_workspace", nil); got["name"] != "Side project" || !strings.Contains(encode(got["members"]), `"admin":true`) {
-		t.Fatalf("after creating, the session should act in the new workspace as its admin: %v", got)
+	side := map[string]any{"workspace": "side PROJECT"}
+	if got := mustCall(t, jaz, "get_workspace", side); got["name"] != "Side project" || !strings.Contains(encode(got["members"]), `"admin":true`) {
+		t.Fatalf("a named workspace should be the new one, with pat as admin: %v", got)
 	}
-	if found := mustCall(t, jaz, "search_records", map[string]any{"object": "companies"})["records"].([]any); len(found) != 0 {
-		t.Fatalf("the new workspace sees other records: %v", found)
+	mustCall(t, jaz, "upsert_record", map[string]any{"workspace": "Side project", "object": "companies", "values": map[string]any{"name": "Side Co"}})
+	companies := func(args map[string]any) string {
+		found := mustCall(t, jaz, "search_records", args)["records"].([]any)
+		if len(found) != 1 {
+			t.Fatalf("each workspace holds one company: %v", found)
+		}
+		return found[0].(map[string]any)["values"].(map[string]any)["name"].(string)
+	}
+	if home, other := companies(map[string]any{"object": "companies"}), companies(map[string]any{"object": "companies", "workspace": "Side project"}); home != "Home Co" || other != "Side Co" {
+		t.Fatalf("records crossed workspaces: %q %q", home, other)
 	}
 	listed := mustCall(t, jaz, "list_workspaces", nil)["workspaces"].([]any)
-	if len(listed) != 2 {
+	if len(listed) != 2 || listed[0].(map[string]any)["default"] != true || listed[1].(map[string]any)["default"] != nil {
 		t.Fatalf("workspaces: %v", listed)
 	}
-	home := listed[0].(map[string]any)
-	mustCall(t, jaz, "switch_workspace", map[string]any{"workspace_id": home["id"]})
+	if _, failure := call(t, jaz, "search_records", map[string]any{"object": "companies", "workspace": "Nope"}); !strings.Contains(failure, "Side project") {
+		t.Fatalf("an unknown name should list the person's workspaces: %q", failure)
+	}
+
+	// The app's workspace menu moves the default.
+	mustCall(t, jaz, "switch_workspace", map[string]any{"workspace_id": created["id"]})
+	if moved := companies(map[string]any{"object": "companies"}); moved != "Side Co" {
+		t.Fatalf("after the menu switch, the default is the side project: %q", moved)
+	}
+	mustCall(t, jaz, "switch_workspace", map[string]any{"workspace_id": listed[0].(map[string]any)["id"]})
 	if restored := mustCall(t, jaz, "get_profile", nil); restored["id"] != before["id"] {
 		t.Fatalf("returning to the workspace changed its profile ID: %v", restored)
-	}
-	if found := mustCall(t, jaz, "search_records", map[string]any{"object": "companies"})["records"].([]any); len(found) != 1 {
-		t.Fatalf("after switching back: %v", found)
 	}
 	if _, failure := call(t, jaz, "switch_workspace", map[string]any{"workspace_id": "00000000-0000-4000-8000-000000000000"}); !strings.Contains(failure, "not a member") {
 		t.Fatalf("switch to a stranger's workspace: %q", failure)
 	}
 
 	keyed := e.session(t, e.apiKey(t, "kim@example.com"))
-	if other := mustCall(t, keyed, "create_workspace", map[string]any{"name": "Kim's other"}); other["current"] != nil {
-		t.Fatalf("an API key moved: %v", other)
+	mustCall(t, keyed, "create_workspace", map[string]any{"name": "Kim's other"})
+	if _, failure := call(t, keyed, "get_workspace", map[string]any{"workspace": "Kim's other"}); !strings.Contains(failure, "API key") {
+		t.Fatalf("an API key named another workspace: %q", failure)
 	}
 	if got := mustCall(t, keyed, "get_workspace", nil); got["name"] == "Kim's other" {
 		t.Fatal("an API key left its workspace")

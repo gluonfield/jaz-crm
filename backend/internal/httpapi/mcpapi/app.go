@@ -74,7 +74,7 @@ func registerApp(r *registry, publicURL string) {
 		URITemplate: "ui://jaz-crm/r/{record_id}", Name: "crm-record", Title: "CRM record", MIMEType: appMIME,
 		Description: "Render a compact person, company, deal or custom record card. Clicking it opens the full CRM record. Requires access to the record's workspace.",
 	}, readApp)
-	add(r, &mcp.Tool{Name: "show_crm", Title: "Customers", Annotations: readOnly, Icons: []mcp.Icon{{Source: icon("currentColor"), MIMEType: "image/svg+xml", Sizes: []string{"any"}}},
+	addUnscoped(r, &mcp.Tool{Name: "show_crm", Title: "Customers", Annotations: readOnly, Icons: []mcp.Icon{{Source: icon("currentColor"), MIMEType: "image/svg+xml", Sizes: []string{"any"}}},
 		Description: "Open the CRM app at a page: /o/people, /o/companies, /o/deals, /r/<record id> (with ?tab=activity for its changes), /i/<interaction id>, /triage, /connections or /settings. Also accepts ui://jaz-crm/r/<record id> for a record card, or a filtered ui://jaz-crm/o/<object> resource URL. Record lists accept q for text, filters as a JSON array of conditions, where as a JSON object of exact attribute values, limit up to 100, and view=table. get_record and search_records return the matching resource_uri and open it automatically.",
 		Meta: mcp.Meta{
 			"ui":             map[string]any{"resourceUri": appURI},
