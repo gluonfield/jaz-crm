@@ -19,8 +19,10 @@ FROM gcr.io/distroless/static-debian12:nonroot AS worker
 COPY --from=build /out/worker /app/worker
 ENTRYPOINT ["/app/worker"]
 
+# The server image also carries the worker, for hosts that build only the last
+# stage and choose the process with a start command of /app/worker.
 FROM gcr.io/distroless/static-debian12:nonroot AS server
-COPY --from=build /out/server /app/server
+COPY --from=build /out/ /app/
 COPY --from=web /web/dist/client /app/web
 ENV ADDR=:7500 WEB_DIR=/app/web
 EXPOSE 7500
