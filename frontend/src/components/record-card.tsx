@@ -7,7 +7,7 @@ import { useTool } from '@/lib/queries'
 import type { CrmRecord } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
-const labels: Record<string, string> = { company: 'Company', people: 'Contacts', owner: 'Owner', job_title: 'Job title', context: 'Context', domains: 'Website', email_addresses: 'Email', phone_numbers: 'Phone', categories: 'Categories', tags: 'Tags' }
+const labels: Record<string, string> = { company: 'Company', people: 'Contacts', owner: 'Owner', job_title: 'Job title', context: 'Context', founded_year: 'Founded year', size: 'Size', domains: 'Website', email_addresses: 'Email', phone_numbers: 'Phone', categories: 'Categories', tags: 'Tags' }
 const kinds: Record<string, string> = { people: 'Person', companies: 'Company', deals: 'Deal' }
 
 export function RecordCard({ recordId, onOpen }: { recordId: string; onOpen: (url: string) => void }) {

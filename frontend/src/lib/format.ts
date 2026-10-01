@@ -7,6 +7,7 @@ export function formatNumber(value: number | string, slug?: string, compact = fa
   return new Intl.NumberFormat('en', {
     style: slug === 'value' ? 'currency' : 'decimal',
     currency: 'USD',
+    useGrouping: slug !== 'founded_year',
     minimumFractionDigits: 0,
     maximumFractionDigits: compact ? 1 : 2,
     notation: compact ? 'compact' : 'standard',

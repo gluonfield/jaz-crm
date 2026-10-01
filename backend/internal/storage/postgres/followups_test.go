@@ -48,7 +48,7 @@ func TestStandardSchemaUpgradeAndDeletedDefault(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	old, err := goose.NewProvider(goose.DialectPostgres, db, os.DirFS("migrations"), goose.WithDisableGlobalRegistry(true), goose.WithExcludeNames([]string{"0015_deal_followups.go", "0016_person_context.sql"}))
+	old, err := goose.NewProvider(goose.DialectPostgres, db, os.DirFS("migrations"), goose.WithDisableGlobalRegistry(true), goose.WithExcludeNames([]string{"0015_deal_followups.go", "0016_person_context.sql", "0017_company_profile.sql"}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,6 +89,21 @@ INSERT INTO record_values (record_id, attribute_id, text, source)
 SELECT records.id, attributes.id, CASE attributes.slug WHEN 'name' THEN 'Existing person' ELSE E'Met through a friend.\nDiscussing a pilot.' END, 'user'
 FROM records JOIN attributes ON attributes.object_id = records.object_id
 JOIN objects ON objects.id = records.object_id WHERE objects.slug = 'people';
+INSERT INTO objects (workspace_id, slug, name)
+SELECT id, 'companies', 'Companies' FROM workspaces WHERE name IN ('Missing Context', 'Existing Context');
+INSERT INTO attributes (object_id, slug, name, type)
+SELECT id, 'name', 'Name', 'text' FROM objects WHERE slug = 'companies';
+INSERT INTO attributes (object_id, slug, name, type, options)
+SELECT objects.id, fields.slug, fields.name, fields.type, fields.options
+FROM objects JOIN workspaces ON workspaces.id = objects.workspace_id
+CROSS JOIN (VALUES ('founded_year', 'Founded year', 'number', ARRAY[]::text[]),
+  ('size', 'Size', 'select', ARRAY['11-50', '51-200', 'Custom band'])) AS fields(slug, name, type, options)
+WHERE objects.slug = 'companies' AND workspaces.name = 'Existing Context';
+INSERT INTO records (workspace_id, object_id) SELECT workspace_id, id FROM objects WHERE slug = 'companies';
+INSERT INTO record_values (record_id, attribute_id, text, source)
+SELECT records.id, attributes.id, CASE attributes.slug WHEN 'name' THEN 'Existing company' WHEN 'founded_year' THEN '1984' ELSE '51-200' END, 'user'
+FROM records JOIN attributes ON attributes.object_id = records.object_id
+JOIN objects ON objects.id = records.object_id WHERE objects.slug = 'companies';
 `); err != nil {
 		t.Fatal(err)
 	}
@@ -125,6 +140,31 @@ JOIN objects ON objects.id = records.object_id WHERE objects.slug = 'people';
 		}
 		if values["name"] != "Existing person" || values["context"] != "Met through a friend.\nDiscussing a pilot." {
 			t.Fatalf("%s upgrade changed existing values: %v", name, values)
+		}
+		companies, err := svc.Search(ctx, personActor, records.Search{Object: "companies"})
+		if err != nil || len(companies) != 1 {
+			t.Fatalf("upgrade lost %s company: %v %v", name, companies, err)
+		}
+		if name == "Missing Context" {
+			if _, _, err := svc.Upsert(ctx, personActor, records.SourceUser, records.Write{Object: "companies", RecordID: companies[0].ID, Set: map[string][]string{"founded_year": {"1984"}, "size": {"51-200"}}}); err != nil {
+				t.Fatalf("migrated company profile is unusable: %v", err)
+			}
+		}
+		company, err := svc.Get(ctx, personActor, companies[0].ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		values = map[string]string{}
+		for _, field := range company.Fields {
+			values[field.Attribute] = field.Values[0].Text
+		}
+		if values["name"] != "Existing company" || values["founded_year"] != "1984" || values["size"] != "51-200" {
+			t.Fatalf("%s upgrade changed existing company values: %v", name, values)
+		}
+		if name == "Existing Context" {
+			if _, _, err := svc.Upsert(ctx, personActor, records.SourceUser, records.Write{Object: "companies", RecordID: company.ID, Set: map[string][]string{"size": {"Custom band"}}}); err != nil {
+				t.Fatalf("upgrade lost custom size options: %v", err)
+			}
 		}
 	}
 	actor := auth.Actor{WorkspaceID: workspace}

@@ -161,6 +161,35 @@ func TestRecordTools(t *testing.T) {
 	}
 }
 
+func TestCompanyProfile(t *testing.T) {
+	e := serve(t)
+	session := e.session(t, e.apiKey(t, "company-profile@jaz.test"))
+	company := mustCall(t, session, "upsert_record", map[string]any{"object": "companies", "values": map[string]any{"name": "Acme", "founded_year": "1984", "size": "11-50"}})["record"].(map[string]any)
+	id := company["id"]
+	values := mustCall(t, session, "get_record", map[string]any{"record_id": id})["values"].(map[string]any)
+	if values["founded_year"] != "1984" || values["size"] != "11-50" {
+		t.Fatalf("native company profile did not persist: %v", values)
+	}
+	mustCall(t, session, "upsert_record", map[string]any{"object": "companies", "record_id": id, "values": map[string]any{"founded_year": "1985", "size": "51-200"}})
+	found := mustCall(t, session, "search_records", map[string]any{"object": "companies", "filters": []map[string]string{{"attribute": "founded_year", "operator": "is", "value": "1985"}, {"attribute": "size", "operator": "is", "value": "51-200"}}})["records"].([]any)
+	if len(found) != 1 || found[0].(map[string]any)["id"] != id {
+		t.Fatalf("updated company profile is not filterable: %v", found)
+	}
+	for _, year := range []string{"1984.5", "0", "10000", "NaN", "Inf"} {
+		if _, failure := call(t, session, "upsert_record", map[string]any{"object": "companies", "record_id": id, "values": map[string]any{"founded_year": year}}); failure == "" {
+			t.Fatalf("invalid founded year accepted: %s", year)
+		}
+	}
+	if _, failure := call(t, session, "upsert_record", map[string]any{"object": "companies", "record_id": id, "values": map[string]any{"size": "Huge"}}); failure == "" {
+		t.Fatal("size accepted an unknown range")
+	}
+	mustCall(t, session, "upsert_record", map[string]any{"object": "companies", "record_id": id, "remove": map[string]any{"founded_year": []string{}, "size": []string{}}})
+	values = mustCall(t, session, "get_record", map[string]any{"record_id": id})["values"].(map[string]any)
+	if values["founded_year"] != nil || values["size"] != nil {
+		t.Fatalf("company profile was not cleared: %v", values)
+	}
+}
+
 func TestPersonContext(t *testing.T) {
 	e := serve(t)
 	session := e.session(t, e.apiKey(t, "context@jaz.test"))

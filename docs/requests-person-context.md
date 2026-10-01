@@ -5,8 +5,9 @@
 - [x] Show a prominent multiline Context editor on the person profile and support it in New/Edit.
 - [x] Expose Context through MCP schema discovery, reads, writes, search and change history.
 - [x] Review, verify schema/MCP persistence and profile/New UI behavior, commit/push and activate locally and on Railway.
-- [ ] Complete Edit-save, light/narrow and native keyboard acceptance when the Jaz side browser reconnects.
-- [ ] Review existing support and fix New/Edit and profile overflow when Context contains a long unbroken URL.
+- [x] Complete Edit-save and light/dark narrow-profile acceptance after the Jaz side browser reconnects.
+- [ ] Complete native keyboard acceptance; the browser transport currently delivers no key events.
+- [x] Review existing support and fix New/Edit and profile overflow when Context contains a long unbroken URL.
 
 Review: reuse native attribute/value storage and its revision history; no custom-field setup, new tool, dependency or second copy of Context. Profile editing saves on blur or Cmd/Ctrl+Enter, Enter adds a newline and Escape discards the draft. New/Edit use a multiline input and inline MCP cards show a three-line preview.
 
@@ -21,6 +22,8 @@ Actual CAS browser acceptance: New creates multiline Context; profile edits pers
 | People have no standard relationship-background field. | Context is native in every People schema and editable directly below the profile, in New/Edit, and through existing MCP record operations. |
 
 Review on 2026-10-01 confirmed existing native support and passing fresh PostgreSQL/MCP regressions. Long unbroken Context exposed the grid items' automatic minimum width: the 620px Edit dialog held a 1515px form, moving Save beyond a 784px viewport; the profile editor also extended beyond that viewport. Applying `min-width: 0` at each owning grid item restored the form to 618px and kept the profile editor inside the content column, with no horizontal overflow. The fix preserves multiline content and automatic height.
+
+Review fix `e079422` is pushed and both Railway deployments report SUCCESS. Edit-save preserved three lines including a long URL. The actual deployed profile was visually inspected in light and dark at 640px: Context stays within the 352px content column without horizontal overflow, using the production CSS with no override. Local activation is bundled with the native Company profile deployment. No customer values were changed.
 
 | Before | After |
 | --- | --- |

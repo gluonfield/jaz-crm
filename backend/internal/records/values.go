@@ -1,6 +1,7 @@
 package records
 
 import (
+	"math"
 	"net"
 	"net/mail"
 	"net/url"
@@ -43,6 +44,8 @@ var StandardObjects = []storage.NewObject{
 		{Slug: "categories", Name: "Categories", Type: Select, Multi: true},
 		{Slug: "domains", Name: "Domains", Type: Domain, Multi: true, IsUnique: true},
 		{Slug: "description", Name: "Description", Type: Text},
+		{Slug: "founded_year", Name: "Founded year", Type: Number},
+		{Slug: "size", Name: "Size", Type: Select, Options: []string{"1-10", "11-50", "51-200", "201-500", "501-1,000", "1,001-5,000", "5,001-10,000", "10,001+"}},
 	}},
 	{Slug: "people", Name: "People", Attributes: []storage.NewAttribute{
 		{Slug: titleAttribute, Name: "Name", Type: Text},
@@ -130,6 +133,9 @@ func canonical(attr storage.Attribute, raw string) (string, bool) {
 	switch attr.Type {
 	case Number:
 		n, err := strconv.ParseFloat(strings.ReplaceAll(raw, ",", ""), 64)
+		if attr.Slug == "founded_year" && (n < 1 || n > 9999 || math.Trunc(n) != n) {
+			return "", false
+		}
 		return strconv.FormatFloat(n, 'f', -1, 64), err == nil
 	case Date:
 		for _, layout := range []string{time.DateOnly, time.RFC3339} {
