@@ -23,7 +23,7 @@ Actual CAS browser acceptance: New creates multiline Context; profile edits pers
 
 Review on 2026-10-01 confirmed existing native support and passing fresh PostgreSQL/MCP regressions. Long unbroken Context exposed the grid items' automatic minimum width: the 620px Edit dialog held a 1515px form, moving Save beyond a 784px viewport; the profile editor also extended beyond that viewport. Applying `min-width: 0` at each owning grid item restored the form to 618px and kept the profile editor inside the content column, with no horizontal overflow. The fix preserves multiline content and automatic height.
 
-Review fix `e079422` is pushed and both Railway deployments report SUCCESS. Edit-save preserved three lines including a long URL. The actual deployed profile was visually inspected in light and dark at 640px: Context stays within the 352px content column without horizontal overflow, using the production CSS with no override. Local activation is bundled with the native Company profile deployment. No customer values were changed.
+Review fix `e079422` is pushed and both Railway deployments report SUCCESS. Edit-save preserved three lines including a long URL. The actual deployed profile was visually inspected in light and dark at 640px: Context stays within the 352px content column without horizontal overflow, using the production CSS with no override. Local services now run published descendant `7171864`, with both health checks passing. No customer values were changed.
 
 | Before | After |
 | --- | --- |
