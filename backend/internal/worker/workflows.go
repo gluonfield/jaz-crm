@@ -2,6 +2,7 @@ package worker
 
 import (
 	"errors"
+	"slices"
 	"time"
 
 	"go.temporal.io/api/enums/v1"
@@ -65,12 +66,14 @@ func pass(ctx workflow.Context, a *Activities, id string) (bool, error) {
 	var backfilled bool
 	var fetched int
 	var due []MeetingRef
-	steps := []struct {
-		activity any
-		out      any
-	}{
+	type step struct{ activity, out any }
+	steps := []step{
 		{a.Aliases, nil}, {a.GmailBackfill, &backfilled}, {a.GmailIncremental, nil}, {a.CalendarSync, nil}, {a.Triage, nil},
 		{a.CompanyLogos, nil}, {a.FetchContent, &fetched}, {a.Photos, nil}, {a.Watch, nil}, {a.DueMeetings, &due},
+	}
+	// Syncs that started before follow-ups replay their history without them.
+	if workflow.GetVersion(ctx, "follow-ups", workflow.DefaultVersion, 1) == 1 {
+		steps = slices.Insert(steps, 7, step{a.FollowUps, nil})
 	}
 	for _, s := range steps {
 		if err := run(s.activity, s.out); err != nil {

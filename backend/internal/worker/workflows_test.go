@@ -27,6 +27,7 @@ func syncEnv(t *testing.T, backfill func(int) (bool, error), incremental error) 
 		env.OnActivity(step, mock.Anything, "c1").Return(nil).Maybe()
 	}
 	env.OnActivity(a.FetchContent, mock.Anything, "c1").Return(0, nil).Maybe()
+	env.OnActivity(a.FollowUps, mock.Anything, "c1").Return(0, nil).Maybe()
 	env.OnActivity(a.DueMeetings, mock.Anything, "c1").Return([]MeetingRef{}, nil).Maybe()
 	env.OnActivity(a.Revoke, mock.Anything, "c1").Return(nil).Maybe()
 	return env, &passes

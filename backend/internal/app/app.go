@@ -13,7 +13,6 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
-	"github.com/gluonfield/jaz-crm/backend/internal/classifier"
 	"github.com/gluonfield/jaz-crm/backend/internal/connections"
 	"github.com/gluonfield/jaz-crm/backend/internal/followups"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/authapi"
@@ -22,6 +21,7 @@ import (
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/mcpapi"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/webhooks"
 	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
+	"github.com/gluonfield/jaz-crm/backend/internal/llm"
 	"github.com/gluonfield/jaz-crm/backend/internal/logos"
 	"github.com/gluonfield/jaz-crm/backend/internal/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/server"
@@ -52,8 +52,8 @@ func shared(cfg Config) fx.Option {
 			fx.Annotate(worker.NewStarter, fx.As(fx.Self()), fx.As(new(connections.Syncer))),
 		),
 	}
-	if cfg.LLM.Model != "" {
-		options = append(options, fx.Supply(cfg.LLM), fx.Provide(fx.Annotate(classifier.New, fx.As(new(interactions.Classifier)))))
+	if cfg.LLM.APIKey != "" {
+		options = append(options, fx.Supply(cfg.LLM), fx.Provide(fx.Annotate(llm.New, fx.As(new(interactions.Classifier)), fx.As(new(followups.Planner)))))
 	}
 	return fx.Options(options...)
 }
@@ -78,7 +78,7 @@ func Server(cfg Config) fx.Option {
 func Worker(cfg Config) fx.Option {
 	return fx.Options(
 		shared(cfg),
-		fx.Provide(worker.NewActivities, worker.NewWorker),
+		fx.Provide(followups.NewAgent, worker.NewActivities, worker.NewWorker),
 		fx.Invoke(worker.Run),
 	)
 }

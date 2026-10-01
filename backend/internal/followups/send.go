@@ -122,21 +122,9 @@ func (s *Service) reply(ctx context.Context, actor auth.Actor, f records.Record)
 	if last.At.After(written) {
 		return outgoing{}, errs.Invalidf("a message arrived after this draft was written; review the draft first")
 	}
-	holder, err := s.conns.Connection(ctx, *last.ConnectionID)
+	original, holder, err := s.original(ctx, last)
 	if err != nil {
 		return outgoing{}, err
-	}
-	source, err := s.conns.Google(ctx, holder)
-	if err != nil {
-		return outgoing{}, err
-	}
-	found, err := source.Messages(ctx, []string{*last.ProviderID}, false)
-	if err != nil {
-		return outgoing{}, err
-	}
-	original := found[0]
-	if original.ID == "" {
-		return outgoing{}, errs.Invalidf("the message to reply to is gone from %s", holder.Account)
 	}
 	sender, err := s.conns.Mailbox(ctx, actor, holder.ID)
 	if err != nil {
@@ -168,6 +156,26 @@ func (s *Service) reply(ctx context.Context, actor auth.Actor, f records.Record)
 		From: sender.Account, To: to, Cc: values(f, "cc"), Subject: subject, Body: body,
 		ThreadID: thread, InReplyTo: original.MessageID, References: references,
 	}}, nil
+}
+
+// original reads a message's headers from the mailbox that holds it.
+func (s *Service) original(ctx context.Context, part storage.Part) (google.Message, storage.Connection, error) {
+	holder, err := s.conns.Connection(ctx, *part.ConnectionID)
+	if err != nil {
+		return google.Message{}, holder, err
+	}
+	mailbox, err := s.conns.Google(ctx, holder)
+	if err != nil {
+		return google.Message{}, holder, err
+	}
+	found, err := mailbox.Messages(ctx, []string{*part.ProviderID}, false)
+	if err != nil {
+		return google.Message{}, holder, err
+	}
+	if found[0].ID == "" {
+		return google.Message{}, holder, errs.Invalidf("the message to reply to is gone from %s", holder.Account)
+	}
+	return found[0], holder, nil
 }
 
 // draftedAt is when the follow-up's draft text was last written.

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gluonfield/jaz-crm/backend/internal/connections"
+	"github.com/gluonfield/jaz-crm/backend/internal/followups"
 	"github.com/gluonfield/jaz-crm/backend/internal/google"
 	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
 	"github.com/gluonfield/jaz-crm/backend/internal/logos"
@@ -38,11 +39,12 @@ type Activities struct {
 	Connections  *connections.Service
 	Interactions *interactions.Service
 	Logos        *logos.Service
+	Agent        *followups.Agent
 	Config       Config
 }
 
-func NewActivities(c *connections.Service, i *interactions.Service, l *logos.Service, cfg Config) *Activities {
-	return &Activities{Connections: c, Interactions: i, Logos: l, Config: cfg}
+func NewActivities(c *connections.Service, i *interactions.Service, l *logos.Service, f *followups.Agent, cfg Config) *Activities {
+	return &Activities{Connections: c, Interactions: i, Logos: l, Agent: f, Config: cfg}
 }
 
 // MeetingRef is a meeting whose transcript is due.
@@ -364,6 +366,16 @@ func (a *Activities) FetchContent(ctx context.Context, id string) (int, error) {
 		}
 	}
 	return len(parts), nil
+}
+
+// FollowUps keeps the connection's workspace's follow-ups current with its
+// changed conversations, returning how many it read.
+func (a *Activities) FollowUps(ctx context.Context, id string) (int, error) {
+	c, err := a.connection(ctx, id)
+	if err != nil {
+		return 0, err
+	}
+	return a.Agent.Run(ctx, c.WorkspaceID)
 }
 
 // Watch renews push notifications a day before they lapse.

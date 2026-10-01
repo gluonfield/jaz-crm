@@ -7,7 +7,7 @@
 - [x] `get_record` returns the records that reference it, including follow-ups; `search_records` sorts by a date such as `review_on`.
 - [x] `log_interaction` records LinkedIn conversations as messages under a stable `external_id`; the sender marks a draft Sent with `upsert_record`.
 - [x] Send email drafts from the CRM as replies in the linked thread, from the mailbox holding the latest message (any teammate's unless they opt out), refusing drafts older than the latest message. Needs a Google reconnect for `gmail.send`.
-- [ ] Follow-up agent on `gpt-6-luna`, medium effort, through the official OpenAI Go SDK: reads each new message in or out, updates follow-ups, drafts replies only when useful.
+- [x] Follow-up agent on `gpt-6-luna`, medium effort, through the official OpenAI Go SDK (`openai-go/v3`, Responses API, strict schema): reads each changed linked conversation in or out within a week once its bodies are in, claims it, updates follow-ups, drafts replies only when useful, reply-all minus our addresses. Triage moved onto the same client. Live model check pending a valid OpenAI key (the shell key returns 401).
 - [ ] Review queue: Needs attention view with Send (email) and Approve (LinkedIn).
 - [ ] Gmail's own drafts are not imported as sent mail.
 - [ ] Commit, push and check local and Railway activation.

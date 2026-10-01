@@ -295,3 +295,25 @@ LIMIT 20;
 
 -- name: MarkTranscriptChecked :exec
 UPDATE interactions SET transcript_checked_at = now() WHERE id = $1;
+
+-- name: FollowUpCandidates :many
+-- FollowUpCandidates lists linked conversations with content newer than both
+-- since and what the follow-up agent last read, once every body is fetched.
+SELECT interactions.id, interactions.followed_up_at, latest.at::timestamptz AS latest_at FROM interactions
+JOIN (
+  SELECT parts.interaction_id, max(parts.at) AS at FROM parts
+  WHERE parts.kind IN ('message', 'transcript', 'note') AND parts.content IS NOT NULL AND parts.at > @since
+  GROUP BY parts.interaction_id
+) AS latest ON latest.interaction_id = interactions.id
+WHERE interactions.workspace_id = @workspace_id AND NOT interactions.skipped
+  AND latest.at > coalesce(interactions.followed_up_at, '-infinity')
+  AND EXISTS (SELECT 1 FROM links WHERE links.interaction_id = interactions.id)
+  AND NOT EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.content IS NULL AND parts.provider_id IS NOT NULL)
+ORDER BY latest.at
+LIMIT @row_limit;
+
+-- name: ClaimFollowUp :execrows
+-- ClaimFollowUp moves what the agent has read from previous to at, unless
+-- another worker moved it first.
+UPDATE interactions SET followed_up_at = sqlc.narg(at)
+WHERE id = @id AND followed_up_at IS NOT DISTINCT FROM sqlc.narg(previous);

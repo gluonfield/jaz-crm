@@ -11,12 +11,21 @@ require (
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/lithammer/shortuuid/v4 v4.3.0
 	github.com/modelcontextprotocol/go-sdk v1.8.0
+	github.com/openai/openai-go/v3 v3.68.0
 	github.com/pressly/goose/v3 v3.27.1
 	go.temporal.io/api v1.63.5
 	go.temporal.io/sdk v1.49.0
 	go.uber.org/fx v1.24.0
 	golang.org/x/net v0.59.0
 	golang.org/x/oauth2 v0.37.0
+)
+
+require (
+	github.com/coder/websocket v1.8.15 // indirect
+	github.com/tidwall/gjson v1.19.0 // indirect
+	github.com/tidwall/match v1.1.1 // indirect
+	github.com/tidwall/pretty v1.2.1 // indirect
+	github.com/tidwall/sjson v1.2.5 // indirect
 )
 
 require (

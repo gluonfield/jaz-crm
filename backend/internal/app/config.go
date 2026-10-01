@@ -10,10 +10,10 @@ import (
 	"time"
 
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
-	"github.com/gluonfield/jaz-crm/backend/internal/classifier"
 	"github.com/gluonfield/jaz-crm/backend/internal/connections"
 	"github.com/gluonfield/jaz-crm/backend/internal/google"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/webhooks"
+	"github.com/gluonfield/jaz-crm/backend/internal/llm"
 	"github.com/gluonfield/jaz-crm/backend/internal/server"
 	"github.com/gluonfield/jaz-crm/backend/internal/worker"
 	"github.com/gluonfield/jaz-crm/backend/internal/workspaces"
@@ -33,7 +33,7 @@ type Config struct {
 	Connections connections.Config
 	Sync        worker.Config
 	Webhooks    webhooks.Config
-	LLM         classifier.Config
+	LLM         llm.Config
 }
 
 // Owner is the account a deployment provisions at startup, and the API key
@@ -102,10 +102,11 @@ func ParseConfig(name string, args []string) (Config, error) {
 	if cfg.Sync.PubSubTopic != "" {
 		cfg.Webhooks = webhooks.Config{Audience: cfg.PublicURL + "/webhooks/google/gmail", ServiceAccount: strings.TrimSpace(os.Getenv("GMAIL_PUBSUB_SERVICE_ACCOUNT"))}
 	}
-	cfg.LLM = classifier.Config{
+	cfg.LLM = llm.Config{
 		BaseURL: env("LLM_BASE_URL", "https://api.openai.com/v1"),
 		APIKey:  strings.TrimSpace(os.Getenv("LLM_API_KEY")),
-		Model:   strings.TrimSpace(os.Getenv("LLM_MODEL")),
+		Model:   env("LLM_MODEL", "gpt-6-luna"),
+		Effort:  env("LLM_REASONING_EFFORT", "medium"),
 	}
 	return cfg, nil
 }

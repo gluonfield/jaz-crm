@@ -16,6 +16,7 @@ import (
 
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"github.com/gluonfield/jaz-crm/backend/internal/connections"
+	"github.com/gluonfield/jaz-crm/backend/internal/followups"
 	"github.com/gluonfield/jaz-crm/backend/internal/google"
 	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
 	"github.com/gluonfield/jaz-crm/backend/internal/records"
@@ -176,7 +177,8 @@ func TestSyncAgainstGoogle(t *testing.T) {
 	}
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestActivityEnvironment()
-	a := NewActivities(conns, convs, logos.NewService(store, logos.Fetcher{Client: srv.Client(), Home: func(domain string) string { return srv.URL + "/site/" + domain + "/" }}), Config{})
+	agent := followups.NewAgent(followups.AgentParams{Service: followups.NewService(crm, store, conns), Workspaces: store, Connections: store, Interactions: convs})
+	a := NewActivities(conns, convs, logos.NewService(store, logos.Fetcher{Client: srv.Client(), Home: func(domain string) string { return srv.URL + "/site/" + domain + "/" }}), agent, Config{})
 	env.RegisterActivity(a)
 	run := func(activity any, out any, args ...any) {
 		t.Helper()

@@ -207,6 +207,16 @@ func (s *Store) Participants(ctx context.Context, interactionIDs []string) ([]st
 	return many(toParticipant)(s.in.InteractionParticipants(ctx, interactionIDs))
 }
 
+func (s *Store) FollowUpCandidates(ctx context.Context, workspaceID string, since time.Time, limit int32) ([]storage.FollowUpCandidate, error) {
+	return many(func(r intdb.FollowUpCandidatesRow) storage.FollowUpCandidate { return storage.FollowUpCandidate(r) })(
+		s.in.FollowUpCandidates(ctx, intdb.FollowUpCandidatesParams{Since: since, WorkspaceID: workspaceID, Limit: limit}))
+}
+
+func (s *Store) ClaimFollowUp(ctx context.Context, id string, previous, at *time.Time) (bool, error) {
+	n, err := s.in.ClaimFollowUp(ctx, intdb.ClaimFollowUpParams{At: at, ID: id, Previous: previous})
+	return n == 1, err
+}
+
 func (s *Store) Parts(ctx context.Context, interactionIDs []string) ([]storage.Part, error) {
 	return many(toPart)(s.in.InteractionParts(ctx, interactionIDs))
 }

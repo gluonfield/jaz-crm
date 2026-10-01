@@ -1,0 +1,173 @@
+package followups_test
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"slices"
+	"testing"
+	"time"
+
+	"github.com/gluonfield/jaz-crm/backend/internal/auth"
+	"github.com/gluonfield/jaz-crm/backend/internal/connections"
+	"github.com/gluonfield/jaz-crm/backend/internal/followups"
+	"github.com/gluonfield/jaz-crm/backend/internal/google"
+	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
+	"github.com/gluonfield/jaz-crm/backend/internal/records"
+	"github.com/gluonfield/jaz-crm/backend/internal/storage"
+	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
+	"github.com/gluonfield/jaz-crm/backend/internal/workspaces"
+)
+
+// planner stands in for the model: it records what it read and answers with
+// the next plan, or fails.
+type planner struct {
+	read  []followups.Conversation
+	plans []followups.Plan
+	fail  bool
+}
+
+func (p *planner) Plan(_ context.Context, c followups.Conversation) (followups.Plan, error) {
+	p.read = append(p.read, c)
+	if p.fail {
+		return followups.Plan{}, errors.New("model unavailable")
+	}
+	plan := p.plans[0]
+	p.plans = p.plans[1:]
+	return plan, nil
+}
+
+func TestAgentKeepsFollowUpsCurrent(t *testing.T) {
+	store := postgrestest.New(t)
+	owner, err := workspaces.NewService(store, workspaces.Config{}).Provision(ctx, "owner@cas.dev")
+	if err != nil {
+		t.Fatal(err)
+	}
+	actor := auth.Actor{UserID: owner.ID, WorkspaceID: owner.WorkspaceID}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/token":
+			fmt.Fprint(w, `{"access_token":"at","token_type":"Bearer","expires_in":3600,"refresh_token":"rt"}`)
+		case "/gmail/v1/users/me/profile":
+			fmt.Fprint(w, `{"emailAddress":"owner@cas.dev","historyId":"1"}`)
+		default:
+			fmt.Fprint(w, `{"id":"g","threadId":"t9","internalDate":"0","payload":{"headers":[
+				{"name":"From","value":"Jane <jane@acme.com>"},{"name":"To","value":"owner@cas.dev, Sam <sam@acme.com>"},
+				{"name":"Cc","value":"bob@acme.com, owner@cas.dev"},{"name":"Message-ID","value":"<m@acme.com>"}]}}`)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	conns, err := connections.NewService(store, connections.Config{
+		Google:    google.OAuthConfig{ClientID: "client", ClientSecret: "secret", TokenURL: srv.URL + "/token"},
+		Key:       []byte("0123456789abcdef0123456789abcdef"),
+		Endpoints: google.Endpoints{Gmail: srv.URL},
+	}, syncer{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mailbox, err := conns.Connect(ctx, actor, "code", "verifier")
+	if err != nil {
+		t.Fatal(err)
+	}
+	crm := records.NewService(store)
+	convs := interactions.NewService(interactions.Params{Store: store, Connections: store, Workspaces: store, Records: crm})
+	brain := &planner{}
+	agent := followups.NewAgent(followups.AgentParams{Service: followups.NewService(crm, store, conns), Workspaces: store, Connections: store, Interactions: convs, Planner: brain})
+	jane, _, err := crm.Upsert(ctx, actor, records.SourceUser, records.Write{Object: "people", Set: map[string][]string{"name": {"Jane"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	deal, _, err := crm.Upsert(ctx, actor, records.SourceUser, records.Write{Object: "deals", Set: map[string][]string{"name": {"Acme brackets"}, "people": {jane.ID}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	thread, err := store.UpsertEmailThread(ctx, storage.EmailThread{WorkspaceID: owner.WorkspaceID, ExternalID: "t9", ConnectionID: &mailbox.ID, UserID: &owner.ID, Title: "Quote", At: time.Now().Add(-time.Hour)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.AddLink(ctx, thread, jane.ID, "user"); err != nil {
+		t.Fatal(err)
+	}
+	message := func(id, text string, at time.Time) {
+		provider := "g" + id
+		if err := store.UpsertPart(ctx, storage.NewPart{InteractionID: thread, Kind: "message", ExternalID: id, ConnectionID: &mailbox.ID, ProviderID: &provider, At: at, Content: &text}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	run := func() int {
+		read, err := agent.Run(ctx, owner.WorkspaceID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return read
+	}
+	message("old", "Last month's thread.", time.Now().Add(-10*24*time.Hour))
+	if run() != 0 || len(brain.read) != 0 {
+		t.Fatal("content older than a week is history, not news")
+	}
+
+	message("m1", "Could you send a revised quote for 500 brackets by Friday?", time.Now().Add(-time.Minute))
+	brain.plans = []followups.Plan{{FollowUps: []followups.Change{
+		{Action: "Send revised quote for 500 brackets", WaitingOn: "Us", ReviewOn: "2026-10-02", Status: "Open", Person: jane.ID, Company: "made-up", Reply: "Hi Jane, here is the revised quote."},
+		{ID: "invented", Status: "Done"},
+	}}}
+	if run() != 1 {
+		t.Fatal("the new message was not read")
+	}
+	if got := brain.read[0]; got.Channel != "email" || len(got.Messages) != 2 || got.Messages[1].Text != "Could you send a revised quote for 500 brackets by Friday?" {
+		t.Fatalf("planner read %+v", got)
+	}
+	if !slices.ContainsFunc(brain.read[0].Records, func(r interactions.Ref) bool { return r.ID == deal.ID && r.Object == "deals" }) {
+		t.Fatalf("the planner must see the deals of the people in the conversation: %+v", brain.read[0].Records)
+	}
+	open, err := crm.Search(ctx, actor, records.Search{Object: records.FollowUps})
+	if err != nil || len(open) != 1 {
+		t.Fatalf("follow-ups: %v %v", open, err)
+	}
+	f := open[0]
+	values := map[string][]string{}
+	for _, field := range f.Fields {
+		for _, v := range field.Values {
+			values[field.Attribute] = append(values[field.Attribute], v.Text+v.RecordID)
+		}
+	}
+	want := map[string][]string{
+		"name": {"Send revised quote for 500 brackets"}, "status": {"Open"}, "waiting_on": {"Us"}, "review_on": {"2026-10-02"},
+		"owner": {"owner@cas.dev"}, "person": {"Jane" + jane.ID}, "draft": {"Hi Jane, here is the revised quote."},
+		"channel": {"Email"}, "to": {"jane@acme.com", "sam@acme.com"}, "cc": {"bob@acme.com"}, "draft_status": {records.DraftWritten},
+	}
+	for attr, w := range want {
+		if !slices.Equal(values[attr], w) {
+			t.Errorf("%s = %v, want %v", attr, values[attr], w)
+		}
+	}
+	if values["company"] != nil {
+		t.Errorf("a record the planner was not shown was attached: %v", values["company"])
+	}
+	if linked, err := convs.Timeline(ctx, actor, f.ID, nil, nil, false, 5); err != nil || len(linked) != 1 || linked[0].ID != thread {
+		t.Fatalf("the conversation must be linked to its follow-up: %+v %v", linked, err)
+	}
+	if run() != 0 || len(brain.read) != 1 {
+		t.Fatal("a conversation read once was read again")
+	}
+
+	message("m2", "Thanks, got the quote. We will confirm next week.", time.Now())
+	brain.fail = true
+	if _, err := agent.Run(ctx, owner.WorkspaceID); err == nil {
+		t.Fatal("a failed plan reported success")
+	}
+	brain.fail = false
+	brain.plans = []followups.Plan{{FollowUps: []followups.Change{{ID: f.ID, Status: "Done"}}}}
+	if run() != 1 {
+		t.Fatal("a conversation whose plan failed must be read again")
+	}
+	if seen := brain.read[len(brain.read)-1].FollowUps; len(seen) != 1 || seen[0].ID != f.ID {
+		t.Fatalf("the planner must see the open follow-up: %+v", seen)
+	}
+	if done, err := crm.Get(ctx, actor, f.ID); err != nil || !slices.ContainsFunc(done.Fields, func(field records.Field) bool { return field.Attribute == "status" && field.Values[0].Text == "Done" }) {
+		t.Fatalf("the follow-up must be closed: %+v %v", done, err)
+	}
+}

@@ -83,6 +83,8 @@ type Interaction struct {
 	Channel             string
 	Provenance          string
 	DateOnly            bool
+	// FollowedUpAt is the newest content the follow-up agent has read.
+	FollowedUpAt *time.Time
 }
 
 type NewInteraction struct {
@@ -179,6 +181,14 @@ type Activity struct {
 	LastAt       time.Time
 }
 
+// FollowUpCandidate is a conversation with content newer than what the
+// follow-up agent last read.
+type FollowUpCandidate struct {
+	ID           string
+	FollowedUpAt *time.Time
+	LatestAt     time.Time
+}
+
 type DomainRule struct {
 	WorkspaceID string
 	Domain      string
@@ -248,4 +258,8 @@ type InteractionStore interface {
 	Parts(ctx context.Context, interactionIDs []string) ([]Part, error)
 	Links(ctx context.Context, interactionIDs []string) ([]Link, error)
 	RecordActivity(ctx context.Context, workspaceID string, recordIDs []string) ([]Activity, error)
+	FollowUpCandidates(ctx context.Context, workspaceID string, since time.Time, limit int32) ([]FollowUpCandidate, error)
+	// ClaimFollowUp moves what the agent has read from previous to at,
+	// reporting false when another worker moved it first.
+	ClaimFollowUp(ctx context.Context, id string, previous, at *time.Time) (bool, error)
 }

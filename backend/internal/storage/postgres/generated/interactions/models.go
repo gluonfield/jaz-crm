@@ -48,4 +48,5 @@ type Interaction struct {
 	Channel             string
 	Provenance          string
 	DateOnly            bool
+	FollowedUpAt        *time.Time
 }
