@@ -71,8 +71,16 @@ Configuration is documented in `.env.example`.
 | `log_interaction`, `link_interaction`, `unlink_interaction`, `skip_interaction` | calls and notes, links to records, removal |
 | `list_triage`, `decide_triage` | who is kept, skipped or waiting, and decisions by address or domain |
 | `list_connections`, `disconnect` | synced Google accounts |
-| `get_workspace`, `update_workspace`, `invite_member` | the workspace, its description and members |
+| `get_workspace`, `update_workspace`, `invite_member`, `delete_workspace` | the workspace, its description and members; deletion requires an admin, its current ID and its name |
 | `show_crm` | opens the web app in hosts that support MCP Apps |
+
+`search_records` returns `records` and a `resource_uri` with the same text, attribute filters and limit. MCP Apps hosts render that result inline; `show_crm` also accepts the URI to reopen it. The `ui://jaz-crm/o/{object}{?q,where,limit,view}` resource template serves the app at that filtered view:
+
+```text
+ui://jaz-crm/o/deals?where=%7B%22stage%22%3A%22Lead%22%7D&view=table
+```
+
+This URL shows only Lead deals. `q` searches text, `where` is a URL-encoded JSON object mapping attribute slugs to matching values, `limit` is at most 100, and `view=table` selects a table instead of a pipeline. Reference filters accept a record ID or its unique value, such as a company's domain. Every request uses the connected workspace's permissions.
 
 ## Develop
 

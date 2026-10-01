@@ -4,6 +4,10 @@ import (
 	"context"
 	_ "embed"
 	"encoding/base64"
+	"encoding/json"
+	"html"
+	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
@@ -32,28 +36,38 @@ var icons = []mcp.Icon{
 	{Source: icon("#e8e8e8"), MIMEType: "image/svg+xml", Sizes: []string{"any"}, Theme: mcp.IconThemeDark},
 }
 
-// registerApp publishes the web app as an MCP App that hosts show in their
-// sidebar, opened at a page by show_crm.
 func registerApp(r *registry, publicURL string) {
-	r.server.AddResource(&mcp.Resource{URI: appURI, Name: "jaz-crm", Title: "Jaz CRM", MIMEType: appMIME},
-		func(context.Context, *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
-			return &mcp.ReadResourceResult{Contents: []*mcp.ResourceContents{{
-				URI: appURI, MIMEType: appMIME, Text: appHTML, Meta: mcp.Meta{"ui": map[string]any{
-					"prefersBorder": false,
-					// Profile pictures load from Google, logos from the CRM.
-					"csp": map[string]any{"resourceDomains": []string{"https://*.googleusercontent.com", publicURL}},
-				}},
-			}}}, nil
-		})
+	readApp := func(_ context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+		body := appHTML
+		if req.Params.URI != appURI {
+			uri, err := url.Parse(req.Params.URI)
+			if err != nil {
+				return nil, err
+			}
+			body = strings.Replace(body, `id="root"`, `id="root" data-start-path="`+html.EscapeString(uri.RequestURI())+`"`, 1)
+		}
+		return &mcp.ReadResourceResult{Contents: []*mcp.ResourceContents{{
+			URI: req.Params.URI, MIMEType: appMIME, Text: body, Meta: mcp.Meta{"ui": map[string]any{
+				"prefersBorder": false,
+				// Profile pictures load from Google, logos from the CRM.
+				"csp": map[string]any{"resourceDomains": []string{"https://*.googleusercontent.com", publicURL}},
+			}},
+		}}}, nil
+	}
+	r.server.AddResource(&mcp.Resource{URI: appURI, Name: "jaz-crm", Title: "Jaz CRM", MIMEType: appMIME}, readApp)
+	r.server.AddResourceTemplate(&mcp.ResourceTemplate{
+		URITemplate: "ui://jaz-crm/o/{object}{?q,where,limit,view}", Name: "crm-records", Title: "CRM records", MIMEType: appMIME,
+		Description: `Render an object's records with URL filters. q is text; where is a JSON object mapping attribute slugs to values, such as {"stage":"Lead","company":"example.com"}; limit is at most 100; view=table selects a table. URL-encode query values.`,
+	}, readApp)
 	add(r, &mcp.Tool{Name: "show_crm", Title: "Customers", Annotations: readOnly, Icons: []mcp.Icon{{Source: icon("currentColor"), MIMEType: "image/svg+xml", Sizes: []string{"any"}}},
-		Description: "Open the CRM app at a page: /o/people, /r/<record id> (with ?tab=activity for its changes), /i/<interaction id>, /triage, /connections or /settings.",
+		Description: "Open the CRM app at a page: /o/people, /o/companies, /o/deals, /r/<record id> (with ?tab=activity for its changes), /i/<interaction id>, /triage, /connections or /settings. Also accepts a filtered ui://jaz-crm/o/<object> resource URL. Record lists accept q for text, where as a JSON object of attribute filters, limit up to 100, and view=table. search_records returns the matching resource_uri and opens it automatically.",
 		Meta: mcp.Meta{
 			"ui":             map[string]any{"resourceUri": appURI},
 			"ui/resourceUri": appURI,
 			"openai/ui":      map[string]any{"entrypoints": []map[string]any{{"type": "global"}}},
 		}},
 		func(_ context.Context, _ auth.Actor, in showInput) (showOutput, error) {
-			if !strings.HasPrefix(in.Path, "/") {
+			if !strings.HasPrefix(in.Path, "/") && !strings.HasPrefix(in.Path, "ui://jaz-crm/o/") {
 				in.Path = "/"
 			}
 			return showOutput{Path: in.Path}, nil
@@ -61,9 +75,27 @@ func registerApp(r *registry, publicURL string) {
 }
 
 type showInput struct {
-	Path string `json:"path,omitempty" jsonschema:"the page to open, such as /r/<record id>"`
+	Path string `json:"path,omitempty" jsonschema:"the page or filtered resource URL to open, such as /r/<record id> or ui://jaz-crm/o/deals?where=%7B%22stage%22%3A%22Lead%22%7D"`
 }
 
 type showOutput struct {
 	Path string `json:"path"`
+}
+
+func recordSearchURI(in searchInput) string {
+	params := url.Values{}
+	if in.Query != "" {
+		query, _ := json.Marshal(in.Query)
+		params.Set("q", string(query))
+	}
+	if len(in.Where) > 0 {
+		where, _ := json.Marshal(in.Where)
+		params.Set("where", string(where))
+	}
+	if in.Limit > 0 {
+		params.Set("limit", strconv.Itoa(min(in.Limit, 100)))
+	} else {
+		params.Set("limit", "20")
+	}
+	return "ui://jaz-crm/o/" + url.PathEscape(in.Object) + "?" + strings.ReplaceAll(params.Encode(), "+", "%20")
 }

@@ -44,7 +44,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [navigate])
 
   return (
-    <div className="flex h-full min-h-0">
+    <div className="crm-shell flex h-full min-h-0">
       <Sidebar />
       <main className="my-2 mr-2 flex min-w-0 flex-1 flex-col overflow-hidden rounded-[var(--radius-card)] bg-bg">{children}</main>
       <CommandPalette />

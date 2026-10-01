@@ -19,10 +19,13 @@ import type { Attribute, CrmObject, CrmRecord } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 export const Route = createFileRoute('/_app/o/$object')({
-  validateSearch: (search: Record<string, unknown>): { category?: string; sort?: 'name'; view?: 'table' } => ({
+  validateSearch: (search: Record<string, unknown>): { category?: string; sort?: 'name'; view?: 'table'; q?: string; where?: Record<string, string>; limit?: number } => ({
     view: search.view === 'table' ? 'table' : undefined,
     category: typeof search.category === 'string' ? search.category : undefined,
     sort: search.sort === 'name' ? 'name' : undefined,
+    q: ['string', 'number', 'boolean'].includes(typeof search.q) ? String(search.q) : undefined,
+    where: search.where && typeof search.where === 'object' && !Array.isArray(search.where) ? Object.fromEntries(Object.entries(search.where).filter(([, value]) => typeof value === 'string')) : undefined,
+    limit: typeof search.limit === 'number' && Number.isInteger(search.limit) ? Math.max(1, Math.min(search.limit, 100)) : undefined,
   }),
   component: ObjectPage,
 })
@@ -37,10 +40,11 @@ function ObjectPage() {
   const { object: slug } = Route.useParams()
   const object = useObjects()?.find((o) => o.slug === slug)
   const categories = object?.attributes.find((a) => a.slug === 'categories' && a.type === 'select')
-  const { category, sort, view } = Route.useSearch()
-  const [search, setSearch] = useState('')
-  const query = useDebounced(search.trim())
-  const found = useRecords(slug, query, 100, category && categories ? { categories: category } : {}).data?.records
+  const search = Route.useSearch()
+  const { category, sort, view, q = '', where = {}, limit = 100 } = search
+  const query = useDebounced(q.trim())
+  const result = useRecords(slug, query, limit, { ...where, ...(category && categories ? { categories: category } : {}) })
+  const found = result.data?.records
   const records = found && (sort === 'name' ? [...found].sort((a, b) => recordName(a).localeCompare(recordName(b))) : found)
   const navigate = useNavigate()
   const open = (index: number) => records && navigate({ to: '/r/$recordId', params: { recordId: records[index].id } })
@@ -52,7 +56,7 @@ function ObjectPage() {
   const columns = object.attributes.filter((a) => a.slug !== 'name').sort((a, b) => Number(b.slug === 'categories') - Number(a.slug === 'categories'))
   const status = statusOf(object.attributes)
   const board = view === 'table' ? undefined : status
-  const filter = (value: string) => void navigate({ to: '.', search: { category: value || undefined, sort, view }, replace: true })
+  const filter = (value: string) => void navigate({ to: '.', search: { ...search, category: value || undefined }, replace: true })
   return (
     <>
       <Header>
@@ -61,10 +65,10 @@ function ObjectPage() {
         {records && <span className="font-normal tabular-nums text-ink-3">{records.length}</span>}
         {status && (
           <div role="group" aria-label="View" className="ml-2 flex h-7 items-center rounded-full bg-list-hover p-0.5">
-            <ViewButton active={!!board} label="Board" onClick={() => void navigate({ to: '.', search: { category, sort }, replace: true })}>
+            <ViewButton active={!!board} label="Board" onClick={() => void navigate({ to: '.', search: { ...search, view: undefined }, replace: true })}>
               <Kanban />
             </ViewButton>
-            <ViewButton active={!board} label="Table" onClick={() => void navigate({ to: '.', search: { category, sort, view: 'table' }, replace: true })}>
+            <ViewButton active={!board} label="Table" onClick={() => void navigate({ to: '.', search: { ...search, view: 'table' }, replace: true })}>
               <Table2 />
             </ViewButton>
           </div>
@@ -94,13 +98,13 @@ function ObjectPage() {
             placeholder="Sort by…"
             options={[{ value: '', label: 'Recently added' }, { value: 'name', label: 'Name' }]}
             selected={[sort ?? '']}
-            onSelect={(value) => void navigate({ to: '.', search: { category, sort: value === 'name' ? 'name' : undefined, view }, replace: true })}
+            onSelect={(value) => void navigate({ to: '.', search: { ...search, sort: value === 'name' ? 'name' : undefined }, replace: true })}
           />
           <label className="group flex h-7 min-w-0 items-center gap-1.5 rounded-[var(--radius-control)] px-2 text-ink-3 transition-colors focus-within:bg-list-hover hover:bg-list-hover">
             <Search className="size-3.5 shrink-0" />
             <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              value={q}
+              onChange={(e) => void navigate({ to: '.', search: { ...search, q: e.target.value || undefined }, replace: true })}
               onKeyDown={(e) => e.stopPropagation()}
               placeholder="Search"
               aria-label={`Search ${object.name.toLowerCase()}`}
@@ -113,10 +117,10 @@ function ObjectPage() {
         </div>
       </Header>
       <CreateRecord object={object} open={creating} onOpenChange={setCreating} openCreated />
-      {board ? (
+      {result.isError ? <EmptyState title={result.error.message} icon={<Search />} /> : board ? (
         records && <Board object={object} status={board} records={records} />
       ) : records?.length === 0 ? (
-        <Empty object={object} query={query} category={categories ? category : undefined} />
+        <Empty object={object} query={query} category={categories ? category : undefined} filtered={Object.keys(where).length > 0} />
       ) : (
         <div className="scrollbar-quiet min-h-0 flex-1 overflow-auto">
           <table className="w-full border-collapse text-[13px]">
@@ -197,7 +201,7 @@ function cell(record: CrmRecord, attribute: Attribute) {
   return <span className="block truncate" title={values.join(', ')}>{values.join(', ')}</span>
 }
 
-function Empty({ object, query, category }: { object: CrmObject; query: string; category?: string }) {
+function Empty({ object, query, category, filtered }: { object: CrmObject; query: string; category?: string; filtered: boolean }) {
   const mail = useMail()
   const plural = object.name.toLowerCase()
   if (category) {
@@ -205,6 +209,9 @@ function Empty({ object, query, category }: { object: CrmObject; query: string; 
   }
   if (query) {
     return <EmptyState title={`No ${plural} match “${query}”`} icon={<Search />} />
+  }
+  if (filtered) {
+    return <EmptyState title={`No ${plural} match this view`} icon={<Search />} />
   }
   const synced = object.slug in arrivals
   return (

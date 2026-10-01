@@ -16,18 +16,32 @@ setTransport(callTool)
 
 const router = createRouter({
   routeTree,
-  history: createMemoryHistory({ initialEntries: ['/'] }),
+  history: createMemoryHistory({ initialEntries: [document.getElementById('root')?.dataset.startPath ?? '/'] }),
   context: { queryClient: newQueryClient() },
 })
 
 function open(path: unknown) {
-  if (typeof path === 'string' && path.startsWith('/')) {
-    void router.navigate({ href: path })
+  if (typeof path !== 'string') {
+    return
+  }
+  let href = path
+  if (path.startsWith('ui://jaz-crm/')) {
+    const uri = new URL(path)
+    href = uri.pathname + uri.search
+  }
+  if (href.startsWith('/')) {
+    void router.navigate({ href })
   }
 }
 
 // show_crm passes the page to open, such as /r/<record id>.
 app.ontoolinput = ({ arguments: args }) => open(args?.path)
+app.ontoolresult = (result) => {
+  const content = result.structuredContent
+  if (content && typeof content === 'object' && 'resource_uri' in content) {
+    open(content.resource_uri)
+  }
+}
 
 // A host's deep link opens the app at a page, at start and whenever the host
 // changes it.

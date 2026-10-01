@@ -30,7 +30,8 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 			return objectsOutput{Objects: objectViews(objects)}, err
 		})
 	add(r, &mcp.Tool{Name: "search_records", Title: "Search records", Annotations: readOnly,
-		Description: "List an object's records, newest first, filtered by text and attribute values, with how often and when last each was in touch. Records, and the records they reference, carry a picture: a person's profile picture when Google has one, else the website logo of a record with a domain."},
+		Description: "List an object's records, newest first, filtered by text and attribute values, with how often and when last each was in touch. Returns a filtered resource_uri that renders the matching CRM list or deal pipeline, and opens it automatically. Records, and the records they reference, carry a picture: a person's profile picture when Google has one, else the website logo of a record with a domain.",
+		Meta:        mcp.Meta{"ui": map[string]any{"resourceUri": appURI}}},
 		func(ctx context.Context, actor auth.Actor, in searchInput) (recordsOutput, error) {
 			found, err := crm.Search(ctx, actor, records.Search{Object: in.Object, Query: in.Query, Where: in.Where, Limit: in.Limit})
 			if err != nil {
@@ -45,7 +46,7 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 				return recordsOutput{}, err
 			}
 			photos, err := pics.of(ctx, actor, found)
-			out := recordsOutput{Records: []recordView{}}
+			out := recordsOutput{Records: []recordView{}, ResourceURI: recordSearchURI(in)}
 			for _, record := range found {
 				out.Records = append(out.Records, recordWith(record, activity, photos))
 			}
@@ -225,7 +226,8 @@ type searchInput struct {
 }
 
 type recordsOutput struct {
-	Records []recordView `json:"records"`
+	Records     []recordView `json:"records"`
+	ResourceURI string       `json:"resource_uri"`
 }
 
 type recordInput struct {

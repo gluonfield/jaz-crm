@@ -3,11 +3,14 @@ import { applyTheme } from './theme'
 
 // The Jaz CRM MCP App view, connected to the host that embeds the
 // ui://jaz-crm/app resource.
-export const app = new App({ name: 'Jaz CRM', version: '0.1.0' }, { availableDisplayModes: ['fullscreen'] })
+export const app = new App({ name: 'Jaz CRM', version: '0.1.0' }, { availableDisplayModes: ['inline', 'fullscreen'] })
 
 // Hosts, Jaz included, theme apps with the spec's standard variables, which
 // the stylesheet's tokens use as fallbacks (see THEMING.md).
 export function applyHostContext(context: McpUiHostContext | undefined) {
+  if (context?.displayMode) {
+    document.documentElement.dataset.displayMode = context.displayMode
+  }
   if (context?.theme) {
     applyDocumentTheme(context.theme)
     applyTheme({ scheme: context.theme })
