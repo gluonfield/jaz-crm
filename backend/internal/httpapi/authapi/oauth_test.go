@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"github.com/gluonfield/jaz-crm/backend/internal/workspaces"
+	"github.com/gluonfield/jaz-tasks/auth"
 	mcpauth "github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/modelcontextprotocol/go-sdk/oauthex"
@@ -21,7 +21,7 @@ import (
 // The official MCP client discovers the authorization server from a 401,
 // registers itself, runs PKCE through the consent screen and calls a tool.
 func TestMCPClientAuthorizes(t *testing.T) {
-	s := start(t, auth.OIDCConfig{}, workspaces.Config{})
+	s := start(t, signin.OIDCConfig{}, workspaces.Config{})
 	b := browser()
 	s.ownerSession(t, b)
 	const redirect = "http://127.0.0.1:9999/callback"
@@ -87,7 +87,7 @@ func mcpStatus(t *testing.T, base, authorization string) (int, http.Header) {
 }
 
 func TestTokenLifecycle(t *testing.T) {
-	s := start(t, auth.OIDCConfig{}, workspaces.Config{})
+	s := start(t, signin.OIDCConfig{}, workspaces.Config{})
 
 	status, header := mcpStatus(t, s.url, "")
 	if status != http.StatusUnauthorized || header.Get("WWW-Authenticate") != `Bearer resource_metadata="`+s.url+`/.well-known/oauth-protected-resource/mcp"` {
@@ -201,7 +201,7 @@ func TestTokenLifecycle(t *testing.T) {
 }
 
 func TestAuthorizeRejectsUnsafeRequests(t *testing.T) {
-	s := start(t, auth.OIDCConfig{}, workspaces.Config{})
+	s := start(t, signin.OIDCConfig{}, workspaces.Config{})
 	b := browser()
 	cases := map[string]struct {
 		query  url.Values
@@ -258,7 +258,7 @@ func getJSON(t *testing.T, endpoint string, v any) {
 // Sign-in redirects stay on this site whatever return_to says.
 func TestReturnToStaysOnSite(t *testing.T) {
 	iss := newIssuer(t)
-	s := start(t, auth.OIDCConfig{Issuer: iss.URL, ClientID: "client-1"}, workspaces.Config{})
+	s := start(t, signin.OIDCConfig{Issuer: iss.URL, ClientID: "client-1"}, workspaces.Config{})
 	for raw, want := range map[string]string{
 		"/people?x=1":       "/people?x=1",
 		"/\t/evil.test":     "/",
@@ -279,7 +279,7 @@ func TestReturnToStaysOnSite(t *testing.T) {
 // Granting access is a person's decision: consent needs the browser session,
 // never a bearer token or API key.
 func TestConsentNeedsBrowserSession(t *testing.T) {
-	s := start(t, auth.OIDCConfig{}, workspaces.Config{})
+	s := start(t, signin.OIDCConfig{}, workspaces.Config{})
 	res, _ := http.Post(s.url+"/oauth/register", "application/json", strings.NewReader(`{"redirect_uris":["http://127.0.0.1:9/cb"]}`))
 	var client struct {
 		ClientID string `json:"client_id"`
@@ -321,7 +321,7 @@ func TestConsentNeedsBrowserSession(t *testing.T) {
 
 // Cookie-authenticated changes accept only JSON, which no cross-site form can send.
 func TestSessionChangesNeedJSON(t *testing.T) {
-	s := start(t, auth.OIDCConfig{}, workspaces.Config{})
+	s := start(t, signin.OIDCConfig{}, workspaces.Config{})
 	b := browser()
 	s.ownerSession(t, b)
 	for _, path := range []string{"/auth/api-keys", "/auth/logout", "/api/tools/list_objects"} {

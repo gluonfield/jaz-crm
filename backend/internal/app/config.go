@@ -17,6 +17,7 @@ import (
 	"github.com/gluonfield/jaz-crm/backend/internal/server"
 	"github.com/gluonfield/jaz-crm/backend/internal/worker"
 	"github.com/gluonfield/jaz-crm/backend/internal/workspaces"
+	"github.com/gluonfield/jaz-tasks/auth"
 )
 
 type Config struct {
@@ -24,7 +25,7 @@ type Config struct {
 	DatabaseURL string
 	PublicURL   string
 	WebDir      server.WebDir
-	OIDC        auth.OIDCConfig
+	SignIn      signin.Config
 	Auth        auth.Config
 	Workspaces  workspaces.Config
 	Owner       Owner
@@ -57,12 +58,11 @@ func ParseConfig(name string, args []string) (Config, error) {
 	}
 	cfg.WebDir = server.WebDir(web)
 	cfg.PublicURL = strings.TrimRight(strings.TrimSpace(cfg.PublicURL), "/")
-	cfg.OIDC = auth.OIDCConfig{
-		Issuer:       strings.TrimSpace(os.Getenv("OIDC_ISSUER")),
-		ClientID:     strings.TrimSpace(os.Getenv("OIDC_CLIENT_ID")),
-		ClientSecret: strings.TrimSpace(os.Getenv("OIDC_CLIENT_SECRET")),
-		RedirectURL:  cfg.PublicURL + "/auth/callback",
+	signIn, err := signin.ConfigFromEnv(cfg.PublicURL)
+	if err != nil {
+		return cfg, err
 	}
+	cfg.SignIn = signIn
 	cfg.Auth = auth.Config{PublicURL: cfg.PublicURL}
 	cfg.Workspaces = workspaces.Config{
 		AllowedEmailDomains: list(os.Getenv("ALLOWED_EMAIL_DOMAINS")),

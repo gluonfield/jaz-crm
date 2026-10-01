@@ -10,16 +10,6 @@ import (
 
 const SessionTTL = 30 * 24 * time.Hour
 
-// Identity is what an identity provider asserts about a person.
-type Identity struct {
-	Issuer        string
-	Subject       string
-	Email         string
-	EmailVerified bool
-	Name          string
-	Picture       string
-}
-
 // CreateSession starts a browser session and returns its cookie value.
 func (s *Service) CreateSession(ctx context.Context, userID string) (string, time.Time, error) {
 	token := secret("")

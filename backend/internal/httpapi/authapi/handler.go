@@ -3,20 +3,17 @@
 package authapi
 
 import (
-	"crypto/rand"
-	"encoding/base64"
 	"encoding/json"
 	"mime"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
-	"unicode"
 
 	"github.com/charmbracelet/log"
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 	"github.com/gluonfield/jaz-crm/backend/internal/workspaces"
+	"github.com/gluonfield/jaz-tasks/auth"
 )
 
 const sessionCookie = "jc_session"
@@ -24,18 +21,24 @@ const sessionCookie = "jc_session"
 type Handler struct {
 	svc     *auth.Service
 	members *workspaces.Service
-	oidc    *auth.OIDC
 	public  *url.URL
 	logger  *log.Logger
 	mux     *http.ServeMux
 }
 
-func NewHandler(svc *auth.Service, members *workspaces.Service, oidc *auth.OIDC, logger *log.Logger) (*Handler, error) {
+func NewHandler(svc *auth.Service, members *workspaces.Service, signIn signin.Config, logger *log.Logger) (*Handler, error) {
 	public, err := url.Parse(svc.Issuer())
 	if err != nil {
 		return nil, err
 	}
-	h := &Handler{svc: svc, members: members, oidc: oidc, public: public, logger: logger.WithPrefix("auth"), mux: http.NewServeMux()}
+	h := &Handler{svc: svc, members: members, public: public, logger: logger.WithPrefix("auth"), mux: http.NewServeMux()}
+	signIn.PublicURL = svc.Issuer()
+	login, err := signin.NewHandler(signIn, "Jaz CRM", sessionCookie+"_login", h.signIn)
+	if err != nil {
+		return nil, err
+	}
+	h.mux.Handle("/login", login)
+	h.mux.Handle("/auth/", login)
 	h.routes()
 	return h, nil
 }
@@ -105,24 +108,6 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
-}
-
-// returnTo keeps post-login redirects on this site: a path without scheme,
-// host, backslashes or control characters, which browsers could read as
-// another origin.
-func returnTo(raw string) string {
-	u, err := url.Parse(raw)
-	if err != nil || u.Scheme != "" || u.Host != "" || !strings.HasPrefix(raw, "/") || strings.HasPrefix(raw, "//") ||
-		strings.ContainsFunc(raw, func(r rune) bool { return r == '\\' || unicode.IsControl(r) }) {
-		return "/"
-	}
-	return raw
-}
-
-func random() string {
-	b := make([]byte, 24)
-	_, _ = rand.Read(b)
-	return base64.RawURLEncoding.EncodeToString(b)
 }
 
 func isJSON(r *http.Request) bool {

@@ -14,6 +14,7 @@ import (
 
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/logosapi"
 	"github.com/gluonfield/jaz-crm/backend/internal/logos"
+	"github.com/gluonfield/jaz-tasks/auth"
 
 	"github.com/charmbracelet/log"
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
@@ -38,7 +39,7 @@ type stack struct {
 }
 
 // start runs the whole HTTP stack on a loopback URL that doubles as PUBLIC_URL.
-func start(t *testing.T, oidc auth.OIDCConfig, members workspaces.Config) stack {
+func start(t *testing.T, oidc signin.OIDCConfig, members workspaces.Config) stack {
 	t.Helper()
 	srv := httptest.NewUnstartedServer(nil)
 	base := "http://" + srv.Listener.Addr().String()
@@ -54,7 +55,7 @@ func start(t *testing.T, oidc auth.OIDCConfig, members workspaces.Config) stack 
 	if err != nil {
 		t.Fatal(err)
 	}
-	authn, err := authapi.NewHandler(keys, people, auth.NewOIDC(oidc), log.New(io.Discard))
+	authn, err := authapi.NewHandler(keys, people, signin.Config{PublicURL: base, OIDC: oidc}, log.New(io.Discard))
 	if err != nil {
 		t.Fatal(err)
 	}

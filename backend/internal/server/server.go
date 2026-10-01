@@ -22,6 +22,7 @@ func New(authn *authapi.Handler, agents *mcpapi.Handler, connect *connectapi.Han
 		_, _ = w.Write([]byte("ok"))
 	})
 	mux.Handle("/auth/", authn)
+	mux.Handle("GET /login", authn)
 	mux.Handle("/oauth/", cors(authn))
 	mux.Handle("/.well-known/", cors(authn))
 	mux.Handle("/mcp", cors(agents.MCP))

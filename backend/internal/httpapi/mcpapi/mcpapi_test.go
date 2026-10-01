@@ -14,6 +14,7 @@ import (
 
 	"github.com/gluonfield/jaz-crm/backend/internal/logos"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
+	"github.com/gluonfield/jaz-tasks/auth"
 
 	"github.com/charmbracelet/log"
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
@@ -192,10 +193,10 @@ func TestTenantIsolation(t *testing.T) {
 	if members := encode(mustCall(t, b, "get_workspace", nil)); strings.Contains(members, "a@jaz.test") {
 		t.Errorf("get_workspace listed another workspace: %s", members)
 	}
-	if got := mustCall(t, a, "get_record", map[string]any{"record_id": id}); encode(got["values"]) != `{"domains":["acme.com"],"name":"Acme"}` {
 	if _, failure := call(t, b, "delete_record", map[string]any{"record_id": id}); failure == "" {
 		t.Error("delete_record deleted another workspace's record")
 	}
+	if got := mustCall(t, a, "get_record", map[string]any{"record_id": id}); encode(got["values"]) != `{"domains":["acme.com"],"name":"Acme"}` {
 		t.Errorf("the owner's record changed: %v", got)
 	}
 }
@@ -433,7 +434,7 @@ func (e env) oauth(t *testing.T, user storage.User) string {
 // records. An API key can create a workspace but stays in its own.
 func TestWorkspacesCreateAndSwitch(t *testing.T) {
 	e := serve(t)
-	pat, err := e.people.SignIn(context.Background(), auth.Identity{Issuer: "https://idp.test", Subject: "pat", Email: "pat@example.com", EmailVerified: true, Name: "Pat"})
+	pat, err := e.people.SignIn(context.Background(), signin.Identity{Issuer: "https://idp.test", Subject: "pat", Email: "pat@example.com", EmailVerified: true, Name: "Pat"})
 	if err != nil {
 		t.Fatal(err)
 	}

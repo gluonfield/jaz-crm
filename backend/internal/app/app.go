@@ -36,7 +36,7 @@ import (
 // the Temporal client.
 func shared(cfg Config) fx.Option {
 	options := []fx.Option{
-		fx.Supply(cfg, cfg.Auth, cfg.Workspaces, cfg.OIDC, cfg.Temporal, cfg.Connections, cfg.Sync, cfg.Webhooks, cfg.WebDir),
+		fx.Supply(cfg, cfg.Auth, cfg.Workspaces, cfg.SignIn, cfg.Temporal, cfg.Connections, cfg.Sync, cfg.Webhooks, cfg.WebDir),
 		fx.Provide(
 			NewLogger,
 			fx.Annotate(OpenStore, fx.As(fx.Self()), fx.As(new(storage.AuthStore)), fx.As(new(storage.WorkspaceStore)),
@@ -62,7 +62,6 @@ func Server(cfg Config) fx.Option {
 		fx.Provide(
 			auth.NewService,
 			workspaces.NewService,
-			auth.NewOIDC,
 			authapi.NewHandler,
 			mcpapi.NewHandler,
 			connectapi.NewHandler,

@@ -9,6 +9,7 @@ import (
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres"
+	"github.com/gluonfield/jaz-tasks/auth"
 )
 
 func TestWorkspaceDeletion(t *testing.T) {
@@ -34,7 +35,7 @@ func TestWorkspaceDeletion(t *testing.T) {
 	otherSession := e.session(t, otherKey)
 	otherRecord := mustCall(t, otherSession, "upsert_record", map[string]any{"object": "companies", "values": map[string]any{"name": "Keep me"}})["record"].(map[string]any)
 	mustCall(t, owner, "invite_member", map[string]any{"email": "member@example.com"})
-	member, err := e.people.SignIn(ctx, auth.Identity{Issuer: "https://idp.test", Subject: "member", Email: "member@example.com", EmailVerified: true})
+	member, err := e.people.SignIn(ctx, signin.Identity{Issuer: "https://idp.test", Subject: "member", Email: "member@example.com", EmailVerified: true})
 	if err != nil {
 		t.Fatal(err)
 	}

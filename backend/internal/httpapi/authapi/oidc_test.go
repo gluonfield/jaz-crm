@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"github.com/gluonfield/jaz-crm/backend/internal/workspaces"
+	"github.com/gluonfield/jaz-tasks/auth"
 	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
 )
@@ -136,7 +136,7 @@ func session(t *testing.T, s stack, b *http.Client, method, path, body string) (
 // a returning person lands where they did before.
 func TestOIDCSignUpGivesEachPersonAWorkspace(t *testing.T) {
 	iss := newIssuer(t)
-	s := start(t, auth.OIDCConfig{Issuer: iss.URL, ClientID: "client-1", ClientSecret: "secret"}, workspaces.Config{})
+	s := start(t, signin.OIDCConfig{Issuer: iss.URL, ClientID: "client-1", ClientSecret: "secret"}, workspaces.Config{})
 
 	ada := browser()
 	res := iss.signIn(t, s, ada, "ada@example.com", true)
@@ -186,7 +186,7 @@ func TestOIDCSignUpGivesEachPersonAWorkspace(t *testing.T) {
 
 func TestOIDCSignInAllowlist(t *testing.T) {
 	iss := newIssuer(t)
-	s := start(t, auth.OIDCConfig{Issuer: iss.URL, ClientID: "client-1"}, workspaces.Config{AllowedEmailDomains: []string{"ml.ink"}, AllowedEmails: []string{"guest@example.com"}})
+	s := start(t, signin.OIDCConfig{Issuer: iss.URL, ClientID: "client-1"}, workspaces.Config{AllowedEmailDomains: []string{"ml.ink"}, AllowedEmails: []string{"guest@example.com"}})
 	for email, allowed := range map[string]bool{"ana@ml.ink": true, "guest@example.com": true, "other@example.com": false} {
 		b := browser()
 		res := iss.signIn(t, s, b, email, true)
@@ -201,7 +201,7 @@ func TestOIDCSignInAllowlist(t *testing.T) {
 // the inviting workspace, and an invite never moves where a person lands.
 func TestInvites(t *testing.T) {
 	iss := newIssuer(t)
-	s := start(t, auth.OIDCConfig{Issuer: iss.URL, ClientID: "client-1"}, workspaces.Config{})
+	s := start(t, signin.OIDCConfig{Issuer: iss.URL, ClientID: "client-1"}, workspaces.Config{})
 	owner := browser()
 	iss.signIn(t, s, owner, "owner@example.com", true).Body.Close()
 	home := viewer(t, s, owner)

@@ -1,7 +1,6 @@
 package authapi
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -11,6 +10,7 @@ import (
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 	"github.com/gluonfield/jaz-crm/backend/internal/workspaces"
+	"github.com/gluonfield/jaz-tasks/auth"
 	mcpauth "github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/oauthex"
 )
@@ -18,8 +18,6 @@ import (
 func (h *Handler) routes() {
 	h.mux.HandleFunc("GET /{$}", h.home)
 	h.mux.HandleFunc("GET /auth/me", h.me)
-	h.mux.HandleFunc("GET /auth/login", h.login)
-	h.mux.HandleFunc("GET /auth/callback", h.callback)
 	h.mux.HandleFunc("POST /auth/logout", h.logout)
 	h.mux.HandleFunc("GET /auth/api-keys", h.listKeys)
 	h.mux.HandleFunc("POST /auth/api-keys", h.createKey)
@@ -74,67 +72,17 @@ func (h *Handler) me(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// loginState rides in a short-lived cookie between /auth/login and the callback.
-type loginState struct {
-	State    string `json:"s"`
-	Nonce    string `json:"n"`
-	Verifier string `json:"v"`
-	ReturnTo string `json:"r"`
-}
-
-const loginCookie = "jc_login"
-
-func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
-	if !h.oidc.Enabled() {
-		page(w, http.StatusServiceUnavailable, "Sign-in is not configured", "Set OIDC_ISSUER, OIDC_CLIENT_ID and OIDC_CLIENT_SECRET to sign in.", "")
-		return
-	}
-	state := loginState{State: random(), Nonce: random(), Verifier: random() + random(), ReturnTo: returnTo(r.URL.Query().Get("return_to"))}
-	target, err := h.oidc.AuthURL(r.Context(), state.State, state.Nonce, state.Verifier)
-	if err != nil {
-		h.fail(w, err)
-		return
-	}
-	raw, _ := json.Marshal(state)
-	http.SetCookie(w, h.cookie(loginCookie, base64.RawURLEncoding.EncodeToString(raw), time.Now().Add(10*time.Minute)))
-	http.Redirect(w, r, target, http.StatusFound)
-}
-
-func (h *Handler) callback(w http.ResponseWriter, r *http.Request) {
-	var state loginState
-	cookie, err := r.Cookie(loginCookie)
-	if err == nil {
-		raw, _ := base64.RawURLEncoding.DecodeString(cookie.Value)
-		err = json.Unmarshal(raw, &state)
-	}
-	http.SetCookie(w, h.cookie(loginCookie, "", time.Unix(0, 0)))
-	query := r.URL.Query()
-	if err != nil || state.State == "" || query.Get("state") != state.State {
-		page(w, http.StatusBadRequest, "Sign-in expired", "Your sign-in took too long or was started in another browser. Please try again.", "/auth/login")
-		return
-	}
-	if reason := query.Get("error"); reason != "" {
-		page(w, http.StatusUnauthorized, "Sign-in cancelled", "The identity provider reported: "+reason+".", "/auth/login")
-		return
-	}
-	identity, err := h.oidc.Exchange(r.Context(), query.Get("code"), state.Verifier, state.Nonce)
-	if err != nil {
-		h.logger.Warn("oidc exchange failed", "error", err)
-		page(w, http.StatusUnauthorized, "Sign-in failed", "We could not verify your identity. Please try again.", "/auth/login")
-		return
-	}
+func (h *Handler) signIn(w http.ResponseWriter, r *http.Request, identity signin.Identity) bool {
 	user, err := h.members.SignIn(r.Context(), identity)
 	if errors.Is(err, workspaces.ErrNotAllowed) || errors.Is(err, workspaces.ErrEmailUnverified) {
 		page(w, http.StatusForbidden, "Access denied", identity.Email+": "+err.Error()+".", "/auth/login")
-		return
+		return false
 	}
 	if err != nil {
 		h.fail(w, err)
-		return
+		return false
 	}
-	if h.startSession(w, r, user) {
-		http.Redirect(w, r, state.ReturnTo, http.StatusFound)
-	}
+	return h.startSession(w, r, user)
 }
 
 func (h *Handler) logout(w http.ResponseWriter, r *http.Request) {
