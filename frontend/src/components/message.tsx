@@ -1,7 +1,6 @@
-import { Fragment, type ReactNode } from 'react'
-import { embedded } from '@/lib/api'
-import { app } from '@/lib/mcp-app'
+import { Fragment } from 'react'
 import { cn } from '@/lib/utils'
+import { ExternalLink } from './external-link'
 
 // Message renders text the server cleaned: paragraphs, "- " lists and bare
 // links, which show as their site and a short path.
@@ -59,41 +58,9 @@ function Inline({ text }: { text: string }) {
     const tail = piece.match(/[.,;:!?)'"\]]+$/)?.[0] ?? ''
     return (
       <Fragment key={i}>
-        <ExternalLink href={piece.slice(0, piece.length - tail.length)} />
+        <ExternalLink href={piece.slice(0, piece.length - tail.length)} className="text-ink" />
         {tail}
       </Fragment>
     )
   })
-}
-
-// shortLink shows an address as its site and the start of its path.
-function shortLink(href: string) {
-  try {
-    const url = new URL(href)
-    const path = url.pathname === '/' ? '' : url.pathname
-    const site = url.hostname.replace(/^www\./, '')
-    return path.length > 24 ? `${site}${path.slice(0, 22)}…` : `${site}${path}${url.search ? '…' : ''}`
-  } catch {
-    return href
-  }
-}
-
-export function ExternalLink({ href, children, className }: { href: string; children?: ReactNode; className?: string }) {
-  return (
-    <a
-      href={href}
-      title={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      onClick={(e) => {
-        if (embedded()) {
-          e.preventDefault()
-          void app.openLink({ url: href })
-        }
-      }}
-      className={cn('text-ink underline decoration-ink-3/50 underline-offset-2 transition-colors hover:decoration-ink', className)}
-    >
-      {children ?? shortLink(href)}
-    </a>
-  )
 }

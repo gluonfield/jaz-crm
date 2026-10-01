@@ -7,7 +7,7 @@ import { Stage } from '@/components/stage'
 import { Button } from '@jaz/ui/button'
 import { Header } from '@/components/controls'
 import { CreateRecord } from '@/components/create-record'
-import { DomainLink } from '@/components/domain-link'
+import { ExternalLink } from '@/components/external-link'
 import { ConnectGoogle, EmptyState } from '@/components/empty-state'
 import { ObjectIcon, RecordIcon } from '@/components/icons'
 import { Picker } from '@/components/picker'
@@ -171,8 +171,8 @@ function cell(record: CrmRecord, attribute: Attribute) {
   if (attribute.type === 'status' && values[0]) {
     return <Stage stage={values[0]} />
   }
-  if (attribute.type === 'domain') {
-    return <div className="flex flex-col gap-1">{values.map((domain) => <DomainLink key={domain} domain={domain} onClick={(e) => e.stopPropagation()} className="truncate" />)}</div>
+  if (attribute.type === 'domain' || attribute.type === 'url') {
+    return <div className="flex flex-col gap-1">{values.map((value) => <ExternalLink key={value} href={attribute.type === 'domain' ? `https://${value}` : value} className="block truncate">{value}</ExternalLink>)}</div>
   }
   if (attribute.type === 'date') {
     return values.map(formatDay).join(', ')

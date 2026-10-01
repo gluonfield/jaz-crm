@@ -5,7 +5,8 @@ import { Button } from '@jaz/ui/button'
 import { Chip, Header } from '@/components/controls'
 import { EmailThread } from '@/components/email-thread'
 import { KindIcon, RecordIcon } from '@/components/icons'
-import { ExternalLink, Message } from '@/components/message'
+import { ExternalLink } from '@/components/external-link'
+import { Message } from '@/components/message'
 import { Picker } from '@/components/picker'
 import { recordName } from '@/lib/crm'
 import { formatDateTime, hasEnded, meetingTime } from '@/lib/format'
@@ -62,7 +63,7 @@ export function InteractionDetails({ interactionId, onClose, onNavigate }: { int
           {join && (
             <ExternalLink
               href={join}
-              className="mt-4 inline-flex h-8 items-center gap-2 rounded-full bg-primary px-3.5 text-[13px] font-medium text-on-primary no-underline hover:bg-primary-strong"
+              className="mt-4 inline-flex h-8 items-center gap-2 rounded-full bg-primary px-3.5 text-[13px] font-medium text-on-primary no-underline hover:bg-primary-strong hover:text-on-primary hover:no-underline"
             >
               <Video className="size-4" /> Join meeting
             </ExternalLink>
