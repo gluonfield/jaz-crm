@@ -39,8 +39,8 @@ export function useWorkspace() {
   return useTool<Workspace>('get_workspace').data
 }
 
-export function useRecords(object: string, query = '', limit = 100, filters: RecordFilter[] = [], include?: Relation[]) {
-  return useTool<{ records: CrmRecord[] }>('search_records', { object, query, limit, filters, include }, { placeholderData: (previous) => previous })
+export function useRecords(object: string, query = '', limit = 100, filters: RecordFilter[] = [], include?: Relation[], sort?: string) {
+  return useTool<{ records: CrmRecord[] }>('search_records', { object, query, limit, filters, include, sort }, { placeholderData: (previous) => previous })
 }
 
 export function useWrite(record: CrmRecord) {

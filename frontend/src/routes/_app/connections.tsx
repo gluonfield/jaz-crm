@@ -3,7 +3,7 @@ import { PlugZap } from 'lucide-react'
 import { Button } from '@jaz/ui/button'
 import { Header, Row, Section } from '@/components/controls'
 import { formatDate, timeAgo } from '@/lib/format'
-import { useAction } from '@/lib/queries'
+import { useAction, useTool } from '@/lib/queries'
 import { steps, useConnect, useConnections } from '@/lib/sync'
 import type { Connection } from '@/lib/types'
 
@@ -33,6 +33,8 @@ function ConnectionsPage() {
   const data = useConnections()
   const connect = useConnect()
   const disconnect = useAction<object>('disconnect')
+  const share = useAction<{ connection_id: string; allowed: boolean }>('set_teammates_send')
+  const me = useTool<{ id: string }>('get_profile').data
   return (
     <>
       <Header>
@@ -61,6 +63,15 @@ function ConnectionsPage() {
                     <div className="truncate font-medium text-ink">{c.account}</div>
                     <div className="truncate text-[12px] text-ink-2">{now}</div>
                     <div className="truncate text-[12px] text-ink-3">{detail}</div>
+                    <label className="mt-1.5 flex w-fit items-center gap-2 text-[12px] text-ink-2">
+                      <input
+                        type="checkbox"
+                        checked={c.teammates_send}
+                        disabled={c.owner_id !== me?.id || share.isPending}
+                        onChange={(event) => share.mutate({ connection_id: c.id, allowed: event.target.checked })}
+                      />
+                      Teammates can send replies from this mailbox
+                    </label>
                     {c.status === 'active' && !c.backfilled && (
                       <div role="progressbar" aria-label="Importing mail" className="mt-2 h-1 overflow-hidden rounded-full bg-list-active">
                         <div className="h-full w-1/3 animate-sweep rounded-full bg-primary motion-reduce:animate-none" />

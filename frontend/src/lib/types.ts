@@ -99,6 +99,7 @@ export type Connection = {
   account: string
   owner_id: string
   status: string
+  teammates_send: boolean
   created_at: string
   synced: Record<string, string>
   step?: string

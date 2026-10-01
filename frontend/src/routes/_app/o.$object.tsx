@@ -1,8 +1,9 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
-import { ArrowDownAZ, Kanban, Plus, Search, Table2 } from 'lucide-react'
+import { ArrowDownAZ, Kanban, ListChecks, Plus, Search, Table2 } from 'lucide-react'
 import { type ReactNode, useRef, useState } from 'react'
 import { Board } from '@/components/board'
 import { CompanyPeople } from '@/components/company-people'
+import { FollowUpQueue } from '@/components/follow-ups'
 import { Stage } from '@/components/stage'
 import { Button } from '@jaz/ui/button'
 import { Header } from '@/components/controls'
@@ -33,7 +34,11 @@ export const Route = createFileRoute('/_app/o/$object')({
 const arrivals: Record<string, string> = {
   people: 'People you write to or meet appear here automatically, along with anyone you keep in Triage.',
   companies: 'Companies appear here from the work email domains of the people you keep.',
+  follow_ups: 'Next steps appear here as conversations with the people you keep create them.',
 }
+
+// open is the queue's default view: the follow-ups still to act on.
+const open = [{ attribute: 'status', operator: 'is' as const, value: 'Open' }]
 
 function ObjectPage() {
   const { object: slug } = Route.useParams()
@@ -41,12 +46,13 @@ function ObjectPage() {
   const search = Route.useSearch()
   const { sort, view, q = '', filters = [], saved, limit = 100 } = search
   const query = useDebounced(q.trim())
-  const result = useRecords(slug, query, limit, filters, slug === 'companies' ? [{ object: 'people', attribute: 'company', limit: 4 }] : undefined)
+  const queue = slug === 'follow_ups' && view !== 'table'
+  const result = useRecords(slug, query, limit, queue && filters.length === 0 ? open : filters, slug === 'companies' ? [{ object: 'people', attribute: 'company', limit: 4 }] : undefined, queue ? 'review_on' : undefined)
   const found = result.data?.records
   const records = found && (sort === 'name' ? [...found].sort((a, b) => recordName(a).localeCompare(recordName(b))) : found)
   const navigate = useNavigate()
-  const open = (index: number) => records && navigate({ to: '/r/$recordId', params: { recordId: records[index].id } })
-  const [focus] = useListKeys(records?.length ?? 0, { Enter: open, o: open })
+  const openRecord = (index: number) => records && navigate({ to: '/r/$recordId', params: { recordId: records[index].id } })
+  const [focus] = useListKeys(records?.length ?? 0, { Enter: openRecord, o: openRecord })
   const [creating, setCreating] = useState(false)
   const rows = useRef<HTMLTableSectionElement>(null)
   useFlip(rows)
@@ -55,19 +61,19 @@ function ObjectPage() {
   }
   const columns = object.attributes.filter((a) => a.slug !== 'name').sort((a, b) => Number(b.type === 'select') - Number(a.type === 'select'))
   const status = statusOf(object.attributes)
-  const board = view === 'table' ? undefined : status
+  const board = view === 'table' || slug === 'follow_ups' ? undefined : status
   return (
     <>
       <Header>
         <ObjectIcon slug={slug} />
-        {object.name}
+        <span className="whitespace-nowrap">{object.name}</span>
         {records && <span className="font-normal tabular-nums text-ink-3">{records.length}</span>}
         {status && (
           <div role="group" aria-label="View" className="ml-2 flex h-7 items-center rounded-full bg-list-hover p-0.5">
-            <ViewButton active={!!board} label="Board" onClick={() => void navigate({ to: '.', search: { ...search, view: undefined }, replace: true })}>
-              <Kanban />
+            <ViewButton active={!!board || queue} label={slug === 'follow_ups' ? 'Queue' : 'Board'} onClick={() => void navigate({ to: '.', search: { ...search, view: undefined }, replace: true })}>
+              {slug === 'follow_ups' ? <ListChecks /> : <Kanban />}
             </ViewButton>
-            <ViewButton active={!board} label="Table" onClick={() => void navigate({ to: '.', search: { ...search, view: 'table' }, replace: true })}>
+            <ViewButton active={view === 'table'} label="Table" onClick={() => void navigate({ to: '.', search: { ...search, view: 'table' }, replace: true })}>
               <Table2 />
             </ViewButton>
           </div>
@@ -81,11 +87,11 @@ function ObjectPage() {
             trigger={
               <Button variant="ghost" aria-label="Sort records">
                 <ArrowDownAZ />
-                <span className="hidden xl:inline">{sort === 'name' ? 'Name' : 'Recently added'}</span>
+                <span className="hidden xl:inline">{sort === 'name' ? 'Name' : queue ? 'Review date' : 'Recently added'}</span>
               </Button>
             }
             placeholder="Sort by…"
-            options={[{ value: '', label: 'Recently added' }, { value: 'name', label: 'Name' }]}
+            options={[{ value: '', label: queue ? 'Review date' : 'Recently added' }, { value: 'name', label: 'Name' }]}
             selected={[sort ?? '']}
             onSelect={(value) => void navigate({ to: '.', search: { ...search, sort: value === 'name' ? 'name' : undefined }, replace: true })}
           />
@@ -112,6 +118,8 @@ function ObjectPage() {
         records && <Board object={object} status={board} records={records} />
       ) : records?.length === 0 ? (
         <Empty object={object} query={query} filtered={filters.length > 0} />
+      ) : queue ? (
+        records && <FollowUpQueue records={records} focus={focus} onOpen={openRecord} />
       ) : (
         <div className="scrollbar-quiet min-h-0 flex-1 overflow-auto">
           <table className="w-full border-collapse text-[13px]">
@@ -132,7 +140,7 @@ function ObjectPage() {
                   <tr
                     data-row={index}
                     data-flip={r.id}
-                    onClick={() => open(index)}
+                    onClick={() => openRecord(index)}
                     className={cn('group h-10 cursor-default border-b border-border/50 hover:bg-list-hover data-[state=open]:bg-list-hover', focus === index && 'bg-list-hover')}
                   >
                     <td className={cn('sticky left-0 z-10 max-w-72 bg-bg px-4 group-hover:bg-list-hover group-data-[state=open]:bg-list-hover', focus === index && 'bg-list-hover')}>
