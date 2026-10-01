@@ -58,7 +58,7 @@ func TestMessageMigration(t *testing.T) {
 	if _, err := provider.UpTo(ctx, 17); err != nil {
 		t.Fatal(err)
 	}
-	var workspace, user, object, record, messageID, noteID, otherNoteID string
+	var workspace, user, object, record, messageID, noteID, otherNoteID, callID string
 	for _, seed := range []struct {
 		query string
 		args  []any
@@ -100,6 +100,14 @@ func TestMessageMigration(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	if err := db.QueryRowContext(ctx, "INSERT INTO interactions(workspace_id,user_id,kind,source,external_id,started_at) VALUES($1,$2,'call','webhook','legacy-call','2026-09-21T12:00:00Z') RETURNING id", workspace, user).Scan(&callID); err != nil {
+		t.Fatal(err)
+	}
+	for _, turn := range []struct{ speaker, at string }{{"Ada", "2026-09-21T12:02:00Z"}, {"August", "2026-09-21T12:01:00Z"}} {
+		if _, err := db.ExecContext(ctx, "INSERT INTO parts(interaction_id,kind,external_id,author_name,at,content) VALUES($1,'transcript',$2,$2,$3,$2)", callID, turn.speaker, turn.at); err != nil {
+			t.Fatal(err)
+		}
+	}
 	for pass := range 2 {
 		store, err := postgres.Open(ctx, u.String())
 		if err != nil {
@@ -123,6 +131,10 @@ func TestMessageMigration(t *testing.T) {
 		other, err := svc.Get(ctx, actor, otherNoteID)
 		if err != nil || other.Text != "Commentary\n\nAda: Original speech" || other.Author != "August" {
 			t.Fatalf("legacy note content or author lost: %+v %v", other, err)
+		}
+		call, err := svc.Get(ctx, actor, callID)
+		if err != nil || len(call.Transcript) != 2 || call.Transcript[0].Speaker != "Ada" || call.Transcript[1].Speaker != "August" || call.Transcript[0].At != "2026-09-21T12:02:00Z" || call.Transcript[1].At != "2026-09-21T12:01:00Z" {
+			t.Fatalf("legacy transcript order or recorded times lost: %+v %v", call, err)
 		}
 		activity, err := svc.Activities(ctx, actor, []string{record})
 		if err != nil || activity[record].Interactions != 1 {

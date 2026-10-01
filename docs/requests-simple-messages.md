@@ -1,5 +1,13 @@
 # Simple CRM messages
 
+- [x] Complete the requested thermo-nuclear review of the shipped schema, migration and consumers.
+- [x] Repair paging, contact-date precision and transcript ordering; verify real PostgreSQL/MCP behavior.
+- [ ] Commit, push and activate the review fixes locally and on Railway.
+
+The review found three contract defects: displayed dates were reused as paging cursors (rejecting day-only values and skipping ties), activity aggregates discarded date precision, and optional transcript times were invented and used to reorder speech. Paging now takes the previous interaction ID; activity carries source precision through its aggregate; transcript position and optional time are independent storage fields. Forward migration 0022 preserves existing bodies and times and restores imported turn order. No provider data or applied migration was rewritten.
+
+Full Go tests/vet/build and frontend typecheck/lint/web/embedded builds pass. Real MCP coverage pages tied dates and upcoming meetings, preserves mixed contact-date precision, and enforces workspace isolation. Transcript/reimport/follow-up discovery and historical migration/restart regressions pass. Four compiling negative controls restore each defect and fail at its intended assertion. The final code review found no remaining blockers or newly enlarged 1,000-line files. The side browser is disconnected; visual acceptance of this revision remains unverified.
+
 - [x] Replace nested public parts with note text, attributed messages and speaker turns.
 - [x] Import messages with channel, sender, recipients and original date; preserve date-only precision.
 - [x] Keep provenance outside readable content and render notes once with actual authorship.

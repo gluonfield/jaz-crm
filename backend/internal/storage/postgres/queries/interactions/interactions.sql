@@ -156,11 +156,11 @@ DELETE FROM participants WHERE interaction_id = $1;
 INSERT INTO participants (interaction_id, handle_id, role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING;
 
 -- name: UpsertPart :exec
-INSERT INTO parts (interaction_id, kind, external_id, connection_id, provider_id, author_handle_id, author_name, at, content, recipients, direction, date_only, partial)
-VALUES (@interaction_id, @kind, @external_id, @connection_id, @provider_id, @author_handle_id, @author_name, @at, @content, coalesce(@recipients::text[], '{}'), @direction, @date_only, @partial)
+INSERT INTO parts (interaction_id, kind, external_id, connection_id, provider_id, author_handle_id, author_name, at, content, recipients, direction, date_only, partial, position)
+VALUES (@interaction_id, @kind, @external_id, @connection_id, @provider_id, @author_handle_id, @author_name, @at, @content, coalesce(@recipients::text[], '{}'), @direction, @date_only, @partial, @position)
 ON CONFLICT (interaction_id, external_id) DO UPDATE
 SET content = COALESCE(EXCLUDED.content, parts.content), author_name = EXCLUDED.author_name, at = EXCLUDED.at,
-    recipients = EXCLUDED.recipients, direction = EXCLUDED.direction, date_only = EXCLUDED.date_only, partial = EXCLUDED.partial;
+    recipients = EXCLUDED.recipients, direction = EXCLUDED.direction, date_only = EXCLUDED.date_only, partial = EXCLUDED.partial, position = EXCLUDED.position;
 
 -- name: ClearParts :exec
 DELETE FROM parts WHERE interaction_id = $1;
@@ -225,11 +225,15 @@ SELECT * FROM interactions WHERE workspace_id = @workspace_id AND id = ANY(@ids:
 -- or the upcoming ones, soonest first.
 SELECT interactions.* FROM interactions
 JOIN links ON links.interaction_id = interactions.id AND links.record_id = @record_id
+LEFT JOIN interactions cursor ON cursor.id = nullif(@cursor::text, '')::uuid AND cursor.workspace_id = @workspace_id AND NOT cursor.skipped
 WHERE interactions.workspace_id = @workspace_id AND NOT interactions.skipped
   AND (cardinality(@kinds::text[]) = 0 OR interactions.kind = ANY(@kinds::text[]))
-  AND (sqlc.narg(before)::timestamptz IS NULL OR interactions.started_at < sqlc.narg(before)::timestamptz)
+  AND (@cursor::text = '' OR CASE WHEN @upcoming::bool
+    THEN (interactions.started_at, interactions.id) > (cursor.started_at, cursor.id)
+    ELSE (interactions.started_at, interactions.id) < (cursor.started_at, cursor.id) END)
   AND (interactions.started_at > now()) = @upcoming::bool
-ORDER BY CASE WHEN @upcoming::bool THEN interactions.started_at END, interactions.started_at DESC, interactions.id
+ORDER BY CASE WHEN @upcoming::bool THEN interactions.started_at END,
+  CASE WHEN @upcoming::bool THEN interactions.id END, interactions.started_at DESC, interactions.id DESC
 LIMIT @row_limit;
 
 -- name: SearchInteractions :many
@@ -249,8 +253,8 @@ WHERE participants.interaction_id = ANY(@ids::uuid[])
 ORDER BY participants.interaction_id, handles.value;
 
 -- name: InteractionParts :many
-SELECT id, interaction_id, kind, external_id, connection_id, provider_id, author_handle_id, author_name, at, content, recipients, direction, date_only, partial FROM parts
-WHERE interaction_id = ANY(@ids::uuid[]) ORDER BY interaction_id, at, id;
+SELECT id, interaction_id, kind, external_id, connection_id, provider_id, author_handle_id, author_name, at, content, recipients, direction, date_only, partial, position FROM parts
+WHERE interaction_id = ANY(@ids::uuid[]) ORDER BY interaction_id, position, at, id;
 
 -- name: InteractionLinks :many
 SELECT links.interaction_id, links.record_id, links.source FROM links
@@ -261,7 +265,9 @@ ORDER BY links.interaction_id, links.created_at;
 -- RecordActivity counts each record's interactions that started by now, with
 -- when the first started and when the latest was last active.
 SELECT links.record_id, count(*)::int AS interactions, min(interactions.started_at)::timestamptz AS first_at,
-  max(least(coalesce(interactions.ended_at, interactions.started_at), now()))::timestamptz AS last_at
+  max(least(coalesce(interactions.ended_at, interactions.started_at), now()))::timestamptz AS last_at,
+  (array_agg(interactions.date_only ORDER BY interactions.started_at, interactions.date_only))[1]::boolean AS first_date_only,
+  (array_agg(interactions.date_only AND interactions.ended_at IS NULL ORDER BY least(coalesce(interactions.ended_at, interactions.started_at), now()) DESC, (interactions.date_only AND interactions.ended_at IS NULL)))[1]::boolean AS last_date_only
 FROM links
 JOIN interactions ON interactions.id = links.interaction_id AND NOT interactions.skipped
 WHERE interactions.workspace_id = @workspace_id AND links.record_id = ANY(@record_ids::uuid[]) AND interactions.started_at <= now() AND interactions.kind <> 'note'
@@ -301,8 +307,10 @@ UPDATE interactions SET transcript_checked_at = now() WHERE id = $1;
 -- since and what the follow-up agent last read, once every body is fetched.
 SELECT interactions.id, interactions.followed_up_at, latest.at::timestamptz AS latest_at FROM interactions
 JOIN (
-  SELECT parts.interaction_id, max(parts.at) AS at FROM parts
-  WHERE parts.kind IN ('message', 'transcript', 'note') AND parts.content IS NOT NULL AND parts.at > @since
+  SELECT parts.interaction_id, max(coalesce(parts.at, parent.started_at)) AS at FROM parts
+  JOIN interactions parent ON parent.id = parts.interaction_id
+  WHERE parent.workspace_id = @workspace_id AND parts.kind IN ('message', 'transcript', 'note')
+    AND parts.content IS NOT NULL AND coalesce(parts.at, parent.started_at) > @since
   GROUP BY parts.interaction_id
 ) AS latest ON latest.interaction_id = interactions.id
 WHERE interactions.workspace_id = @workspace_id AND NOT interactions.skipped

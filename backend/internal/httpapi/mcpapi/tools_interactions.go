@@ -2,7 +2,6 @@ package mcpapi
 
 import (
 	"context"
-	"time"
 
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"github.com/gluonfield/jaz-crm/backend/internal/errs"
@@ -25,7 +24,7 @@ func registerInteractions(r *registry, svc *interactions.Service) {
 	add(r, &mcp.Tool{Name: "list_interactions", Title: "List interactions", Annotations: readOnly,
 		Description: "A record's emails, meetings, calls and notes up to now, newest first; with upcoming, its future ones, soonest first."},
 		func(ctx context.Context, actor auth.Actor, in timelineInput) (interactionsOutput, error) {
-			list, err := svc.Timeline(ctx, actor, in.RecordID, in.Kinds, in.Before, in.Upcoming, in.Limit)
+			list, err := svc.Timeline(ctx, actor, in.RecordID, in.Kinds, in.Cursor, in.Upcoming, in.Limit)
 			return interactionsOutput{Interactions: list}, err
 		})
 	add(r, &mcp.Tool{Name: "get_interaction", Title: "Get interaction", Annotations: readOnly,
@@ -92,11 +91,11 @@ type interactionsOutput struct {
 }
 
 type timelineInput struct {
-	RecordID string     `json:"record_id"`
-	Kinds    []string   `json:"kinds,omitempty" jsonschema:"message, meeting, call or note; all when empty"`
-	Before   *time.Time `json:"before,omitempty" jsonschema:"only interactions that started earlier, to page back"`
-	Upcoming bool       `json:"upcoming,omitempty" jsonschema:"list the interactions that start after now instead, such as scheduled meetings"`
-	Limit    int        `json:"limit,omitempty" jsonschema:"at most 100, default 20"`
+	RecordID string   `json:"record_id"`
+	Kinds    []string `json:"kinds,omitempty" jsonschema:"message, meeting, call or note; all when empty"`
+	Cursor   string   `json:"cursor,omitempty" jsonschema:"last interaction ID from the previous page; omit for the first page"`
+	Upcoming bool     `json:"upcoming,omitempty" jsonschema:"list the interactions that start after now instead, such as scheduled meetings"`
+	Limit    int      `json:"limit,omitempty" jsonschema:"at most 100, default 20"`
 }
 
 type interactionInput struct {

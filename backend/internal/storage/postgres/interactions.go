@@ -209,7 +209,7 @@ func (s *Store) Participants(ctx context.Context, interactionIDs []string) ([]st
 
 func (s *Store) FollowUpCandidates(ctx context.Context, workspaceID string, since time.Time, limit int32) ([]storage.FollowUpCandidate, error) {
 	return many(func(r intdb.FollowUpCandidatesRow) storage.FollowUpCandidate { return storage.FollowUpCandidate(r) })(
-		s.in.FollowUpCandidates(ctx, intdb.FollowUpCandidatesParams{Since: since, WorkspaceID: workspaceID, Limit: limit}))
+		s.in.FollowUpCandidates(ctx, intdb.FollowUpCandidatesParams{Since: &since, WorkspaceID: workspaceID, Limit: limit}))
 }
 
 func (s *Store) ClaimFollowUp(ctx context.Context, id string, previous, at *time.Time) (bool, error) {

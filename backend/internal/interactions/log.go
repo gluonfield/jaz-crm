@@ -85,7 +85,7 @@ func (s *Service) Log(ctx context.Context, actor auth.Actor, source string, e En
 				author = cmp.Or(user.Name, user.Email)
 			}
 		}
-		parts = append(parts, storage.NewPart{Kind: kind, ExternalID: "body", AuthorName: author, At: at, DateOnly: dateOnly, Content: &e.Text, Recipients: e.Recipients, Direction: e.Direction, Partial: e.Partial})
+		parts = append(parts, storage.NewPart{Kind: kind, ExternalID: "body", AuthorName: author, At: &at, DateOnly: dateOnly, Content: &e.Text, Recipients: e.Recipients, Direction: e.Direction, Partial: e.Partial})
 	}
 	for n, turn := range e.Transcript {
 		turn.Speaker = strings.TrimSpace(turn.Speaker)
@@ -94,14 +94,16 @@ func (s *Service) Log(ctx context.Context, actor auth.Actor, source string, e En
 			return Interaction{}, errs.Invalidf("each transcript turn needs a speaker and text")
 		}
 		turn.At = strings.TrimSpace(turn.At)
-		spoken, day := at, dateOnly
+		var spoken *time.Time
+		day := false
 		if turn.At != "" {
-			spoken, day, err = parseAt(turn.At)
+			parsed, dateOnly, err := parseAt(turn.At)
+			if err != nil {
+				return Interaction{}, err
+			}
+			spoken, day = &parsed, dateOnly
 		}
-		if err != nil {
-			return Interaction{}, err
-		}
-		parts = append(parts, storage.NewPart{Kind: "transcript", ExternalID: "turn-" + strconv.Itoa(n), AuthorName: turn.Speaker, At: spoken, DateOnly: day, Content: &turn.Text})
+		parts = append(parts, storage.NewPart{Kind: "transcript", ExternalID: "turn-" + strconv.Itoa(n), AuthorName: turn.Speaker, At: spoken, DateOnly: day, Content: &turn.Text, Position: int32(n + 1)})
 	}
 	if e.Title == "" {
 		e.Title = strings.ToUpper(e.Kind[:1]) + e.Kind[1:]

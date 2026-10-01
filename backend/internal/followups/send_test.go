@@ -112,7 +112,7 @@ func TestReleaseSendsEmailRepliesAndApprovesOthers(t *testing.T) {
 	}
 	message := func(id string, at time.Time) {
 		provider := "g" + id[1:2]
-		if err := store.UpsertPart(ctx, storage.NewPart{InteractionID: thread, Kind: "message", ExternalID: id, ConnectionID: &mailbox.ID, ProviderID: &provider, At: at}); err != nil {
+		if err := store.UpsertPart(ctx, storage.NewPart{InteractionID: thread, Kind: "message", ExternalID: id, ConnectionID: &mailbox.ID, ProviderID: &provider, At: &at}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -122,7 +122,8 @@ func TestReleaseSendsEmailRepliesAndApprovesOthers(t *testing.T) {
 		t.Fatal(err)
 	}
 	gone := "g0"
-	if err := store.UpsertPart(ctx, storage.NewPart{InteractionID: older, Kind: "message", ExternalID: "m0@acme.com", ConnectionID: &mailbox.ID, ProviderID: &gone, At: time.Now().Add(-2 * time.Hour)}); err != nil {
+	olderAt := time.Now().Add(-2 * time.Hour)
+	if err := store.UpsertPart(ctx, storage.NewPart{InteractionID: older, Kind: "message", ExternalID: "m0@acme.com", ConnectionID: &mailbox.ID, ProviderID: &gone, At: &olderAt}); err != nil {
 		t.Fatal(err)
 	}
 	followUp := func(channel string) string {

@@ -132,7 +132,7 @@ func (s *Service) reply(ctx context.Context, actor auth.Actor, f records.Record)
 	if len(parts) == 0 {
 		return outgoing{}, errs.Invalidf("link the email conversation this follow-up replies in")
 	}
-	last := slices.MaxFunc(parts, func(a, b storage.Part) int { return a.At.Compare(b.At) })
+	last := slices.MaxFunc(parts, func(a, b storage.Part) int { return a.At.Compare(*b.At) })
 	written, err := s.draftedAt(ctx, actor, f.ID)
 	if err != nil {
 		return outgoing{}, err

@@ -314,11 +314,13 @@ func (q *Queries) ExtendEmailThread(ctx context.Context, arg ExtendEmailThreadPa
 const followUpCandidates = `-- name: FollowUpCandidates :many
 SELECT interactions.id, interactions.followed_up_at, latest.at::timestamptz AS latest_at FROM interactions
 JOIN (
-  SELECT parts.interaction_id, max(parts.at) AS at FROM parts
-  WHERE parts.kind IN ('message', 'transcript', 'note') AND parts.content IS NOT NULL AND parts.at > $1
+  SELECT parts.interaction_id, max(coalesce(parts.at, parent.started_at)) AS at FROM parts
+  JOIN interactions parent ON parent.id = parts.interaction_id
+  WHERE parent.workspace_id = $1 AND parts.kind IN ('message', 'transcript', 'note')
+    AND parts.content IS NOT NULL AND coalesce(parts.at, parent.started_at) > $2
   GROUP BY parts.interaction_id
 ) AS latest ON latest.interaction_id = interactions.id
-WHERE interactions.workspace_id = $2 AND NOT interactions.skipped
+WHERE interactions.workspace_id = $1 AND NOT interactions.skipped
   AND latest.at > coalesce(interactions.followed_up_at, '-infinity')
   AND EXISTS (SELECT 1 FROM links WHERE links.interaction_id = interactions.id)
   AND NOT EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.content IS NULL AND parts.provider_id IS NOT NULL)
@@ -327,8 +329,8 @@ LIMIT $3
 `
 
 type FollowUpCandidatesParams struct {
-	Since       time.Time
 	WorkspaceID string
+	Since       *time.Time
 	Limit       int32
 }
 
@@ -341,7 +343,7 @@ type FollowUpCandidatesRow struct {
 // FollowUpCandidates lists linked conversations, newest first, with content newer than both
 // since and what the follow-up agent last read, once every body is fetched.
 func (q *Queries) FollowUpCandidates(ctx context.Context, arg FollowUpCandidatesParams) ([]FollowUpCandidatesRow, error) {
-	rows, err := q.db.Query(ctx, followUpCandidates, arg.Since, arg.WorkspaceID, arg.Limit)
+	rows, err := q.db.Query(ctx, followUpCandidates, arg.WorkspaceID, arg.Since, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -690,8 +692,8 @@ func (q *Queries) InteractionParticipants(ctx context.Context, ids []string) ([]
 }
 
 const interactionParts = `-- name: InteractionParts :many
-SELECT id, interaction_id, kind, external_id, connection_id, provider_id, author_handle_id, author_name, at, content, recipients, direction, date_only, partial FROM parts
-WHERE interaction_id = ANY($1::uuid[]) ORDER BY interaction_id, at, id
+SELECT id, interaction_id, kind, external_id, connection_id, provider_id, author_handle_id, author_name, at, content, recipients, direction, date_only, partial, position FROM parts
+WHERE interaction_id = ANY($1::uuid[]) ORDER BY interaction_id, position, at, id
 `
 
 type InteractionPartsRow struct {
@@ -703,12 +705,13 @@ type InteractionPartsRow struct {
 	ProviderID     *string
 	AuthorHandleID *string
 	AuthorName     string
-	At             time.Time
+	At             *time.Time
 	Content        *string
 	Recipients     []string
 	Direction      string
 	DateOnly       bool
 	Partial        bool
+	Position       int32
 }
 
 func (q *Queries) InteractionParts(ctx context.Context, ids []string) ([]InteractionPartsRow, error) {
@@ -735,6 +738,7 @@ func (q *Queries) InteractionParts(ctx context.Context, ids []string) ([]Interac
 			&i.Direction,
 			&i.DateOnly,
 			&i.Partial,
+			&i.Position,
 		); err != nil {
 			return nil, err
 		}
@@ -938,7 +942,9 @@ func (q *Queries) PersonPhotos(ctx context.Context, arg PersonPhotosParams) ([]P
 
 const recordActivity = `-- name: RecordActivity :many
 SELECT links.record_id, count(*)::int AS interactions, min(interactions.started_at)::timestamptz AS first_at,
-  max(least(coalesce(interactions.ended_at, interactions.started_at), now()))::timestamptz AS last_at
+  max(least(coalesce(interactions.ended_at, interactions.started_at), now()))::timestamptz AS last_at,
+  (array_agg(interactions.date_only ORDER BY interactions.started_at, interactions.date_only))[1]::boolean AS first_date_only,
+  (array_agg(interactions.date_only AND interactions.ended_at IS NULL ORDER BY least(coalesce(interactions.ended_at, interactions.started_at), now()) DESC, (interactions.date_only AND interactions.ended_at IS NULL)))[1]::boolean AS last_date_only
 FROM links
 JOIN interactions ON interactions.id = links.interaction_id AND NOT interactions.skipped
 WHERE interactions.workspace_id = $1 AND links.record_id = ANY($2::uuid[]) AND interactions.started_at <= now() AND interactions.kind <> 'note'
@@ -951,10 +957,12 @@ type RecordActivityParams struct {
 }
 
 type RecordActivityRow struct {
-	RecordID     string
-	Interactions int32
-	FirstAt      time.Time
-	LastAt       time.Time
+	RecordID      string
+	Interactions  int32
+	FirstAt       time.Time
+	LastAt        time.Time
+	FirstDateOnly bool
+	LastDateOnly  bool
 }
 
 // RecordActivity counts each record's interactions that started by now, with
@@ -973,6 +981,8 @@ func (q *Queries) RecordActivity(ctx context.Context, arg RecordActivityParams) 
 			&i.Interactions,
 			&i.FirstAt,
 			&i.LastAt,
+			&i.FirstDateOnly,
+			&i.LastDateOnly,
 		); err != nil {
 			return nil, err
 		}
@@ -1202,19 +1212,23 @@ func (q *Queries) SkipRecordHandles(ctx context.Context, arg SkipRecordHandlesPa
 const timeline = `-- name: Timeline :many
 SELECT interactions.id, interactions.workspace_id, interactions.kind, interactions.source, interactions.external_id, interactions.connection_id, interactions.user_id, interactions.title, interactions.started_at, interactions.ended_at, interactions.meet_code, interactions.transcript_checked_at, interactions.skipped, interactions.created_at, interactions.channel, interactions.provenance, interactions.date_only, interactions.followed_up_at FROM interactions
 JOIN links ON links.interaction_id = interactions.id AND links.record_id = $1
-WHERE interactions.workspace_id = $2 AND NOT interactions.skipped
-  AND (cardinality($3::text[]) = 0 OR interactions.kind = ANY($3::text[]))
-  AND ($4::timestamptz IS NULL OR interactions.started_at < $4::timestamptz)
+LEFT JOIN interactions cursor ON cursor.id = nullif($2::text, '')::uuid AND cursor.workspace_id = $3 AND NOT cursor.skipped
+WHERE interactions.workspace_id = $3 AND NOT interactions.skipped
+  AND (cardinality($4::text[]) = 0 OR interactions.kind = ANY($4::text[]))
+  AND ($2::text = '' OR CASE WHEN $5::bool
+    THEN (interactions.started_at, interactions.id) > (cursor.started_at, cursor.id)
+    ELSE (interactions.started_at, interactions.id) < (cursor.started_at, cursor.id) END)
   AND (interactions.started_at > now()) = $5::bool
-ORDER BY CASE WHEN $5::bool THEN interactions.started_at END, interactions.started_at DESC, interactions.id
+ORDER BY CASE WHEN $5::bool THEN interactions.started_at END,
+  CASE WHEN $5::bool THEN interactions.id END, interactions.started_at DESC, interactions.id DESC
 LIMIT $6
 `
 
 type TimelineParams struct {
 	RecordID    string
+	Cursor      string
 	WorkspaceID string
 	Kinds       []string
-	Before      *time.Time
 	Upcoming    bool
 	Limit       int32
 }
@@ -1224,9 +1238,9 @@ type TimelineParams struct {
 func (q *Queries) Timeline(ctx context.Context, arg TimelineParams) ([]Interaction, error) {
 	rows, err := q.db.Query(ctx, timeline,
 		arg.RecordID,
+		arg.Cursor,
 		arg.WorkspaceID,
 		arg.Kinds,
-		arg.Before,
 		arg.Upcoming,
 		arg.Limit,
 	)
@@ -1508,11 +1522,11 @@ func (q *Queries) UpsertInteraction(ctx context.Context, arg UpsertInteractionPa
 }
 
 const upsertPart = `-- name: UpsertPart :exec
-INSERT INTO parts (interaction_id, kind, external_id, connection_id, provider_id, author_handle_id, author_name, at, content, recipients, direction, date_only, partial)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, coalesce($10::text[], '{}'), $11, $12, $13)
+INSERT INTO parts (interaction_id, kind, external_id, connection_id, provider_id, author_handle_id, author_name, at, content, recipients, direction, date_only, partial, position)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, coalesce($10::text[], '{}'), $11, $12, $13, $14)
 ON CONFLICT (interaction_id, external_id) DO UPDATE
 SET content = COALESCE(EXCLUDED.content, parts.content), author_name = EXCLUDED.author_name, at = EXCLUDED.at,
-    recipients = EXCLUDED.recipients, direction = EXCLUDED.direction, date_only = EXCLUDED.date_only, partial = EXCLUDED.partial
+    recipients = EXCLUDED.recipients, direction = EXCLUDED.direction, date_only = EXCLUDED.date_only, partial = EXCLUDED.partial, position = EXCLUDED.position
 `
 
 type UpsertPartParams struct {
@@ -1523,12 +1537,13 @@ type UpsertPartParams struct {
 	ProviderID     *string
 	AuthorHandleID *string
 	AuthorName     string
-	At             time.Time
+	At             *time.Time
 	Content        *string
 	Recipients     []string
 	Direction      string
 	DateOnly       bool
 	Partial        bool
+	Position       int32
 }
 
 func (q *Queries) UpsertPart(ctx context.Context, arg UpsertPartParams) error {
@@ -1546,6 +1561,7 @@ func (q *Queries) UpsertPart(ctx context.Context, arg UpsertPartParams) error {
 		arg.Direction,
 		arg.DateOnly,
 		arg.Partial,
+		arg.Position,
 	)
 	return err
 }

@@ -128,12 +128,13 @@ type NewPart struct {
 	ProviderID     *string
 	AuthorHandleID *string
 	AuthorName     string
-	At             time.Time
+	At             *time.Time
 	Content        *string
 	Recipients     []string
 	Direction      string
 	DateOnly       bool
 	Partial        bool
+	Position       int32
 }
 
 type Part struct {
@@ -146,12 +147,13 @@ type Part struct {
 	ProviderID     *string
 	AuthorHandleID *string
 	AuthorName     string
-	At             time.Time
+	At             *time.Time
 	Content        *string
 	Recipients     []string
 	Direction      string
 	DateOnly       bool
 	Partial        bool
+	Position       int32
 }
 
 type Link struct {
@@ -167,18 +169,20 @@ type UnfetchedPart struct {
 
 type TimelineQuery struct {
 	RecordID    string
+	Cursor      string
 	WorkspaceID string
 	Kinds       []string
-	Before      *time.Time
 	Upcoming    bool
 	Limit       int32
 }
 
 type Activity struct {
-	RecordID     string
-	Interactions int32
-	FirstAt      time.Time
-	LastAt       time.Time
+	RecordID      string
+	Interactions  int32
+	FirstAt       time.Time
+	LastAt        time.Time
+	FirstDateOnly bool
+	LastDateOnly  bool
 }
 
 // FollowUpCandidate is a conversation with content newer than what the

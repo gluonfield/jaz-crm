@@ -108,7 +108,7 @@ func (e env) contacts(t *testing.T, status string) map[string]interactions.Conta
 
 func (e env) timeline(t *testing.T, recordID string) []interactions.Interaction {
 	t.Helper()
-	list, err := e.svc.Timeline(ctx, e.a, recordID, nil, nil, false, 50)
+	list, err := e.svc.Timeline(ctx, e.a, recordID, nil, "", false, 50)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -358,12 +358,12 @@ func TestUpcomingMeetings(t *testing.T) {
 	if got := e.timeline(t, ada); len(got) != 1 || got[0].Title != "past" {
 		t.Fatalf("timeline: %+v", got)
 	}
-	upcoming, err := e.svc.Timeline(ctx, e.a, ada, nil, nil, true, 10)
+	upcoming, err := e.svc.Timeline(ctx, e.a, ada, nil, "", true, 10)
 	if err != nil || len(upcoming) != 2 || upcoming[0].Title != "next" || upcoming[1].Title != "later" {
 		t.Fatalf("upcoming: %+v %v", upcoming, err)
 	}
 	activity, err := e.svc.Activities(ctx, e.a, []string{ada})
-	if a := activity[ada]; err != nil || a.Interactions != 1 || !a.FirstAt.Equal(now.Add(-72*time.Hour)) || !a.LastAt.Equal(now.Add(-71*time.Hour)) {
+	if a := activity[ada]; err != nil || a.Interactions != 1 || a.FirstAt != now.Add(-72*time.Hour).UTC().Format(time.RFC3339Nano) || a.LastAt != now.Add(-71*time.Hour).UTC().Format(time.RFC3339Nano) {
 		t.Fatalf("activity: %+v %v", activity, err)
 	}
 }
@@ -515,10 +515,13 @@ func TestManualMessageAndTranscript(t *testing.T) {
 	if _, err := e.svc.Log(ctx, e.a, "manual", entry); err == nil {
 		t.Fatal("an invalid original date was accepted")
 	}
-	call := interactions.Entry{Kind: interactions.Call, Text: "Discussed production", Records: []string{person.ID}, ExternalID: "call-1", At: "2026-09-21T12:00:00Z", Transcript: []interactions.Speech{{Speaker: "Ada", Text: "First turn"}, {Speaker: "August", Text: "Second turn"}}}
+	call := interactions.Entry{Kind: interactions.Call, Text: "Discussed production", Records: []string{person.ID}, ExternalID: "call-1", At: "2026-09-21T12:00:00Z", Transcript: []interactions.Speech{{Speaker: "Ada", Text: "First turn", At: "2026-09-21T12:01:00Z"}, {Speaker: "August", Text: "Second turn"}, {Speaker: "Cara", Text: "Third turn", At: "2026-09-21T12:02:00Z"}}}
 	spoken, err := e.svc.Log(ctx, e.a, "webhook", call)
-	if err != nil || spoken.Text != call.Text || len(spoken.Transcript) != 2 || spoken.Transcript[0].Speaker != "Ada" || spoken.Transcript[1].Speaker != "August" {
+	if err != nil || spoken.Text != call.Text || len(spoken.Transcript) != 3 || spoken.Transcript[0].Speaker != "Ada" || spoken.Transcript[1].Speaker != "August" || spoken.Transcript[2].Speaker != "Cara" {
 		t.Fatalf("speaker turns: %+v %v", spoken, err)
+	}
+	if spoken.Transcript[0].At != call.Transcript[0].At || spoken.Transcript[1].At != "" {
+		t.Fatalf("transcript timestamps were changed or invented: %+v", spoken.Transcript)
 	}
 	call.Text = "Revised notes"
 	call.Transcript = call.Transcript[:1]
@@ -531,7 +534,7 @@ func TestManualMessageAndTranscript(t *testing.T) {
 		t.Fatal(err)
 	}
 	activity, err := e.svc.Activities(ctx, e.a, []string{person.ID})
-	if err != nil || activity[person.ID].Interactions != 2 || !activity[person.ID].LastAt.Equal(time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)) {
+	if err != nil || activity[person.ID].Interactions != 2 || activity[person.ID].FirstAt != "2026-09-20" || activity[person.ID].LastAt != "2026-09-21T12:00:00Z" {
 		t.Fatalf("notes changed contact statistics: %+v %v", activity, err)
 	}
 	note.Transcript = []interactions.Speech{{Speaker: "Ada", Text: "Something said"}}
@@ -541,5 +544,15 @@ func TestManualMessageAndTranscript(t *testing.T) {
 	call.Transcript[0].Speaker = ""
 	if _, err := e.svc.Log(ctx, e.a, "webhook", call); err == nil {
 		t.Fatal("a transcript accepted an unattributed turn")
+	}
+	recent := time.Now().UTC().Add(-time.Hour).Truncate(time.Microsecond)
+	untimed, err := e.svc.Log(ctx, e.a, "webhook", interactions.Entry{Kind: interactions.Call, At: recent.Format(time.RFC3339Nano), Records: []string{person.ID}, Transcript: []interactions.Speech{{Speaker: "Ada", Text: "An untimed transcript"}}})
+	if err != nil || len(untimed.Transcript) != 1 || untimed.Transcript[0].At != "" {
+		t.Fatalf("untimed transcript: %+v %v", untimed, err)
+	}
+	candidates, err := e.store.FollowUpCandidates(ctx, e.a.WorkspaceID, recent.Add(-time.Minute), 10)
+	i := slices.IndexFunc(candidates, func(c storage.FollowUpCandidate) bool { return c.ID == untimed.ID })
+	if err != nil || i < 0 || !candidates[i].LatestAt.Equal(recent) {
+		t.Fatalf("untimed transcript disappeared from follow-up discovery: %+v %v", candidates, err)
 	}
 }

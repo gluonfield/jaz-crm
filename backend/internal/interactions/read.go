@@ -73,13 +73,13 @@ func limitOf(limit int) int32 {
 
 // Timeline lists a record's interactions that started by now, newest first,
 // or its upcoming ones, soonest first.
-func (s *Service) Timeline(ctx context.Context, actor auth.Actor, recordID string, kinds []string, before *time.Time, upcoming bool, limit int) ([]Interaction, error) {
-	kinds = slices.Clone(kinds)
+func (s *Service) Timeline(ctx context.Context, actor auth.Actor, recordID string, kinds []string, cursor string, upcoming bool, limit int) ([]Interaction, error) {
+	kinds = append([]string{}, kinds...)
 	if slices.Contains(kinds, Message) {
 		kinds = append(kinds, Email)
 	}
 	list, err := s.store.Timeline(ctx, storage.TimelineQuery{
-		RecordID: recordID, WorkspaceID: actor.WorkspaceID, Kinds: append([]string{}, kinds...), Before: before, Upcoming: upcoming, Limit: limitOf(limit),
+		RecordID: recordID, WorkspaceID: actor.WorkspaceID, Kinds: kinds, Cursor: cursor, Upcoming: upcoming, Limit: limitOf(limit),
 	})
 	if err != nil {
 		return nil, err
@@ -121,9 +121,9 @@ func (s *Service) find(ctx context.Context, workspaceID, id string) ([]storage.I
 // Activity is how often a record was in touch up to now, since when, and
 // when last.
 type Activity struct {
-	Interactions int        `json:"interactions"`
-	FirstAt      *time.Time `json:"first_at,omitempty"`
-	LastAt       *time.Time `json:"last_at,omitempty"`
+	Interactions int    `json:"interactions"`
+	FirstAt      string `json:"first_at,omitempty"`
+	LastAt       string `json:"last_at,omitempty"`
 }
 
 // Activities maps records to their activity; upcoming meetings do not count.
@@ -131,7 +131,7 @@ func (s *Service) Activities(ctx context.Context, actor auth.Actor, recordIDs []
 	rows, err := s.store.RecordActivity(ctx, actor.WorkspaceID, recordIDs)
 	out := map[string]Activity{}
 	for _, r := range rows {
-		out[r.RecordID] = Activity{Interactions: int(r.Interactions), FirstAt: &r.FirstAt, LastAt: &r.LastAt}
+		out[r.RecordID] = Activity{Interactions: int(r.Interactions), FirstAt: formatAt(r.FirstAt, r.FirstDateOnly), LastAt: formatAt(r.LastAt, r.LastDateOnly)}
 	}
 	return out, err
 }
@@ -211,7 +211,7 @@ func (s *Service) views(ctx context.Context, workspaceID string, list []storage.
 		}
 		switch p.Kind {
 		case "message":
-			message := MessageView{At: formatAt(p.At, p.DateOnly), Sender: author, SenderAddress: sender.Address, Recipients: p.Recipients, Direction: p.Direction, Text: text, Partial: p.Partial}
+			message := MessageView{At: formatAt(*p.At, p.DateOnly), Sender: author, SenderAddress: sender.Address, Recipients: p.Recipients, Direction: p.Direction, Text: text, Partial: p.Partial}
 			if v.Channel == "email" && sender.Address != "" {
 				message.Direction = "received"
 				if slices.Contains(own, sender.Address) {
@@ -226,7 +226,11 @@ func (s *Service) views(ctx context.Context, workspaceID string, list []storage.
 			}
 		case "transcript":
 			if full {
-				v.Transcript = append(v.Transcript, Speech{Speaker: author, Text: text, At: formatAt(p.At, p.DateOnly)})
+				turn := Speech{Speaker: author, Text: text}
+				if p.At != nil {
+					turn.At = formatAt(*p.At, p.DateOnly)
+				}
+				v.Transcript = append(v.Transcript, turn)
 			}
 		case "description":
 			if full {

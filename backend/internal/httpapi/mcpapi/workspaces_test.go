@@ -69,7 +69,8 @@ func TestWorkspaceDeletion(t *testing.T) {
 		t.Fatal(err)
 	}
 	content := "Private mail"
-	if err := store.UpsertPart(ctx, storage.NewPart{InteractionID: interaction.ID, Kind: "message", ExternalID: "mail", ConnectionID: &connection.ID, At: time.Now(), Content: &content}); err != nil {
+	at := time.Now()
+	if err := store.UpsertPart(ctx, storage.NewPart{InteractionID: interaction.ID, Kind: "message", ExternalID: "mail", ConnectionID: &connection.ID, At: &at, Content: &content}); err != nil {
 		t.Fatal(err)
 	}
 	cookie, _, err := e.keys.CreateSession(ctx, actor.UserID)

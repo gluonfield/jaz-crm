@@ -81,6 +81,8 @@ The existing MCP server and embedded app can be connected to ChatGPT using OAuth
 | `get_workspace`, `update_workspace`, `invite_member`, `delete_workspace` | the workspace, its description and members; deletion requires an admin, its current ID and its name |
 | `show_crm` | opens the web app in hosts that support MCP Apps |
 
+`list_interactions` pages with `cursor`, the last interaction ID from the previous page. Dates retain their original precision; transcript turns keep their supplied order and include a time only when one was provided.
+
 `search_records` returns `records` and a `resource_uri` with the same text, attribute filters and limit. MCP Apps hosts render only compact record rows inline, sized to their content. Selecting a row opens its record in the full CRM through the host's app link. `show_crm` also accepts the URI to reopen the results. The `ui://jaz-crm/o/{object}{?q,where,limit,view}` resource template serves the app at that filtered view:
 
 ```text

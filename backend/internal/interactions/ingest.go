@@ -76,7 +76,7 @@ func (s *Service) IngestEmail(ctx context.Context, known Known, m EmailMessage) 
 		}
 		err = store.UpsertPart(ctx, storage.NewPart{
 			InteractionID: id, Kind: "message", ExternalID: external, ConnectionID: &m.ConnectionID, ProviderID: &m.ProviderID,
-			AuthorHandleID: &author.ID, AuthorName: m.From.Name, At: m.Date, Recipients: recipients,
+			AuthorHandleID: &author.ID, AuthorName: m.From.Name, At: &m.Date, Recipients: recipients,
 		})
 		if err != nil {
 			return err
@@ -162,7 +162,7 @@ func (s *Service) IngestMeeting(ctx context.Context, known Known, e CalendarEven
 			}
 		}
 		if e.Description != "" {
-			err := store.UpsertPart(ctx, storage.NewPart{InteractionID: i.ID, Kind: "description", ExternalID: "description", At: e.Start, Content: &e.Description})
+			err := store.UpsertPart(ctx, storage.NewPart{InteractionID: i.ID, Kind: "description", ExternalID: "description", At: &e.Start, Content: &e.Description})
 			if err != nil {
 				return err
 			}
@@ -196,7 +196,7 @@ type Line struct {
 func (s *Service) AddTranscript(ctx context.Context, interactionID string, lines []Line) error {
 	for _, l := range lines {
 		err := s.store.UpsertPart(ctx, storage.NewPart{
-			InteractionID: interactionID, Kind: "transcript", ExternalID: l.ID, AuthorName: l.Speaker, At: l.At, Content: &l.Text,
+			InteractionID: interactionID, Kind: "transcript", ExternalID: l.ID, AuthorName: l.Speaker, At: &l.At, Content: &l.Text,
 		})
 		if err != nil {
 			return err

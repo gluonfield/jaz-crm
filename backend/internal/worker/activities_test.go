@@ -249,14 +249,14 @@ func TestSyncAgainstGoogle(t *testing.T) {
 	if err != nil || photos[ada] != "https://lh3.googleusercontent.com/ada" || len(pending) != 1 || pending[0].Photo != "" {
 		t.Fatalf("photos: %v %+v %v", photos, pending, err)
 	}
-	thread, err := convs.Timeline(ctx, actor, ada, nil, nil, false, 10)
+	thread, err := convs.Timeline(ctx, actor, ada, nil, "", false, 10)
 	if err != nil || len(thread) != 1 || thread[0].Preview != "Thanks!" || len(thread[0].Participants) != 2 {
 		t.Fatalf("thread: %+v %v", thread, err)
 	}
 
 	run(a.GmailIncremental, nil, conn.ID)
 	run(a.FetchContent, &fetched, conn.ID)
-	if list, _ := convs.Timeline(ctx, actor, ada, nil, nil, false, 10); len(list) != 2 || list[0].Title != "Next order" || fetched != 1 {
+	if list, _ := convs.Timeline(ctx, actor, ada, nil, "", false, 10); len(list) != 2 || list[0].Title != "Next order" || fetched != 1 {
 		t.Fatalf("incremental: %+v, fetched %d", list, fetched)
 	}
 	if cursor, _ := conns.Cursor(ctx, conn.ID, connections.StreamHistory); cursor != "120" {

@@ -73,8 +73,8 @@ export function useUpcoming(recordId: string) {
 export function useTimeline(recordId: string, kinds?: string[]) {
   return useInfiniteQuery({
     queryKey: ['list_interactions', recordId, kinds],
-    queryFn: ({ pageParam }) => call<{ interactions: Interaction[] }>('list_interactions', { record_id: recordId, kinds, before: pageParam, limit: pageSize }),
+    queryFn: ({ pageParam }) => call<{ interactions: Interaction[] }>('list_interactions', { record_id: recordId, kinds, cursor: pageParam, limit: pageSize }),
     initialPageParam: undefined as string | undefined,
-    getNextPageParam: (last) => (last.interactions.length === pageSize ? last.interactions[pageSize - 1].started_at : undefined),
+    getNextPageParam: (last) => (last.interactions.length === pageSize ? last.interactions[pageSize - 1].id : undefined),
   })
 }

@@ -99,7 +99,7 @@ func TestAgentKeepsFollowUpsCurrent(t *testing.T) {
 	}
 	message := func(id, text string, at time.Time) {
 		provider := "g" + id
-		if err := store.UpsertPart(ctx, storage.NewPart{InteractionID: thread, Kind: "message", ExternalID: id, ConnectionID: &mailbox.ID, ProviderID: &provider, At: at, Content: &text}); err != nil {
+		if err := store.UpsertPart(ctx, storage.NewPart{InteractionID: thread, Kind: "message", ExternalID: id, ConnectionID: &mailbox.ID, ProviderID: &provider, At: &at, Content: &text}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -153,7 +153,7 @@ func TestAgentKeepsFollowUpsCurrent(t *testing.T) {
 	if values["company"] != nil {
 		t.Errorf("a record the planner was not shown was attached: %v", values["company"])
 	}
-	if linked, err := convs.Timeline(ctx, actor, f.ID, nil, nil, false, 5); err != nil || len(linked) != 1 || linked[0].ID != thread {
+	if linked, err := convs.Timeline(ctx, actor, f.ID, nil, "", false, 5); err != nil || len(linked) != 1 || linked[0].ID != thread {
 		t.Fatalf("the conversation must be linked to its follow-up: %+v %v", linked, err)
 	}
 	if run() != 0 || len(brain.read) != 1 {
