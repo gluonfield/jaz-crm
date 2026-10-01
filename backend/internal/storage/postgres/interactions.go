@@ -80,8 +80,8 @@ func (s *Store) MarkInternal(ctx context.Context, workspaceID string, addresses,
 	return mapError(s.in.MarkInternal(ctx, intdb.MarkInternalParams{WorkspaceID: workspaceID, Addresses: addresses, Domains: domains}))
 }
 
-func (s *Store) EngagedHandles(ctx context.Context, workspaceID string, maxSize int32) ([]string, error) {
-	ids, err := s.in.EngagedHandles(ctx, intdb.EngagedHandlesParams{WorkspaceID: workspaceID, MaxSize: maxSize})
+func (s *Store) EngagedHandles(ctx context.Context, workspaceID string, maxSize int32, email, meetings bool) ([]string, error) {
+	ids, err := s.in.EngagedHandles(ctx, intdb.EngagedHandlesParams{WorkspaceID: workspaceID, MaxSize: maxSize, AutoKeepEmail: email, AutoKeepMeetings: meetings})
 	return ids, mapError(err)
 }
 
@@ -91,11 +91,6 @@ func (s *Store) HandlesOnRecords(ctx context.Context, workspaceID string) ([]sto
 
 func (s *Store) KeptWithoutPerson(ctx context.Context, workspaceID string) ([]storage.Handle, error) {
 	return many(toHandle)(s.in.KeptWithoutPerson(ctx, workspaceID))
-}
-
-func (s *Store) SkipPersonHandles(ctx context.Context, workspaceID, personID string) ([]string, error) {
-	ids, err := s.in.SkipPersonHandles(ctx, intdb.SkipPersonHandlesParams{WorkspaceID: workspaceID, PersonID: &personID})
-	return ids, mapError(err)
 }
 
 func (s *Store) UnassessedHandles(ctx context.Context, workspaceID string, limit int32) ([]storage.UnassessedHandle, error) {

@@ -114,3 +114,9 @@ SELECT * FROM workspace_invites WHERE email = lower(@email::text);
 
 -- name: DeleteInvite :execrows
 DELETE FROM workspace_invites WHERE workspace_id = $1 AND id = $2;
+
+-- name: GetTriageSettings :one
+SELECT auto_keep_email, auto_keep_meetings, auto_keep_records, auto_keep_ai FROM workspaces WHERE id = $1;
+
+-- name: UpdateTriageSettings :execrows
+UPDATE workspaces SET auto_keep_email = $2, auto_keep_meetings = $3, auto_keep_records = $4, auto_keep_ai = $5 WHERE id = $1;

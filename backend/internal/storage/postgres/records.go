@@ -6,7 +6,9 @@ import (
 
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 	authdb "github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/generated/auth"
+	intdb "github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/generated/interactions"
 	recdb "github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/generated/records"
+	"github.com/jackc/pgx/v5"
 )
 
 func toObject(r recdb.Object) storage.Object          { return storage.Object(r) }
@@ -39,7 +41,25 @@ func (s *Store) AddAttributeOption(ctx context.Context, workspaceID, attributeID
 }
 
 func (s *Store) DeleteRecord(ctx context.Context, workspaceID, id string) error {
-	return affected(s.rec.DeleteRecord(ctx, recdb.DeleteRecordParams{WorkspaceID: workspaceID, ID: id}))
+	return mapError(pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
+		r := s.rec.WithTx(tx)
+		q := s.in.WithTx(tx)
+		if _, err := r.LockRecordForDeletion(ctx, recdb.LockRecordForDeletionParams{WorkspaceID: workspaceID, ID: id}); err != nil {
+			return err
+		}
+		handles, err := q.SkipRecordHandles(ctx, intdb.SkipRecordHandlesParams{WorkspaceID: workspaceID, RecordID: &id})
+		if err != nil {
+			return err
+		}
+		ids, err := q.InteractionsOfHandles(ctx, handles)
+		if err != nil {
+			return err
+		}
+		if err := affected(r.DeleteRecord(ctx, recdb.DeleteRecordParams{WorkspaceID: workspaceID, ID: id})); err != nil {
+			return err
+		}
+		return relink(ctx, q, ids)
+	}))
 }
 
 func (s *Store) Records(ctx context.Context, workspaceID string, ids []string) ([]storage.Record, error) {

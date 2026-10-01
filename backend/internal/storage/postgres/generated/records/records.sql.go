@@ -394,6 +394,27 @@ func (q *Queries) LockRecord(ctx context.Context, arg LockRecordParams) (Record,
 	return i, err
 }
 
+const lockRecordForDeletion = `-- name: LockRecordForDeletion :one
+SELECT id, workspace_id, object_id, created_at FROM records WHERE workspace_id = $1 AND id = $2 FOR UPDATE
+`
+
+type LockRecordForDeletionParams struct {
+	WorkspaceID string
+	ID          string
+}
+
+func (q *Queries) LockRecordForDeletion(ctx context.Context, arg LockRecordForDeletionParams) (Record, error) {
+	row := q.db.QueryRow(ctx, lockRecordForDeletion, arg.WorkspaceID, arg.ID)
+	var i Record
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.ObjectID,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const lockStatus = `-- name: LockStatus :one
 SELECT attributes.id, attributes.object_id, attributes.slug, attributes.name, attributes.type, attributes.multi, attributes.is_unique, attributes.target_object_id, attributes.created_at, attributes.options FROM attributes JOIN objects ON objects.id = attributes.object_id
 WHERE objects.workspace_id = $1 AND attributes.id = $2 AND attributes.type = 'status'

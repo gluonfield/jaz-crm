@@ -53,6 +53,9 @@ JOIN objects ON objects.id = attributes.object_id
 WHERE objects.workspace_id = $1
 ORDER BY attributes.object_id, attributes.created_at, attributes.slug;
 
+-- name: LockRecordForDeletion :one
+SELECT * FROM records WHERE workspace_id = $1 AND id = $2 FOR UPDATE;
+
 -- name: DeleteRecord :execrows
 DELETE FROM records WHERE workspace_id = $1 AND id = $2;
 

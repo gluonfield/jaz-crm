@@ -202,20 +202,28 @@ WHERE handles.workspace_id = $1
   AND EXISTS (
     SELECT 1 FROM participants own
     JOIN handles internal ON internal.id = own.handle_id AND internal.triage = 'internal'
-    WHERE own.interaction_id = interactions.id AND own.role IN ('from', 'organizer', 'attendee')
+    WHERE own.interaction_id = interactions.id AND (($3::boolean AND interactions.kind = 'email' AND own.role = 'from')
+      OR ($4::boolean AND interactions.kind = 'meeting' AND own.role IN ('organizer', 'attendee')))
   )
 `
 
 type EngagedHandlesParams struct {
-	WorkspaceID string
-	MaxSize     int32
+	WorkspaceID      string
+	MaxSize          int32
+	AutoKeepEmail    bool
+	AutoKeepMeetings bool
 }
 
 // EngagedHandles are undecided or heuristically skipped handles someone in the
 // workspace wrote to, or met with, in a conversation of at most max_size
 // participants.
 func (q *Queries) EngagedHandles(ctx context.Context, arg EngagedHandlesParams) ([]string, error) {
-	rows, err := q.db.Query(ctx, engagedHandles, arg.WorkspaceID, arg.MaxSize)
+	rows, err := q.db.Query(ctx, engagedHandles,
+		arg.WorkspaceID,
+		arg.MaxSize,
+		arg.AutoKeepEmail,
+		arg.AutoKeepMeetings,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -1028,21 +1036,31 @@ func (q *Queries) SkipPendingHandle(ctx context.Context, arg SkipPendingHandlePa
 	return err
 }
 
-const skipPersonHandles = `-- name: SkipPersonHandles :many
+const skipRecordHandles = `-- name: SkipRecordHandles :many
+WITH domains AS (
+    SELECT DISTINCT record_values.text AS domain FROM record_values
+    JOIN attributes ON attributes.id = record_values.attribute_id AND attributes.type = 'domain'
+    JOIN records ON records.id = record_values.record_id AND records.workspace_id = $1
+    JOIN objects ON objects.id = records.object_id AND objects.slug = 'companies'
+    WHERE records.id = $2 AND record_values.active_until IS NULL
+), blocked AS (
+    INSERT INTO domain_rules (workspace_id, domain, triage, reason)
+    SELECT $1, domain, 'skipped', 'company deleted' FROM domains
+    ON CONFLICT ON CONSTRAINT domain_rules_pkey DO UPDATE SET triage = 'skipped', reason = EXCLUDED.reason
+)
 UPDATE handles SET triage = 'skipped', decided_by = 'user', reason = 'record deleted'
-WHERE workspace_id = $1 AND person_id = $2 AND triage <> 'internal'
+WHERE handles.workspace_id = $1 AND handles.triage <> 'internal'
+    AND (handles.person_id = $2 OR (handles.kind = 'email' AND split_part(handles.value, '@', 2) IN (SELECT domain FROM domains)))
 RETURNING id
 `
 
-type SkipPersonHandlesParams struct {
+type SkipRecordHandlesParams struct {
 	WorkspaceID string
-	PersonID    *string
+	RecordID    *string
 }
 
-// SkipPersonHandles skips the addresses of a person being deleted, so triage
-// does not create them again.
-func (q *Queries) SkipPersonHandles(ctx context.Context, arg SkipPersonHandlesParams) ([]string, error) {
-	rows, err := q.db.Query(ctx, skipPersonHandles, arg.WorkspaceID, arg.PersonID)
+func (q *Queries) SkipRecordHandles(ctx context.Context, arg SkipRecordHandlesParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, skipRecordHandles, arg.WorkspaceID, arg.RecordID)
 	if err != nil {
 		return nil, err
 	}

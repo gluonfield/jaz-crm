@@ -94,3 +94,10 @@ export type Connection = {
 }
 
 export type Connections = { connections: Connection[]; connect_url?: string; since: string }
+
+export type TriageSettings = {
+  auto_keep_email: boolean
+  auto_keep_meetings: boolean
+  auto_keep_records: boolean
+  auto_keep_ai: boolean
+}

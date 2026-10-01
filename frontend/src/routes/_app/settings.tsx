@@ -3,6 +3,7 @@ import { Plus, Settings } from 'lucide-react'
 import { useState } from 'react'
 import { Button, Header, Row, Section, inputClass } from '@/components/controls'
 import { DeleteWorkspace } from '@/components/delete-workspace'
+import { TriageSettings } from '@/components/triage-settings'
 import { useAPIKeys, useCreateAPIKey, useGrants, useRevoke } from '@/lib/account'
 import { embedded } from '@/lib/api'
 import { slugify } from '@/lib/crm'
@@ -44,6 +45,7 @@ function SettingsPage() {
             ))}
             {admin && <Invite />}
           </Section>
+          <TriageSettings admin={!!admin} />
           <Section title="Objects">
             {objects.map((o) => (
               <ObjectRow key={o.slug} object={o} objects={objects} />

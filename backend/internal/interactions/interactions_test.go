@@ -29,6 +29,15 @@ type env struct {
 // company domain, cas.dev.
 func setup(t *testing.T, classifier interactions.Classifier) env {
 	t.Helper()
+	e := setupManual(t, classifier)
+	if err := e.store.UpdateTriageSettings(ctx, e.a.WorkspaceID, storage.TriageSettings{AutoKeepEmail: true, AutoKeepMeetings: true, AutoKeepRecords: true, AutoKeepAi: true}); err != nil {
+		t.Fatal(err)
+	}
+	return e
+}
+
+func setupManual(t *testing.T, classifier interactions.Classifier) env {
+	t.Helper()
 	store := postgrestest.New(t)
 	people := workspaces.NewService(store, workspaces.Config{})
 	var actors []auth.Actor
@@ -246,10 +255,10 @@ func TestDeletedPeopleStayDeleted(t *testing.T) {
 	if ada.PersonID == "" {
 		t.Fatalf("ada was not kept: %+v", ada)
 	}
-	if err := e.svc.Delete(ctx, e.b, ada.PersonID); err == nil {
+	if err := e.crm.Delete(ctx, e.b, ada.PersonID); err == nil {
 		t.Fatal("deleted another workspace's person")
 	}
-	if err := e.svc.Delete(ctx, e.a, ada.PersonID); err != nil {
+	if err := e.crm.Delete(ctx, e.a, ada.PersonID); err != nil {
 		t.Fatal(err)
 	}
 	e.ingest(t, message(e.conn, "o2", "t2", "owner@cas.dev", "ada@customer.io"))

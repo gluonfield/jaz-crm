@@ -140,3 +140,41 @@ func TestWorkspaceDeletion(t *testing.T) {
 		t.Errorf("the last workspace could not be deleted: %v", err)
 	}
 }
+
+func TestTriageSettingsAuthorization(t *testing.T) {
+	e := serve(t)
+	ctx := context.Background()
+	key := e.apiKey(t, "owner@example.com")
+	owner := e.session(t, key)
+	settings := mustCall(t, owner, "get_triage_settings", nil)
+	for flag, enabled := range settings {
+		if enabled != false {
+			t.Fatalf("new workspace auto-approves %s: %v", flag, enabled)
+		}
+	}
+	mustCall(t, owner, "update_triage_settings", map[string]any{"auto_keep_email": true, "auto_keep_meetings": false, "auto_keep_records": false, "auto_keep_ai": false})
+	if settings = mustCall(t, owner, "get_triage_settings", nil); settings["auto_keep_email"] != true || settings["auto_keep_meetings"] != false {
+		t.Fatalf("settings not persisted independently: %v", settings)
+	}
+	mustCall(t, owner, "invite_member", map[string]any{"email": "triage-member@example.com"})
+	member, err := e.people.SignIn(ctx, signin.Identity{Issuer: "https://idp.test", Subject: "triage-member", Email: "triage-member@example.com", EmailVerified: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	memberKey, _, err := e.keys.CreateKey(ctx, member.ID, "member", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	session := e.session(t, memberKey)
+	if _, failure := call(t, session, "update_triage_settings", map[string]any{"auto_keep_email": false, "auto_keep_meetings": true, "auto_keep_records": false, "auto_keep_ai": false}); failure == "" {
+		t.Fatal("member changed workspace auto-approval policy")
+	}
+	if got := mustCall(t, session, "get_triage_settings", nil); got["auto_keep_email"] != true || got["auto_keep_meetings"] != false {
+		t.Fatalf("member must see shared policy unchanged: %v", got)
+	}
+	otherKey := e.apiKey(t, "other@example.com")
+	other := e.session(t, otherKey)
+	if got := mustCall(t, other, "get_triage_settings", nil); got["auto_keep_email"] != false {
+		t.Fatalf("another workspace inherited approvals: %v", got)
+	}
+}

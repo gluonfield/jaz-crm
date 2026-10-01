@@ -1,6 +1,6 @@
 import { useMutation } from '@tanstack/react-query'
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
-import { Check, Inbox, Search, X } from 'lucide-react'
+import { Check, Inbox, Search, Settings, X } from 'lucide-react'
 import { useState } from 'react'
 import { Button, Header, Tab, inputClass } from '@/components/controls'
 import { ConnectGoogle, EmptyState } from '@/components/empty-state'
@@ -22,7 +22,7 @@ const tabs: { status: Verdict; label: string }[] = [
   { status: 'skipped', label: 'Skipped' },
 ]
 
-const deciders: Record<string, string> = { rule: 'Rule', agent: 'Agent', user: 'You' }
+const deciders: Record<string, string> = { rule: 'Rule', agent: 'AI', engagement: 'Engagement', user: 'Workspace member' }
 
 function TriagePage() {
   const [status, setStatus] = useState<Verdict>('pending')
@@ -65,6 +65,7 @@ function TriagePage() {
           <Search className="pointer-events-none absolute left-2 size-3.5 text-ink-3" />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search" aria-label="Search addresses" className={cn(inputClass, 'w-56 pl-7')} />
         </label>
+        <Link to="/settings" hash="triage" className="flex items-center gap-1.5 px-2 text-ink-2 hover:text-ink"><Settings className="size-3.5" />Settings</Link>
       </Header>
       {listed?.length === 0 ? (
         <Empty status={status} query={query} />

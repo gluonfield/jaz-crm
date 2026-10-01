@@ -107,3 +107,15 @@ func (s *Store) InvitesByEmail(ctx context.Context, email string) ([]storage.Wor
 func (s *Store) DeleteInvite(ctx context.Context, workspaceID, id string) error {
 	return affected(s.auth.DeleteInvite(ctx, authdb.DeleteInviteParams{WorkspaceID: workspaceID, ID: id}))
 }
+
+func (s *Store) TriageSettings(ctx context.Context, workspaceID string) (storage.TriageSettings, error) {
+	settings, err := s.auth.GetTriageSettings(ctx, workspaceID)
+	return storage.TriageSettings(settings), mapError(err)
+}
+
+func (s *Store) UpdateTriageSettings(ctx context.Context, workspaceID string, settings storage.TriageSettings) error {
+	return affected(s.auth.UpdateTriageSettings(ctx, authdb.UpdateTriageSettingsParams{
+		ID: workspaceID, AutoKeepEmail: settings.AutoKeepEmail, AutoKeepMeetings: settings.AutoKeepMeetings,
+		AutoKeepRecords: settings.AutoKeepRecords, AutoKeepAi: settings.AutoKeepAi,
+	}))
+}

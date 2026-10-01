@@ -6,10 +6,14 @@ import (
 )
 
 type Workspace struct {
-	ID          string
-	Name        string
-	CreatedAt   time.Time
-	Description string
+	ID               string
+	Name             string
+	CreatedAt        time.Time
+	Description      string
+	AutoKeepEmail    bool
+	AutoKeepMeetings bool
+	AutoKeepRecords  bool
+	AutoKeepAi       bool
 }
 
 // User is a person's membership of one workspace.
@@ -153,6 +157,13 @@ type WorkspaceInvite struct {
 	CreatedAt   time.Time
 }
 
+type TriageSettings struct {
+	AutoKeepEmail    bool `json:"auto_keep_email"`
+	AutoKeepMeetings bool `json:"auto_keep_meetings"`
+	AutoKeepRecords  bool `json:"auto_keep_records"`
+	AutoKeepAi       bool `json:"auto_keep_ai"`
+}
+
 type WorkspaceStore interface {
 	Workspace(ctx context.Context, id string) (Workspace, error)
 	UserByID(ctx context.Context, id string) (User, error)
@@ -168,6 +179,8 @@ type WorkspaceStore interface {
 	// identity, and its objects, atomically.
 	CreateOwnedWorkspace(ctx context.Context, name string, owner NewUser, identity Identity, objects []NewObject) (User, error)
 	UpdateWorkspace(ctx context.Context, id, name, description string) error
+	TriageSettings(ctx context.Context, workspaceID string) (TriageSettings, error)
+	UpdateTriageSettings(ctx context.Context, workspaceID string, settings TriageSettings) error
 	DeleteWorkspace(ctx context.Context, id, name string) error
 	// JoinWorkspace turns an invite into a member linked to the identity.
 	JoinWorkspace(ctx context.Context, invite WorkspaceInvite, member NewUser, identity Identity) (User, error)

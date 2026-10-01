@@ -193,11 +193,9 @@ type InteractionStore interface {
 	// MarkInternal files undecided handles at the given addresses or domains as
 	// internal.
 	MarkInternal(ctx context.Context, workspaceID string, addresses, domains []string) error
-	EngagedHandles(ctx context.Context, workspaceID string, maxSize int32) ([]string, error)
+	EngagedHandles(ctx context.Context, workspaceID string, maxSize int32, email, meetings bool) ([]string, error)
 	HandlesOnRecords(ctx context.Context, workspaceID string) ([]HandleRecord, error)
 	KeptWithoutPerson(ctx context.Context, workspaceID string) ([]Handle, error)
-	// SkipPersonHandles skips a person's addresses, returning their ids.
-	SkipPersonHandles(ctx context.Context, workspaceID, personID string) ([]string, error)
 	UnassessedHandles(ctx context.Context, workspaceID string, limit int32) ([]UnassessedHandle, error)
 
 	// EmailThreadByMessageIDs returns ErrNotFound when no message is known.

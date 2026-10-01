@@ -67,7 +67,8 @@ WHERE handles.workspace_id = @workspace_id
   AND EXISTS (
     SELECT 1 FROM participants own
     JOIN handles internal ON internal.id = own.handle_id AND internal.triage = 'internal'
-    WHERE own.interaction_id = interactions.id AND own.role IN ('from', 'organizer', 'attendee')
+    WHERE own.interaction_id = interactions.id AND ((@auto_keep_email::boolean AND interactions.kind = 'email' AND own.role = 'from')
+      OR (@auto_keep_meetings::boolean AND interactions.kind = 'meeting' AND own.role IN ('organizer', 'attendee')))
   );
 
 -- name: HandlesOnRecords :many
@@ -81,11 +82,21 @@ WHERE handles.workspace_id = @workspace_id
   AND (handles.triage IN ('pending', 'kept') AND handles.person_id IS NULL
     OR handles.triage = 'skipped' AND handles.decided_by IN ('rule', 'agent'));
 
--- name: SkipPersonHandles :many
--- SkipPersonHandles skips the addresses of a person being deleted, so triage
--- does not create them again.
+-- name: SkipRecordHandles :many
+WITH domains AS (
+    SELECT DISTINCT record_values.text AS domain FROM record_values
+    JOIN attributes ON attributes.id = record_values.attribute_id AND attributes.type = 'domain'
+    JOIN records ON records.id = record_values.record_id AND records.workspace_id = @workspace_id
+    JOIN objects ON objects.id = records.object_id AND objects.slug = 'companies'
+    WHERE records.id = @record_id AND record_values.active_until IS NULL
+), blocked AS (
+    INSERT INTO domain_rules (workspace_id, domain, triage, reason)
+    SELECT @workspace_id, domain, 'skipped', 'company deleted' FROM domains
+    ON CONFLICT ON CONSTRAINT domain_rules_pkey DO UPDATE SET triage = 'skipped', reason = EXCLUDED.reason
+)
 UPDATE handles SET triage = 'skipped', decided_by = 'user', reason = 'record deleted'
-WHERE workspace_id = $1 AND person_id = $2 AND triage <> 'internal'
+WHERE handles.workspace_id = @workspace_id AND handles.triage <> 'internal'
+    AND (handles.person_id = @record_id OR (handles.kind = 'email' AND split_part(handles.value, '@', 2) IN (SELECT domain FROM domains)))
 RETURNING id;
 
 -- name: KeptWithoutPerson :many

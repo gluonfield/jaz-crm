@@ -19,6 +19,7 @@ import (
 	"github.com/gluonfield/jaz-crm/backend/internal/google"
 	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
 	"github.com/gluonfield/jaz-crm/backend/internal/records"
+	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
 	"github.com/gluonfield/jaz-crm/backend/internal/workspaces"
 	"go.temporal.io/sdk/testsuite"
@@ -162,6 +163,9 @@ func TestSyncAgainstGoogle(t *testing.T) {
 		Backfill:  365 * 24 * time.Hour,
 	}, &starts)
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.UpdateTriageSettings(ctx, owner.WorkspaceID, storage.TriageSettings{AutoKeepEmail: true, AutoKeepMeetings: true}); err != nil {
 		t.Fatal(err)
 	}
 	crm := records.NewService(store)

@@ -97,9 +97,9 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 			return out, nil
 		})
 	add(r, &mcp.Tool{Name: "delete_record", Title: "Delete record",
-		Description: "Delete a record with its values and links to interactions. A deleted person's addresses are skipped in triage, so sync does not add them back."},
+		Description: "Delete a record with its values and links to interactions. A deleted person's addresses and a deleted company's domains are skipped in triage, so sync does not add them back."},
 		func(ctx context.Context, actor auth.Actor, in recordInput) (empty, error) {
-			return empty{}, conversations.Delete(ctx, actor, in.RecordID)
+			return empty{}, crm.Delete(ctx, actor, in.RecordID)
 		})
 	add(r, &mcp.Tool{Annotations: &mcp.ToolAnnotations{DestructiveHint: new(false)}, Name: "create_object", Title: "Create object",
 		Description: "Create a record type, such as quotes or suppliers. It starts with a name attribute."},

@@ -115,7 +115,7 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) er
 }
 
 const createWorkspace = `-- name: CreateWorkspace :one
-INSERT INTO workspaces (name) VALUES ($1) RETURNING id, name, created_at, description
+INSERT INTO workspaces (name) VALUES ($1) RETURNING id, name, created_at, description, auto_keep_email, auto_keep_meetings, auto_keep_records, auto_keep_ai
 `
 
 func (q *Queries) CreateWorkspace(ctx context.Context, name string) (Workspace, error) {
@@ -126,6 +126,10 @@ func (q *Queries) CreateWorkspace(ctx context.Context, name string) (Workspace, 
 		&i.Name,
 		&i.CreatedAt,
 		&i.Description,
+		&i.AutoKeepEmail,
+		&i.AutoKeepMeetings,
+		&i.AutoKeepRecords,
+		&i.AutoKeepAi,
 	)
 	return i, err
 }
@@ -190,6 +194,29 @@ func (q *Queries) DeleteWorkspace(ctx context.Context, arg DeleteWorkspaceParams
 	return result.RowsAffected(), nil
 }
 
+const getTriageSettings = `-- name: GetTriageSettings :one
+SELECT auto_keep_email, auto_keep_meetings, auto_keep_records, auto_keep_ai FROM workspaces WHERE id = $1
+`
+
+type GetTriageSettingsRow struct {
+	AutoKeepEmail    bool
+	AutoKeepMeetings bool
+	AutoKeepRecords  bool
+	AutoKeepAi       bool
+}
+
+func (q *Queries) GetTriageSettings(ctx context.Context, id string) (GetTriageSettingsRow, error) {
+	row := q.db.QueryRow(ctx, getTriageSettings, id)
+	var i GetTriageSettingsRow
+	err := row.Scan(
+		&i.AutoKeepEmail,
+		&i.AutoKeepMeetings,
+		&i.AutoKeepRecords,
+		&i.AutoKeepAi,
+	)
+	return i, err
+}
+
 const getUser = `-- name: GetUser :one
 SELECT id, workspace_id, name, email, avatar_url, admin, created_at FROM users WHERE id = $1
 `
@@ -210,7 +237,7 @@ func (q *Queries) GetUser(ctx context.Context, id string) (User, error) {
 }
 
 const getWorkspace = `-- name: GetWorkspace :one
-SELECT id, name, created_at, description FROM workspaces WHERE id = $1
+SELECT id, name, created_at, description, auto_keep_email, auto_keep_meetings, auto_keep_records, auto_keep_ai FROM workspaces WHERE id = $1
 `
 
 func (q *Queries) GetWorkspace(ctx context.Context, id string) (Workspace, error) {
@@ -221,6 +248,10 @@ func (q *Queries) GetWorkspace(ctx context.Context, id string) (Workspace, error
 		&i.Name,
 		&i.CreatedAt,
 		&i.Description,
+		&i.AutoKeepEmail,
+		&i.AutoKeepMeetings,
+		&i.AutoKeepRecords,
+		&i.AutoKeepAi,
 	)
 	return i, err
 }
@@ -507,6 +538,32 @@ type UpdateSessionUserParams struct {
 // UpdateSessionUser moves a session to another of its person's users.
 func (q *Queries) UpdateSessionUser(ctx context.Context, arg UpdateSessionUserParams) (int64, error) {
 	result, err := q.db.Exec(ctx, updateSessionUser, arg.TokenHash, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const updateTriageSettings = `-- name: UpdateTriageSettings :execrows
+UPDATE workspaces SET auto_keep_email = $2, auto_keep_meetings = $3, auto_keep_records = $4, auto_keep_ai = $5 WHERE id = $1
+`
+
+type UpdateTriageSettingsParams struct {
+	ID               string
+	AutoKeepEmail    bool
+	AutoKeepMeetings bool
+	AutoKeepRecords  bool
+	AutoKeepAi       bool
+}
+
+func (q *Queries) UpdateTriageSettings(ctx context.Context, arg UpdateTriageSettingsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateTriageSettings,
+		arg.ID,
+		arg.AutoKeepEmail,
+		arg.AutoKeepMeetings,
+		arg.AutoKeepRecords,
+		arg.AutoKeepAi,
+	)
 	if err != nil {
 		return 0, err
 	}

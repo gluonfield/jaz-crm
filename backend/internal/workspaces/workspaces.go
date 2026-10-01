@@ -18,7 +18,7 @@ import (
 var (
 	ErrEmailUnverified = errors.New("your identity provider has not verified this email address")
 	ErrNotAllowed      = errors.New("this email address is not allowed to sign in here")
-	ErrForbidden       = errs.Invalid{Message: "only workspace admins can invite people or change the workspace"}
+	ErrForbidden       = errs.Invalid{Message: "only workspace admins can manage the workspace"}
 	ErrInvalidEmail    = errs.Invalid{Message: "enter a valid email address"}
 	ErrInvalidName     = errs.Invalid{Message: "a workspace name is 1 to 80 characters"}
 	ErrNotMember       = errs.Invalid{Message: "you are not a member of that workspace"}
@@ -283,4 +283,15 @@ func member(id signin.Identity) storage.NewUser {
 		user.AvatarURL = &id.Picture
 	}
 	return user
+}
+
+func (s *Service) TriageSettings(ctx context.Context, actor auth.Actor) (storage.TriageSettings, error) {
+	return s.store.TriageSettings(ctx, actor.WorkspaceID)
+}
+
+func (s *Service) UpdateTriageSettings(ctx context.Context, actor auth.Actor, settings storage.TriageSettings) error {
+	if err := s.requireAdmin(ctx, actor); err != nil {
+		return err
+	}
+	return s.store.UpdateTriageSettings(ctx, actor.WorkspaceID, settings)
 }

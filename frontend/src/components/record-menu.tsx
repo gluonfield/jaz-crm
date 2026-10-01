@@ -73,6 +73,7 @@ export function RecordMenu({ object, record, children }: { object: CrmObject; re
           <p id={description} className="text-[13px] leading-relaxed text-ink-2">
             Its details and links to conversations will be deleted. This cannot be undone.
             {record.object === 'people' && ' Their addresses move to Skipped in Triage, so sync will not add them back.'}
+            {record.object === 'companies' && ' Contacts at its domains move to Skipped in Triage, including future senders, so sync will not add the company back.'}
           </p>
           <div className="flex justify-end gap-2">
             <Button onClick={() => setDeleting(false)}>Cancel</Button>

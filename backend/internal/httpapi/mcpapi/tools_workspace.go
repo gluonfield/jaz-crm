@@ -6,11 +6,22 @@ import (
 	"strings"
 
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
+	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 	"github.com/gluonfield/jaz-crm/backend/internal/workspaces"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func registerWorkspace(r *registry, members *workspaces.Service, keys *auth.Service) {
+	add(r, &mcp.Tool{Name: "get_triage_settings", Title: "Triage settings", Annotations: readOnly,
+		Description: "Workspace auto-approval rules. All are off by default; explicit address and domain decisions still apply."},
+		func(ctx context.Context, actor auth.Actor, _ empty) (storage.TriageSettings, error) {
+			return members.TriageSettings(ctx, actor)
+		})
+	add(r, &mcp.Tool{Name: "update_triage_settings", Title: "Update triage settings",
+		Description: "Replace all four workspace auto-approval settings. Email and meeting rules apply only to conversations of at most 10 participants. AI requires a configured classifier and uses the workspace description. Admins only; enabling rules also processes existing pending contacts."},
+		func(ctx context.Context, actor auth.Actor, in storage.TriageSettings) (empty, error) {
+			return empty{}, members.UpdateTriageSettings(ctx, actor, in)
+		})
 	add(r, &mcp.Tool{Name: "list_workspaces", Title: "List workspaces", Annotations: readOnly,
 		Description: "The workspaces you belong to; current is the one these calls act in."},
 		func(ctx context.Context, actor auth.Actor, _ empty) (workspacesOutput, error) {

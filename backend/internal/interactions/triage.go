@@ -22,30 +22,30 @@ const smallConversation = 10
 // assessBatch is how many addresses one classifier call judges.
 const assessBatch = 25
 
-// Triage settles what evidence can, strongest first: the workspace's own
-// addresses, addresses already on a record, then people someone in the
-// workspace wrote to or met, then asks the classifier about one batch of the
-// rest.
 func (s *Service) Triage(ctx context.Context, workspaceID string) error {
 	known, err := s.Known(ctx, workspaceID)
 	if err != nil {
 		return err
 	}
-	// Own addresses can become known after their mail arrived, such as a
-	// mailbox's aliases.
 	if err := s.store.MarkInternal(ctx, workspaceID, slices.Collect(maps.Keys(known.own)), slices.Collect(maps.Keys(known.domains))); err != nil {
 		return err
 	}
-	onRecords, err := s.store.HandlesOnRecords(ctx, workspaceID)
+	settings, err := s.workspaces.TriageSettings(ctx, workspaceID)
 	if err != nil {
 		return err
 	}
-	for _, pair := range onRecords {
-		if err := s.keepByID(ctx, workspaceID, pair.ID, pair.RecordID, "already a record"); err != nil {
+	if settings.AutoKeepRecords {
+		onRecords, err := s.store.HandlesOnRecords(ctx, workspaceID)
+		if err != nil {
 			return err
 		}
+		for _, pair := range onRecords {
+			if err := s.keepByID(ctx, workspaceID, pair.ID, pair.RecordID, "already a record"); err != nil {
+				return err
+			}
+		}
 	}
-	engaged, err := s.store.EngagedHandles(ctx, workspaceID, smallConversation)
+	engaged, err := s.store.EngagedHandles(ctx, workspaceID, smallConversation, settings.AutoKeepEmail, settings.AutoKeepMeetings)
 	if err != nil {
 		return err
 	}
@@ -54,16 +54,19 @@ func (s *Service) Triage(ctx context.Context, workspaceID string) error {
 			return err
 		}
 	}
-	orphans, err := s.store.KeptWithoutPerson(ctx, workspaceID)
+	approved, err := s.store.KeptWithoutPerson(ctx, workspaceID)
 	if err != nil {
 		return err
 	}
-	for _, h := range orphans {
+	for _, h := range approved {
 		if err := s.keep(ctx, h, "", *h.DecidedBy, h.Reason); err != nil {
 			return err
 		}
 	}
-	return s.assess(ctx, workspaceID)
+	if settings.AutoKeepAi {
+		return s.assess(ctx, workspaceID)
+	}
+	return nil
 }
 
 func (s *Service) keepByID(ctx context.Context, workspaceID, id, personID, reason string) error {
@@ -72,6 +75,9 @@ func (s *Service) keepByID(ctx context.Context, workspaceID, id, personID, reaso
 		return err
 	}
 	h := handles[0]
+	if h.Triage == Skipped && deref(h.DecidedBy) == ByUser {
+		return nil
+	}
 	by := ByEngagement
 	if h.Triage == Kept {
 		by = *h.DecidedBy
@@ -160,6 +166,9 @@ func (s *Service) assess(ctx context.Context, workspaceID string) error {
 		if err != nil || len(handles) == 0 {
 			return err
 		}
+		if handles[0].Triage != Pending {
+			continue
+		}
 		switch j.Verdict {
 		case "keep":
 			err = s.keep(ctx, handles[0], "", ByAgent, j.Reason)
@@ -240,22 +249,6 @@ func (s *Service) Decide(ctx context.Context, actor auth.Actor, d Decision) (int
 		changed++
 	}
 	return changed, nil
-}
-
-// Delete deletes a record. A deleted person's addresses are skipped first, as
-// though a person had skipped them, so triage does not create them again.
-func (s *Service) Delete(ctx context.Context, actor auth.Actor, recordID string) error {
-	if _, err := s.records.Get(ctx, actor, recordID); err != nil {
-		return err
-	}
-	handles, err := s.store.SkipPersonHandles(ctx, actor.WorkspaceID, recordID)
-	if err != nil {
-		return err
-	}
-	if err := s.relink(ctx, handles...); err != nil {
-		return err
-	}
-	return s.records.Delete(ctx, actor, recordID)
 }
 
 // address normalizes an email or phone number a person typed.
