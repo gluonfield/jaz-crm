@@ -5,9 +5,10 @@ import type { Attribute, CrmObject, StageEdit } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { Button, inputClass } from './controls'
 import { StageDot } from './stage'
+import { menuItem } from './ui/menu'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
 
-const actionClass = 'flex h-8 w-full items-center gap-2 rounded-[5px] px-2 text-[13px] text-ink-2 outline-none hover:bg-list-active hover:text-ink focus-visible:bg-list-active disabled:opacity-40 [&_svg]:size-3.5'
+const actionClass = cn(menuItem, 'w-full hover:bg-list-active disabled:opacity-50')
 
 export function StageMenu({ object, status, stage, onCollapse, onPointerDown, disabled }: {
   object: CrmObject
@@ -49,7 +50,7 @@ export function StageMenu({ object, status, stage, onCollapse, onPointerDown, di
           className="flex size-6 shrink-0 touch-none cursor-grab items-center justify-center rounded-[var(--radius-control)] text-ink-3 outline-none hover:bg-list-active hover:text-ink focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing disabled:opacity-40"
         ><GripVertical className="size-3.5" /></button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-[272px] overflow-hidden rounded-[12px] border-border bg-raised p-0">
+      <PopoverContent align="end" className="w-[272px] overflow-hidden rounded-[var(--radius-card)] p-0">
         {deleting ? (
           <form className="flex flex-col gap-3 p-3" onSubmit={(e) => {
             e.preventDefault()
@@ -82,14 +83,14 @@ export function StageMenu({ object, status, stage, onCollapse, onPointerDown, di
               <input aria-label="Stage name" maxLength={80} value={name} onChange={(e) => setName(e.target.value)} disabled={pending} className={cn(inputClass, 'flex-1 focus:border-ink-3/40')} />
               <Button type="submit" ghost aria-label="Save stage name" disabled={pending || !name.trim() || name.trim() === stage} className="px-1.5"><Check /></Button>
             </form>
-            <div className="p-1">
+            <div className="p-1.5">
               <button type="button" className={actionClass} disabled={pending || index === 0} onClick={() => save({ action: 'move', before: options[index - 1] })}><ArrowLeft />Move left</button>
               <button type="button" className={actionClass} disabled={pending || index === options.length - 1} onClick={() => save({ action: 'move', before: options[index + 2] })}><ArrowRight />Move right</button>
               <button type="button" className={actionClass} onClick={() => {
                 setOpen(false)
                 onCollapse()
               }}><PanelLeftClose />Collapse stage</button>
-              <button type="button" className={cn(actionClass, 'text-destructive hover:bg-destructive/10 hover:text-destructive')} disabled={pending || others.length === 0} title={others.length === 0 ? 'Keep at least one stage' : undefined} onClick={() => setDeleting(true)}><Trash2 />Delete stage</button>
+              <button type="button" className={actionClass} disabled={pending || others.length === 0} title={others.length === 0 ? 'Keep at least one stage' : undefined} onClick={() => setDeleting(true)}><Trash2 />Delete stage</button>
             </div>
           </>
         )}

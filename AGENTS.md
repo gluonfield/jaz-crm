@@ -11,16 +11,15 @@
 
 ## Jaz design language
 
-All Jaz products share this language. Jaz Tasks is the reference for layout, density, typography and interaction; CRM and future products should extend it with domain-specific content.
+Linear is the reference and Jaz Tasks its in-house model; CRM and future products match both.
 
-- Build a calm, compact work surface inspired by Linear. Let the user's records and actions establish the hierarchy. Keep labels concise and remove filler, redundant instructions and decorative UI.
-- Reuse existing components and semantic tokens from `frontend/src/styles.css`; follow `frontend/THEMING.md`. Share token names and meanings across products. Support light/dark schemes and MCP host theme variables, fonts, radii and shadows.
-- Use Inter, 13px base UI text, 12px secondary labels and restrained medium-weight headings. Keep icons around 16px, optically aligned with labels. Use monospace for code and tabular figures for changing counts.
-- Separate surfaces with subtle fills and spacing: `bg` for content, `panel` for chrome, `surface`/`raised` for elevated layers, and `ink`/`ink-2`/`ink-3` for text hierarchy. Use quiet hairlines only where separation needs them; reserve soft shadows for menus, dialogs and dragged items.
-- Follow Tasks' compact sidebar (232px desktop reference), slim page headers, aligned table rows and concise board cards. Use the same spacing rhythm and column alignment across screens. Keep creation and editing in focused contextual controls or dialogs.
-- Use a restrained primary accent for primary actions and selection, with white labels on solid primary buttons. Give secondary actions quiet neutral styles. Use status colours to convey actual state; preserve workspace-defined colours.
-- Default to 6px control radii and 10px card radii through the shared tokens. Keep nested corners visually concentric. Avoid oversized buttons and unnecessary bordered containers.
-- Keep row hover and selection subtle. Offer clear keyboard focus, accessible names, keyboard navigation and visible touch actions. Right-click menus complement discoverable controls.
-- Use short, interruptible transitions, usually 100–160ms, for hover, menus and small state changes. Preserve layout geometry, respect reduced motion and animate only named properties. Use movement to explain a change, without decorative bounce or page-load choreography.
-- Keep standalone and embedded surfaces consistent. Inline MCP results should fit their content; full app views retain navigation and record links.
-- Verify UI changes in the real screen with realistic content, both themes and a narrow/touch layout. Compare against Tasks before introducing a new visual pattern.
+- Calm, dense work surfaces. Records set the hierarchy; no filler copy, explanatory paragraphs or decorative UI.
+- Colour comes only from the tokens in `frontend/src/styles.css` (see `frontend/THEMING.md`): `bg` content, `panel` chrome, `raised` menus and dialogs, `ink`/`ink-2`/`ink-3` text, `border` hairlines, `primary` for selection and primary actions with white labels. Support light, dark and MCP host themes.
+- Inter 13px for UI, 12px for secondary text, medium-weight headings, tabular figures for counts. Icons are 16px in `ink-2`.
+- `--radius-control` (6px) for controls and rows, `--radius-card` (10px) for cards, menus and popovers. Separate surfaces by fill, not outlines; only floating layers get shadows.
+- Tasks' 232px sidebar, slim page headers, aligned table rows and short board cards. Create and edit in dialogs or contextual controls.
+- Menus share `components/ui/menu.tsx`, `context-menu.tsx` and `dropdown-menu.tsx`, kept identical in every product: 32px rows of icon and label, `ink-3` shortcut hints where a shortcut exists, a filled ▸ on submenus, edge-to-edge separators. Group properties, then actions, then delete; delete stays neutral and confirms. Property submenus use `ContextMenuOptions`: a filter field, a check on the current value and number keys 1–9.
+- Right-click menus repeat visible controls, never replace them. Hover and selection fills stay subtle; focus stays visible.
+- Motion is 100–160ms on named properties, interruptible, and off under reduced motion. No bounce or load choreography.
+- Inline MCP results fit their content; full app views keep navigation and record links.
+- Verify UI in the real screen with realistic data, both themes and a narrow width, against Tasks and Linear.

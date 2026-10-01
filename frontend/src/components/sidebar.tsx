@@ -120,7 +120,7 @@ function WorkspaceMenu() {
           <ChevronDown className="size-3 shrink-0 text-ink-3" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-56">
-          {me && <DropdownMenuLabel className="truncate text-[12px] font-normal text-ink-3">{me.email}</DropdownMenuLabel>}
+          {me && <DropdownMenuLabel>{me.email}</DropdownMenuLabel>}
           {workspaces.map((w) => (
             <DropdownMenuItem key={w.id} onSelect={() => !w.current && move.mutate({ workspace_id: w.id })}>
               <RecordIcon object="companies" name={w.name} size={16} />

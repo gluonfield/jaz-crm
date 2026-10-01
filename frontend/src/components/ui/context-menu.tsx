@@ -1,15 +1,8 @@
 import * as React from "react"
 import { cn } from "@/lib/utils"
-import { CheckIcon } from "lucide-react"
+import { CheckIcon, PlusIcon } from "lucide-react"
 import { ContextMenu as ContextMenuPrimitive } from "radix-ui"
-
-// Menus follow Linear's: roomy rows, icons as strong as their labels, a small
-// filled arrow on submenus, and separators that run edge to edge.
-const surface =
-  "z-50 max-h-(--radix-context-menu-content-available-height) min-w-44 origin-(--radix-context-menu-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-[var(--radius-card)] border bg-popover p-1.5 text-popover-foreground shadow-[var(--shadow-raised)] data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95"
-
-const row =
-  "relative flex h-8 cursor-default items-center gap-2.5 rounded-[var(--radius-control)] px-2 text-[13px] text-ink outline-hidden select-none focus:bg-list-active data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-ink-2"
+import { MenuShortcut, SubmenuArrow, menuContent, menuItem, menuSeparator } from "./menu"
 
 function ContextMenu({
   ...props
@@ -34,18 +27,19 @@ function ContextMenuSub({
 function ContextMenuSubTrigger({
   className,
   children,
+  shortcut,
   ...props
-}: React.ComponentProps<typeof ContextMenuPrimitive.SubTrigger>) {
+}: React.ComponentProps<typeof ContextMenuPrimitive.SubTrigger> & {
+  shortcut?: string
+}) {
   return (
     <ContextMenuPrimitive.SubTrigger
       data-slot="context-menu-sub-trigger"
-      className={cn(row, "data-[state=open]:bg-list-active", className)}
+      className={cn(menuItem, className)}
       {...props}
     >
       {children}
-      <svg viewBox="0 0 6 8" aria-hidden className="ml-auto size-2 fill-current text-ink-3">
-        <path d="M0 0l6 4-6 4z" />
-      </svg>
+      <SubmenuArrow shortcut={shortcut} />
     </ContextMenuPrimitive.SubTrigger>
   )
 }
@@ -58,7 +52,7 @@ function ContextMenuSubContent({
     <ContextMenuPrimitive.Portal>
       <ContextMenuPrimitive.SubContent
         data-slot="context-menu-sub-content"
-        className={cn(surface, className)}
+        className={cn(menuContent, className)}
         {...props}
       />
     </ContextMenuPrimitive.Portal>
@@ -73,7 +67,7 @@ function ContextMenuContent({
     <ContextMenuPrimitive.Portal>
       <ContextMenuPrimitive.Content
         data-slot="context-menu-content"
-        className={cn(surface, className)}
+        className={cn(menuContent, className)}
         {...props}
       />
     </ContextMenuPrimitive.Portal>
@@ -87,31 +81,9 @@ function ContextMenuItem({
   return (
     <ContextMenuPrimitive.Item
       data-slot="context-menu-item"
-      className={cn(row, className)}
+      className={cn(menuItem, className)}
       {...props}
     />
-  )
-}
-
-// ContextMenuCheckboxItem shows its box while checked or highlighted.
-function ContextMenuCheckboxItem({
-  className,
-  children,
-  ...props
-}: React.ComponentProps<typeof ContextMenuPrimitive.CheckboxItem>) {
-  return (
-    <ContextMenuPrimitive.CheckboxItem
-      data-slot="context-menu-checkbox-item"
-      className={cn(row, "group", className)}
-      {...props}
-    >
-      <span className="flex size-4 shrink-0 items-center justify-center rounded-[4px] border border-ink-3/60 opacity-0 group-data-[highlighted]:opacity-100 group-data-[state=checked]:border-primary group-data-[state=checked]:bg-primary group-data-[state=checked]:opacity-100">
-        <ContextMenuPrimitive.ItemIndicator>
-          <CheckIcon className="size-3 text-on-primary" strokeWidth={3} />
-        </ContextMenuPrimitive.ItemIndicator>
-      </span>
-      {children}
-    </ContextMenuPrimitive.CheckboxItem>
   )
 }
 
@@ -122,9 +94,136 @@ function ContextMenuSeparator({
   return (
     <ContextMenuPrimitive.Separator
       data-slot="context-menu-separator"
-      className={cn("-mx-1.5 my-1.5 h-px bg-border", className)}
+      className={cn(menuSeparator, className)}
       {...props}
     />
+  )
+}
+
+const ContextMenuShortcut = MenuShortcut
+
+type MenuOption = { value: string; label: string; icon?: React.ReactNode }
+
+// ContextMenuOptions is Linear's property submenu: a filter over the options,
+// the chosen ones checked, and number keys picking one of the first nine
+// before anything is typed. Typing anywhere in it, or on its row, filters.
+function ContextMenuOptions({
+  icon,
+  label,
+  shortcut,
+  placeholder = `Change ${label.toLowerCase()}…`,
+  options,
+  selected,
+  onSelect,
+  onCreate,
+  multiple = false,
+  disabled = false,
+}: {
+  icon: React.ReactNode
+  label: string
+  shortcut?: string
+  placeholder?: string
+  options: MenuOption[]
+  selected: string[]
+  onSelect: (value: string) => void
+  onCreate?: (label: string) => void
+  multiple?: boolean
+  disabled?: boolean
+}) {
+  const [query, setQuery] = React.useState("")
+  const input = React.useRef<HTMLInputElement>(null)
+  const text = query.trim()
+  const shown = options.filter((o) => o.label.toLowerCase().includes(text.toLowerCase()))
+  const exact = shown.findIndex((o) => o.label.toLowerCase() === text.toLowerCase())
+  const items = () => [...(input.current?.parentElement?.querySelectorAll<HTMLElement>("[role^=menuitem]") ?? [])]
+  const create = () => {
+    onCreate?.(text)
+    setQuery("")
+  }
+  const typeIn = (e: React.KeyboardEvent) => {
+    if (!input.current || e.key.length !== 1 || e.key === " " || e.metaKey || e.ctrlKey || e.altKey) {
+      return
+    }
+    e.stopPropagation()
+    if (!query && !onCreate && Number(e.key) >= 1) {
+      e.preventDefault()
+      items()[Number(e.key) - 1]?.click()
+    } else if (e.target !== input.current) {
+      input.current.focus()
+    }
+  }
+  return (
+    <ContextMenuSub onOpenChange={() => setQuery("")}>
+      <ContextMenuSubTrigger shortcut={shortcut} onKeyDownCapture={typeIn}>
+        {icon}
+        {label}
+      </ContextMenuSubTrigger>
+      <ContextMenuSubContent className="w-56" onKeyDownCapture={typeIn}>
+        <input
+          ref={input}
+          value={query}
+          aria-label={placeholder}
+          placeholder={placeholder}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key !== "Escape") {
+              e.stopPropagation()
+            }
+            if (e.key === "Enter" && text) {
+              if (exact < 0 && onCreate) {
+                create()
+              } else {
+                items()[Math.max(exact, 0)]?.click()
+                setQuery("")
+              }
+            }
+            if (e.key === "ArrowDown") {
+              items()[0]?.focus()
+            }
+          }}
+          className="h-8 w-full bg-transparent px-2 text-[13px] text-ink outline-none placeholder:text-ink-3"
+        />
+        {(shown.length > 0 || (text && onCreate)) && <ContextMenuSeparator />}
+        {shown.map((option, index) =>
+          multiple ? (
+            <ContextMenuPrimitive.CheckboxItem
+              key={option.value}
+              checked={selected.includes(option.value)}
+              disabled={disabled}
+              onSelect={(e) => e.preventDefault()}
+              onCheckedChange={() => onSelect(option.value)}
+              className={cn(menuItem, "group")}
+            >
+              <span className="flex size-4 shrink-0 items-center justify-center rounded-[4px] border border-ink-3/60 opacity-0 group-data-[highlighted]:opacity-100 group-data-[state=checked]:border-primary group-data-[state=checked]:bg-primary group-data-[state=checked]:opacity-100">
+                <ContextMenuPrimitive.ItemIndicator>
+                  <CheckIcon className="size-3 text-on-primary" strokeWidth={3} />
+                </ContextMenuPrimitive.ItemIndicator>
+              </span>
+              {option.icon}
+              <span className="truncate">{option.label}</span>
+            </ContextMenuPrimitive.CheckboxItem>
+          ) : (
+            <ContextMenuItem key={option.value} disabled={disabled} onSelect={() => onSelect(option.value)}>
+              {option.icon}
+              <span className="min-w-0 flex-1 truncate">{option.label}</span>
+              {selected.includes(option.value) && <CheckIcon className="text-ink" />}
+              {!text && !onCreate && index < 9 && <span className="w-3 text-right text-[12px] tabular-nums text-ink-3">{index + 1}</span>}
+            </ContextMenuItem>
+          ),
+        )}
+        {text && exact < 0 && onCreate && (
+          <ContextMenuItem
+            disabled={disabled}
+            onSelect={(e) => {
+              e.preventDefault()
+              create()
+            }}
+          >
+            <PlusIcon /> Create “{text}”
+          </ContextMenuItem>
+        )}
+      </ContextMenuSubContent>
+    </ContextMenuSub>
   )
 }
 
@@ -133,8 +232,9 @@ export {
   ContextMenuTrigger,
   ContextMenuContent,
   ContextMenuItem,
-  ContextMenuCheckboxItem,
+  ContextMenuOptions,
   ContextMenuSeparator,
+  ContextMenuShortcut,
   ContextMenuSub,
   ContextMenuSubTrigger,
   ContextMenuSubContent,
