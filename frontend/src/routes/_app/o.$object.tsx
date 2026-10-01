@@ -2,6 +2,7 @@ import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { ArrowDownAZ, Kanban, Plus, Search, Table2 } from 'lucide-react'
 import { type ReactNode, useRef, useState } from 'react'
 import { Board } from '@/components/board'
+import { CompanyPeople } from '@/components/company-people'
 import { Stage } from '@/components/stage'
 import { Button, Header } from '@/components/controls'
 import { CreateRecord } from '@/components/create-record'
@@ -116,6 +117,7 @@ function ObjectPage() {
             <thead className="sticky top-0 z-10 bg-bg">
               <tr className="h-9 border-b border-border text-left text-[12px] text-ink-3">
                 <th className="sticky left-0 z-20 min-w-56 bg-bg px-4 font-medium">{slug === 'companies' ? 'Company' : 'Name'}</th>
+                {slug === 'companies' && <th className="min-w-56 whitespace-nowrap px-3 font-medium">People</th>}
                 {columns.map((a) => (
                   <th key={a.slug} className="whitespace-nowrap px-3 font-medium">
                     {a.name}
@@ -138,6 +140,7 @@ function ObjectPage() {
                         <span className="truncate">{recordName(r)}</span>
                       </Link>
                     </td>
+                    {slug === 'companies' && <td className="min-w-56 px-3 text-ink-2"><CompanyPeople company={r} /></td>}
                     {columns.map((a) => (
                       <td key={a.slug} className={cn('max-w-80 px-3 text-ink-2', a.type === 'select' ? 'min-w-56' : 'min-w-40')}>
                         {a.type === 'select' ? <div onClick={(e) => e.stopPropagation()}><SelectField record={r} attribute={a} /></div> : cell(r, a)}
