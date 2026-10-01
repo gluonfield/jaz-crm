@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Button, Header, Tab, inputClass } from '@/components/controls'
 import { ConnectGoogle, EmptyState } from '@/components/empty-state'
 import { RecordIcon } from '@/components/icons'
+import { DomainLink } from '@/components/domain-link'
 import { Kbd } from '@/components/kbd'
 import { timeAgo } from '@/lib/format'
 import { useDebounced, useListKeys } from '@/lib/hooks'
@@ -87,19 +88,15 @@ function TriagePage() {
                         {c.name || c.address}
                       </Link>
                     ) : (
-                      <span className="truncate font-medium text-ink">{c.name || c.address}</span>
+                      <span className="truncate font-medium text-ink">{c.name || <Address address={c.address} domain={domain} />}</span>
                     )}
-                    {c.name && <span className="truncate text-ink-3">{c.address}</span>}
+                    {c.name && (
+                      <span className="truncate text-ink-3">
+                        <Address address={c.address} domain={domain} />
+                      </span>
+                    )}
                   </div>
                   <div className="truncate text-[12px] text-ink-3">
-                    {domain && (
-                      <>
-                        <a href={`https://${domain}`} target="_blank" rel="noreferrer" className="text-primary hover:underline">
-                          {domain}
-                        </a>
-                        {' · '}
-                      </>
-                    )}
                     {c.interactions} conversation{c.interactions === 1 ? '' : 's'} · {timeAgo(c.last_seen)}
                     {(c.decided_by || c.reason) && ` · ${[deciders[c.decided_by ?? ''], c.reason].filter(Boolean).join(': ')}`}
                   </div>
@@ -127,6 +124,18 @@ function TriagePage() {
         </ul>
       )}
     </>
+  )
+}
+
+// Address shows an email address whose company domain links to the company's site.
+function Address({ address, domain }: { address: string; domain?: string }) {
+  return domain ? (
+    <>
+      {address.slice(0, -domain.length)}
+      <DomainLink domain={domain} />
+    </>
+  ) : (
+    address
   )
 }
 

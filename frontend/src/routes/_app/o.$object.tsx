@@ -5,6 +5,7 @@ import { Board } from '@/components/board'
 import { Stage } from '@/components/stage'
 import { Button, Header } from '@/components/controls'
 import { CreateRecord } from '@/components/create-record'
+import { DomainLink } from '@/components/domain-link'
 import { ConnectGoogle, EmptyState } from '@/components/empty-state'
 import { ObjectIcon, RecordIcon } from '@/components/icons'
 import { Picker } from '@/components/picker'
@@ -186,7 +187,7 @@ function cell(record: CrmRecord, attribute: Attribute) {
     return <Stage stage={values[0]} />
   }
   if (attribute.type === 'domain') {
-    return <div className="flex flex-col gap-1">{values.map((domain) => <a key={domain} href={`https://${domain}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="truncate text-primary hover:underline">{domain}</a>)}</div>
+    return <div className="flex flex-col gap-1">{values.map((domain) => <DomainLink key={domain} domain={domain} onClick={(e) => e.stopPropagation()} className="truncate" />)}</div>
   }
   if (attribute.type === 'date') {
     return values.map(formatDay).join(', ')
