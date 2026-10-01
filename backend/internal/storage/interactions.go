@@ -80,6 +80,9 @@ type Interaction struct {
 	TranscriptCheckedAt *time.Time
 	Skipped             bool
 	CreatedAt           time.Time
+	Channel             string
+	Provenance          string
+	DateOnly            bool
 }
 
 type NewInteraction struct {
@@ -94,6 +97,9 @@ type NewInteraction struct {
 	EndedAt      *time.Time
 	MeetCode     string
 	Skipped      bool
+	Channel      string
+	Provenance   string
+	DateOnly     bool
 }
 
 // EmailThread widens a thread's time span to include a message.
@@ -122,6 +128,10 @@ type NewPart struct {
 	AuthorName     string
 	At             time.Time
 	Content        *string
+	Recipients     []string
+	Direction      string
+	DateOnly       bool
+	Partial        bool
 }
 
 type Part struct {
@@ -133,6 +143,10 @@ type Part struct {
 	AuthorName     string
 	At             time.Time
 	Content        *string
+	Recipients     []string
+	Direction      string
+	DateOnly       bool
+	Partial        bool
 }
 
 type Link struct {
@@ -209,6 +223,7 @@ type InteractionStore interface {
 	ClearParticipants(ctx context.Context, interactionID string) error
 	AddParticipant(ctx context.Context, interactionID, handleID, role string) error
 	UpsertPart(ctx context.Context, p NewPart) error
+	ClearParts(ctx context.Context, interactionID string) error
 	// Relink rebuilds the interactions' sync links from their kept
 	// participants and forgets provider content no record links.
 	Relink(ctx context.Context, interactionIDs []string) error

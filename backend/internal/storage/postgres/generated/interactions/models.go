@@ -45,4 +45,7 @@ type Interaction struct {
 	TranscriptCheckedAt *time.Time
 	Skipped             bool
 	CreatedAt           time.Time
+	Channel             string
+	Provenance          string
+	DateOnly            bool
 }

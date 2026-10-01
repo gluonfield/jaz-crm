@@ -84,7 +84,7 @@ func TestWebhooks(t *testing.T) {
 		t.Fatalf("an unsigned Gmail push: %d", status)
 	}
 
-	report := `{"external_id":"rec-1","kind":"call","title":"Intro","people":["ada@acme.com"],"notes":"First call."}`
+	report := `{"external_id":"rec-1","kind":"call","title":"Intro","people":["ada@acme.com"],"text":"First call."}`
 	if status, _ := post(t, h.Interactions, nil, report); status != http.StatusUnauthorized {
 		t.Fatalf("a report without a key: %d", status)
 	}
@@ -96,7 +96,7 @@ func TestWebhooks(t *testing.T) {
 	if _, again := post(t, h.Interactions, auth, strings.Replace(report, "First call.", "First call, revised.", 1)); again != first {
 		t.Fatalf("a repeated report must update one interaction: %s vs %s", again, first)
 	}
-	if status, body := post(t, h.Interactions, auth, `{"kind":"lunch"}`); status != http.StatusBadRequest || !strings.Contains(body, "call, meeting or note") {
+	if status, body := post(t, h.Interactions, auth, `{"kind":"lunch"}`); status != http.StatusBadRequest || !strings.Contains(body, "note, message, call or meeting") {
 		t.Fatalf("a bad report: %d %s", status, body)
 	}
 }

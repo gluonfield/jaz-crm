@@ -415,7 +415,7 @@ func TestInteractionTools(t *testing.T) {
 	a, b := connect(t)
 	company := mustCall(t, a, "upsert_record", map[string]any{"object": "companies", "values": map[string]any{"name": "Acme", "domains": "acme.com"}})["record"].(map[string]any)
 	logged := mustCall(t, a, "log_interaction", map[string]any{
-		"kind": "call", "title": "Pricing", "people": []any{"Ada <ada@acme.com>"}, "records": []any{company["id"]}, "notes": "Wants 200 a week.",
+		"kind": "call", "title": "Pricing", "people": []any{"Ada <ada@acme.com>"}, "records": []any{company["id"]}, "text": "Wants 200 a week.",
 	})
 	id := logged["id"].(string)
 	if records := encode(logged["records"]); !strings.Contains(records, `"object":"people"`) || !strings.Contains(records, `"name":"Acme"`) {
@@ -435,6 +435,16 @@ func TestInteractionTools(t *testing.T) {
 	record := mustCall(t, a, "get_record", map[string]any{"record_id": company["id"]})
 	if activity := record["activity"].(map[string]any); activity["interactions"] != float64(1) {
 		t.Fatalf("activity: %v", activity)
+	}
+	note := mustCall(t, a, "log_interaction", map[string]any{
+		"kind": "note", "text": "Research about Acme.", "records": []any{company["id"]}, "provenance": "https://acme.com/about",
+	})
+	if note["text"] != "Research about Acme." || note["author"] != "Agent" || note["provenance"] != "https://acme.com/about" || note["parts"] != nil || note["messages"] != nil {
+		t.Fatalf("note must have one body and its author/source outside it: %v", note)
+	}
+	record = mustCall(t, a, "get_record", map[string]any{"record_id": company["id"]})
+	if activity := record["activity"].(map[string]any); activity["interactions"] != float64(1) {
+		t.Fatalf("a research note counted as contact: %v", activity)
 	}
 	if people := encode(mustCall(t, a, "search_records", map[string]any{"object": "people"})); !strings.Contains(people, `"interactions":1,`) {
 		t.Fatalf("search_records activity: %s", people)

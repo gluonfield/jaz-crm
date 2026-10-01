@@ -1,4 +1,4 @@
-import { Box, Building2, CalendarDays, Handshake, Mail, NotebookPen, Phone, Users } from 'lucide-react'
+import { Box, Building2, CalendarDays, Handshake, MessageSquare, NotebookPen, Phone, Users } from 'lucide-react'
 import { useState } from 'react'
 import type { Kind } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -58,7 +58,7 @@ export function ObjectIcon({ slug, className }: { slug: string; className?: stri
   return <Icon className={className} />
 }
 
-const kindIcons = { email: Mail, meeting: CalendarDays, call: Phone, note: NotebookPen }
+const kindIcons = { message: MessageSquare, meeting: CalendarDays, call: Phone, note: NotebookPen }
 
 export function KindIcon({ kind, className }: { kind: Kind; className?: string }) {
   const Icon = kindIcons[kind] ?? NotebookPen

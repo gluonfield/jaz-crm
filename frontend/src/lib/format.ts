@@ -14,24 +14,30 @@ export function formatNumber(value: number | string, slug?: string, compact = fa
   }).format(Number(value))
 }
 
-export function formatDate(date: Date | string) {
+export function formatDate(date: Date | string): string {
+  if (typeof date === 'string' && date.length === 10) {
+    return formatDay(date)
+  }
   const parsed = new Date(date)
   return (parsed.getFullYear() === new Date().getFullYear() ? shortDate : longDate).format(parsed)
 }
 
 // formatDay shows a date attribute, stored as YYYY-MM-DD, in local time.
-export function formatDay(day: string) {
+export function formatDay(day: string): string {
   const [y, m, d] = day.split('-').map(Number)
   return formatDate(new Date(y, m - 1, d))
 }
 
 export function formatDateTime(iso: string) {
-  return `${formatDate(iso)}, ${formatTime(iso)}`
+  return iso.length === 10 ? formatDay(iso) : `${formatDate(iso)}, ${formatTime(iso)}`
 }
 
 export const formatTime = (iso: string) => clock.format(new Date(iso))
 
 export function timeAgo(iso: string) {
+  if (iso.length === 10) {
+    return formatDay(iso)
+  }
   const seconds = (new Date(iso).getTime() - Date.now()) / 1000
   const units: [Intl.RelativeTimeFormatUnit, number][] = [
     ['year', 31536000],
@@ -52,6 +58,9 @@ export function timeAgo(iso: string) {
 // recentOrDate says how long ago a moment of the last week was, and the date
 // of an older one.
 export function recentOrDate(iso: string) {
+  if (iso.length === 10) {
+    return formatDay(iso)
+  }
   return Date.now() - new Date(iso).getTime() < 7 * 86400000 ? timeAgo(iso) : formatDate(iso)
 }
 
@@ -62,6 +71,9 @@ const weekday = new Intl.DateTimeFormat('en', { weekday: 'short' })
 // meetingTime says when a meeting runs: its day, its start and end, and how
 // long it lasts.
 export function meetingTime(start: string, end?: string) {
+  if (start.length === 10) {
+    return formatDay(start)
+  }
   const from = new Date(start)
   const text = `${weekday.format(from)}, ${formatDate(from)} · ${clock.format(from)}`
   if (!end) {

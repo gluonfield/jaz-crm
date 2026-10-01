@@ -41,9 +41,9 @@ func registerInteractions(r *registry, svc *interactions.Service) {
 			return interactionsOutput{Interactions: list}, err
 		})
 	add(r, &mcp.Tool{Annotations: &mcp.ToolAnnotations{DestructiveHint: new(false)}, Name: "log_interaction", Title: "Log interaction",
-		Description: "Log a call, a meeting outside the calendar, or a note, with the people in it and the records it concerns. The people are kept in the CRM."},
-		func(ctx context.Context, actor auth.Actor, in logInput) (interactions.Interaction, error) {
-			i, err := svc.Log(ctx, actor, "manual", in.entry())
+		Description: "Save a note, an original message, or a call/meeting with attributed speaker turns. Put readable content in text and source/audit information in provenance. Messages require their channel, sender, recipients and original date; date-only values preserve unknown time. external_id makes repeated imports update the same entry."},
+		func(ctx context.Context, actor auth.Actor, in interactions.Entry) (interactions.Interaction, error) {
+			i, err := svc.Log(ctx, actor, "manual", in)
 			return i, err
 		})
 	add(r, &mcp.Tool{Name: "link_interaction", Title: "Link interaction",
@@ -93,7 +93,7 @@ type interactionsOutput struct {
 
 type timelineInput struct {
 	RecordID string     `json:"record_id"`
-	Kinds    []string   `json:"kinds,omitempty" jsonschema:"email, meeting, call or note; all when empty"`
+	Kinds    []string   `json:"kinds,omitempty" jsonschema:"message, meeting, call or note; all when empty"`
 	Before   *time.Time `json:"before,omitempty" jsonschema:"only interactions that started earlier, to page back"`
 	Upcoming bool       `json:"upcoming,omitempty" jsonschema:"list the interactions that start after now instead, such as scheduled meetings"`
 	Limit    int        `json:"limit,omitempty" jsonschema:"at most 100, default 20"`
@@ -106,25 +106,6 @@ type interactionInput struct {
 type searchInteractionsInput struct {
 	Query string `json:"query,omitempty"`
 	Limit int    `json:"limit,omitempty"`
-}
-
-type logInput struct {
-	Kind       string     `json:"kind" jsonschema:"call, meeting or note"`
-	Title      string     `json:"title,omitempty"`
-	At         *time.Time `json:"at,omitempty" jsonschema:"when it started; now when omitted"`
-	End        *time.Time `json:"end,omitempty"`
-	People     []string   `json:"people,omitempty" jsonschema:"email addresses or phone numbers of the people in it"`
-	Records    []string   `json:"records,omitempty" jsonschema:"ids of records it concerns, such as a deal"`
-	Notes      string     `json:"notes,omitempty"`
-	Transcript string     `json:"transcript,omitempty"`
-}
-
-func (in logInput) entry() interactions.Entry {
-	e := interactions.Entry{Kind: in.Kind, Title: in.Title, End: in.End, People: in.People, Records: in.Records, Notes: in.Notes, Transcript: in.Transcript}
-	if in.At != nil {
-		e.At = *in.At
-	}
-	return e
 }
 
 type linkInput struct {

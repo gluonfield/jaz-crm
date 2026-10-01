@@ -50,6 +50,15 @@ func (q *Queries) ClearParticipants(ctx context.Context, interactionID string) e
 	return err
 }
 
+const clearParts = `-- name: ClearParts :exec
+DELETE FROM parts WHERE interaction_id = $1
+`
+
+func (q *Queries) ClearParts(ctx context.Context, interactionID string) error {
+	_, err := q.db.Exec(ctx, clearParts, interactionID)
+	return err
+}
+
 const clearUnlinkedContent = `-- name: ClearUnlinkedContent :exec
 UPDATE parts SET content = NULL
 WHERE provider_id IS NOT NULL AND content IS NOT NULL AND interaction_id = ANY($1::uuid[])
@@ -145,7 +154,7 @@ func (q *Queries) DomainRules(ctx context.Context, workspaceID string) ([]Domain
 }
 
 const dueMeetings = `-- name: DueMeetings :many
-SELECT id, workspace_id, kind, source, external_id, connection_id, user_id, title, started_at, ended_at, meet_code, transcript_checked_at, skipped, created_at FROM interactions
+SELECT id, workspace_id, kind, source, external_id, connection_id, user_id, title, started_at, ended_at, meet_code, transcript_checked_at, skipped, created_at, channel, provenance, date_only FROM interactions
 WHERE connection_id = $1 AND kind = 'meeting' AND meet_code <> '' AND NOT skipped AND transcript_checked_at IS NULL
   AND ended_at BETWEEN now() - interval '30 days' AND now() - interval '10 minutes'
   AND EXISTS (SELECT 1 FROM links WHERE links.interaction_id = interactions.id)
@@ -179,6 +188,9 @@ func (q *Queries) DueMeetings(ctx context.Context, connectionID *string) ([]Inte
 			&i.TranscriptCheckedAt,
 			&i.Skipped,
 			&i.CreatedAt,
+			&i.Channel,
+			&i.Provenance,
+			&i.DateOnly,
 		); err != nil {
 			return nil, err
 		}
@@ -319,7 +331,7 @@ func (q *Queries) GetHandles(ctx context.Context, arg GetHandlesParams) ([]Handl
 }
 
 const getInteractions = `-- name: GetInteractions :many
-SELECT id, workspace_id, kind, source, external_id, connection_id, user_id, title, started_at, ended_at, meet_code, transcript_checked_at, skipped, created_at FROM interactions WHERE workspace_id = $1 AND id = ANY($2::uuid[])
+SELECT id, workspace_id, kind, source, external_id, connection_id, user_id, title, started_at, ended_at, meet_code, transcript_checked_at, skipped, created_at, channel, provenance, date_only FROM interactions WHERE workspace_id = $1 AND id = ANY($2::uuid[])
 `
 
 type GetInteractionsParams struct {
@@ -351,6 +363,9 @@ func (q *Queries) GetInteractions(ctx context.Context, arg GetInteractionsParams
 			&i.TranscriptCheckedAt,
 			&i.Skipped,
 			&i.CreatedAt,
+			&i.Channel,
+			&i.Provenance,
+			&i.DateOnly,
 		); err != nil {
 			return nil, err
 		}
@@ -603,7 +618,7 @@ func (q *Queries) InteractionParticipants(ctx context.Context, ids []string) ([]
 }
 
 const interactionParts = `-- name: InteractionParts :many
-SELECT id, interaction_id, kind, external_id, author_handle_id, author_name, at, content FROM parts
+SELECT id, interaction_id, kind, external_id, author_handle_id, author_name, at, content, recipients, direction, date_only, partial FROM parts
 WHERE interaction_id = ANY($1::uuid[]) ORDER BY interaction_id, at, id
 `
 
@@ -616,6 +631,10 @@ type InteractionPartsRow struct {
 	AuthorName     string
 	At             time.Time
 	Content        *string
+	Recipients     []string
+	Direction      string
+	DateOnly       bool
+	Partial        bool
 }
 
 func (q *Queries) InteractionParts(ctx context.Context, ids []string) ([]InteractionPartsRow, error) {
@@ -636,6 +655,10 @@ func (q *Queries) InteractionParts(ctx context.Context, ids []string) ([]Interac
 			&i.AuthorName,
 			&i.At,
 			&i.Content,
+			&i.Recipients,
+			&i.Direction,
+			&i.DateOnly,
+			&i.Partial,
 		); err != nil {
 			return nil, err
 		}
@@ -842,7 +865,7 @@ SELECT links.record_id, count(*)::int AS interactions, min(interactions.started_
   max(least(coalesce(interactions.ended_at, interactions.started_at), now()))::timestamptz AS last_at
 FROM links
 JOIN interactions ON interactions.id = links.interaction_id AND NOT interactions.skipped
-WHERE interactions.workspace_id = $1 AND links.record_id = ANY($2::uuid[]) AND interactions.started_at <= now()
+WHERE interactions.workspace_id = $1 AND links.record_id = ANY($2::uuid[]) AND interactions.started_at <= now() AND interactions.kind <> 'note'
 GROUP BY links.record_id
 `
 
@@ -886,7 +909,7 @@ func (q *Queries) RecordActivity(ctx context.Context, arg RecordActivityParams) 
 }
 
 const searchInteractions = `-- name: SearchInteractions :many
-SELECT interactions.id, interactions.workspace_id, interactions.kind, interactions.source, interactions.external_id, interactions.connection_id, interactions.user_id, interactions.title, interactions.started_at, interactions.ended_at, interactions.meet_code, interactions.transcript_checked_at, interactions.skipped, interactions.created_at FROM interactions
+SELECT interactions.id, interactions.workspace_id, interactions.kind, interactions.source, interactions.external_id, interactions.connection_id, interactions.user_id, interactions.title, interactions.started_at, interactions.ended_at, interactions.meet_code, interactions.transcript_checked_at, interactions.skipped, interactions.created_at, interactions.channel, interactions.provenance, interactions.date_only FROM interactions
 WHERE interactions.workspace_id = $1 AND NOT interactions.skipped
   AND EXISTS (SELECT 1 FROM links WHERE links.interaction_id = interactions.id)
   AND ($2::text = '' OR interactions.title ILIKE '%' || $2::text || '%' OR EXISTS (
@@ -926,6 +949,9 @@ func (q *Queries) SearchInteractions(ctx context.Context, arg SearchInteractions
 			&i.TranscriptCheckedAt,
 			&i.Skipped,
 			&i.CreatedAt,
+			&i.Channel,
+			&i.Provenance,
+			&i.DateOnly,
 		); err != nil {
 			return nil, err
 		}
@@ -1097,7 +1123,7 @@ func (q *Queries) SkipRecordHandles(ctx context.Context, arg SkipRecordHandlesPa
 }
 
 const timeline = `-- name: Timeline :many
-SELECT interactions.id, interactions.workspace_id, interactions.kind, interactions.source, interactions.external_id, interactions.connection_id, interactions.user_id, interactions.title, interactions.started_at, interactions.ended_at, interactions.meet_code, interactions.transcript_checked_at, interactions.skipped, interactions.created_at FROM interactions
+SELECT interactions.id, interactions.workspace_id, interactions.kind, interactions.source, interactions.external_id, interactions.connection_id, interactions.user_id, interactions.title, interactions.started_at, interactions.ended_at, interactions.meet_code, interactions.transcript_checked_at, interactions.skipped, interactions.created_at, interactions.channel, interactions.provenance, interactions.date_only FROM interactions
 JOIN links ON links.interaction_id = interactions.id AND links.record_id = $1
 WHERE interactions.workspace_id = $2 AND NOT interactions.skipped
   AND (cardinality($3::text[]) = 0 OR interactions.kind = ANY($3::text[]))
@@ -1149,6 +1175,9 @@ func (q *Queries) Timeline(ctx context.Context, arg TimelineParams) ([]Interacti
 			&i.TranscriptCheckedAt,
 			&i.Skipped,
 			&i.CreatedAt,
+			&i.Channel,
+			&i.Provenance,
+			&i.DateOnly,
 		); err != nil {
 			return nil, err
 		}
@@ -1333,12 +1362,13 @@ func (q *Queries) UpsertHandle(ctx context.Context, arg UpsertHandleParams) (Han
 }
 
 const upsertInteraction = `-- name: UpsertInteraction :one
-INSERT INTO interactions (workspace_id, kind, source, external_id, connection_id, user_id, title, started_at, ended_at, meet_code, skipped)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+INSERT INTO interactions (workspace_id, kind, source, external_id, connection_id, user_id, title, started_at, ended_at, meet_code, skipped, channel, provenance, date_only)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 ON CONFLICT (workspace_id, source, external_id) DO UPDATE
-SET title = EXCLUDED.title, started_at = EXCLUDED.started_at, ended_at = EXCLUDED.ended_at,
-    meet_code = EXCLUDED.meet_code, skipped = interactions.skipped OR EXCLUDED.skipped
-RETURNING id, workspace_id, kind, source, external_id, connection_id, user_id, title, started_at, ended_at, meet_code, transcript_checked_at, skipped, created_at
+SET kind = EXCLUDED.kind, title = EXCLUDED.title, started_at = EXCLUDED.started_at, ended_at = EXCLUDED.ended_at,
+    meet_code = EXCLUDED.meet_code, skipped = interactions.skipped OR EXCLUDED.skipped,
+    channel = EXCLUDED.channel, provenance = EXCLUDED.provenance, date_only = EXCLUDED.date_only
+RETURNING id, workspace_id, kind, source, external_id, connection_id, user_id, title, started_at, ended_at, meet_code, transcript_checked_at, skipped, created_at, channel, provenance, date_only
 `
 
 type UpsertInteractionParams struct {
@@ -1353,6 +1383,9 @@ type UpsertInteractionParams struct {
 	EndedAt      *time.Time
 	MeetCode     string
 	Skipped      bool
+	Channel      string
+	Provenance   string
+	DateOnly     bool
 }
 
 func (q *Queries) UpsertInteraction(ctx context.Context, arg UpsertInteractionParams) (Interaction, error) {
@@ -1368,6 +1401,9 @@ func (q *Queries) UpsertInteraction(ctx context.Context, arg UpsertInteractionPa
 		arg.EndedAt,
 		arg.MeetCode,
 		arg.Skipped,
+		arg.Channel,
+		arg.Provenance,
+		arg.DateOnly,
 	)
 	var i Interaction
 	err := row.Scan(
@@ -1385,15 +1421,19 @@ func (q *Queries) UpsertInteraction(ctx context.Context, arg UpsertInteractionPa
 		&i.TranscriptCheckedAt,
 		&i.Skipped,
 		&i.CreatedAt,
+		&i.Channel,
+		&i.Provenance,
+		&i.DateOnly,
 	)
 	return i, err
 }
 
 const upsertPart = `-- name: UpsertPart :exec
-INSERT INTO parts (interaction_id, kind, external_id, connection_id, provider_id, author_handle_id, author_name, at, content)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+INSERT INTO parts (interaction_id, kind, external_id, connection_id, provider_id, author_handle_id, author_name, at, content, recipients, direction, date_only, partial)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, coalesce($10::text[], '{}'), $11, $12, $13)
 ON CONFLICT (interaction_id, external_id) DO UPDATE
-SET content = COALESCE(EXCLUDED.content, parts.content), author_name = EXCLUDED.author_name, at = EXCLUDED.at
+SET content = COALESCE(EXCLUDED.content, parts.content), author_name = EXCLUDED.author_name, at = EXCLUDED.at,
+    recipients = EXCLUDED.recipients, direction = EXCLUDED.direction, date_only = EXCLUDED.date_only, partial = EXCLUDED.partial
 `
 
 type UpsertPartParams struct {
@@ -1406,6 +1446,10 @@ type UpsertPartParams struct {
 	AuthorName     string
 	At             time.Time
 	Content        *string
+	Recipients     []string
+	Direction      string
+	DateOnly       bool
+	Partial        bool
 }
 
 func (q *Queries) UpsertPart(ctx context.Context, arg UpsertPartParams) error {
@@ -1419,6 +1463,10 @@ func (q *Queries) UpsertPart(ctx context.Context, arg UpsertPartParams) error {
 		arg.AuthorName,
 		arg.At,
 		arg.Content,
+		arg.Recipients,
+		arg.Direction,
+		arg.DateOnly,
+		arg.Partial,
 	)
 	return err
 }

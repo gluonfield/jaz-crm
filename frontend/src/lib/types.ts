@@ -42,13 +42,15 @@ export type CrmRecord = {
   photo?: string
 }
 
-export type Kind = 'email' | 'meeting' | 'call' | 'note'
+export type Kind = 'message' | 'meeting' | 'call' | 'note'
 
 export type Party = { address: string; name?: string; role: string; person_id?: string; photo?: string }
 
 export type RecordRef = { id: string; object: string; name?: string }
 
-export type Part = { kind: string; at: string; author?: string; author_address?: string; direction?: 'sent' | 'received'; content: string }
+export type CrmMessage = { at: string; sender: string; sender_address?: string; recipients?: string[]; direction?: 'sent' | 'received'; text: string; partial?: boolean }
+
+export type Speech = { speaker: string; text: string; at?: string }
 
 export type Interaction = {
   id: string
@@ -60,8 +62,14 @@ export type Interaction = {
   participants: Party[]
   records: RecordRef[]
   preview?: string
-  parts?: Part[]
-  last_message?: Part
+  channel?: string
+  author?: string
+  text?: string
+  invitation?: string
+  transcript?: Speech[]
+  messages?: CrmMessage[]
+  provenance?: string
+  last_message?: CrmMessage
 }
 
 export type Verdict = 'pending' | 'kept' | 'skipped'

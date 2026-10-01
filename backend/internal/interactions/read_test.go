@@ -2,6 +2,7 @@ package interactions_test
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
@@ -27,7 +28,7 @@ func TestEmailConversationView(t *testing.T) {
 		t.Fatalf("timeline: %+v", list)
 	}
 	full, err := e.svc.Get(ctx, e.a, list[0].ID)
-	if err != nil || len(full.Parts) != len(addresses) || full.Parts[2].Direction != "received" {
+	if err != nil || len(full.Messages) != len(addresses) || full.Messages[2].Direction != "received" {
 		t.Fatalf("before alias discovery: %+v %v", full, err)
 	}
 	if err := e.store.AddAliases(ctx, e.conn.ID, []string{"sales@ml.test"}); err != nil {
@@ -47,21 +48,21 @@ func TestEmailConversationView(t *testing.T) {
 		t.Fatal(err)
 	}
 	directions := []string{"sent", "received", "sent", "received", "received"}
-	for i, part := range full.Parts {
+	for i, part := range full.Messages {
 		address := addresses[i]
 		if i == 2 {
 			address = "sales@ml.test"
 		}
-		if part.Author != "Alex" || part.AuthorAddress != address || part.Direction != directions[i] || !part.At.Equal(start.Add(time.Duration(i)*time.Hour)) {
+		if part.Sender != "Alex" || part.SenderAddress != address || part.Direction != directions[i] || part.At != start.Add(time.Duration(i)*time.Hour).Format(time.RFC3339Nano) {
 			t.Errorf("message %d: %+v", i, part)
 		}
 	}
 	latest := full.LastMessage
-	if latest == nil || latest.AuthorAddress != "pat@cas.dev" || latest.Direction != "received" || latest.Content != "Body of m4" || !latest.At.Equal(start.Add(4*time.Hour)) || full.Preview != latest.Content {
+	if latest == nil || latest.SenderAddress != "pat@cas.dev" || latest.Direction != "received" || latest.Text != "Body of m4" || latest.At != start.Add(4*time.Hour).Format(time.RFC3339Nano) || full.Preview != latest.Text {
 		t.Fatalf("latest message: %+v, preview %q", latest, full.Preview)
 	}
 	list = e.timeline(t, ada)
-	if list[0].LastMessage == nil || *list[0].LastMessage != *latest || len(list[0].Parts) != 0 || list[0].Preview != latest.Content {
+	if list[0].LastMessage == nil || !reflect.DeepEqual(list[0].LastMessage, latest) || len(list[0].Messages) != 0 || list[0].Preview != latest.Text {
 		t.Fatalf("list summary differs from conversation: %+v", list[0])
 	}
 	if _, err := e.svc.Get(ctx, e.b, full.ID); err == nil {

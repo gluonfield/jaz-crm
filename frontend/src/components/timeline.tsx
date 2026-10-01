@@ -10,7 +10,7 @@ import { InteractionDialog } from './interaction-dialog'
 
 const filters: { label: string; kinds?: Kind[] }[] = [
   { label: 'All' },
-  { label: 'Emails', kinds: ['email'] },
+  { label: 'Messages', kinds: ['message'] },
   { label: 'Meetings', kinds: ['meeting'] },
   { label: 'Notes and calls', kinds: ['note', 'call'] },
 ]
@@ -25,7 +25,7 @@ const weekday = new Intl.DateTimeFormat('en', { weekday: 'short', month: 'short'
 // monthOf heads a month of a timeline, naming the year only when it is not
 // this one.
 function monthOf(iso: string) {
-  const date = new Date(iso)
+  const date = new Date(iso.length === 10 ? `${iso}T00:00:00` : iso)
   return (date.getFullYear() === new Date().getFullYear() ? month : monthYear).format(date)
 }
 
@@ -159,7 +159,7 @@ function Composer({ recordId, people }: { recordId: string; people: string[] }) 
   }
   const submit = () => {
     if (notes.trim()) {
-      log.mutate({ kind, notes: notes.trim(), records: [recordId], people: kind === 'note' ? [] : people }, { onSuccess: close })
+      log.mutate({ kind, text: notes.trim(), records: [recordId], people: kind === 'note' ? [] : people }, { onSuccess: close })
     }
   }
   return (

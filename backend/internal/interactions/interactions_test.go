@@ -236,8 +236,8 @@ func TestDecisions(t *testing.T) {
 		t.Fatalf("skipped bob: %+v", got)
 	}
 	full, err := e.svc.Get(ctx, e.a, thread.ID)
-	if err != nil || full.Parts[0].Content != "" {
-		t.Fatalf("content of an unlinked thread must be forgotten: %+v %v", full.Parts, err)
+	if err != nil || full.Messages[0].Text != "" {
+		t.Fatalf("content of an unlinked thread must be forgotten: %+v %v", full.Messages, err)
 	}
 	e.ingest(t, message(e.conn, "c2", "tc2", "carol@supplier.com", "owner@cas.dev"), message(e.conn, "o2", "tc2", "owner@cas.dev", "carol@supplier.com"))
 	e.triage(t)
@@ -321,8 +321,8 @@ func TestMeetingsAndTranscripts(t *testing.T) {
 		t.Fatal(err)
 	}
 	full, err := e.svc.Get(ctx, e.a, meeting.ID)
-	if err != nil || len(full.Parts) != 1 || full.Parts[0].Author != "Ada" || full.Parts[0].Kind != "transcript" {
-		t.Fatalf("transcript: %+v %v", full.Parts, err)
+	if err != nil || len(full.Transcript) != 1 || full.Transcript[0].Speaker != "Ada" {
+		t.Fatalf("transcript: %+v %v", full.Transcript, err)
 	}
 	if due, _ := e.svc.DueMeetings(ctx, e.conn.ID); len(due) != 0 {
 		t.Fatalf("a checked meeting is due again: %+v", due)
@@ -376,11 +376,11 @@ func TestLogLinkAndSkip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	call, err := e.svc.Log(ctx, e.a, "manual", interactions.Entry{Kind: interactions.Call, People: []string{"+44 7598 490355"}, Records: []string{acme.ID}, Notes: "Wants a quote by Friday."})
+	call, err := e.svc.Log(ctx, e.a, "manual", interactions.Entry{Kind: interactions.Call, People: []string{"+44 7598 490355"}, Records: []string{acme.ID}, Text: "Wants a quote by Friday."})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if call.Title != "Call" || len(call.Records) != 2 || call.Parts[0].Content != "Wants a quote by Friday." {
+	if call.Title != "Call" || len(call.Records) != 2 || call.Text != "Wants a quote by Friday." {
 		t.Fatalf("logged call: %+v", call)
 	}
 	person := e.contacts(t, interactions.Kept)["+447598490355"].PersonID
@@ -393,7 +393,7 @@ func TestLogLinkAndSkip(t *testing.T) {
 	if latest, err := e.svc.Search(ctx, e.b, "", 10); err != nil || len(latest) != 0 {
 		t.Fatalf("listed another workspace's conversations: %+v %v", latest, err)
 	}
-	half := interactions.Entry{Kind: interactions.Call, Title: "Half", People: []string{"bo@x.io", "nobody"}, Records: []string{acme.ID}}
+	half := interactions.Entry{Kind: interactions.Call, Title: "Half", Text: "An attempted call", People: []string{"bo@x.io", "nobody"}, Records: []string{acme.ID}}
 	if _, err := e.svc.Log(ctx, e.a, "manual", half); err == nil || e.contacts(t, interactions.Pending)["bo@x.io"].Address != "" {
 		t.Fatalf("a rejected log must leave nothing behind: %v", err)
 	}
@@ -406,7 +406,7 @@ func TestLogLinkAndSkip(t *testing.T) {
 	if err := e.svc.Skip(ctx, e.b, call.ID); err == nil {
 		t.Error("skipped another workspace's call")
 	}
-	if _, err := e.svc.Log(ctx, e.b, "manual", interactions.Entry{Kind: interactions.Note, Notes: "x", Records: []string{acme.ID}}); err == nil {
+	if _, err := e.svc.Log(ctx, e.b, "manual", interactions.Entry{Kind: interactions.Note, Text: "x", Records: []string{acme.ID}}); err == nil {
 		t.Error("linked a log to another workspace's record")
 	}
 	if err := e.svc.Unlink(ctx, e.a, call.ID, acme.ID); err != nil || len(e.timeline(t, acme.ID)) != 0 {
@@ -480,5 +480,66 @@ func TestAliasesLearnedLaterAreOwn(t *testing.T) {
 	}
 	if got := e.contacts(t, interactions.Kept)["cara@buyer.com"]; got.DecidedBy != interactions.ByEngagement {
 		t.Fatalf("cara: %+v", got)
+	}
+}
+
+func TestManualMessageAndTranscript(t *testing.T) {
+	e := setupManual(t, nil)
+	person, _, err := e.crm.Upsert(ctx, e.a, records.SourceUser, records.Write{Object: "people", Set: map[string][]string{"name": {"Ada"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	entry := interactions.Entry{Kind: interactions.Message, Channel: "linkedin", Sender: "Ada", Recipients: []string{"August"}, At: "2026-09-20", Text: "A captured preview\nOn Monday Ada wrote:\n> The original wording\nSent from my iPhone", Partial: true, Direction: "received", Records: []string{person.ID}, ExternalID: "capture-1", Provenance: "Original capture source"}
+	logged, err := e.svc.Log(ctx, e.a, "manual", entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if logged.Kind != "message" || logged.Channel != "linkedin" || logged.StartedAt != "2026-09-20" || len(logged.Messages) != 1 || logged.Text != "" || len(logged.Transcript) != 0 {
+		t.Fatalf("message shape: %+v", logged)
+	}
+	message := logged.Messages[0]
+	if message.Sender != "Ada" || message.At != "2026-09-20" || message.Text != entry.Text || message.Direction != "received" || !message.Partial || !slices.Equal(message.Recipients, entry.Recipients) || logged.Provenance != entry.Provenance {
+		t.Fatalf("message metadata: %+v", logged)
+	}
+	entry.Text = "Updated capture"
+	entry.Partial = false
+	updated, err := e.svc.Log(ctx, e.a, "manual", entry)
+	if err != nil || updated.ID != logged.ID || len(updated.Messages) != 1 || updated.Messages[0].Text != entry.Text || updated.Messages[0].Partial {
+		t.Fatalf("reimport must replace one message: %+v %v", updated, err)
+	}
+	entry.At = " "
+	if _, err := e.svc.Log(ctx, e.a, "manual", entry); err == nil {
+		t.Fatal("a missing message date silently became the import time")
+	}
+	entry.At = "2026-02-30"
+	if _, err := e.svc.Log(ctx, e.a, "manual", entry); err == nil {
+		t.Fatal("an invalid original date was accepted")
+	}
+	call := interactions.Entry{Kind: interactions.Call, Text: "Discussed production", Records: []string{person.ID}, ExternalID: "call-1", At: "2026-09-21T12:00:00Z", Transcript: []interactions.Speech{{Speaker: "Ada", Text: "First turn"}, {Speaker: "August", Text: "Second turn"}}}
+	spoken, err := e.svc.Log(ctx, e.a, "webhook", call)
+	if err != nil || spoken.Text != call.Text || len(spoken.Transcript) != 2 || spoken.Transcript[0].Speaker != "Ada" || spoken.Transcript[1].Speaker != "August" {
+		t.Fatalf("speaker turns: %+v %v", spoken, err)
+	}
+	call.Text = "Revised notes"
+	call.Transcript = call.Transcript[:1]
+	revised, err := e.svc.Log(ctx, e.a, "webhook", call)
+	if err != nil || revised.ID != spoken.ID || len(revised.Transcript) != 1 || revised.Text != call.Text {
+		t.Fatalf("reimport retained old notes or turns: %+v %v", revised, err)
+	}
+	note := interactions.Entry{Kind: interactions.Note, Text: "Research only", Records: []string{person.ID}}
+	if _, err := e.svc.Log(ctx, e.a, "manual", note); err != nil {
+		t.Fatal(err)
+	}
+	activity, err := e.svc.Activities(ctx, e.a, []string{person.ID})
+	if err != nil || activity[person.ID].Interactions != 2 || !activity[person.ID].LastAt.Equal(time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)) {
+		t.Fatalf("notes changed contact statistics: %+v %v", activity, err)
+	}
+	note.Transcript = []interactions.Speech{{Speaker: "Ada", Text: "Something said"}}
+	if _, err := e.svc.Log(ctx, e.a, "manual", note); err == nil {
+		t.Fatal("a note accepted a transcript")
+	}
+	call.Transcript[0].Speaker = ""
+	if _, err := e.svc.Log(ctx, e.a, "webhook", call); err == nil {
+		t.Fatal("a transcript accepted an unattributed turn")
 	}
 }

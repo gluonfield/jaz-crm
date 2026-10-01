@@ -3,7 +3,7 @@ import { EyeOff, Link2, Video, X } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '@jaz/ui/button'
 import { Chip, Header } from '@/components/controls'
-import { EmailThread } from '@/components/email-thread'
+import { MessageThread } from '@/components/email-thread'
 import { KindIcon, RecordIcon } from '@/components/icons'
 import { ExternalLink } from '@/components/external-link'
 import { Message } from '@/components/message'
@@ -12,10 +12,11 @@ import { recordName } from '@/lib/crm'
 import { formatDateTime, hasEnded, meetingTime } from '@/lib/format'
 import { useDebounced } from '@/lib/hooks'
 import { useAction, useRecordSearch, useTool } from '@/lib/queries'
-import type { Interaction, Part } from '@/lib/types'
+import type { Interaction, Speech } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
-const kindNames = { email: 'Email', meeting: 'Meeting', call: 'Call', note: 'Note' }
+const kindNames = { message: 'Message', meeting: 'Meeting', call: 'Call', note: 'Note' }
+const channelNames: Record<string, string> = { email: 'Email', linkedin: 'LinkedIn', whatsapp: 'WhatsApp', telegram: 'Telegram' }
 
 const joinLink = /https?:\/\/(teams\.microsoft\.com|[\w.-]*zoom\.us|meet\.google\.com)\/\S+/
 
@@ -37,13 +38,12 @@ export function InteractionDetails({ interactionId, onClose, onNavigate }: { int
     )
   }
   const ids = { interaction_id: interaction.id }
-  const parts = interaction.parts ?? []
-  const join = interaction.kind === 'meeting' && !hasEnded(interaction.ended_at ?? interaction.started_at) ? parts.map((p) => p.content.match(joinLink)?.[0]).find(Boolean) : undefined
+  const join = interaction.kind === 'meeting' && !hasEnded(interaction.ended_at ?? interaction.started_at) ? interaction.invitation?.match(joinLink)?.[0] : undefined
   return (
     <>
       <Header>
         <KindIcon kind={interaction.kind} className="size-4 text-ink-2" />
-        {kindNames[interaction.kind]}
+        {interaction.channel ? (channelNames[interaction.channel] ?? interaction.channel) : kindNames[interaction.kind]}
         <Button
           className="ml-auto"
           onClick={() => skip.mutate(ids, { onSuccess: onClose })}
@@ -56,9 +56,9 @@ export function InteractionDetails({ interactionId, onClose, onNavigate }: { int
       </Header>
       <div className="scrollbar-quiet min-h-0 flex-1 overflow-y-auto">
         <article className="mx-auto max-w-[760px] px-4 pb-20 pt-8 sm:px-8">
-          <h1 className="text-[22px] font-semibold leading-tight tracking-[-0.015em] text-ink [overflow-wrap:anywhere]">{interaction.title || 'No subject'}</h1>
+          {interaction.title !== kindNames[interaction.kind] && <h1 className="text-[22px] font-semibold leading-tight tracking-[-0.015em] text-ink [overflow-wrap:anywhere]">{interaction.title || 'No subject'}</h1>}
           <p className="mt-1.5 text-[13px] text-ink-2">
-            {interaction.kind === 'meeting' ? meetingTime(interaction.started_at, interaction.ended_at) : formatDateTime(interaction.started_at)}
+            {interaction.author && <>{interaction.author} · </>}{interaction.kind === 'meeting' ? meetingTime(interaction.started_at, interaction.ended_at) : formatDateTime(interaction.started_at)}
           </p>
           {join && (
             <ExternalLink
@@ -91,7 +91,7 @@ export function InteractionDetails({ interactionId, onClose, onNavigate }: { int
             />
           </div>
           <div className="mt-8 border-t border-border pt-6">
-            <Content interaction={interaction} parts={parts} />
+            <Content interaction={interaction} />
           </div>
         </article>
       </div>
@@ -122,78 +122,38 @@ function People({ interaction, onNavigate }: { interaction: Interaction; onNavig
   )
 }
 
-// Content shows what was said: an email thread as messages, a meeting's
-// agenda and transcript, and notes.
-function Content({ interaction, parts }: { interaction: Interaction; parts: Part[] }) {
-  const transcript = parts.filter((p) => p.kind === 'transcript')
-  const agenda = parts.find((p) => p.kind === 'description')
-  const messages = parts.filter((p) => p.kind !== 'transcript' && p.kind !== 'description')
-  const meet = interaction.source === 'calendar' && parts.some((p) => p.content.includes('meet.google.com'))
-  if (parts.length === 0) {
-    return <p className="text-[13px] text-ink-3">Nothing was written down.</p>
-  }
+function Content({ interaction }: { interaction: Interaction }) {
   return (
-    <div className="flex flex-col gap-8">
-      {agenda?.content && (
+    <div className="flex flex-col gap-6">
+      {interaction.invitation && (
         <section>
           <h2 className="mb-2 text-[12px] font-medium text-ink-3">Invitation</h2>
-          <Message text={agenda.content} />
+          <Message text={interaction.invitation} />
         </section>
       )}
-      {messages.length > 0 && (interaction.kind === 'email' ? <EmailThread interaction={interaction} messages={messages} /> : <Thread interaction={interaction} messages={messages} />)}
-      {transcript.length > 0 ? (
-        <Transcript lines={transcript} />
-      ) : (
-        meet && <p className="text-[12.5px] text-ink-3">If this meeting is transcribed in Google Meet, the transcript appears here within a day.</p>
+      {interaction.text && <Message text={interaction.text} />}
+      {interaction.messages && <MessageThread interaction={interaction} messages={interaction.messages} />}
+      {interaction.transcript && <Transcript lines={interaction.transcript} />}
+      {interaction.provenance && (
+        <details className="text-[12px] text-ink-3">
+          <summary className="w-fit cursor-pointer hover:text-ink-2">Source details</summary>
+          <div className="mt-3"><Message text={interaction.provenance} /></div>
+        </details>
       )}
     </div>
   )
 }
 
-// Thread shows an email conversation; with several messages, all but the
-// latest start folded to a line.
-function Thread({ interaction, messages }: { interaction: Interaction; messages: Part[] }) {
-  const [open, setOpen] = useState(() => new Set([messages.length - 1]))
-  const photo = (author?: string) => interaction.participants.find((p) => (p.name || p.address) === author)?.photo
-  return (
-    <ol className="flex flex-col">
-      {messages.map((m, i) => {
-        const folded = !open.has(i)
-        const author = m.author || (m.kind === 'note' ? 'Note' : 'Unknown sender')
-        return (
-          <li key={i} className={cn('border-border', i > 0 && 'border-t', folded ? 'py-2.5' : 'py-5 first:pt-0')}>
-            <button
-              type="button"
-              aria-expanded={!folded}
-              onClick={() => setOpen((current) => new Set(current).add(i))}
-              disabled={!folded}
-              className="flex w-full min-w-0 items-center gap-2.5 rounded-[var(--radius-control)] text-left outline-none focus-visible:ring-2 focus-visible:ring-ring enabled:hover:bg-list-hover"
-            >
-              <RecordIcon object="people" name={author} photo={photo(m.author)} size={folded ? 22 : 28} />
-              <span className="shrink-0 text-[13px] font-medium text-ink">{author}</span>
-              {folded && <span className="min-w-0 flex-1 truncate text-[12.5px] text-ink-3">{m.content.replace(/\s+/g, ' ')}</span>}
-              <time className="ml-auto shrink-0 pl-3 text-[12px] tabular-nums text-ink-3">{formatDateTime(m.at)}</time>
-            </button>
-            {!folded && (
-              <div className="mt-3 pl-[38px]">{m.content ? <Message text={m.content} /> : <p className="text-[13px] text-ink-3">The text arrives with the next sync.</p>}</div>
-            )}
-          </li>
-        )
-      })}
-    </ol>
-  )
-}
-
 // Transcript runs a meeting's lines together by speaker.
-function Transcript({ lines }: { lines: Part[] }) {
+function Transcript({ lines }: { lines: Speech[] }) {
   const turns: { speaker: string; lines: string[] }[] = []
   for (const line of lines) {
-    const speaker = line.author || 'Unknown speaker'
+    const speaker = line.speaker
     const last = turns.at(-1)
     if (last?.speaker === speaker) {
-      last.lines.push(line.content)
+      last.lines.push(line.text)
     } else {
-      turns.push({ speaker, lines: [line.content] })
+      turns.push({ speaker, lines: [line.text] })
     }
   }
   return (
@@ -202,7 +162,7 @@ function Transcript({ lines }: { lines: Part[] }) {
       <div className="flex max-w-[68ch] flex-col gap-4 text-[13.5px] leading-[1.6]">
         {turns.map((turn, i) => (
           <div key={i}>
-            <div className="text-[12.5px] font-medium text-ink">{turn.speaker}</div>
+            {turn.speaker && <div className="text-[12.5px] font-medium text-ink">{turn.speaker}</div>}
             <p className="text-ink-2">{turn.lines.join(' ')}</p>
           </div>
         ))}

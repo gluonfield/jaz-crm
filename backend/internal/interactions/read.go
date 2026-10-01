@@ -28,29 +28,40 @@ type Ref struct {
 	Name   string `json:"name,omitempty"`
 }
 
-type Piece struct {
-	Kind          string    `json:"kind"`
-	At            time.Time `json:"at"`
-	Author        string    `json:"author,omitempty"`
-	AuthorAddress string    `json:"author_address,omitempty"`
-	Direction     string    `json:"direction,omitempty"`
-	Content       string    `json:"content"`
+type MessageView struct {
+	At            string   `json:"at"`
+	Sender        string   `json:"sender"`
+	SenderAddress string   `json:"sender_address,omitempty"`
+	Recipients    []string `json:"recipients,omitempty"`
+	Direction     string   `json:"direction,omitempty"`
+	Text          string   `json:"text"`
+	Partial       bool     `json:"partial,omitempty"`
+}
+
+type Speech struct {
+	Speaker string `json:"speaker"`
+	Text    string `json:"text"`
+	At      string `json:"at,omitempty"`
 }
 
 type Interaction struct {
-	ID           string     `json:"id"`
-	Kind         string     `json:"kind"`
-	Source       string     `json:"source"`
-	Title        string     `json:"title"`
-	StartedAt    time.Time  `json:"started_at"`
-	EndedAt      *time.Time `json:"ended_at,omitempty"`
-	Participants []Party    `json:"participants"`
-	Records      []Ref      `json:"records"`
-	// Preview opens a list entry; Parts fill a full view.
-	Preview string  `json:"preview,omitempty"`
-	Parts   []Piece `json:"parts,omitempty"`
-	// LastMessage includes a short preview, also on list views.
-	LastMessage *Piece `json:"last_message,omitempty"`
+	ID           string        `json:"id"`
+	Kind         string        `json:"kind"`
+	Source       string        `json:"source"`
+	Title        string        `json:"title"`
+	StartedAt    string        `json:"started_at"`
+	EndedAt      *time.Time    `json:"ended_at,omitempty"`
+	Participants []Party       `json:"participants"`
+	Records      []Ref         `json:"records"`
+	Channel      string        `json:"channel,omitempty"`
+	Author       string        `json:"author,omitempty"`
+	Text         string        `json:"text,omitempty"`
+	Invitation   string        `json:"invitation,omitempty"`
+	Transcript   []Speech      `json:"transcript,omitempty"`
+	Messages     []MessageView `json:"messages,omitempty"`
+	Provenance   string        `json:"provenance,omitempty"`
+	Preview      string        `json:"preview,omitempty"`
+	LastMessage  *MessageView  `json:"last_message,omitempty"`
 }
 
 func limitOf(limit int) int32 {
@@ -63,6 +74,10 @@ func limitOf(limit int) int32 {
 // Timeline lists a record's interactions that started by now, newest first,
 // or its upcoming ones, soonest first.
 func (s *Service) Timeline(ctx context.Context, actor auth.Actor, recordID string, kinds []string, before *time.Time, upcoming bool, limit int) ([]Interaction, error) {
+	kinds = slices.Clone(kinds)
+	if slices.Contains(kinds, Message) {
+		kinds = append(kinds, Email)
+	}
 	list, err := s.store.Timeline(ctx, storage.TimelineQuery{
 		RecordID: recordID, WorkspaceID: actor.WorkspaceID, Kinds: append([]string{}, kinds...), Before: before, Upcoming: upcoming, Limit: limitOf(limit),
 	})
@@ -160,7 +175,13 @@ func (s *Service) views(ctx context.Context, workspaceID string, list []storage.
 	index := map[string]int{}
 	for i, it := range list {
 		index[it.ID] = i
-		out[i] = Interaction{ID: it.ID, Kind: it.Kind, Source: it.Source, Title: it.Title, StartedAt: it.StartedAt, EndedAt: it.EndedAt, Participants: []Party{}, Records: []Ref{}}
+		out[i] = Interaction{ID: it.ID, Kind: it.Kind, Source: it.Source, Title: it.Title, StartedAt: formatAt(it.StartedAt, it.DateOnly), EndedAt: it.EndedAt, Channel: it.Channel, Participants: []Party{}, Records: []Ref{}}
+		if it.Kind == Email {
+			out[i].Kind, out[i].Channel = Message, "email"
+		}
+		if full {
+			out[i].Provenance = it.Provenance
+		}
 	}
 	for _, p := range participants {
 		h := p.Handle
@@ -183,22 +204,45 @@ func (s *Service) views(ctx context.Context, workspaceID string, list []storage.
 	for _, p := range parts {
 		v := &out[index[p.InteractionID]]
 		sender := authors[deref(p.AuthorHandleID)]
-		piece := Piece{Kind: p.Kind, At: p.At, Author: cmp.Or(p.AuthorName, sender.Name, sender.Address), AuthorAddress: sender.Address, Content: readable(p.Kind, deref(p.Content))}
-		if v.Kind == Email && p.Kind == "message" {
-			if sender.Address != "" {
-				piece.Direction = "received"
+		author := cmp.Or(p.AuthorName, sender.Name, sender.Address)
+		text := deref(p.Content)
+		if v.Channel == "email" && p.Kind == "message" {
+			text = readable(p.Kind, text)
+		}
+		switch p.Kind {
+		case "message":
+			message := MessageView{At: formatAt(p.At, p.DateOnly), Sender: author, SenderAddress: sender.Address, Recipients: p.Recipients, Direction: p.Direction, Text: text, Partial: p.Partial}
+			if v.Channel == "email" && sender.Address != "" {
+				message.Direction = "received"
 				if slices.Contains(own, sender.Address) {
-					piece.Direction = "sent"
+					message.Direction = "sent"
 				}
 			}
-			latest := piece
-			latest.Content = preview(piece.Content)
-			v.LastMessage, v.Preview = &latest, latest.Content
-		} else if v.Preview == "" && piece.Content != "" {
-			v.Preview = preview(piece.Content)
+			latest := message
+			latest.Text = preview(text)
+			v.LastMessage, v.Preview = &latest, latest.Text
+			if full {
+				v.Messages = append(v.Messages, message)
+			}
+		case "transcript":
+			if full {
+				v.Transcript = append(v.Transcript, Speech{Speaker: author, Text: text, At: formatAt(p.At, p.DateOnly)})
+			}
+		case "description":
+			if full {
+				v.Invitation = text
+			}
+		case "note":
+			if full {
+				v.Author = author
+				if v.Text != "" {
+					v.Text += "\n\n"
+				}
+				v.Text += text
+			}
 		}
-		if full {
-			v.Parts = append(v.Parts, piece)
+		if v.Preview == "" && text != "" {
+			v.Preview = preview(text)
 		}
 	}
 	return out, nil

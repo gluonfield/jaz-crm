@@ -10,7 +10,6 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -106,19 +105,6 @@ func (h *Handler) done(w http.ResponseWriter, err error) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// entry is a recorder's report; ExternalID makes repeats update one interaction.
-type entry struct {
-	ExternalID string     `json:"external_id"`
-	Kind       string     `json:"kind"`
-	Title      string     `json:"title"`
-	At         time.Time  `json:"at"`
-	End        *time.Time `json:"end"`
-	People     []string   `json:"people"`
-	Records    []string   `json:"records"`
-	Notes      string     `json:"notes"`
-	Transcript string     `json:"transcript"`
-}
-
 // Interactions files a conversation a recorder reports with an API key.
 func (h *Handler) Interactions(w http.ResponseWriter, r *http.Request) {
 	token, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
@@ -127,14 +113,12 @@ func (h *Handler) Interactions(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
-	var e entry
+	var e interactions.Entry
 	if err := json.NewDecoder(io.LimitReader(r.Body, 4<<20)).Decode(&e); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON body"})
 		return
 	}
-	i, err := h.convs.Log(r.Context(), actor, "webhook", interactions.Entry{
-		Kind: e.Kind, Title: e.Title, At: e.At, End: e.End, People: e.People, Records: e.Records, Notes: e.Notes, Transcript: e.Transcript, ExternalID: e.ExternalID,
-	})
+	i, err := h.convs.Log(r.Context(), actor, "webhook", e)
 	switch {
 	case errors.As(err, new(errs.Invalid)):
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})

@@ -52,7 +52,7 @@ func TestStandardSchemaUpgradeAndDeletedDefault(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := old.Up(ctx); err != nil {
+	if _, err := old.UpTo(ctx, 14); err != nil {
 		t.Fatal(err)
 	}
 	var workspace string

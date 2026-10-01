@@ -272,7 +272,7 @@ func TestSyncAgainstGoogle(t *testing.T) {
 	var found bool
 	run(a.FetchTranscript, &found, due[0])
 	meeting, err := convs.Get(ctx, actor, due[0].InteractionID)
-	if err != nil || !found || len(meeting.Parts) != 1 || meeting.Parts[0].Author != "Ada" || len(meeting.Participants) != 2 || meeting.Participants[1].Role != "organizer" {
+	if err != nil || !found || len(meeting.Transcript) != 1 || meeting.Transcript[0].Speaker != "Ada" || len(meeting.Participants) != 2 || meeting.Participants[1].Role != "organizer" {
 		t.Fatalf("meeting: %+v %v", meeting, err)
 	}
 }

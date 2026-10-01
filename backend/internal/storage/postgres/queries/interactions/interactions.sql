@@ -141,11 +141,12 @@ SET started_at = LEAST(started_at, @at), ended_at = GREATEST(ended_at, @at),
 WHERE id = @id;
 
 -- name: UpsertInteraction :one
-INSERT INTO interactions (workspace_id, kind, source, external_id, connection_id, user_id, title, started_at, ended_at, meet_code, skipped)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+INSERT INTO interactions (workspace_id, kind, source, external_id, connection_id, user_id, title, started_at, ended_at, meet_code, skipped, channel, provenance, date_only)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 ON CONFLICT (workspace_id, source, external_id) DO UPDATE
-SET title = EXCLUDED.title, started_at = EXCLUDED.started_at, ended_at = EXCLUDED.ended_at,
-    meet_code = EXCLUDED.meet_code, skipped = interactions.skipped OR EXCLUDED.skipped
+SET kind = EXCLUDED.kind, title = EXCLUDED.title, started_at = EXCLUDED.started_at, ended_at = EXCLUDED.ended_at,
+    meet_code = EXCLUDED.meet_code, skipped = interactions.skipped OR EXCLUDED.skipped,
+    channel = EXCLUDED.channel, provenance = EXCLUDED.provenance, date_only = EXCLUDED.date_only
 RETURNING *;
 
 -- name: ClearParticipants :exec
@@ -155,10 +156,14 @@ DELETE FROM participants WHERE interaction_id = $1;
 INSERT INTO participants (interaction_id, handle_id, role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING;
 
 -- name: UpsertPart :exec
-INSERT INTO parts (interaction_id, kind, external_id, connection_id, provider_id, author_handle_id, author_name, at, content)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+INSERT INTO parts (interaction_id, kind, external_id, connection_id, provider_id, author_handle_id, author_name, at, content, recipients, direction, date_only, partial)
+VALUES (@interaction_id, @kind, @external_id, @connection_id, @provider_id, @author_handle_id, @author_name, @at, @content, coalesce(@recipients::text[], '{}'), @direction, @date_only, @partial)
 ON CONFLICT (interaction_id, external_id) DO UPDATE
-SET content = COALESCE(EXCLUDED.content, parts.content), author_name = EXCLUDED.author_name, at = EXCLUDED.at;
+SET content = COALESCE(EXCLUDED.content, parts.content), author_name = EXCLUDED.author_name, at = EXCLUDED.at,
+    recipients = EXCLUDED.recipients, direction = EXCLUDED.direction, date_only = EXCLUDED.date_only, partial = EXCLUDED.partial;
+
+-- name: ClearParts :exec
+DELETE FROM parts WHERE interaction_id = $1;
 
 -- name: InteractionsOfHandles :many
 SELECT DISTINCT interaction_id FROM participants WHERE handle_id = ANY(@handle_ids::uuid[]);
@@ -244,7 +249,7 @@ WHERE participants.interaction_id = ANY(@ids::uuid[])
 ORDER BY participants.interaction_id, handles.value;
 
 -- name: InteractionParts :many
-SELECT id, interaction_id, kind, external_id, author_handle_id, author_name, at, content FROM parts
+SELECT id, interaction_id, kind, external_id, author_handle_id, author_name, at, content, recipients, direction, date_only, partial FROM parts
 WHERE interaction_id = ANY(@ids::uuid[]) ORDER BY interaction_id, at, id;
 
 -- name: InteractionLinks :many
@@ -259,7 +264,7 @@ SELECT links.record_id, count(*)::int AS interactions, min(interactions.started_
   max(least(coalesce(interactions.ended_at, interactions.started_at), now()))::timestamptz AS last_at
 FROM links
 JOIN interactions ON interactions.id = links.interaction_id AND NOT interactions.skipped
-WHERE interactions.workspace_id = @workspace_id AND links.record_id = ANY(@record_ids::uuid[]) AND interactions.started_at <= now()
+WHERE interactions.workspace_id = @workspace_id AND links.record_id = ANY(@record_ids::uuid[]) AND interactions.started_at <= now() AND interactions.kind <> 'note'
 GROUP BY links.record_id;
 
 -- name: DeleteLinks :exec

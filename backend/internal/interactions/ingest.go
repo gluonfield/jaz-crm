@@ -3,6 +3,7 @@ package interactions
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"time"
 
@@ -69,9 +70,13 @@ func (s *Service) IngestEmail(ctx context.Context, known Known, m EmailMessage) 
 		if external == "" {
 			external = "gmail:" + m.ProviderID
 		}
+		var recipients []string
+		for _, recipient := range append(slices.Clone(m.To), m.Cc...) {
+			recipients = append(recipients, recipient.Email)
+		}
 		err = store.UpsertPart(ctx, storage.NewPart{
 			InteractionID: id, Kind: "message", ExternalID: external, ConnectionID: &m.ConnectionID, ProviderID: &m.ProviderID,
-			AuthorHandleID: &author.ID, AuthorName: m.From.Name, At: m.Date,
+			AuthorHandleID: &author.ID, AuthorName: m.From.Name, At: m.Date, Recipients: recipients,
 		})
 		if err != nil {
 			return err
