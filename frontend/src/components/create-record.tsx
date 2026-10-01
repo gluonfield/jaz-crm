@@ -211,19 +211,10 @@ const Chip = forwardRef<HTMLButtonElement, { icon?: ReactNode; label: ReactNode;
   ref,
 ) {
   return (
-    <button
-      ref={ref}
-      type="button"
-      {...props}
-      className={cn(
-        'inline-flex h-6 max-w-56 shrink-0 items-center gap-1.5 rounded-full border border-border px-2.5 text-[12px] outline-none transition-colors duration-100 hover:bg-list-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-ring',
-        empty ? 'text-ink-3' : 'text-ink-2',
-        className,
-      )}
-    >
+    <Button ref={ref} {...props} size="sm" className={cn('max-w-56', empty ? 'text-ink-3' : 'text-ink-2', className)}>
       {icon}
       <span className="min-w-0 truncate">{label}</span>
-    </button>
+    </Button>
   )
 })
 
