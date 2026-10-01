@@ -3,7 +3,6 @@ import { MoreHorizontal, Trash2 } from 'lucide-react'
 import { Button } from '@jaz/ui/button'
 import { Header, Tab } from '@/components/controls'
 import { Field, TextInput } from '@/components/fields'
-import { DraftPanel } from '@/components/follow-ups'
 import { History } from '@/components/history'
 import { ObjectIcon } from '@/components/icons'
 import { PersonContext } from '@/components/person-context'
@@ -67,7 +66,6 @@ function RecordPage() {
               </h1>
             </Summary>
             {record.object === 'people' && <PersonContext key={`${record.id}:${record.values.context ?? ''}`} record={record} />}
-            {record.object === 'follow_ups' && <DraftPanel key={`${record.id}:${record.values.draft ?? ''}`} record={record} />}
           </div>
           <Details record={record} object={object} />
           <div className="flex min-w-0 flex-col gap-8 [grid-area:main]">

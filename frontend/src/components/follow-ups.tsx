@@ -79,16 +79,7 @@ function FollowUp({ record, focused, index, onOpen }: { record: CrmRecord; focus
           {review && <span className={cn('ml-auto shrink-0 text-[12px] tabular-nums', due ? 'text-ink' : 'text-ink-3')}>{formatDay(review)}</span>}
         </div>
         {(who || waiting) && <div className="truncate text-[12px] text-ink-3">{[who, waiting].filter(Boolean).join(' · ')}</div>}
-        {draft && (
-          <div className="flex flex-col gap-2 rounded-[var(--radius-card)] bg-panel px-3 py-2">
-            <p className="line-clamp-4 whitespace-pre-wrap text-[13px] leading-5 text-ink-2">{draft}</p>
-            <div className="flex items-center gap-2">
-              <Recipients record={record} />
-              <span className="ml-auto" />
-              <Release record={record} />
-            </div>
-          </div>
-        )}
+        {draft && <Draft key={`${record.id}:${draft}`} record={record} />}
       </div>
       <div className="flex shrink-0 items-start gap-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
         <Button variant="ghost" size="icon-sm" aria-label="Done" title="Done" onClick={(e) => {
@@ -108,8 +99,9 @@ function FollowUp({ record, focused, index, onOpen }: { record: CrmRecord; focus
   )
 }
 
-// DraftPanel edits a follow-up's draft on its page and sends or approves it.
-export function DraftPanel({ record }: { record: CrmRecord }) {
+// Draft edits a follow-up's draft in the queue, the one place drafts appear,
+// and sends or approves it once the edit is saved.
+function Draft({ record }: { record: CrmRecord }) {
   const current = text(record, 'draft')
   const [draft, setDraft] = useState(current)
   const write = useWrite(record)
@@ -125,25 +117,15 @@ export function DraftPanel({ record }: { record: CrmRecord }) {
     }
   }
   return (
-    <section aria-label="Draft" className="mt-6">
-      <div className="mb-1.5 flex items-center gap-2">
-        <h2 className="text-[12px] font-medium text-ink-3">Draft</h2>
-        {current && <Recipients record={record} />}
-        {current && (
-          <span className="ml-auto">
-            <Release record={record} disabled={write.pending || draft.trim() !== current} />
-          </span>
-        )}
-      </div>
+    <div className="flex flex-col gap-2 rounded-[var(--radius-card)] bg-panel px-3 py-2" onClick={(e) => e.stopPropagation()}>
       <textarea
         aria-label="Draft"
         value={draft}
         disabled={write.pending || locked}
-        rows={4}
-        placeholder="Write a reply…"
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => {
+          e.stopPropagation()
           if (e.key === 'Escape') {
             setDraft(current)
           } else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
@@ -151,8 +133,13 @@ export function DraftPanel({ record }: { record: CrmRecord }) {
             e.currentTarget.blur()
           }
         }}
-        className="field-sizing-content block max-h-96 min-h-24 w-full resize-y rounded-[var(--radius-control)] border border-transparent bg-transparent px-2 py-2 text-[13px] leading-5 text-ink outline-none placeholder:text-ink-3 hover:bg-list-hover focus:border-border focus:bg-bg disabled:opacity-70"
+        className="field-sizing-content block max-h-80 w-full resize-none bg-transparent text-[13px] leading-5 text-ink-2 outline-none focus:text-ink disabled:opacity-70"
       />
-    </section>
+      <div className="flex items-center gap-2">
+        <Recipients record={record} />
+        <span className="ml-auto" />
+        <Release record={record} disabled={write.pending || draft.trim() !== current} />
+      </div>
+    </div>
   )
 }
