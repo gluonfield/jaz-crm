@@ -25,6 +25,17 @@ type registry struct {
 }
 
 func add[In, Out any](r *registry, tool *mcp.Tool, fn op[In, Out]) {
+	if tool.Meta == nil {
+		tool.Meta = mcp.Meta{}
+	}
+	tool.Meta["securitySchemes"] = []map[string]any{{"type": "oauth2", "scopes": []string{}}}
+	if tool.Annotations == nil {
+		tool.Annotations = &mcp.ToolAnnotations{}
+	}
+	if tool.Annotations.DestructiveHint == nil {
+		tool.Annotations.DestructiveHint = new(!tool.Annotations.ReadOnlyHint)
+	}
+	tool.Annotations.OpenWorldHint = new(false)
 	mcp.AddTool(r.server, tool, func(ctx context.Context, req *mcp.CallToolRequest, in In) (*mcp.CallToolResult, Out, error) {
 		out, err := fn(ctx, req.Extra.TokenInfo.Extra[actorKey].(auth.Actor), in)
 		return nil, out, r.public(tool.Name, err)

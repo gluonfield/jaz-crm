@@ -1,0 +1,26 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "jaz-crm",
+  "version": "0.1.0",
+  "description": "Manage contacts, companies, deals and conversation history in your Jaz CRM workspace.",
+  "author": {
+    "name": "Augustinas Malinauskas"
+  },
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Jaz CRM",
+        "shortDescription": "Contacts and sales pipelines",
+        "longDescription": "Manage contacts, companies, deals and conversation history in your Jaz CRM workspace.",
+        "developerName": "Augustinas Malinauskas",
+        "category": "Productivity",
+        "capabilities": [
+          "Interactive"
+        ],
+        "defaultPrompt": "Show my sales pipeline and the contacts that need a follow-up.",
+        "logo": "./assets/icon.svg",
+        "composerIcon": "./assets/icon.svg"
+      }
+    }
+  }
+}

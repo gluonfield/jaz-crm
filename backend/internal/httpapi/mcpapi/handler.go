@@ -56,6 +56,7 @@ func NewHandler(svc Services, keys *auth.Service, logger *log.Logger) *Handler {
 	registerInteractions(r, svc.Interactions)
 	registerConnections(r, svc.Connections, keys.Issuer())
 	registerApp(r, keys.Issuer())
+	registerProfile(r, keys)
 	verify := func(ctx context.Context, token string, _ *http.Request) (*mcpauth.TokenInfo, error) {
 		actor, err := keys.Authenticate(ctx, token)
 		if errors.Is(err, auth.ErrUnauthenticated) {

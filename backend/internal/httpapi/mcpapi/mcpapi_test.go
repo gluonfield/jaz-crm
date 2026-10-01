@@ -435,10 +435,15 @@ func TestWorkspacesCreateAndSwitch(t *testing.T) {
 		t.Fatal(err)
 	}
 	jaz := e.session(t, e.oauth(t, pat))
+	before := mustCall(t, jaz, "get_profile", nil)
 	mustCall(t, jaz, "upsert_record", map[string]any{"object": "companies", "values": map[string]any{"name": "Home Co"}})
 	created := mustCall(t, jaz, "create_workspace", map[string]any{"name": " Side project "})
 	if created["name"] != "Side project" || created["current"] != true {
 		t.Fatalf("created: %v", created)
+	}
+	after := mustCall(t, jaz, "get_profile", nil)
+	if after["id"] == before["id"] || after["email"] != before["email"] || after["nickname"] != "Side project" {
+		t.Fatalf("profile did not follow the connection's workspace: before=%v after=%v", before, after)
 	}
 	if got := mustCall(t, jaz, "get_workspace", nil); got["name"] != "Side project" || !strings.Contains(encode(got["members"]), `"admin":true`) {
 		t.Fatalf("after creating, the session should act in the new workspace as its admin: %v", got)
@@ -452,6 +457,9 @@ func TestWorkspacesCreateAndSwitch(t *testing.T) {
 	}
 	home := listed[0].(map[string]any)
 	mustCall(t, jaz, "switch_workspace", map[string]any{"workspace_id": home["id"]})
+	if restored := mustCall(t, jaz, "get_profile", nil); restored["id"] != before["id"] {
+		t.Fatalf("returning to the workspace changed its profile ID: %v", restored)
+	}
 	if found := mustCall(t, jaz, "search_records", map[string]any{"object": "companies"})["records"].([]any); len(found) != 1 {
 		t.Fatalf("after switching back: %v", found)
 	}

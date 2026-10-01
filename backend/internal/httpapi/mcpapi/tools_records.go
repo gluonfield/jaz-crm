@@ -17,7 +17,7 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 		func(ctx context.Context, actor auth.Actor, in stageInput) (empty, error) {
 			return empty{}, crm.EditStage(ctx, actor, in.Object, in.Attribute, records.StageEdit{Action: in.Action, Stage: in.Stage, Name: in.Name, Before: in.Before, Replacement: in.Replacement})
 		})
-	add(r, &mcp.Tool{Name: "add_attribute_option", Title: "Add attribute option",
+	add(r, &mcp.Tool{Annotations: &mcp.ToolAnnotations{DestructiveHint: new(false)}, Name: "add_attribute_option", Title: "Add attribute option",
 		Description: "Add a reusable choice to a select attribute or append a pipeline stage to a status attribute. Returns the existing choice when its spelling differs only in case. Assign choices through upsert_record."},
 		func(ctx context.Context, actor auth.Actor, in optionInput) (optionOutput, error) {
 			value, err := crm.AddOption(ctx, actor, in.Object, in.Attribute, in.Value)
@@ -100,13 +100,13 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 		func(ctx context.Context, actor auth.Actor, in recordInput) (empty, error) {
 			return empty{}, crm.Delete(ctx, actor, in.RecordID)
 		})
-	add(r, &mcp.Tool{Name: "create_object", Title: "Create object",
+	add(r, &mcp.Tool{Annotations: &mcp.ToolAnnotations{DestructiveHint: new(false)}, Name: "create_object", Title: "Create object",
 		Description: "Create a record type, such as quotes or suppliers. It starts with a name attribute."},
 		func(ctx context.Context, actor auth.Actor, in objectInput) (objectView, error) {
 			object, err := crm.CreateObject(ctx, actor, in.Slug, in.Name)
 			return objectOf(object), err
 		})
-	add(r, &mcp.Tool{Name: "create_attribute", Title: "Create attribute",
+	add(r, &mcp.Tool{Annotations: &mcp.ToolAnnotations{DestructiveHint: new(false)}, Name: "create_attribute", Title: "Create attribute",
 		Description: "Add an attribute to an object. Types: text, number, date, checkbox, url, select (with options), status (with its stages in order as options; a new record starts in the first), member (a workspace member by email; a new record names its creator), email, domain, phone, reference (with target)."},
 		func(ctx context.Context, actor auth.Actor, in attributeInput) (objectView, error) {
 			object, err := crm.CreateAttribute(ctx, actor, in.Object, records.Attribute{

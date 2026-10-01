@@ -59,6 +59,10 @@ Build locally with `docker build --target server -t jaz-crm-server .` and `docke
 
 Configuration is documented in `.env.example`.
 
+## ChatGPT plugin
+
+The existing MCP server and embedded app can be connected to ChatGPT using OAuth. See [setup, packaging and remaining requirements](docs/chatgpt-plugin.md); `plugin/` contains the portable manifest and ZIP packager.
+
 ## MCP
 
 | Tool | Does |

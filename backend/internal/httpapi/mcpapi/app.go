@@ -59,9 +59,10 @@ func registerApp(r *registry, publicURL string) {
 		return &mcp.ReadResourceResult{Contents: []*mcp.ResourceContents{{
 			URI: req.Params.URI, MIMEType: appMIME, Text: body, Meta: mcp.Meta{"ui": map[string]any{
 				"prefersBorder": false,
+				"domain":        publicURL,
 				// Profile pictures load from Google, logos from the CRM.
-				"csp": map[string]any{"resourceDomains": []string{"https://*.googleusercontent.com", publicURL}},
-			}},
+				"csp": map[string]any{"connectDomains": []string{}, "resourceDomains": []string{"https://*.googleusercontent.com", publicURL}},
+			}, "openai/ui": map[string]any{"availableDisplayModes": []string{"inline", "fullscreen"}}},
 		}}}, nil
 	}
 	r.server.AddResource(&mcp.Resource{URI: appURI, Name: "jaz-crm", Title: "Jaz CRM", MIMEType: appMIME}, readApp)

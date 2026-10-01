@@ -30,7 +30,7 @@ func registerWorkspace(r *registry, members *workspaces.Service, keys *auth.Serv
 			}
 			return workspaceRef{ID: m.WorkspaceID, Name: m.Name, Current: true}, keys.Switch(ctx, actor, m.UserID)
 		})
-	add(r, &mcp.Tool{Name: "create_workspace", Title: "Create workspace",
+	add(r, &mcp.Tool{Annotations: &mcp.ToolAnnotations{DestructiveHint: new(false)}, Name: "create_workspace", Title: "Create workspace",
 		Description: "Start a workspace with you as its admin and move there, unless these calls use an API key. It has people, companies and deals, and syncs nothing until someone connects Google in it."},
 		func(ctx context.Context, actor auth.Actor, in createWorkspaceInput) (workspaceRef, error) {
 			user, err := members.Create(ctx, actor, in.Name)
@@ -66,7 +66,7 @@ func registerWorkspace(r *registry, members *workspaces.Service, keys *auth.Serv
 			}
 			return out, err
 		})
-	add(r, &mcp.Tool{Name: "invite_member", Title: "Invite member",
+	add(r, &mcp.Tool{Annotations: &mcp.ToolAnnotations{DestructiveHint: new(false)}, Name: "invite_member", Title: "Invite member",
 		Description: "Invite someone to this workspace by email; they join when they next sign in. Admins only."},
 		func(ctx context.Context, actor auth.Actor, in inviteInput) (inviteOutput, error) {
 			invite, err := members.Invite(ctx, actor, in.Email)

@@ -29,7 +29,7 @@ func registerInteractions(r *registry, svc *interactions.Service) {
 			list, err := svc.Search(ctx, actor, in.Query, in.Limit)
 			return interactionsOutput{Interactions: list}, err
 		})
-	add(r, &mcp.Tool{Name: "log_interaction", Title: "Log interaction",
+	add(r, &mcp.Tool{Annotations: &mcp.ToolAnnotations{DestructiveHint: new(false)}, Name: "log_interaction", Title: "Log interaction",
 		Description: "Log a call, a meeting outside the calendar, or a note, with the people in it and the records it concerns. The people are kept in the CRM."},
 		func(ctx context.Context, actor auth.Actor, in logInput) (interactions.Interaction, error) {
 			i, err := svc.Log(ctx, actor, "manual", in.entry())
