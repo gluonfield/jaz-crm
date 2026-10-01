@@ -173,6 +173,23 @@ func (q *Queries) DeleteSession(ctx context.Context, tokenHash []byte) error {
 	return err
 }
 
+const deleteWorkspace = `-- name: DeleteWorkspace :execrows
+DELETE FROM workspaces WHERE id = $1 AND name = $2
+`
+
+type DeleteWorkspaceParams struct {
+	ID   string
+	Name string
+}
+
+func (q *Queries) DeleteWorkspace(ctx context.Context, arg DeleteWorkspaceParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteWorkspace, arg.ID, arg.Name)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getUser = `-- name: GetUser :one
 SELECT id, workspace_id, name, email, avatar_url, admin, created_at FROM users WHERE id = $1
 `

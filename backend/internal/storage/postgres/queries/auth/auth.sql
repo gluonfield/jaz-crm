@@ -48,6 +48,9 @@ SELECT * FROM workspaces WHERE id = $1;
 -- name: UpdateWorkspace :execrows
 UPDATE workspaces SET name = $2, description = $3 WHERE id = $1;
 
+-- name: DeleteWorkspace :execrows
+DELETE FROM workspaces WHERE id = $1 AND name = $2;
+
 -- name: CreateAuthUser :one
 INSERT INTO users (workspace_id, name, email, avatar_url, admin)
 VALUES ($1, $2, $3, $4, $5)

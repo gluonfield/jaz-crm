@@ -241,12 +241,26 @@ func (s *Service) Workspace(ctx context.Context, actor auth.Actor) (storage.Work
 	return s.store.Workspace(ctx, actor.WorkspaceID)
 }
 
+func (s *Service) Delete(ctx context.Context, actor auth.Actor, workspaceID, name string) error {
+	if err := s.requireAdmin(ctx, actor); err != nil {
+		return err
+	}
+	if workspaceID != actor.WorkspaceID {
+		return errs.Invalidf("the current workspace changed; reopen Settings before deleting")
+	}
+	err := s.store.DeleteWorkspace(ctx, workspaceID, strings.TrimSpace(name))
+	if errors.Is(err, storage.ErrNotFound) {
+		return errs.Invalidf("enter the current workspace name to confirm deletion")
+	}
+	return err
+}
+
 func (s *Service) requireAdmin(ctx context.Context, actor auth.Actor) error {
 	user, err := s.store.UserByID(ctx, actor.UserID)
 	if err != nil {
 		return err
 	}
-	if !user.Admin {
+	if !user.Admin || user.WorkspaceID != actor.WorkspaceID {
 		return ErrForbidden
 	}
 	return nil

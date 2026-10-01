@@ -53,7 +53,7 @@ func registerWorkspace(r *registry, members *workspaces.Service, keys *auth.Serv
 				return workspaceView{}, err
 			}
 			users, invites, err := members.Members(ctx, actor)
-			out := workspaceView{Name: workspace.Name, Description: workspace.Description, Members: []memberView{}, Invited: []string{}}
+			out := workspaceView{ID: workspace.ID, Name: workspace.Name, Description: workspace.Description, Members: []memberView{}, Invited: []string{}}
 			for _, u := range users {
 				m := memberView{Name: u.Name, Email: u.Email, Admin: u.Admin, IsMe: u.ID == actor.UserID}
 				if u.AvatarURL != nil {
@@ -76,7 +76,12 @@ func registerWorkspace(r *registry, members *workspaces.Service, keys *auth.Serv
 		Description: "Change this workspace's name or description. The description tells triage which contacts belong in the CRM. Admins only."},
 		func(ctx context.Context, actor auth.Actor, in updateWorkspaceInput) (workspaceView, error) {
 			workspace, err := members.Update(ctx, actor, in.Name, in.Description)
-			return workspaceView{Name: workspace.Name, Description: workspace.Description}, err
+			return workspaceView{ID: workspace.ID, Name: workspace.Name, Description: workspace.Description}, err
+		})
+	add(r, &mcp.Tool{Name: "delete_workspace", Title: "Delete workspace", Annotations: &mcp.ToolAnnotations{DestructiveHint: new(true)},
+		Description: "Permanently delete the current workspace and all its CRM data, memberships, connections and credentials. Admins only. Confirm with its ID and current name from get_workspace. Every connection to it loses access; other workspaces are preserved."},
+		func(ctx context.Context, actor auth.Actor, in deleteWorkspaceInput) (empty, error) {
+			return empty{}, members.Delete(ctx, actor, in.WorkspaceID, in.Name)
 		})
 }
 
@@ -89,6 +94,7 @@ type memberView struct {
 }
 
 type workspaceView struct {
+	ID          string       `json:"id"`
 	Name        string       `json:"name"`
 	Description string       `json:"description"`
 	Members     []memberView `json:"members,omitempty"`
@@ -124,4 +130,9 @@ type workspaceInput struct {
 
 type createWorkspaceInput struct {
 	Name string `json:"name"`
+}
+
+type deleteWorkspaceInput struct {
+	WorkspaceID string `json:"workspace_id"`
+	Name        string `json:"name"`
 }

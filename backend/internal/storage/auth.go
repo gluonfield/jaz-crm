@@ -168,6 +168,7 @@ type WorkspaceStore interface {
 	// identity, and its objects, atomically.
 	CreateOwnedWorkspace(ctx context.Context, name string, owner NewUser, identity Identity, objects []NewObject) (User, error)
 	UpdateWorkspace(ctx context.Context, id, name, description string) error
+	DeleteWorkspace(ctx context.Context, id, name string) error
 	// JoinWorkspace turns an invite into a member linked to the identity.
 	JoinWorkspace(ctx context.Context, invite WorkspaceInvite, member NewUser, identity Identity) (User, error)
 	CreateInvite(ctx context.Context, workspaceID, email, invitedBy string) (WorkspaceInvite, error)

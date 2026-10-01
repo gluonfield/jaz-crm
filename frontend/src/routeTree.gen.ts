@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
+import { Route as WorkspaceDeletedRouteImport } from './routes/workspace-deleted'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppConnectionsRouteImport } from './routes/_app/connections'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
@@ -20,6 +21,11 @@ import { Route as AppRRecordIdRouteImport } from './routes/_app/r.$recordId'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WorkspaceDeletedRoute = WorkspaceDeletedRouteImport.update({
+  id: '/workspace-deleted',
+  path: '/workspace-deleted',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppIndexRoute = AppIndexRouteImport.update({
@@ -60,6 +66,7 @@ const AppRRecordIdRoute = AppRRecordIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
+  '/workspace-deleted': typeof WorkspaceDeletedRoute
   '/connections': typeof AppConnectionsRoute
   '/settings': typeof AppSettingsRoute
   '/triage': typeof AppTriageRoute
@@ -68,6 +75,7 @@ export interface FileRoutesByFullPath {
   '/r/$recordId': typeof AppRRecordIdRoute
 }
 export interface FileRoutesByTo {
+  '/workspace-deleted': typeof WorkspaceDeletedRoute
   '/connections': typeof AppConnectionsRoute
   '/settings': typeof AppSettingsRoute
   '/triage': typeof AppTriageRoute
@@ -79,6 +87,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
+  '/workspace-deleted': typeof WorkspaceDeletedRoute
   '/_app/connections': typeof AppConnectionsRoute
   '/_app/settings': typeof AppSettingsRoute
   '/_app/triage': typeof AppTriageRoute
@@ -91,6 +100,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/workspace-deleted'
     | '/connections'
     | '/settings'
     | '/triage'
@@ -99,6 +109,7 @@ export interface FileRouteTypes {
     | '/r/$recordId'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/workspace-deleted'
     | '/connections'
     | '/settings'
     | '/triage'
@@ -109,6 +120,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/_app'
+    | '/workspace-deleted'
     | '/_app/connections'
     | '/_app/settings'
     | '/_app/triage'
@@ -120,6 +132,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
+  WorkspaceDeletedRoute: typeof WorkspaceDeletedRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -129,6 +142,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/workspace-deleted': {
+      id: '/workspace-deleted'
+      path: '/workspace-deleted'
+      fullPath: '/workspace-deleted'
+      preLoaderRoute: typeof WorkspaceDeletedRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app/': {
@@ -207,6 +227,7 @@ const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
+  WorkspaceDeletedRoute: WorkspaceDeletedRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

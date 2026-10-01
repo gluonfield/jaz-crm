@@ -43,6 +43,10 @@ func (s *Store) UpdateWorkspace(ctx context.Context, id, name, description strin
 	return affected(s.auth.UpdateWorkspace(ctx, authdb.UpdateWorkspaceParams{ID: id, Name: name, Description: description}))
 }
 
+func (s *Store) DeleteWorkspace(ctx context.Context, id, name string) error {
+	return affected(s.auth.DeleteWorkspace(ctx, authdb.DeleteWorkspaceParams{ID: id, Name: name}))
+}
+
 // createObjects creates every object before any attribute, so references
 // resolve whatever order the objects come in.
 func createObjects(ctx context.Context, r *recdb.Queries, workspaceID string, objects []storage.NewObject) error {

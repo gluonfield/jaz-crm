@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { Plus, Settings } from 'lucide-react'
 import { useState } from 'react'
 import { Button, Header, Row, Section, inputClass } from '@/components/controls'
+import { DeleteWorkspace } from '@/components/delete-workspace'
 import { useAPIKeys, useCreateAPIKey, useGrants, useRevoke } from '@/lib/account'
 import { embedded } from '@/lib/api'
 import { slugify } from '@/lib/crm'
@@ -50,6 +51,7 @@ function SettingsPage() {
             <NewObject />
           </Section>
           {!embedded() && <Credentials />}
+          {workspace && admin && <DeleteWorkspace key={workspace.id + workspace.name} workspace={workspace} />}
         </div>
       </div>
     </>
