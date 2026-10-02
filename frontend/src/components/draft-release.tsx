@@ -10,13 +10,6 @@ import { Signature } from './signature'
 const list = (record: CrmRecord, slug: string) => valuesOf(record, slug).map(valueText)
 const text = (record: CrmRecord, slug: string) => list(record, slug).join(', ')
 
-export async function reviewInBrowser(recordId: string, workspace: string) {
-  const url = new URL(`/send/${encodeURIComponent(recordId)}`, document.getElementById('root')?.dataset.mcpUrl ?? window.location.href)
-  url.searchParams.set('workspace', workspace)
-  const { app } = await import('@/lib/mcp-app')
-  await app.openLink({ url: url.href })
-}
-
 export function Release({ record, channel, sender, disabled }: { record: CrmRecord; channel: string; sender?: DraftSender; disabled?: boolean }) {
   const [open, setOpen] = useState(false)
   const workspace = useWorkspace()
@@ -26,21 +19,15 @@ export function Release({ record, channel, sender, disabled }: { record: CrmReco
     return <span className="text-[12px] text-ink-3">{state === 'Approved' ? 'Approved · waiting for the sender' : state}</span>
   }
   const unavailable = disabled || !text(record, 'draft').trim() || !channel || (email && !sender)
-  // The host's MCP credential cannot attest a person's click. Confirm with the CRM's browser session.
-  if (embedded()) {
-    return unavailable || !workspace
-      ? <Button variant="primary" size="sm" disabled>{email ? 'Send' : 'Approve'}</Button>
-      : <Button variant="primary" size="sm" onClick={() => void reviewInBrowser(record.id, workspace.name)}>{email ? 'Send' : 'Approve'}</Button>
-  }
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild><Button variant="primary" size="sm" disabled={unavailable}>{email ? 'Send' : 'Approve'}</Button></DialogTrigger>
-      {open && <DraftConfirmation record={record} sender={sender} channel={channel} onClose={() => setOpen(false)} onSent={() => setOpen(false)} />}
+      {open && <DraftConfirmation record={record} sender={sender} channel={channel} workspace={workspace?.name} onClose={() => setOpen(false)} onSent={() => setOpen(false)} />}
     </Dialog>
   )
 }
 
-export function DraftConfirmation({ record, sender, channel, workspace, onClose, onSent }: { record: CrmRecord; sender?: DraftSender; channel: string; workspace?: string; onClose: () => void; onSent: () => void }) {
+function DraftConfirmation({ record, sender, channel, workspace, onClose, onSent }: { record: CrmRecord; sender?: DraftSender; channel: string; workspace?: string; onClose: () => void; onSent: () => void }) {
   const email = channel === 'Email'
   // Keep the reviewed text and recipients fixed while background queries refresh.
   const [seen] = useState(() => ({
@@ -54,6 +41,7 @@ export function DraftConfirmation({ record, sender, channel, workspace, onClose,
   }))
   const send = useAction<Omit<typeof seen, 'signature'>>('send_draft')
   const sending = useRef(false)
+  const unavailable = embedded()
   return (
     <DialogContent
       aria-describedby="send-description"
@@ -78,9 +66,10 @@ export function DraftConfirmation({ record, sender, channel, workspace, onClose,
         {seen.signature && <div className="mt-3 border-t border-border pt-2"><Signature html={seen.signature} /></div>}
       </div>
       {send.error && <p role="alert" className="text-[13px] text-danger">{send.error.message}</p>}
+      {unavailable && <p role="status" className="text-[13px] text-ink-2">{email ? 'Sending' : 'Approval'} inside Jaz is currently unavailable. Your draft is saved.</p>}
       <div className="flex justify-end gap-2">
         <Button autoFocus disabled={send.isPending} onClick={onClose}>Cancel</Button>
-        <Button variant="primary" disabled={send.isPending || embedded()} onClick={() => {
+        <Button variant="primary" disabled={send.isPending || unavailable} onClick={() => {
           if (sending.current) {
             return
           }

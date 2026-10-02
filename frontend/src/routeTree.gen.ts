@@ -15,7 +15,6 @@ import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppConnectionsRouteImport } from './routes/_app/connections'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppTriageRouteImport } from './routes/_app/triage'
-import { Route as SendRecordIdRouteImport } from './routes/send.$recordId'
 import { Route as AppIInteractionIdRouteImport } from './routes/_app/i.$interactionId'
 import { Route as AppOObjectRouteImport } from './routes/_app/o.$object'
 import { Route as AppRRecordIdRouteImport } from './routes/_app/r.$recordId'
@@ -49,11 +48,6 @@ const AppTriageRoute = AppTriageRouteImport.update({
   path: '/triage',
   getParentRoute: () => AppRoute,
 } as any)
-const SendRecordIdRoute = SendRecordIdRouteImport.update({
-  id: '/send/$recordId',
-  path: '/send/$recordId',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AppIInteractionIdRoute = AppIInteractionIdRouteImport.update({
   id: '/i/$interactionId',
   path: '/i/$interactionId',
@@ -76,7 +70,6 @@ export interface FileRoutesByFullPath {
   '/connections': typeof AppConnectionsRoute
   '/settings': typeof AppSettingsRoute
   '/triage': typeof AppTriageRoute
-  '/send/$recordId': typeof SendRecordIdRoute
   '/i/$interactionId': typeof AppIInteractionIdRoute
   '/o/$object': typeof AppOObjectRoute
   '/r/$recordId': typeof AppRRecordIdRoute
@@ -86,7 +79,6 @@ export interface FileRoutesByTo {
   '/connections': typeof AppConnectionsRoute
   '/settings': typeof AppSettingsRoute
   '/triage': typeof AppTriageRoute
-  '/send/$recordId': typeof SendRecordIdRoute
   '/': typeof AppIndexRoute
   '/i/$interactionId': typeof AppIInteractionIdRoute
   '/o/$object': typeof AppOObjectRoute
@@ -99,7 +91,6 @@ export interface FileRoutesById {
   '/_app/connections': typeof AppConnectionsRoute
   '/_app/settings': typeof AppSettingsRoute
   '/_app/triage': typeof AppTriageRoute
-  '/send/$recordId': typeof SendRecordIdRoute
   '/_app/': typeof AppIndexRoute
   '/_app/i/$interactionId': typeof AppIInteractionIdRoute
   '/_app/o/$object': typeof AppOObjectRoute
@@ -113,7 +104,6 @@ export interface FileRouteTypes {
     | '/connections'
     | '/settings'
     | '/triage'
-    | '/send/$recordId'
     | '/i/$interactionId'
     | '/o/$object'
     | '/r/$recordId'
@@ -123,7 +113,6 @@ export interface FileRouteTypes {
     | '/connections'
     | '/settings'
     | '/triage'
-    | '/send/$recordId'
     | '/'
     | '/i/$interactionId'
     | '/o/$object'
@@ -135,7 +124,6 @@ export interface FileRouteTypes {
     | '/_app/connections'
     | '/_app/settings'
     | '/_app/triage'
-    | '/send/$recordId'
     | '/_app/'
     | '/_app/i/$interactionId'
     | '/_app/o/$object'
@@ -145,7 +133,6 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   WorkspaceDeletedRoute: typeof WorkspaceDeletedRoute
-  SendRecordIdRoute: typeof SendRecordIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -191,13 +178,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/triage'
       preLoaderRoute: typeof AppTriageRouteImport
       parentRoute: typeof AppRoute
-    }
-    '/send/$recordId': {
-      id: '/send/$recordId'
-      path: '/send/$recordId'
-      fullPath: '/send/$recordId'
-      preLoaderRoute: typeof SendRecordIdRouteImport
-      parentRoute: typeof rootRouteImport
     }
     '/_app/i/$interactionId': {
       id: '/_app/i/$interactionId'
@@ -248,7 +228,6 @@ const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   WorkspaceDeletedRoute: WorkspaceDeletedRoute,
-  SendRecordIdRoute: SendRecordIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
