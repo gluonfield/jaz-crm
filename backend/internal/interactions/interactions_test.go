@@ -247,6 +247,11 @@ func TestDecisions(t *testing.T) {
 	if _, err := e.svc.Decide(ctx, e.a, interactions.Decision{Domains: []string{"cas.dev"}}); err == nil {
 		t.Fatal("skipped the workspace's own domain")
 	}
+	for _, keep := range []bool{false, true} {
+		if _, err := e.svc.Decide(ctx, e.a, interactions.Decision{Domains: []string{"Gmail.com"}, Keep: keep}); err == nil {
+			t.Fatalf("decided every sender of a webmail domain at once, keep %v", keep)
+		}
+	}
 }
 
 // Deleting a person keeps them out: triage does not create them again.

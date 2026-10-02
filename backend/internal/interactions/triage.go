@@ -267,6 +267,9 @@ func (s *Service) decide(ctx context.Context, actor auth.Actor, d Decision) (int
 		if !strings.Contains(domain, ".") || known.domains[domain] {
 			return 0, errs.Invalidf("%q is not an outside domain", raw)
 		}
+		if slices.Contains(freemailDomains, domain) {
+			return 0, errs.Invalidf("%s is webmail shared by unrelated people; decide its senders one by one", domain)
+		}
 		if err := s.store.SetDomainRule(ctx, ws, domain, verdict, d.Reason); err != nil {
 			return 0, err
 		}
