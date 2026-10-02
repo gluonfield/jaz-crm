@@ -29,9 +29,11 @@ func NewService(crm *records.Service, store storage.InteractionStore, conns *con
 	return &Service{crm: crm, store: store, conns: conns}
 }
 
-// Seen is the draft a person released, as they saw it.
+// Seen is the draft a person released, as they saw it, with the mailbox an
+// email draft goes from.
 type Seen struct {
 	Draft  string
+	From   string
 	To, Cc []string
 }
 
@@ -59,6 +61,9 @@ func (s *Service) Release(ctx context.Context, actor auth.Actor, id string, seen
 	reply, err := s.reply(ctx, actor, f)
 	if err != nil {
 		return records.Record{}, err
+	}
+	if reply.account != seen.From {
+		return records.Record{}, errs.Invalidf("this reply now goes from %s; review it again", reply.account)
 	}
 	if value(f, "draft_status") == records.DraftWritten {
 		if _, err := s.set(ctx, actor, id, "draft_status", records.DraftApproved); err != nil {
@@ -107,18 +112,23 @@ type outgoing struct {
 	message google.Outgoing
 }
 
-// reply addresses a follow-up's draft as a reply to the newest message of
-// the email conversations it is linked to, from the mailbox that holds that
-// message when the actor may send from it.
-func (s *Service) reply(ctx context.Context, actor auth.Actor, f records.Record) (outgoing, error) {
-	body := value(f, "draft")
-	to := values(f, "to")
-	if strings.TrimSpace(body) == "" || len(to) == 0 {
-		return outgoing{}, errs.Invalidf("an email draft needs text and a recipient")
+// Sender is the mailbox a follow-up's email draft goes from for the actor.
+func (s *Service) Sender(ctx context.Context, actor auth.Actor, id string) (string, error) {
+	f, err := s.crm.Get(ctx, actor, id)
+	if err != nil {
+		return "", err
 	}
+	_, sender, err := s.sender(ctx, actor, f)
+	return sender.Account, err
+}
+
+// sender finds the newest message of the email conversations a follow-up is
+// linked to, and the mailbox a reply to it goes from: the one holding it when
+// the actor may send from it, else their own.
+func (s *Service) sender(ctx context.Context, actor auth.Actor, f records.Record) (storage.Part, storage.Connection, error) {
 	threads, err := s.store.Timeline(ctx, storage.TimelineQuery{RecordID: f.ID, WorkspaceID: actor.WorkspaceID, Kinds: []string{interactions.Email}, Limit: 20})
 	if err != nil {
-		return outgoing{}, err
+		return storage.Part{}, storage.Connection{}, err
 	}
 	ids := make([]string, len(threads))
 	for i, t := range threads {
@@ -126,13 +136,29 @@ func (s *Service) reply(ctx context.Context, actor auth.Actor, f records.Record)
 	}
 	parts, err := s.store.Parts(ctx, ids)
 	if err != nil {
-		return outgoing{}, err
+		return storage.Part{}, storage.Connection{}, err
 	}
 	parts = slices.DeleteFunc(parts, func(p storage.Part) bool { return p.Kind != "message" || p.ConnectionID == nil || p.ProviderID == nil })
 	if len(parts) == 0 {
-		return outgoing{}, errs.Invalidf("link the email conversation this follow-up replies in")
+		return storage.Part{}, storage.Connection{}, errs.Invalidf("link the email conversation this follow-up replies in")
 	}
 	last := slices.MaxFunc(parts, func(a, b storage.Part) int { return a.At.Compare(*b.At) })
+	sender, err := s.conns.Mailbox(ctx, actor, *last.ConnectionID)
+	return last, sender, err
+}
+
+// reply addresses a follow-up's draft as a reply to the newest message of
+// the email conversations it is linked to, from its sender.
+func (s *Service) reply(ctx context.Context, actor auth.Actor, f records.Record) (outgoing, error) {
+	body := value(f, "draft")
+	to := values(f, "to")
+	if strings.TrimSpace(body) == "" || len(to) == 0 {
+		return outgoing{}, errs.Invalidf("an email draft needs text and a recipient")
+	}
+	last, sender, err := s.sender(ctx, actor, f)
+	if err != nil {
+		return outgoing{}, err
+	}
 	written, err := s.draftedAt(ctx, actor, f.ID)
 	if err != nil {
 		return outgoing{}, err
@@ -141,10 +167,6 @@ func (s *Service) reply(ctx context.Context, actor auth.Actor, f records.Record)
 		return outgoing{}, errs.Invalidf("a message arrived after this draft was written; review the draft first")
 	}
 	original, holder, err := s.original(ctx, last)
-	if err != nil {
-		return outgoing{}, err
-	}
-	sender, err := s.conns.Mailbox(ctx, actor, holder.ID)
 	if err != nil {
 		return outgoing{}, err
 	}
