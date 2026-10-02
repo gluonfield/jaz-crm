@@ -320,15 +320,17 @@ func (a *Agent) follow(ctx context.Context, workspaceID, id string) (string, str
 		}
 		return "", reason, err
 	}
+	attempted := slices.ContainsFunc(plan.FollowUps, func(c Change) bool { return strings.TrimSpace(c.Reply) != "" })
+	if !attempted && strings.TrimSpace(plan.SkipReason) == "" {
+		return "", "The drafting model returned no reply or explanation. The system will retry.", errors.New("drafting model returned neither a reply nor a skip reason")
+	}
 	drafted := false
-	attempted := false
 	for _, change := range plan.FollowUps {
 		written, err := a.apply(ctx, actor, conv, in, change)
 		if err != nil {
 			return "", "Could not save the draft or follow-up. The system will retry.", err
 		}
 		drafted = drafted || written
-		attempted = attempted || strings.TrimSpace(change.Reply) != ""
 	}
 	for _, c := range plan.Contexts {
 		i := slices.IndexFunc(in.Records, func(current Record) bool { return current.Object == "people" && current.ID == c.Person })
@@ -345,8 +347,6 @@ func (a *Agent) follow(ctx context.Context, workspaceID, id string) (string, str
 	reason := plain(strings.TrimSpace(plan.SkipReason))
 	if attempted {
 		reason = "The generated reply could not replace the existing draft or did not match this follow-up."
-	} else if reason == "" {
-		reason = "The conversation was reviewed without generating a new reply."
 	}
 	return "skipped", reason, nil
 }

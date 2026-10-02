@@ -78,8 +78,15 @@ func TestFollowUpDraftLifecycle(t *testing.T) {
 	if err != nil || status(sent) != records.DraftSent {
 		t.Fatalf("the claimer could not mark the draft sent: %q %v", status(sent), err)
 	}
+	if len(values(sent, "draft")) != 0 {
+		t.Fatal("sent text must leave the draft field")
+	}
 	if _, err := write(records.SourceAgent, "draft_status", records.DraftSent); err == nil {
 		t.Fatal("a sent draft was sent again")
+	}
+	fresh, err := write(records.SourceAgent, "draft", "Hi Jane, we also support assembly.")
+	if err != nil || status(fresh) != records.DraftWritten || !slices.Equal(values(fresh, "draft"), []string{"Hi Jane, we also support assembly."}) {
+		t.Fatalf("a new reply must start a fresh draft: %+v %v", fresh, err)
 	}
 }
 

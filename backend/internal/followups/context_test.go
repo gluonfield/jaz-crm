@@ -128,7 +128,7 @@ func TestDraftRequestIncludesFullConversationAndCompanyKnowledge(t *testing.T) {
 		}
 		requests <- input
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"id":"resp_1","object":"response","status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"{\"follow_ups\":[],\"contexts\":[]}"}]}]}`)
+		fmt.Fprint(w, `{"id":"resp_1","object":"response","status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"{\"follow_ups\":[],\"contexts\":[],\"skip_reason\":\"Product details need confirmation.\"}"}]}]}`)
 	}))
 	t.Cleanup(api.Close)
 	client := llm.New(llm.Config{BaseURL: api.URL, APIKey: "test", Model: "gpt-6-luna", Effort: "medium"})

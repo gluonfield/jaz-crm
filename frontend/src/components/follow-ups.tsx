@@ -132,7 +132,7 @@ function FollowUp({ record, open, index, context, onToggle }: { record: CrmRecor
             {conversation && (messages.length > 0
               ? <MessageThread key={conversation.id} interaction={thread.data ?? conversation} messages={messages} initialVisible={1} />
               : <p className="text-[12px] text-ink-3">Message text is not available yet.</p>)}
-            <Draft record={record} channel={channel} sender={sender.data} error={sender.error?.message} drafting={drafting} />
+            <Draft key={text(record, 'draft_status') === 'Sent' ? 'sent' : 'draft'} record={record} channel={channel} sender={sender.data} error={sender.error?.message} drafting={drafting} />
           </div>
         </Reveal>
       </div>
