@@ -13,7 +13,7 @@ import (
 const (
 	// SignalWake asks a sync to run a pass now, such as after a push notification.
 	SignalWake   = "wake"
-	pollInterval = 5 * time.Minute
+	pollInterval = time.Minute
 	passesPerRun = 100
 
 	// Activity error types that end a sync.

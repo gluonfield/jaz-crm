@@ -37,13 +37,13 @@ func syncEnv(t *testing.T, backfill func(int) (bool, error), incremental error) 
 // interval, sooner when woken, and continues as new to bound its history.
 func TestConnectionSyncPaces(t *testing.T) {
 	env, passes := syncEnv(t, func(n int) (bool, error) { return n >= 2, nil }, nil)
-	env.RegisterDelayedCallback(func() { env.SignalWorkflow(SignalWake, nil) }, 6*time.Minute)
+	env.RegisterDelayedCallback(func() { env.SignalWorkflow(SignalWake, nil) }, 90*time.Second)
 	env.ExecuteWorkflow(ConnectionSync, "c1")
 	if !workflow.IsContinueAsNewError(env.GetWorkflowError()) {
 		t.Fatalf("error: %v", env.GetWorkflowError())
 	}
 	p := *passes
-	if len(p) != passesPerRun || p[1] != p[0] || p[2].Sub(p[1]) != pollInterval || p[3].Sub(p[2]) != time.Minute {
+	if len(p) != passesPerRun || p[1] != p[0] || p[2].Sub(p[1]) != time.Minute || p[3].Sub(p[2]) != 30*time.Second {
 		t.Fatalf("passes %d at %v", len(p), p[:4])
 	}
 }
