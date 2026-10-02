@@ -1,7 +1,10 @@
 import { Button } from '@jaz/ui/button'
+import { Link } from '@tanstack/react-router'
 import { X } from 'lucide-react'
 import { type ReactNode, useId } from 'react'
+import type { Ref } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { RecordIcon } from './icons'
 
 export const inputClass =
   'h-7 min-w-0 rounded-[var(--radius-control)] border border-border bg-bg px-2.5 text-[13px] text-ink outline-none placeholder:text-ink-3 focus:border-primary disabled:opacity-50'
@@ -22,10 +25,12 @@ export function Tab({ active, children, onClick }: { active: boolean; children: 
   )
 }
 
+const chip = 'inline-flex h-[22px] min-w-0 max-w-full items-center gap-1.5 rounded-full border border-border bg-raised px-2 text-[12px] text-ink-2'
+
 export function Chip({ children, onRemove }: { children: ReactNode; onRemove?: () => void }) {
   const id = useId()
   return (
-    <span className="inline-flex h-[22px] min-w-0 max-w-full items-center gap-1.5 rounded-full border border-border bg-raised px-2 text-[12px] text-ink-2">
+    <span className={chip}>
       <span id={id} className="flex min-w-0 items-center gap-1.5 truncate">
         {children}
       </span>
@@ -46,6 +51,19 @@ export function Chip({ children, onRemove }: { children: ReactNode; onRemove?: (
         </button>
       )}
     </span>
+  )
+}
+
+// RecordChip is a referenced record, opening it without acting on the row it
+// sits in.
+export function RecordChip({ object, value }: { object: string; value: Ref }) {
+  const name = value.name || 'Unnamed'
+  return (
+    <Link to="/r/$recordId" params={{ recordId: value.id }} onClick={(e) => e.stopPropagation()}
+      className={cn(chip, 'outline-none hover:text-ink focus-visible:border-primary')}>
+      <RecordIcon object={object} name={name} photo={value.photo} size={14} />
+      <span className="truncate">{name}</span>
+    </Link>
   )
 }
 

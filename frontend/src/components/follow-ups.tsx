@@ -1,12 +1,12 @@
 import { Check, X } from 'lucide-react'
-import { useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { Button } from '@jaz/ui/button'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
 import { formatDay } from '@/lib/format'
 import { useAction, useTool, useWrite } from '@/lib/queries'
 import type { CrmRecord, Ref } from '@/lib/types'
 import { cn } from '@/lib/utils'
-import { RecordIcon } from './icons'
+import { RecordChip } from './controls'
 
 const text = (record: CrmRecord, slug: string) => valuesOf(record, slug).map(valueText).join(', ')
 const today = () => new Date().toLocaleDateString('en-CA')
@@ -44,45 +44,69 @@ function Recipients({ record }: { record: CrmRecord }) {
   )
 }
 
-// FollowUpQueue lists follow-ups as a review queue: who, what is owed and by
-// when, with any draft ready to send or approve.
-export function FollowUpQueue({ records, focus, onOpen }: { records: CrmRecord[]; focus: number; onOpen: (index: number) => void }) {
+// FollowUpQueue lists follow-ups as a review queue: what is owed, to whom and
+// by when. The focused follow-up opens to its draft beside what we know of
+// the person.
+export function FollowUpQueue({ records, focus, onFocus }: { records: CrmRecord[]; focus: number; onFocus: (index: number) => void }) {
   return (
     <div className="scrollbar-quiet min-h-0 flex-1 overflow-y-auto">
       <ul className="mx-auto max-w-[880px] px-4 py-3">
         {records.map((r, index) => (
-          <FollowUp key={r.id} record={r} focused={focus === index} index={index} onOpen={() => onOpen(index)} />
+          <FollowUp key={r.id} record={r} open={focus === index} index={index} onToggle={() => onFocus(focus === index ? -1 : index)} />
         ))}
       </ul>
     </div>
   )
 }
 
-function FollowUp({ record, focused, index, onOpen }: { record: CrmRecord; focused: boolean; index: number; onOpen: () => void }) {
+// editDraft starts editing the draft of the follow-up at index, once open.
+export const editDraft = (index: number) => document.querySelector<HTMLElement>(`[data-row="${index}"] textarea`)?.focus()
+
+const subjects = { person: 'people', company: 'companies', deal: 'deals' }
+
+function FollowUp({ record, open, index, onToggle }: { record: CrmRecord; open: boolean; index: number; onToggle: () => void }) {
   const write = useWrite(record)
+  const row = useRef<HTMLLIElement>(null)
+  useEffect(() => {
+    if (open) {
+      row.current?.scrollIntoView({ block: 'nearest' })
+    }
+  }, [open])
   const person = valuesOf(record, 'person')[0] as Ref | undefined
-  const who = [person?.name, text(record, 'company'), text(record, 'deal')].filter(Boolean).join(' · ')
   const review = text(record, 'review_on')
   const due = review !== '' && review <= today()
   const waiting = { Us: 'Our move', Them: 'Waiting on them' }[text(record, 'waiting_on')]
   const draft = text(record, 'draft')
   return (
     <li
+      ref={row}
       data-row={index}
-      onClick={onOpen}
-      className={cn('group -mx-2 flex cursor-default gap-3 rounded-[var(--radius-control)] px-2 py-2.5 hover:bg-list-hover', focused && 'bg-list-hover')}
+      aria-expanded={open}
+      onClick={onToggle}
+      className={cn('group -mx-2 flex cursor-default gap-3 rounded-[var(--radius-control)] px-2 py-2.5 hover:bg-list-hover', open && 'bg-list-hover')}
     >
-      <RecordIcon object="people" name={person?.name ?? recordName(record)} photo={person?.photo} size={26} className="mt-px" />
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
         <div className="flex min-w-0 items-baseline gap-2 text-[13px]">
           <span className="truncate font-medium text-ink">{recordName(record)}</span>
           {review && <span className={cn('ml-auto shrink-0 text-[12px] tabular-nums', due ? 'text-ink' : 'text-ink-3')}>{formatDay(review)}</span>}
         </div>
-        {(who || waiting) && <div className="truncate text-[12px] text-ink-3">{[who, waiting].filter(Boolean).join(' · ')}</div>}
-        {person && <Context person={person} />}
-        {draft && <Draft key={`${record.id}:${draft}`} record={record} />}
+        <div className="flex min-w-0 items-center gap-1.5 text-[12px] text-ink-3">
+          {Object.entries(subjects).flatMap(([slug, object]) => (valuesOf(record, slug) as Ref[]).map((v) => <RecordChip key={v.id} object={object} value={v} />))}
+          {waiting && <span className="ml-0.5 shrink-0">{waiting}</span>}
+        </div>
+        {open ? (
+          <div className="mt-1.5 flex cursor-auto flex-wrap items-start gap-x-6 gap-y-3" onClick={(e) => e.stopPropagation()}>
+            {draft && <Draft key={`${record.id}:${draft}`} record={record} />}
+            {person && <Context person={person} />}
+          </div>
+        ) : draft && (
+          <p className="truncate text-[12px] text-ink-3">
+            <span className="mr-1.5 text-ink-2">{text(record, 'draft_status') || 'Draft'}</span>
+            {draft.replace(/\s+/g, ' ')}
+          </p>
+        )}
       </div>
-      <div className="flex shrink-0 items-start gap-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
+      <div className={cn('flex shrink-0 items-start gap-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100', open && 'opacity-100')}>
         <Button variant="ghost" size="icon-sm" aria-label="Done" title="Done" onClick={(e) => {
           e.stopPropagation()
           write.set('status', 'Done')
@@ -100,12 +124,29 @@ function FollowUp({ record, focused, index, onOpen }: { record: CrmRecord; focus
   )
 }
 
-// Context shows what we know of the person a follow-up concerns, so a draft
-// can be checked and fixed against it.
+// Context is what we know of the person a follow-up concerns, to check and
+// fix its draft against: who they are, then dated events as a timeline.
 function Context({ person }: { person: Ref }) {
   const record = useTool<CrmRecord>('get_record', { record_id: person.id }).data
-  const context = record && text(record, 'context')
-  return context ? <p className="whitespace-pre-wrap text-[12px] leading-[18px] text-ink-3">{context}</p> : null
+  const lines = (record ? text(record, 'context') : '').split('\n').map((line) => line.replace(/^\s*[-*•]\s*/, '').trim()).filter(Boolean)
+  if (lines.length === 0) {
+    return null
+  }
+  return (
+    <div className="grid min-w-0 flex-[2_1_220px] grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[12px] leading-[18px] text-ink-2">
+      {lines.map((line, i) => {
+        const [, day, event] = line.match(/^(\d{4}-\d{2}-\d{2}):\s*(.*)$/) ?? []
+        return day ? (
+          <Fragment key={i}>
+            <span className="whitespace-nowrap tabular-nums text-ink-3">{formatDay(day)}</span>
+            <span>{event}</span>
+          </Fragment>
+        ) : (
+          <span key={i} className="col-span-2 mb-1">{line}</span>
+        )
+      })}
+    </div>
+  )
 }
 
 // Draft edits a follow-up's draft in the queue, the one place drafts appear,
@@ -126,7 +167,7 @@ function Draft({ record }: { record: CrmRecord }) {
     }
   }
   return (
-    <div className="flex flex-col gap-2 rounded-[var(--radius-card)] bg-panel px-3 py-2" onClick={(e) => e.stopPropagation()}>
+    <div className="flex min-w-0 flex-[3_1_380px] flex-col gap-2 rounded-[var(--radius-card)] bg-panel px-3 py-2">
       <textarea
         aria-label="Draft"
         value={draft}

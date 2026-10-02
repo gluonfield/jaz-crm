@@ -3,7 +3,7 @@ import { ArrowDownAZ, Kanban, ListChecks, Plus, Search, Table2 } from 'lucide-re
 import { type ReactNode, useRef, useState } from 'react'
 import { Board } from '@/components/board'
 import { CompanyPeople } from '@/components/company-people'
-import { FollowUpQueue } from '@/components/follow-ups'
+import { editDraft, FollowUpQueue } from '@/components/follow-ups'
 import { Stage } from '@/components/stage'
 import { Button } from '@jaz/ui/button'
 import { Header } from '@/components/controls'
@@ -55,7 +55,7 @@ function ObjectPage() {
   const records = found && (sort === 'name' ? [...found].sort((a, b) => recordName(a).localeCompare(recordName(b))) : found)
   const navigate = useNavigate()
   const openRecord = (index: number) => records && navigate({ to: '/r/$recordId', params: { recordId: records[index].id } })
-  const [focus] = useListKeys(records?.length ?? 0, { Enter: openRecord, o: openRecord })
+  const [focus, setFocus] = useListKeys(records?.length ?? 0, queue ? { Enter: editDraft, Escape: () => setFocus(-1) } : { Enter: openRecord, o: openRecord })
   const [creating, setCreating] = useState(false)
   const rows = useRef<HTMLTableSectionElement>(null)
   useFlip(rows)
@@ -123,7 +123,7 @@ function ObjectPage() {
       ) : records?.length === 0 && (!own || query || filters.length > 0) ? (
         <Empty object={object} query={query} filtered={filters.length > 0} />
       ) : queue ? (
-        records && <FollowUpQueue records={records} focus={focus} onOpen={openRecord} />
+        records && <FollowUpQueue records={records} focus={focus} onFocus={setFocus} />
       ) : (
         <div className="scrollbar-quiet min-h-0 flex-1 overflow-auto">
           <table className="w-full border-collapse text-[13px]">
