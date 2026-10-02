@@ -1,6 +1,6 @@
 import { Check, ChevronDown, LoaderCircle, X } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Fragment, type ReactNode, useEffect, useRef, useState } from 'react'
+import { Fragment, type ReactNode, useState } from 'react'
 import { Button } from '@jaz/ui/button'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
 import { formatDay } from '@/lib/format'
@@ -65,24 +65,22 @@ const channels: Record<string, string> = { email: 'Email', linkedin: 'LinkedIn' 
 
 function FollowUp({ record, open, index, onToggle }: { record: CrmRecord; open: boolean; index: number; onToggle: () => void }) {
   const write = useWrite(record)
-  const row = useRef<HTMLLIElement>(null)
-  useEffect(() => {
-    if (open) {
-      row.current?.scrollIntoView({ block: 'nearest' })
-    }
-  }, [open])
   const person = valuesOf(record, 'person')[0] as Ref | undefined
   const review = text(record, 'review_on')
   const due = review !== '' && review <= today()
   const waiting = { Us: 'Our move', Them: 'Waiting on them' }[text(record, 'waiting_on')]
   const draft = text(record, 'draft')
-  const conversation = useTool<{ interactions: Interaction[] }>('list_interactions', { record_id: record.id, kinds: ['message'], limit: 1 }, { enabled: open }).data?.interactions[0]
+  const context = useTool<CrmRecord>('get_record', { record_id: person?.id ?? '' }, { enabled: open && !!person })
+  const conversations = useTool<{ interactions: Interaction[] }>('list_interactions', { record_id: record.id, kinds: ['message'], limit: 1 }, { enabled: open })
+  const conversation = conversations.data?.interactions[0]
+  const thread = useTool<Interaction>('get_interaction', { interaction_id: conversation?.id ?? '' }, { enabled: open && !!conversation })
   const channel = text(record, 'channel') || channels[conversation?.channel ?? ''] || ''
   const email = channel === 'Email'
   const sender = useTool<DraftSender>('get_draft_sender', { record_id: record.id }, { enabled: open && email })
+  const loading = context.isLoading || conversations.isLoading || thread.isLoading || sender.isLoading
+  const messages = thread.data?.messages ?? (conversation?.last_message ? [conversation.last_message] : [])
   return (
     <li
-      ref={row}
       data-row={index}
       aria-expanded={open}
       onClick={onToggle}
@@ -107,10 +105,20 @@ function FollowUp({ record, open, index, onToggle }: { record: CrmRecord; open: 
             {draft.replace(/\s+/g, ' ')}
           </p>
         </Reveal>
-        <Reveal open={open} onOpened={() => row.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })}>
+        <Reveal open={open && loading}>
+          <div role="status" className="flex h-28 items-center justify-center gap-2 text-[12px] text-ink-3">
+            <LoaderCircle aria-hidden="true" className="size-4 animate-spin motion-reduce:animate-none" />
+            Loading conversation…
+          </div>
+        </Reveal>
+        <Reveal open={open && !loading}>
           <div id={`follow-up-${record.id}`} className="flex cursor-auto flex-col gap-4 pt-4" onClick={(e) => e.stopPropagation()}>
-            {person && <Context person={person} load={open} />}
-            {conversation && <Conversation conversation={conversation} load={open} />}
+            {context.error && <p role="alert" className="text-[12px] text-ink-3">{context.error.message}</p>}
+            {context.data && <Context record={context.data} />}
+            {(conversations.error || thread.error) && <p role="alert" className="text-[12px] text-ink-3">{(conversations.error || thread.error)?.message}</p>}
+            {conversation && (messages.length > 0
+              ? <MessageThread key={conversation.id} interaction={thread.data ?? conversation} messages={messages} initialVisible={1} />
+              : <p className="text-[12px] text-ink-3">Message text is not available yet.</p>)}
             <Draft record={record} channel={channel} sender={sender.data} error={sender.error?.message} />
           </div>
         </Reveal>
@@ -134,11 +142,11 @@ function FollowUp({ record, open, index, onToggle }: { record: CrmRecord; open: 
 }
 
 // Reveal grows its content open and shut, keeping it out of reach while shut.
-function Reveal({ open, onOpened, children }: { open: boolean; onOpened?: () => void; children: ReactNode }) {
+function Reveal({ open, children }: { open: boolean; children: ReactNode }) {
   return (
     <div
       inert={!open}
-      onTransitionEnd={(e) => open && e.target === e.currentTarget && e.propertyName === 'grid-template-rows' && onOpened?.()}
+      aria-hidden={!open}
       className={cn('grid transition-[grid-template-rows,opacity] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none', open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0')}
     >
       <div className="min-h-0 overflow-hidden">{children}</div>
@@ -154,12 +162,10 @@ function Address({ label, value }: { label: string; value?: string }) {
   ) : null
 }
 
-function Context({ person, load }: { person: Ref; load: boolean }) {
-  const query = useTool<CrmRecord>('get_record', { record_id: person.id }, { enabled: load })
+function Context({ record }: { record: CrmRecord }) {
   const [expanded, setExpanded] = useState(true)
-  const record = query.data
-  const lines = (record ? text(record, 'context') : '').split('\n').map((line) => line.replace(/^\s*[-*•]\s*/, '').trim()).filter(Boolean)
-  if (lines.length === 0 && !query.isLoading) {
+  const lines = text(record, 'context').split('\n').map((line) => line.replace(/^\s*[-*•]\s*/, '').trim()).filter(Boolean)
+  if (lines.length === 0) {
     return null
   }
   return (
@@ -171,7 +177,6 @@ function Context({ person, load }: { person: Ref; load: boolean }) {
         </Button>
       </div>
       <Reveal open={expanded}>
-        {query.isLoading && <p role="status" className="pt-2 text-[12px] text-ink-3">Loading context…</p>}
         <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 pt-2 text-[12px] leading-[18px] text-ink-2">
           {lines.map((line, i) => {
             const [, day, event] = line.match(/^(\d{4}-\d{2}-\d{2}):\s*(.*)$/) ?? []
@@ -187,18 +192,6 @@ function Context({ person, load }: { person: Ref; load: boolean }) {
         </div>
       </Reveal>
     </section>
-  )
-}
-
-function Conversation({ conversation, load }: { conversation: Interaction; load: boolean }) {
-  const query = useTool<Interaction>('get_interaction', { interaction_id: conversation.id }, { enabled: load })
-  const interaction = query.data ?? conversation
-  const messages = query.data?.messages ?? (conversation.last_message ? [conversation.last_message] : [])
-  return (
-    <div className="min-w-0">
-      {query.error && <p role="alert" className="mb-2 text-[12px] text-ink-3">{query.error.message}</p>}
-      {messages.length ? <MessageThread interaction={interaction} messages={messages} initialVisible={1} /> : <p role="status" className="text-[12px] text-ink-3">{query.isLoading ? 'Loading message…' : 'Message text is not available yet.'}</p>}
-    </div>
   )
 }
 

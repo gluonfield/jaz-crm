@@ -22,3 +22,14 @@ Verification: Go build, vet and full suite against PostgreSQL; frontend typechec
 - [x] Verify both themes, narrow layout, thread order and editable replies; complete design and code reviews.
 
 Verification: frontend typecheck, lint and both builds; full Go suite against isolated PostgreSQL; real built-app browser checks using captured production responses for full messages, chronological thread expansion, empty composition, context collapse and a 380px content width. Claude Opus 5.5 at xhigh completed both design passes. Commit, push and production deployment are recorded in the session memory.
+
+## Conversation alignment and loading
+
+- [ ] Keep our team's messages together on the left and other people's messages on the right, with subtly different fills.
+- [x] Keep every profile badge to the left of its sender's name.
+- [x] Show a single loader until person context, the full conversation and reply sender details are ready, then reveal them together without repeated scrolling.
+- [x] Verify delayed loads, cached reopening, errors, both themes and narrow layouts; run full checks.
+
+The existing workspace-relative direction and distinct neutral/accent fills work for recognised team addresses. A captured thread contains a teammate's alternate university address classified as incoming; confirming its ownership is pending before registering it as a team address. Avoid guessing ownership from display names.
+
+Verification uses the actual production build with captured HTTP responses and controlled delays/failures. Context, summary, message body and sender/signature resolve behind one stable loader. Cached reopening preserves the draft; each failed request leaves a usable composer and visible error; empty conversations remain editable. Both themes pass at 1280px and 620px, including two known team senders, incoming messages, avatar order and conversation overflow. Frontend typecheck/lint/web/MCP builds and full Go build/vet/tests against isolated PostgreSQL pass. Temporary browser fixtures remain outside the repository.

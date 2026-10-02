@@ -43,7 +43,7 @@ export function MessageThread({ interaction, messages, initialVisible = 6 }: { i
             <li key={i} className="flex min-w-0 flex-col gap-4">
               {(index === 0 || day !== formatDate(messages[i - 1].at)) && <time dateTime={message.at} className="self-center text-[11.5px] text-ink-3">{day}</time>}
               <div className={cn('flex max-w-[92%] flex-col gap-1.5 sm:max-w-[86%]', received ? 'self-end' : sent ? 'self-start' : 'self-center')}>
-                <div className={cn('flex min-w-0 items-center gap-1.5 text-[12px] text-ink-3', received && 'flex-row-reverse')}>
+                <div className={cn('flex min-w-0 items-center gap-1.5 text-[12px] text-ink-3', received && 'justify-end')}>
                   <RecordIcon object="people" name={author} photo={participant(message.sender_address)?.photo} size={20} />
                   <span className="truncate">
                     <span className="font-medium text-ink-2" title={message.sender_address}>{author}</span>
