@@ -5,21 +5,44 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"mime"
+	"mime/multipart"
+	"net/textproto"
 	"net/url"
 	"strings"
+
+	"golang.org/x/net/html"
 )
 
-// Outgoing is a plain-text email. A reply names the Gmail thread it joins in
-// the sending mailbox and the Message-IDs it answers.
+// Outgoing is an email written as plain text, sent with an HTML alternative
+// and its sender's signature below it, as Gmail sends mail. A reply names the
+// Gmail thread it joins in the sending mailbox and the Message-IDs it answers.
 type Outgoing struct {
 	From       string
 	To, Cc     []string
 	Subject    string
 	Body       string
+	Signature  Signature
 	ThreadID   string
 	InReplyTo  string
 	References []string
+}
+
+// Signature is what Gmail adds below new mail from an address: its HTML, and
+// its text as a plain-text email shows it.
+type Signature struct {
+	HTML, Text string
+}
+
+// Signature reads the signature Gmail adds to new mail sent as an address of
+// the mailbox; Gmail exposes no other, such as one chosen for replies.
+func (c *Client) Signature(ctx context.Context, address string) (Signature, error) {
+	var raw struct{ Signature string }
+	if err := c.get(ctx, c.gmail("settings/sendAs/"+url.PathEscape(address)), nil, &raw); err != nil {
+		return Signature{}, err
+	}
+	return Signature{HTML: raw.Signature, Text: htmlText(raw.Signature)}, nil
 }
 
 // Send sends a message from the mailbox and returns its Gmail id. It is never
@@ -31,6 +54,24 @@ func (c *Client) Send(ctx context.Context, m Outgoing) (string, error) {
 			fmt.Fprintf(&raw, "%s: %s\r\n", name, strings.NewReplacer("\r", " ", "\n", " ").Replace(value))
 		}
 	}
+	plain := m.Body
+	rich := `<div dir="ltr">` + strings.ReplaceAll(html.EscapeString(m.Body), "\n", "<br>") + `</div>`
+	if m.Signature.HTML != "" {
+		plain += "\n\n" + m.Signature.Text
+		rich += `<br><div dir="ltr" class="gmail_signature">` + m.Signature.HTML + `</div>`
+	}
+	var body bytes.Buffer
+	parts := multipart.NewWriter(&body)
+	for _, p := range [][2]string{{"text/plain", plain}, {"text/html", rich}} {
+		w, err := parts.CreatePart(textproto.MIMEHeader{"Content-Type": {p[0] + "; charset=UTF-8"}, "Content-Transfer-Encoding": {"base64"}})
+		if err != nil {
+			return "", err
+		}
+		wrapped(w, base64.StdEncoding.EncodeToString([]byte(p[1])))
+	}
+	if err := parts.Close(); err != nil {
+		return "", err
+	}
 	header("From", m.From)
 	header("To", strings.Join(m.To, ", "))
 	header("Cc", strings.Join(m.Cc, ", "))
@@ -38,18 +79,21 @@ func (c *Client) Send(ctx context.Context, m Outgoing) (string, error) {
 	header("In-Reply-To", bracketed(m.InReplyTo))
 	header("References", bracketed(m.References...))
 	header("MIME-Version", "1.0")
-	header("Content-Type", "text/plain; charset=UTF-8")
-	header("Content-Transfer-Encoding", "base64")
+	header("Content-Type", mime.FormatMediaType("multipart/alternative", map[string]string{"boundary": parts.Boundary()}))
 	raw.WriteString("\r\n")
-	body := base64.StdEncoding.EncodeToString([]byte(m.Body))
-	for len(body) > 76 {
-		raw.WriteString(body[:76] + "\r\n")
-		body = body[76:]
-	}
-	raw.WriteString(body + "\r\n")
+	raw.Write(body.Bytes())
 	var out struct{ ID string }
 	err := c.post(ctx, c.gmail("messages/send"), map[string]string{"raw": base64.URLEncoding.EncodeToString(raw.Bytes()), "threadId": m.ThreadID}, &out)
 	return out.ID, err
+}
+
+// wrapped writes base64 in the 76-character lines mail requires.
+func wrapped(w io.Writer, encoded string) {
+	for len(encoded) > 76 {
+		io.WriteString(w, encoded[:76]+"\r\n")
+		encoded = encoded[76:]
+	}
+	io.WriteString(w, encoded+"\r\n")
 }
 
 // ThreadOf finds the Gmail thread holding the message with a Message-ID in

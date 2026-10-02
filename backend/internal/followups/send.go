@@ -112,14 +112,23 @@ type outgoing struct {
 	message google.Outgoing
 }
 
-// Sender is the mailbox a follow-up's email draft goes from for the actor.
-func (s *Service) Sender(ctx context.Context, actor auth.Actor, id string) (string, error) {
+// Sender is the mailbox a follow-up's email draft goes from for the actor,
+// with the text of the signature Gmail adds below it.
+func (s *Service) Sender(ctx context.Context, actor auth.Actor, id string) (account string, signature string, err error) {
 	f, err := s.crm.Get(ctx, actor, id)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	_, sender, err := s.sender(ctx, actor, f)
-	return sender.Account, err
+	if err != nil {
+		return "", "", err
+	}
+	mailbox, err := s.conns.Google(ctx, sender)
+	if err != nil {
+		return "", "", err
+	}
+	sig, err := mailbox.Signature(ctx, sender.Account)
+	return sender.Account, sig.Text, err
 }
 
 // sender finds the newest message of the email conversations a follow-up is
@@ -174,6 +183,10 @@ func (s *Service) reply(ctx context.Context, actor auth.Actor, f records.Record)
 	if err != nil {
 		return outgoing{}, err
 	}
+	signature, err := mailbox.Signature(ctx, sender.Account)
+	if err != nil {
+		return outgoing{}, err
+	}
 	thread := original.ThreadID
 	if sender.ID != holder.ID && original.MessageID != "" {
 		thread, err = mailbox.ThreadOf(ctx, original.MessageID)
@@ -193,7 +206,7 @@ func (s *Service) reply(ctx context.Context, actor auth.Actor, f records.Record)
 		references = append(slices.Clone(references), original.MessageID)
 	}
 	return outgoing{mailbox: mailbox, account: sender.Account, message: google.Outgoing{
-		From: sender.Account, To: to, Cc: values(f, "cc"), Subject: subject, Body: body,
+		From: sender.Account, To: to, Cc: values(f, "cc"), Subject: subject, Body: body, Signature: signature,
 		ThreadID: thread, InReplyTo: original.MessageID, References: references,
 	}}, nil
 }

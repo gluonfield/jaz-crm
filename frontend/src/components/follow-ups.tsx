@@ -66,7 +66,7 @@ function FollowUp({ record, open, index, onToggle }: { record: CrmRecord; open: 
   const waiting = { Us: 'Our move', Them: 'Waiting on them' }[text(record, 'waiting_on')]
   const draft = text(record, 'draft')
   const email = text(record, 'channel') === 'Email'
-  const sender = useTool<{ from: string }>('get_draft_sender', { record_id: record.id }, { enabled: open && email && draft !== '' })
+  const sender = useTool<{ from: string; signature?: string }>('get_draft_sender', { record_id: record.id }, { enabled: open && email && draft !== '' })
   return (
     <li
       ref={row}
@@ -107,7 +107,7 @@ function FollowUp({ record, open, index, onToggle }: { record: CrmRecord; open: 
         </Reveal>
         <Reveal open={open} onOpened={() => row.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })}>
           <div className="flex cursor-auto flex-col gap-3 pt-3" onClick={(e) => e.stopPropagation()}>
-            {draft && <Draft key={`${record.id}:${draft}`} record={record} from={sender.data?.from} />}
+            {draft && <Draft key={`${record.id}:${draft}`} record={record} from={sender.data?.from} signature={sender.data?.signature} />}
             {person && <Context person={person} load={open} />}
           </div>
         </Reveal>
@@ -177,8 +177,9 @@ function Context({ person, load }: { person: Ref; load: boolean }) {
 }
 
 // Draft edits a follow-up's draft in the queue, the one place drafts appear,
-// and sends or approves it once the edit is saved.
-function Draft({ record, from }: { record: CrmRecord; from?: string }) {
+// above the sender's signature as it will go out, and sends or approves it
+// once the edit is saved.
+function Draft({ record, from, signature }: { record: CrmRecord; from?: string; signature?: string }) {
   const current = text(record, 'draft')
   const [draft, setDraft] = useState(current)
   const write = useWrite(record)
@@ -212,6 +213,7 @@ function Draft({ record, from }: { record: CrmRecord; from?: string }) {
         }}
         className="field-sizing-content block max-h-96 min-h-24 w-full resize-none bg-transparent text-[13px] leading-5 text-ink-2 outline-none focus:text-ink disabled:opacity-70"
       />
+      {signature && <p className="whitespace-pre-wrap text-[13px] leading-5 text-ink-3">{signature}</p>}
       <div className="flex justify-end">
         <Release record={record} from={from} disabled={write.pending || draft.trim() !== current} />
       </div>

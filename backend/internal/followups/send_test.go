@@ -5,6 +5,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
+	"mime"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"net/mail"
@@ -53,6 +56,8 @@ func (g *gmail) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, `{"id":"g%s","threadId":"t9","internalDate":"0","payload":{"headers":[
 			{"name":"From","value":"Jane <jane@acme.com>"},{"name":"Subject","value":"Quote for 500 brackets"},
 			{"name":"Message-ID","value":"<m%s@acme.com>"},{"name":"References","value":"<m1@acme.com>"}]}}`, id, id)
+	case "/gmail/v1/users/me/settings/sendAs/owner@cas.dev":
+		fmt.Fprint(w, `{"sendAsEmail":"owner@cas.dev","signature":"<div>Owner Name<br>CAS</div>"}`)
 	case "/gmail/v1/users/me/messages/send":
 		if g.drop {
 			panic(http.ErrAbortHandler)
@@ -71,6 +76,23 @@ func (g *gmail) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.NotFound(w, r)
 	}
+}
+
+// plainText is a sent message's plain-text body.
+func plainText(t *testing.T, m *mail.Message) string {
+	_, params, err := mime.ParseMediaType(m.Header.Get("Content-Type"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	part, err := multipart.NewReader(m.Body, params["boundary"]).NextRawPart()
+	if err != nil {
+		t.Fatal(err)
+	}
+	text, err := io.ReadAll(base64.NewDecoder(base64.StdEncoding, part))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(text)
 }
 
 func TestReleaseSendsEmailRepliesAndApprovesOthers(t *testing.T) {
@@ -169,8 +191,8 @@ func TestReleaseSendsEmailRepliesAndApprovesOthers(t *testing.T) {
 	if _, err := svc.Release(ctx, mateActor, reply, followups.Seen{Draft: "An older text", To: seen.To, Cc: seen.Cc}); err == nil {
 		t.Fatal("a draft was sent that differs from what the person saw")
 	}
-	if from, err := svc.Sender(ctx, mateActor, reply); err != nil || from != seen.From {
-		t.Fatalf("a teammate's reply must go from the mailbox holding the conversation: %q %v", from, err)
+	if from, signature, err := svc.Sender(ctx, mateActor, reply); err != nil || from != seen.From || signature != "Owner Name\nCAS" {
+		t.Fatalf("a teammate's reply must go from the mailbox holding the conversation, signed as it: %q %q %v", from, signature, err)
 	}
 	if _, err := svc.Release(ctx, mateActor, reply, followups.Seen{Draft: seen.Draft, From: "mate@cas.dev", To: seen.To, Cc: seen.Cc}); err == nil || len(g.sent) != 0 {
 		t.Fatalf("a draft was sent from a mailbox other than the one the person saw: %v", err)
@@ -216,6 +238,9 @@ func TestReleaseSendsEmailRepliesAndApprovesOthers(t *testing.T) {
 	want := []string{"t9", "owner@cas.dev", "jane@acme.com", "bob@acme.com", "Re: Quote for 500 brackets", "<m2@acme.com>", "<m1@acme.com> <m2@acme.com>"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("reply headers %q, want %q", got, want)
+	}
+	if text := plainText(t, g.sent[0]); text != seen.Draft+"\n\nOwner Name\nCAS" {
+		t.Fatalf("a reply must carry its sender's Gmail signature below the draft: %q", text)
 	}
 
 	stale := followUp("Email")
