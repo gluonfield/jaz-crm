@@ -198,7 +198,7 @@ function ObjectPage() {
                       <td key={a.slug} className="overflow-hidden px-3 py-1 text-ink-2">
                         {own ? (
                           <div onClick={(e) => e.stopPropagation()}>
-                            <Field record={r} attribute={a} />
+                            <Field record={r} attribute={a} limit={5} />
                           </div>
                         ) : a.type === 'select' ? (
                           <div onClick={(e) => e.stopPropagation()}>

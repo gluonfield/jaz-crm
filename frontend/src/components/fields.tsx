@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { Check, Plus } from 'lucide-react'
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import { recordName, valueKey, valueText, valuesOf } from '@/lib/crm'
 import { formatDay, formatNumber } from '@/lib/format'
 import { useDebounced } from '@/lib/hooks'
@@ -15,8 +15,9 @@ import { SelectField } from './select-field'
 
 const inputType: Partial<Record<Attribute['type'], string>> = { number: 'number', date: 'date', email: 'email', url: 'url', phone: 'tel' }
 
-// Field shows and edits one attribute of a record in the way its type needs.
-export function Field({ record, attribute }: { record: CrmRecord; attribute: Attribute }) {
+// Field shows and edits one attribute of a record in the way its type needs;
+// a limit shows that many of its values until the rest are asked for.
+export function Field({ record, attribute, limit }: { record: CrmRecord; attribute: Attribute; limit?: number }) {
   const values = valuesOf(record, attribute.slug)
   const write = useWrite(record)
   const slug = attribute.slug
@@ -35,7 +36,7 @@ export function Field({ record, attribute }: { record: CrmRecord; attribute: Att
     )
   }
   if (attribute.type === 'select') {
-    return <SelectField record={record} attribute={attribute} />
+    return <SelectField record={record} attribute={attribute} limit={limit} />
   }
   if (attribute.type === 'status') {
     const current = values[0] && valueText(values[0])
@@ -55,16 +56,18 @@ export function Field({ record, attribute }: { record: CrmRecord; attribute: Att
     return <MemberField attribute={attribute} values={values.map(valueText)} onSelect={(email) => write.set(slug, email)} />
   }
   if (attribute.type === 'reference') {
-    return <ReferenceField record={record} attribute={attribute} values={values} />
+    return <ReferenceField record={record} attribute={attribute} values={values} limit={limit} />
   }
   if (attribute.multi) {
     return (
       <div className="flex min-w-0 flex-wrap items-center gap-1">
-        {values.map((v) => (
-          <Chip key={valueKey(v)} onRemove={() => write.remove(slug, [valueKey(v)])}>
-            {valueText(v)}
-          </Chip>
-        ))}
+        <Capped limit={limit}>
+          {values.map((v) => (
+            <Chip key={valueKey(v)} onRemove={() => write.remove(slug, [valueKey(v)])}>
+              {valueText(v)}
+            </Chip>
+          ))}
+        </Capped>
         <TextInput
           key={values.length}
           label={`Add ${attribute.name.toLowerCase()}`}
@@ -157,21 +160,46 @@ export function TextInput({
   )
 }
 
-function ReferenceField({ record, attribute, values }: { record: CrmRecord; attribute: Attribute; values: Value[] }) {
+// Capped shows the first limit of many values with a button for the rest.
+function Capped({ limit, children }: { limit?: number; children: ReactNode[] }) {
+  const [all, setAll] = useState(false)
+  if (!limit || children.length <= limit) {
+    return children
+  }
+  return (
+    <>
+      {all ? children : children.slice(0, limit)}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation()
+          setAll(!all)
+        }}
+        className="h-[22px] rounded-full px-2 text-[12px] text-ink-3 outline-none hover:bg-list-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {all ? 'Show less' : `+${children.length - limit} more`}
+      </button>
+    </>
+  )
+}
+
+function ReferenceField({ record, attribute, values, limit }: { record: CrmRecord; attribute: Attribute; values: Value[]; limit?: number }) {
   const write = useWrite(record)
   const [search, setSearch] = useState<string>()
   const found = useRecords(attribute.target ?? '', useDebounced(search), 20).data?.records ?? []
   const target = attribute.target ?? ''
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-1">
-      {values.map((v) => (
-        <Chip key={valueKey(v)} onRemove={() => write.remove(attribute.slug, [valueKey(v)])}>
-          <Link to="/r/$recordId" params={{ recordId: valueKey(v) }} className="flex items-center gap-1.5 hover:text-ink">
-            <RecordIcon object={target} name={valueText(v)} size={14} />
-            {valueText(v)}
-          </Link>
-        </Chip>
-      ))}
+      <Capped limit={limit}>
+        {values.map((v) => (
+          <Chip key={valueKey(v)} onRemove={() => write.remove(attribute.slug, [valueKey(v)])}>
+            <Link to="/r/$recordId" params={{ recordId: valueKey(v) }} className="flex items-center gap-1.5 hover:text-ink">
+              <RecordIcon object={target} name={valueText(v)} size={14} />
+              {valueText(v)}
+            </Link>
+          </Chip>
+        ))}
+      </Capped>
       {(attribute.multi || values.length === 0) && (
         <Picker
           trigger={
