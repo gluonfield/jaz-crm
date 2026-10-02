@@ -161,19 +161,22 @@ function Context({ person, load }: { person: Ref; load: boolean }) {
     return null
   }
   return (
-    <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 px-3 text-[12px] leading-[18px] text-ink-2">
-      {lines.map((line, i) => {
-        const [, day, event] = line.match(/^(\d{4}-\d{2}-\d{2}):\s*(.*)$/) ?? []
-        return day ? (
-          <Fragment key={i}>
-            <span className="whitespace-nowrap tabular-nums text-ink-3">{formatDay(day)}</span>
-            <span>{event}</span>
-          </Fragment>
-        ) : (
-          <span key={i} className="col-span-2 mb-1">{line}</span>
-        )
-      })}
-    </div>
+    <section className="px-3">
+      <h3 className="mb-1.5 text-[12px] font-medium text-ink-2">Person Context</h3>
+      <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[12px] leading-[18px] text-ink-2">
+        {lines.map((line, i) => {
+          const [, day, event] = line.match(/^(\d{4}-\d{2}-\d{2}):\s*(.*)$/) ?? []
+          return day ? (
+            <Fragment key={i}>
+              <span className="whitespace-nowrap tabular-nums text-ink-3">{formatDay(day)}</span>
+              <span>{event}</span>
+            </Fragment>
+          ) : (
+            <span key={i} className="col-span-2 mb-1">{line}</span>
+          )
+        })}
+      </div>
+    </section>
   )
 }
 
@@ -214,7 +217,7 @@ function Draft({ record, from, signature }: { record: CrmRecord; from?: string; 
         }}
         className="field-sizing-content block max-h-96 min-h-24 w-full resize-none bg-transparent text-[13px] leading-5 text-ink-2 outline-none focus:text-ink disabled:opacity-70"
       />
-      {signature && <Signature html={signature} />}
+      {signature && <div className="cursor-default border-t border-border pt-2"><Signature html={signature} /></div>}
       <div className="flex justify-end">
         <Release record={record} from={from} disabled={write.pending || draft.trim() !== current} />
       </div>
