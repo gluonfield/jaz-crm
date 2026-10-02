@@ -85,7 +85,7 @@ func (s *Service) Timeline(ctx context.Context, actor auth.Actor, recordID strin
 	if err != nil {
 		return nil, err
 	}
-	return s.views(ctx, actor.WorkspaceID, list, false)
+	return s.views(ctx, actor.WorkspaceID, list, previewView)
 }
 
 // Search finds linked interactions by title or content, or lists the latest
@@ -95,16 +95,25 @@ func (s *Service) Search(ctx context.Context, actor auth.Actor, query string, li
 	if err != nil {
 		return nil, err
 	}
-	return s.views(ctx, actor.WorkspaceID, list, false)
+	return s.views(ctx, actor.WorkspaceID, list, previewView)
 }
 
 // Get shows one interaction in full.
 func (s *Service) Get(ctx context.Context, actor auth.Actor, id string) (Interaction, error) {
+	return s.get(ctx, actor, id, readableView)
+}
+
+// Source preserves stored content, including quoted history omitted from display.
+func (s *Service) Source(ctx context.Context, actor auth.Actor, id string) (Interaction, error) {
+	return s.get(ctx, actor, id, sourceView)
+}
+
+func (s *Service) get(ctx context.Context, actor auth.Actor, id string, mode viewMode) (Interaction, error) {
 	list, err := s.find(ctx, actor.WorkspaceID, id)
 	if err != nil {
 		return Interaction{}, err
 	}
-	views, err := s.views(ctx, actor.WorkspaceID, list, true)
+	views, err := s.views(ctx, actor.WorkspaceID, list, mode)
 	if err != nil {
 		return Interaction{}, err
 	}
@@ -137,7 +146,16 @@ func (s *Service) Activities(ctx context.Context, actor auth.Actor, recordIDs []
 	return out, err
 }
 
-func (s *Service) views(ctx context.Context, workspaceID string, list []storage.Interaction, full bool) ([]Interaction, error) {
+type viewMode int
+
+const (
+	previewView viewMode = iota
+	readableView
+	sourceView
+)
+
+func (s *Service) views(ctx context.Context, workspaceID string, list []storage.Interaction, mode viewMode) ([]Interaction, error) {
+	full := mode != previewView
 	ids := make([]string, len(list))
 	for i, it := range list {
 		ids[i] = it.ID
@@ -210,7 +228,7 @@ func (s *Service) views(ctx context.Context, workspaceID string, list []storage.
 		sender := authors[deref(p.AuthorHandleID)]
 		author := cmp.Or(p.AuthorName, sender.Name, sender.Address)
 		text := deref(p.Content)
-		if v.Channel == "email" && p.Kind == "message" {
+		if mode != sourceView && v.Channel == "email" && p.Kind == "message" {
 			text = readable(p.Kind, text)
 		}
 		switch p.Kind {

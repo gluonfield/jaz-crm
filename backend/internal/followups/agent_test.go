@@ -143,7 +143,7 @@ func TestAgentKeepsFollowUpsCurrent(t *testing.T) {
 	if got := brain.read[0]; got.Channel != "email" || len(got.Messages) != 2 || got.Messages[1].Text != "Could you send a revised quote for 500 brackets by Friday?" {
 		t.Fatalf("planner read %+v", got)
 	}
-	if !slices.ContainsFunc(brain.read[0].Records, func(r interactions.Ref) bool { return r.ID == deal.ID && r.Object == "deals" }) {
+	if !slices.ContainsFunc(brain.read[0].Records, func(r followups.Record) bool { return r.ID == deal.ID && r.Object == "deals" }) {
 		t.Fatalf("the planner must see the deals of the people in the conversation: %+v", brain.read[0].Records)
 	}
 	open, _, err := crm.Search(ctx, actor, records.Search{Object: records.FollowUps})

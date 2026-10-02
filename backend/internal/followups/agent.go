@@ -44,22 +44,23 @@ type Thread struct {
 	Lines     []Line `json:"lines"`
 }
 
-// Conversation is what a planner reads: the conversation's latest content,
+// Conversation is what a planner reads: the complete stored conversation,
 // who we are, the records it concerns and their open follow-ups.
 type Conversation struct {
-	Today        string             `json:"today"`
-	Purpose      string             `json:"crm_purpose"`
-	Us           []Person           `json:"us"`
-	Kind         string             `json:"kind"`
-	Channel      string             `json:"channel,omitempty"`
-	Title        string             `json:"title"`
-	Participants []Person           `json:"participants"`
-	Messages     []Line             `json:"messages"`
-	Records      []interactions.Ref `json:"records"`
-	FollowUps    []Open             `json:"open_follow_ups"`
-	Contexts     []Context          `json:"contexts"`
-	// owner is the member whose mailbox the conversation came from.
-	owner string
+	Today        string    `json:"today"`
+	Purpose      string    `json:"crm_purpose"`
+	Us           []Person  `json:"us"`
+	Kind         string    `json:"kind"`
+	Channel      string    `json:"channel,omitempty"`
+	Title        string    `json:"title"`
+	Participants []Person  `json:"participants"`
+	Messages     []Line    `json:"messages"`
+	Records      []Record  `json:"records"`
+	FollowUps    []Open    `json:"open_follow_ups"`
+	Contexts     []Context `json:"contexts"`
+	Sender       *Person   `json:"sender,omitempty"`
+	Company      []Record  `json:"company_knowledge"`
+	Description  string    `json:"description,omitempty"`
 }
 
 // Context is a person's relationship summary: the current one a planner
@@ -76,10 +77,13 @@ type Person struct {
 
 // Line is one message, speaker turn or note of a conversation.
 type Line struct {
-	At        string `json:"at,omitempty"`
-	Author    string `json:"author,omitempty"`
-	Direction string `json:"direction,omitempty"`
-	Text      string `json:"text"`
+	At         string   `json:"at,omitempty"`
+	Author     string   `json:"author,omitempty"`
+	Direction  string   `json:"direction,omitempty"`
+	Text       string   `json:"text"`
+	Address    string   `json:"author_address,omitempty"`
+	Recipients []string `json:"recipients,omitempty"`
+	Partial    bool     `json:"partial,omitempty"`
 }
 
 // Open is an open follow-up as a planner sees it.
@@ -143,8 +147,6 @@ const (
 	batch = 10
 	// window is how recent content must be to act on; older mail is history.
 	window = 7 * 24 * time.Hour
-	// budget bounds the characters of a conversation a planner reads.
-	budget = 24000
 )
 
 // Run reads up to a batch of the workspace's conversations whose content
@@ -242,8 +244,7 @@ func (a *Agent) backfill(ctx context.Context, workspaceID string) error {
 	return nil
 }
 
-// history gathers who a person is and their latest conversations within the
-// reading budget.
+// history gathers who a person is and their latest conversations.
 func (a *Agent) history(ctx context.Context, actor auth.Actor, person records.Record) (History, error) {
 	users, err := a.workspaces.Users(ctx, actor.WorkspaceID)
 	if err != nil {
@@ -267,19 +268,12 @@ func (a *Agent) history(ctx context.Context, actor auth.Actor, person records.Re
 	if err != nil {
 		return History{}, err
 	}
-	left := budget
 	for _, item := range list {
-		if left <= 0 {
-			break
-		}
-		conv, err := a.convs.Get(ctx, actor, item.ID)
+		conv, err := a.convs.Source(ctx, actor, item.ID)
 		if err != nil {
 			return History{}, err
 		}
-		lines := latest(conv, left)
-		for _, l := range lines {
-			left -= len(l.Text)
-		}
+		lines := conversationLines(conv)
 		if len(lines) > 0 {
 			h.Conversations = append(h.Conversations, Thread{Title: conv.Title, Channel: conv.Channel, StartedAt: conv.StartedAt, Lines: lines})
 		}
@@ -287,29 +281,18 @@ func (a *Agent) history(ctx context.Context, actor auth.Actor, person records.Re
 	return h, nil
 }
 
-// latest is a conversation's note, messages and speaker turns, keeping the
-// newest within limit characters.
-func latest(conv interactions.Interaction, limit int) []Line {
+func conversationLines(conv interactions.Interaction) []Line {
 	var lines []Line
 	if conv.Text != "" {
 		lines = append(lines, Line{At: conv.StartedAt, Author: conv.Author, Text: conv.Text})
 	}
 	for _, m := range conv.Messages {
-		lines = append(lines, Line{At: m.At, Author: m.Sender, Direction: m.Direction, Text: m.Text})
+		lines = append(lines, Line{At: m.At, Author: m.Sender, Direction: m.Direction, Text: m.Text, Address: m.SenderAddress, Recipients: m.Recipients, Partial: m.Partial})
 	}
 	for _, turn := range conv.Transcript {
 		lines = append(lines, Line{At: turn.At, Author: turn.Speaker, Text: turn.Text})
 	}
-	var out []Line
-	for i := len(lines) - 1; i >= 0 && limit > 0; i-- {
-		line := lines[i]
-		if len(line.Text) > limit {
-			line.Text = line.Text[len(line.Text)-limit:]
-		}
-		limit -= len(line.Text)
-		out = append([]Line{line}, out...)
-	}
-	return out
+	return lines
 }
 
 // subjects maps the objects a follow-up references to its attributes.
@@ -319,13 +302,13 @@ var subjects = map[string]string{"people": "person", "companies": "company", "de
 // model planned it.
 func (a *Agent) follow(ctx context.Context, workspaceID, id string) (bool, error) {
 	actor := auth.Actor{WorkspaceID: workspaceID, Agent: true}
-	conv, err := a.convs.Get(ctx, actor, id)
+	conv, err := a.convs.Source(ctx, actor, id)
 	if err != nil {
-		return true, err
+		return false, err
 	}
 	in, err := a.conversation(ctx, actor, conv)
 	if err != nil {
-		return true, err
+		return false, err
 	}
 	plan, err := a.planner.Plan(ctx, in)
 	if err != nil {
@@ -348,76 +331,6 @@ func (a *Agent) follow(ctx context.Context, workspaceID, id string) (bool, error
 	return true, nil
 }
 
-func (a *Agent) conversation(ctx context.Context, actor auth.Actor, conv interactions.Interaction) (Conversation, error) {
-	ws, err := a.workspaces.Workspace(ctx, actor.WorkspaceID)
-	if err != nil {
-		return Conversation{}, err
-	}
-	users, err := a.workspaces.Users(ctx, actor.WorkspaceID)
-	if err != nil {
-		return Conversation{}, err
-	}
-	stored, err := a.store.Interactions(ctx, actor.WorkspaceID, []string{conv.ID})
-	if err != nil {
-		return Conversation{}, err
-	}
-	in := Conversation{Today: time.Now().UTC().Format(time.DateOnly), Purpose: ws.Description, Kind: conv.Kind, Channel: conv.Channel, Title: conv.Title, Records: slices.Clone(conv.Records), FollowUps: []Open{}}
-	for _, u := range users {
-		in.Us = append(in.Us, Person{Name: u.Name, Address: u.Email})
-		if len(stored) == 1 && stored[0].UserID != nil && *stored[0].UserID == u.ID {
-			in.owner = u.Email
-		}
-	}
-	in.Contexts = []Context{}
-	for _, ref := range conv.Records {
-		if ref.Object != "people" {
-			continue
-		}
-		person, err := a.crm.Get(ctx, actor, ref.ID)
-		if err != nil {
-			return Conversation{}, err
-		}
-		in.Contexts = append(in.Contexts, Context{Person: ref.ID, Context: value(person, records.ContextAttribute)})
-	}
-	for _, ref := range conv.Records {
-		attribute := map[string]string{"people": "people", "companies": "company"}[ref.Object]
-		if attribute == "" {
-			continue
-		}
-		deals, _, err := a.crm.Search(ctx, actor, records.Search{Object: "deals", Where: map[string]string{attribute: ref.ID}, Limit: 20})
-		if err != nil {
-			return Conversation{}, err
-		}
-		for _, deal := range deals {
-			if !slices.ContainsFunc(in.Records, func(r interactions.Ref) bool { return r.ID == deal.ID }) {
-				in.Records = append(in.Records, interactions.Ref{ID: deal.ID, Object: "deals", Name: value(deal, "name")})
-			}
-		}
-	}
-	for _, p := range conv.Participants {
-		in.Participants = append(in.Participants, Person{Name: p.Name, Address: p.Address})
-	}
-	in.Messages = latest(conv, budget)
-	seen := map[string]bool{}
-	for _, ref := range in.Records {
-		attribute, ok := subjects[ref.Object]
-		if !ok {
-			continue
-		}
-		open, _, err := a.crm.Search(ctx, actor, records.Search{Object: records.FollowUps, Where: map[string]string{attribute: ref.ID, "status": "Open"}, Limit: 20})
-		if err != nil {
-			return Conversation{}, err
-		}
-		for _, f := range open {
-			if !seen[f.ID] {
-				seen[f.ID] = true
-				in.FollowUps = append(in.FollowUps, Open{ID: f.ID, Action: value(f, "name"), WaitingOn: value(f, "waiting_on"), ReviewOn: value(f, "review_on"), Draft: value(f, "draft")})
-			}
-		}
-	}
-	return in, nil
-}
-
 // apply writes one change as the agent and links the conversation to the
 // follow-up. It ignores follow-ups and records the planner was not shown.
 func (a *Agent) apply(ctx context.Context, actor auth.Actor, conv interactions.Interaction, in Conversation, c Change) error {
@@ -430,8 +343,8 @@ func (a *Agent) apply(ctx context.Context, actor auth.Actor, conv interactions.I
 			set[attribute] = []string{value}
 		}
 	}
-	if c.ID == "" {
-		put("owner", in.owner)
+	if c.ID == "" && in.Sender != nil {
+		put("owner", in.Sender.Address)
 	}
 	put("name", plain(c.Action))
 	put("waiting_on", c.WaitingOn)
@@ -441,7 +354,7 @@ func (a *Agent) apply(ctx context.Context, actor auth.Actor, conv interactions.I
 	}
 	for object, attribute := range subjects {
 		id := map[string]string{"person": c.Person, "company": c.Company, "deal": c.Deal}[attribute]
-		if slices.ContainsFunc(in.Records, func(r interactions.Ref) bool { return r.ID == id && r.Object == object }) {
+		if slices.ContainsFunc(in.Records, func(r Record) bool { return r.ID == id && r.Object == object }) {
 			put(attribute, id)
 		}
 	}
