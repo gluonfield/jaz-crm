@@ -5,14 +5,14 @@ import { isTyping } from '@/lib/hooks'
 import { getUI, setUI } from '@/lib/ui'
 import { CommandPalette } from './command-palette'
 import { Sidebar } from './sidebar'
-import { useLiveWhileSyncing } from '@/lib/sync'
+import { useLiveSync } from '@/lib/sync'
 import { useWorkspaceChanges } from '@/lib/workspaces'
 
 const goKeys: Record<string, string> = { p: '/o/people', c: '/o/companies', t: '/triage', x: '/connections', s: '/settings' }
 
 export function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
-  useLiveWhileSyncing()
+  useLiveSync()
   useWorkspaceChanges()
   useEffect(() => {
     let pendingG = false

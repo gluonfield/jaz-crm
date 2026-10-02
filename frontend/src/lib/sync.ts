@@ -57,15 +57,21 @@ export function useConnect() {
   }
 }
 
-// useLiveWhileSyncing refreshes what is on screen while mail arrives.
-export function useLiveWhileSyncing() {
-  const busy = useConnections()?.connections.some(syncing) ?? false
+// useLiveSync refreshes on progress changes, including passes completed
+// between polls.
+export function useLiveSync() {
+  const connections = useConnections()?.connections
   const client = useQueryClient()
   useEffect(() => {
-    if (!busy) {
+    if (!connections?.some((c) => c.status === 'active')) {
       return
     }
-    const timer = setInterval(() => void client.invalidateQueries({ predicate: (q) => q.queryKey[0] !== 'list_connections' }), 5000)
+    const refresh = () => void client.invalidateQueries({ predicate: (q) => q.queryKey[0] !== 'list_connections' })
+    refresh()
+    if (!connections.some(syncing)) {
+      return
+    }
+    const timer = setInterval(refresh, 5000)
     return () => clearInterval(timer)
-  }, [busy, client])
+  }, [connections, client])
 }
