@@ -50,7 +50,7 @@ export type Party = { address: string; name?: string; role: string; person_id?: 
 
 export type RecordRef = { id: string; object: string; name?: string }
 
-export type CrmMessage = { at: string; sender: string; sender_address?: string; recipients?: string[]; direction?: 'sent' | 'received'; text: string; partial?: boolean }
+export type CrmMessage = { at: string; sender: string; sender_address?: string; recipients?: string[]; direction?: 'sent' | 'received'; text: string; html?: string; partial?: boolean }
 
 export type Speech = { speaker: string; text: string; at?: string }
 

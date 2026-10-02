@@ -4,7 +4,7 @@ import { valueText, valuesOf } from '@/lib/crm'
 import { useAction, useWorkspace } from '@/lib/queries'
 import type { CrmRecord, DraftSender } from '@/lib/types'
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from './ui/dialog'
-import { Signature } from './signature'
+import { HTMLContent } from './html-content'
 
 const list = (record: CrmRecord, slug: string) => valuesOf(record, slug).map(valueText)
 const text = (record: CrmRecord, slug: string) => list(record, slug).join(', ')
@@ -64,7 +64,7 @@ function DraftConfirmation({ record, draft, sender, channel, workspace, beforeSe
       </dl>
       <div className="max-h-[40dvh] overflow-y-auto rounded-[var(--radius-control)] bg-bg p-3 text-[13px] leading-5">
         <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{seen.draft}</p>
-        {seen.signature && <div className="mt-3 border-t border-border pt-2"><Signature html={seen.signature} /></div>}
+        {seen.signature && <div className="mt-3 border-t border-border pt-2"><HTMLContent html={seen.signature} className="[&_img]:max-h-16" /></div>}
       </div>
       {send.error && <p role="alert" className="text-[13px] text-danger">{send.error.message}</p>}
       {saveError && <p role="alert" className="text-[13px] text-danger">{saveError}</p>}

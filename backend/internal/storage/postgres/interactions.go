@@ -188,8 +188,8 @@ func (s *Store) UnfetchedParts(ctx context.Context, connectionID string, limit i
 	return many(toUnfetched)(s.in.UnfetchedParts(ctx, intdb.UnfetchedPartsParams{ConnectionID: &connectionID, Limit: limit}))
 }
 
-func (s *Store) SetPartContent(ctx context.Context, id int64, content string) error {
-	return mapError(s.in.SetPartContent(ctx, intdb.SetPartContentParams{ID: id, Content: &content}))
+func (s *Store) SetPartContent(ctx context.Context, id int64, content, html string) error {
+	return mapError(s.in.SetPartContent(ctx, intdb.SetPartContentParams{ID: id, Content: &content, HTML: &html}))
 }
 
 func (s *Store) Interactions(ctx context.Context, workspaceID string, ids []string) ([]storage.Interaction, error) {

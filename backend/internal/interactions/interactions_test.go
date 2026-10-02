@@ -224,7 +224,7 @@ func TestDecisions(t *testing.T) {
 		t.Fatalf("kept bob: %+v", bob)
 	}
 	due, _ := e.svc.Unfetched(ctx, e.conn.ID, 50)
-	if err := e.svc.SetContent(ctx, due[0].ID, "Quote attached."); err != nil {
+	if err := e.svc.SetContent(ctx, due[0].ID, "Quote attached.", "<p>Quote attached.</p>"); err != nil {
 		t.Fatal(err)
 	}
 	thread := e.timeline(t, bob.PersonID)[0]
@@ -236,7 +236,7 @@ func TestDecisions(t *testing.T) {
 		t.Fatalf("skipped bob: %+v", got)
 	}
 	full, err := e.svc.Get(ctx, e.a, thread.ID)
-	if err != nil || full.Messages[0].Text != "" {
+	if err != nil || full.Messages[0].Text != "" || full.Messages[0].HTML != "" {
 		t.Fatalf("content of an unlinked thread must be forgotten: %+v %v", full.Messages, err)
 	}
 	e.ingest(t, message(e.conn, "c2", "tc2", "carol@supplier.com", "owner@cas.dev"), message(e.conn, "o2", "tc2", "owner@cas.dev", "carol@supplier.com"))

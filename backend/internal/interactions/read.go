@@ -35,6 +35,7 @@ type MessageView struct {
 	Recipients    []string `json:"recipients,omitempty"`
 	Direction     string   `json:"direction,omitempty"`
 	Text          string   `json:"text"`
+	HTML          string   `json:"html,omitempty"`
 	Partial       bool     `json:"partial,omitempty"`
 }
 
@@ -258,6 +259,9 @@ func (s *Service) views(ctx context.Context, workspaceID string, list []storage.
 			latest.Text = preview(text)
 			v.LastMessage, v.Preview = &latest, latest.Text
 			if full {
+				if mode == readableView && v.Channel == "email" {
+					message.HTML = deref(p.HTML)
+				}
 				v.Messages = append(v.Messages, message)
 			}
 		case "transcript":

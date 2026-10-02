@@ -20,18 +20,19 @@ type part struct {
 	Parts              []part
 }
 
-func (p part) text() string {
+func (p part) content() (string, string) {
 	bodies := map[string][]string{}
 	p.collect(bodies)
+	rich := strings.ToValidUTF8(strings.Join(bodies["text/html"], "\n"), "�")
 	text := strings.TrimSpace(strings.Join(bodies["text/plain"], "\n\n"))
 	if text == "" {
-		text = htmlText(strings.Join(bodies["text/html"], "\n"))
+		text = htmlText(rich)
 	}
 	text = strings.ToValidUTF8(text, "�")
 	if r := []rune(text); len(r) > maxText {
 		text = string(r[:maxText])
 	}
-	return text
+	return text, rich
 }
 
 func (p part) collect(bodies map[string][]string) {

@@ -74,6 +74,9 @@ func TestMessage(t *testing.T) {
 	if want := "Hello Ann!\n\n-- footer."; full[0].Text != want {
 		t.Errorf("text = %q, want %q", full[0].Text, want)
 	}
+	if full[0].HTML != "<p>Hello Ann!</p>" {
+		t.Errorf("HTML alternative = %q", full[0].HTML)
+	}
 }
 
 func TestHTMLOnlyText(t *testing.T) {
@@ -86,8 +89,10 @@ func TestHTMLOnlyText(t *testing.T) {
 	if err := json.Unmarshal([]byte(payload), &p); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := p.text(), "Hello Ann,\n\n1 < 2\n\nA\n\nB"; got != want {
+	got, rich := p.content()
+	if want := "Hello Ann,\n\n1 < 2\n\nA\n\nB"; got != want || rich != src {
 		t.Errorf("text = %q, want %q", got, want)
+		t.Errorf("HTML = %q, want original body", rich)
 	}
 }
 
@@ -97,7 +102,7 @@ func TestTextIsValidAndCapped(t *testing.T) {
 		strings.Repeat("é", maxText+1): strings.Repeat("é", maxText),
 	} {
 		p := part{MimeType: "text/plain", Body: struct{ Data string }{base64.RawURLEncoding.EncodeToString([]byte(raw))}}
-		if got := p.text(); got != want {
+		if got, rich := p.content(); got != want || rich != "" {
 			t.Errorf("text(%.10q) = %.10q (%d runes), want %.10q", raw, got, len([]rune(got)), want)
 		}
 	}
@@ -111,7 +116,7 @@ func TestCharset(t *testing.T) {
 	if err := json.Unmarshal([]byte(payload), &p); err != nil {
 		t.Fatal(err)
 	}
-	if got := p.text(); got != "Café crème" {
+	if got, _ := p.content(); got != "Café crème" {
 		t.Errorf("text = %q", got)
 	}
 }

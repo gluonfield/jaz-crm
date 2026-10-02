@@ -197,8 +197,8 @@ ON CONFLICT (interaction_id, record_id) DO NOTHING;
 
 -- name: ClearUnlinkedContent :exec
 -- ClearUnlinkedContent forgets provider content of interactions no record links.
-UPDATE parts SET content = NULL
-WHERE provider_id IS NOT NULL AND content IS NOT NULL AND interaction_id = ANY(@ids::uuid[])
+UPDATE parts SET content = NULL, html = NULL
+WHERE provider_id IS NOT NULL AND (content IS NOT NULL OR html IS NOT NULL) AND interaction_id = ANY(@ids::uuid[])
   AND NOT EXISTS (SELECT 1 FROM links WHERE links.interaction_id = parts.interaction_id);
 
 -- name: AddLink :exec
@@ -214,13 +214,13 @@ UPDATE interactions SET skipped = true WHERE workspace_id = $1 AND id = $2;
 -- name: UnfetchedParts :many
 SELECT parts.id, parts.provider_id::text AS provider_id FROM parts
 JOIN interactions ON interactions.id = parts.interaction_id AND NOT interactions.skipped
-WHERE parts.connection_id = $1 AND parts.content IS NULL AND parts.provider_id IS NOT NULL
+WHERE parts.connection_id = $1 AND (parts.content IS NULL OR parts.html IS NULL) AND parts.provider_id IS NOT NULL
   AND EXISTS (SELECT 1 FROM links WHERE links.interaction_id = interactions.id)
 ORDER BY parts.at DESC
 LIMIT $2;
 
 -- name: SetPartContent :exec
-UPDATE parts SET content = $2 WHERE id = $1;
+UPDATE parts SET content = $2, html = $3 WHERE id = $1;
 
 -- name: GetInteractions :many
 SELECT * FROM interactions WHERE workspace_id = @workspace_id AND id = ANY(@ids::uuid[]);
@@ -258,7 +258,7 @@ WHERE participants.interaction_id = ANY(@ids::uuid[])
 ORDER BY participants.interaction_id, handles.value;
 
 -- name: InteractionParts :many
-SELECT id, interaction_id, kind, external_id, connection_id, provider_id, author_handle_id, author_name, at, content, recipients, direction, date_only, partial, position FROM parts
+SELECT id, interaction_id, kind, external_id, connection_id, provider_id, author_handle_id, author_name, at, content, recipients, direction, date_only, partial, position, html FROM parts
 WHERE interaction_id = ANY(@ids::uuid[]) ORDER BY interaction_id, position, at, id;
 
 -- name: InteractionLinks :many

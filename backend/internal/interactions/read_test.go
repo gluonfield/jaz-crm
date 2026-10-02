@@ -39,7 +39,7 @@ func TestEmailConversationView(t *testing.T) {
 		t.Fatalf("message content: %+v %v", due, err)
 	}
 	for _, part := range due {
-		if err := e.svc.SetContent(ctx, part.ID, "Body of "+part.ProviderID); err != nil {
+		if err := e.svc.SetContent(ctx, part.ID, "Body of "+part.ProviderID, "<p>Body of <b>"+part.ProviderID+"</b></p>"); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -53,12 +53,12 @@ func TestEmailConversationView(t *testing.T) {
 		if i == 2 {
 			address = "sales@ml.test"
 		}
-		if part.Sender != "Alex" || part.SenderAddress != address || part.Direction != directions[i] || part.At != start.Add(time.Duration(i)*time.Hour).Format(time.RFC3339Nano) {
+		if part.Sender != "Alex" || part.SenderAddress != address || part.Direction != directions[i] || part.At != start.Add(time.Duration(i)*time.Hour).Format(time.RFC3339Nano) || part.HTML != fmt.Sprintf("<p>Body of <b>m%d</b></p>", i) {
 			t.Errorf("message %d: %+v", i, part)
 		}
 	}
 	latest := full.LastMessage
-	if latest == nil || latest.SenderAddress != "pat@cas.dev" || latest.Direction != "received" || latest.Text != "Body of m4" || latest.At != start.Add(4*time.Hour).Format(time.RFC3339Nano) || full.Preview != latest.Text {
+	if latest == nil || latest.SenderAddress != "pat@cas.dev" || latest.Direction != "received" || latest.Text != "Body of m4" || latest.HTML != "" || latest.At != start.Add(4*time.Hour).Format(time.RFC3339Nano) || full.Preview != latest.Text {
 		t.Fatalf("latest message: %+v, preview %q", latest, full.Preview)
 	}
 	list = e.timeline(t, ada)
@@ -67,5 +67,14 @@ func TestEmailConversationView(t *testing.T) {
 	}
 	if _, err := e.svc.Get(ctx, e.b, full.ID); err == nil {
 		t.Fatal("another workspace read the conversation")
+	}
+	source, err := e.svc.Source(ctx, e.a, full.ID)
+	if err != nil || len(source.Messages) != len(addresses) {
+		t.Fatalf("source: %+v %v", source, err)
+	}
+	for _, message := range source.Messages {
+		if message.HTML != "" || message.Text == "" {
+			t.Fatalf("drafting source must retain text without duplicating HTML: %+v", message)
+		}
 	}
 }

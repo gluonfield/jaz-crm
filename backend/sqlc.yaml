@@ -20,6 +20,7 @@ overrides:
       row_offset: Offset
       avatar_url: AvatarURL
       photo_url: PhotoURL
+      html: HTML
       redirect_uris: RedirectURIs
       redirect_uri: RedirectURI
       oauth_client: OAuthClient

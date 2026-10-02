@@ -82,8 +82,8 @@ func (q *Queries) ClearParts(ctx context.Context, interactionID string) error {
 }
 
 const clearUnlinkedContent = `-- name: ClearUnlinkedContent :exec
-UPDATE parts SET content = NULL
-WHERE provider_id IS NOT NULL AND content IS NOT NULL AND interaction_id = ANY($1::uuid[])
+UPDATE parts SET content = NULL, html = NULL
+WHERE provider_id IS NOT NULL AND (content IS NOT NULL OR html IS NOT NULL) AND interaction_id = ANY($1::uuid[])
   AND NOT EXISTS (SELECT 1 FROM links WHERE links.interaction_id = parts.interaction_id)
 `
 
@@ -728,7 +728,7 @@ func (q *Queries) InteractionParticipants(ctx context.Context, ids []string) ([]
 }
 
 const interactionParts = `-- name: InteractionParts :many
-SELECT id, interaction_id, kind, external_id, connection_id, provider_id, author_handle_id, author_name, at, content, recipients, direction, date_only, partial, position FROM parts
+SELECT id, interaction_id, kind, external_id, connection_id, provider_id, author_handle_id, author_name, at, content, recipients, direction, date_only, partial, position, html FROM parts
 WHERE interaction_id = ANY($1::uuid[]) ORDER BY interaction_id, position, at, id
 `
 
@@ -748,6 +748,7 @@ type InteractionPartsRow struct {
 	DateOnly       bool
 	Partial        bool
 	Position       int32
+	HTML           *string
 }
 
 func (q *Queries) InteractionParts(ctx context.Context, ids []string) ([]InteractionPartsRow, error) {
@@ -775,6 +776,7 @@ func (q *Queries) InteractionParts(ctx context.Context, ids []string) ([]Interac
 			&i.DateOnly,
 			&i.Partial,
 			&i.Position,
+			&i.HTML,
 		); err != nil {
 			return nil, err
 		}
@@ -1143,16 +1145,17 @@ func (q *Queries) SetDomainRule(ctx context.Context, arg SetDomainRuleParams) er
 }
 
 const setPartContent = `-- name: SetPartContent :exec
-UPDATE parts SET content = $2 WHERE id = $1
+UPDATE parts SET content = $2, html = $3 WHERE id = $1
 `
 
 type SetPartContentParams struct {
 	ID      int64
 	Content *string
+	HTML    *string
 }
 
 func (q *Queries) SetPartContent(ctx context.Context, arg SetPartContentParams) error {
-	_, err := q.db.Exec(ctx, setPartContent, arg.ID, arg.Content)
+	_, err := q.db.Exec(ctx, setPartContent, arg.ID, arg.Content, arg.HTML)
 	return err
 }
 
@@ -1406,7 +1409,7 @@ func (q *Queries) UnassessedHandles(ctx context.Context, arg UnassessedHandlesPa
 const unfetchedParts = `-- name: UnfetchedParts :many
 SELECT parts.id, parts.provider_id::text AS provider_id FROM parts
 JOIN interactions ON interactions.id = parts.interaction_id AND NOT interactions.skipped
-WHERE parts.connection_id = $1 AND parts.content IS NULL AND parts.provider_id IS NOT NULL
+WHERE parts.connection_id = $1 AND (parts.content IS NULL OR parts.html IS NULL) AND parts.provider_id IS NOT NULL
   AND EXISTS (SELECT 1 FROM links WHERE links.interaction_id = interactions.id)
 ORDER BY parts.at DESC
 LIMIT $2

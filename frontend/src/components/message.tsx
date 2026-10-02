@@ -1,10 +1,12 @@
 import { Fragment } from 'react'
 import { cn } from '@/lib/utils'
 import { ExternalLink } from './external-link'
+import { HTMLContent } from './html-content'
 
-// Message renders text the server cleaned: paragraphs, "- " lists and bare
-// links, which show as their site and a short path.
-export function Message({ text, className }: { text: string; className?: string }) {
+export function Message({ text, html, className }: { text: string; html?: string; className?: string }) {
+  if (html) {
+    return <HTMLContent html={html} className={cn('text-[13.5px] leading-[1.6] text-ink-2', className)} />
+  }
   return (
     <div className={cn('flex max-w-[68ch] flex-col gap-3 break-words text-[13.5px] leading-[1.6] text-ink-2', className)}>
       {text.split(/\n{2,}/).map((block, i) => (

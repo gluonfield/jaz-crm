@@ -37,7 +37,7 @@ type Message struct {
 	InReplyTo  string
 	References []string
 	Bulk       bool
-	Text       string
+	Text, HTML string
 	// DeliveredTo lists the mailboxes that received the message on its way
 	// here, including those that forwarded it.
 	DeliveredTo []string
@@ -134,6 +134,7 @@ func (c *Client) message(ctx context.Context, id string, full bool) (Message, er
 			delivered = append(delivered, strings.ToLower(h[name]))
 		}
 	}
+	text, rich := raw.Payload.content()
 	m := Message{
 		ID:          raw.ID,
 		ThreadID:    raw.ThreadID,
@@ -147,7 +148,8 @@ func (c *Client) message(ctx context.Context, id string, full bool) (Message, er
 		InReplyTo:   firstID(h["in-reply-to"]),
 		References:  messageIDs(h["references"]),
 		Bulk:        bulk(h),
-		Text:        raw.Payload.text(),
+		Text:        text,
+		HTML:        rich,
 		DeliveredTo: delivered,
 	}
 	if from := addresses(h["from"]); len(from) > 0 {

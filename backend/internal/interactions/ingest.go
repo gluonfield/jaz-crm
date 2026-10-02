@@ -221,6 +221,6 @@ func (s *Service) Unfetched(ctx context.Context, connectionID string, limit int3
 	return s.store.UnfetchedParts(ctx, connectionID, limit)
 }
 
-func (s *Service) SetContent(ctx context.Context, partID int64, content string) error {
-	return s.store.SetPartContent(ctx, partID, content)
+func (s *Service) SetContent(ctx context.Context, partID int64, content, html string) error {
+	return s.store.SetPartContent(ctx, partID, content, html)
 }

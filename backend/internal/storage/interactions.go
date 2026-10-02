@@ -157,6 +157,7 @@ type Part struct {
 	DateOnly       bool
 	Partial        bool
 	Position       int32
+	HTML           *string
 }
 
 type Link struct {
@@ -253,7 +254,7 @@ type InteractionStore interface {
 	// SkipInteraction hides an interaction, drops its links and content.
 	SkipInteraction(ctx context.Context, workspaceID, id string) error
 	UnfetchedParts(ctx context.Context, connectionID string, limit int32) ([]UnfetchedPart, error)
-	SetPartContent(ctx context.Context, id int64, content string) error
+	SetPartContent(ctx context.Context, id int64, content, html string) error
 	DueMeetings(ctx context.Context, connectionID string) ([]Interaction, error)
 	MarkTranscriptChecked(ctx context.Context, interactionID string) error
 

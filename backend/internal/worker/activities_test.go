@@ -156,6 +156,23 @@ func TestSyncAgainstGoogle(t *testing.T) {
 	}, listed: []string{"m1", "m2", "m4", "m6"}, history: map[string]string{
 		"100": `{"history":[{"messagesAdded":[{"message":{"id":"m3"}}]}],"historyId":"120"}`,
 	}}
+	rich := `<p>Hello <strong>Ada</strong></p><p>Owner | <a href="https://example.com/profile">Profile</a></p>`
+	var sent map[string]any
+	if err := json.Unmarshal([]byte(fake.messages["m1"]), &sent); err != nil {
+		t.Fatal(err)
+	}
+	payload := sent["payload"].(map[string]any)
+	payload["mimeType"] = "multipart/alternative"
+	payload["parts"] = []any{
+		map[string]any{"mimeType": "text/plain", "body": payload["body"]},
+		map[string]any{"mimeType": "text/html", "body": map[string]string{"data": base64.RawURLEncoding.EncodeToString([]byte(rich))}},
+	}
+	delete(payload, "body")
+	raw, err := json.Marshal(sent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fake.messages["m1"] = string(raw)
 	srv := httptest.NewServer(fake)
 	t.Cleanup(srv.Close)
 	var starts started
@@ -252,6 +269,14 @@ func TestSyncAgainstGoogle(t *testing.T) {
 	thread, err := convs.Timeline(ctx, actor, ada, nil, "", false, 10)
 	if err != nil || len(thread) != 1 || thread[0].Preview != "Thanks!" || len(thread[0].Participants) != 2 {
 		t.Fatalf("thread: %+v %v", thread, err)
+	}
+	full, err := convs.Get(ctx, actor, thread[0].ID)
+	if err != nil || len(full.Messages) != 2 || full.Messages[0].Text != "Hello Ada" || full.Messages[0].HTML != rich || full.Messages[1].HTML != "" {
+		t.Fatalf("MIME alternatives through sync, storage and display: %+v %v", full.Messages, err)
+	}
+	run(a.FetchContent, &fetched, conn.ID)
+	if fetched != 0 {
+		t.Fatalf("completed HTML and plain-text bodies were fetched again: %d", fetched)
 	}
 
 	run(a.GmailIncremental, nil, conn.ID)

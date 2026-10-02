@@ -361,7 +361,7 @@ func (a *Activities) FetchContent(ctx context.Context, id string) (int, error) {
 		return 0, classify(err)
 	}
 	for i, p := range parts {
-		if err := a.Interactions.SetContent(ctx, p.ID, messages[i].Text); err != nil {
+		if err := a.Interactions.SetContent(ctx, p.ID, messages[i].Text, messages[i].HTML); err != nil {
 			return 0, err
 		}
 	}
