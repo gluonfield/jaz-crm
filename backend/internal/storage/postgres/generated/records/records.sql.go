@@ -219,6 +219,24 @@ func (q *Queries) CurrentValues(ctx context.Context, arg CurrentValuesParams) ([
 	return items, nil
 }
 
+const deleteAttribute = `-- name: DeleteAttribute :execrows
+DELETE FROM attributes USING objects
+WHERE attributes.object_id = objects.id AND objects.workspace_id = $1 AND attributes.id = $2
+`
+
+type DeleteAttributeParams struct {
+	WorkspaceID string
+	ID          string
+}
+
+func (q *Queries) DeleteAttribute(ctx context.Context, arg DeleteAttributeParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteAttribute, arg.WorkspaceID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteFilter = `-- name: DeleteFilter :execrows
 DELETE FROM saved_filters WHERE workspace_id = $1 AND id = $2
 `
@@ -230,6 +248,23 @@ type DeleteFilterParams struct {
 
 func (q *Queries) DeleteFilter(ctx context.Context, arg DeleteFilterParams) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteFilter, arg.WorkspaceID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteObject = `-- name: DeleteObject :execrows
+DELETE FROM objects WHERE workspace_id = $1 AND id = $2
+`
+
+type DeleteObjectParams struct {
+	WorkspaceID string
+	ID          string
+}
+
+func (q *Queries) DeleteObject(ctx context.Context, arg DeleteObjectParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteObject, arg.WorkspaceID, arg.ID)
 	if err != nil {
 		return 0, err
 	}
@@ -251,6 +286,28 @@ func (q *Queries) DeleteRecord(ctx context.Context, arg DeleteRecordParams) (int
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const dropFilterConditions = `-- name: DropFilterConditions :exec
+UPDATE saved_filters SET filters = (
+  SELECT coalesce(jsonb_agg(condition ORDER BY position), '[]'::jsonb) FROM jsonb_array_elements(filters) WITH ORDINALITY AS conditions(condition, position)
+  WHERE NOT EXISTS (
+    SELECT 1 FROM attributes
+    WHERE attributes.id = ANY($1::uuid[]) AND attributes.object_id = saved_filters.object_id AND attributes.slug = condition->>'attribute'
+  )
+)
+WHERE workspace_id = $2 AND object_id IN (SELECT object_id FROM attributes WHERE id = ANY($1::uuid[]))
+`
+
+type DropFilterConditionsParams struct {
+	AttributeIDs []string
+	WorkspaceID  string
+}
+
+// DropFilterConditions takes attributes out of the saved filters on them.
+func (q *Queries) DropFilterConditions(ctx context.Context, arg DropFilterConditionsParams) error {
+	_, err := q.db.Exec(ctx, dropFilterConditions, arg.AttributeIDs, arg.WorkspaceID)
+	return err
 }
 
 const getRecords = `-- name: GetRecords :many
@@ -675,6 +732,43 @@ func (q *Queries) RelatedRecords(ctx context.Context, arg RelatedRecordsParams) 
 	return items, nil
 }
 
+const renameAttribute = `-- name: RenameAttribute :execrows
+UPDATE attributes SET name = $1 FROM objects
+WHERE attributes.object_id = objects.id AND objects.workspace_id = $2 AND attributes.id = $3
+`
+
+type RenameAttributeParams struct {
+	Name        string
+	WorkspaceID string
+	ID          string
+}
+
+func (q *Queries) RenameAttribute(ctx context.Context, arg RenameAttributeParams) (int64, error) {
+	result, err := q.db.Exec(ctx, renameAttribute, arg.Name, arg.WorkspaceID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const renameObject = `-- name: RenameObject :execrows
+UPDATE objects SET name = $1 WHERE workspace_id = $2 AND id = $3
+`
+
+type RenameObjectParams struct {
+	Name        string
+	WorkspaceID string
+	ID          string
+}
+
+func (q *Queries) RenameObject(ctx context.Context, arg RenameObjectParams) (int64, error) {
+	result, err := q.db.Exec(ctx, renameObject, arg.Name, arg.WorkspaceID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const replaceStageValues = `-- name: ReplaceStageValues :exec
 WITH closed AS (
   UPDATE record_values SET active_until = clock_timestamp()
@@ -699,6 +793,21 @@ func (q *Queries) ReplaceStageValues(ctx context.Context, arg ReplaceStageValues
 		arg.AttributeID,
 		arg.FromStage,
 	)
+	return err
+}
+
+const reviseValue = `-- name: ReviseValue :exec
+UPDATE record_values SET text = $1 WHERE record_id = $2 AND id = $3 AND active_until IS NULL
+`
+
+type ReviseValueParams struct {
+	Text     *string
+	RecordID string
+	ID       int64
+}
+
+func (q *Queries) ReviseValue(ctx context.Context, arg ReviseValueParams) error {
+	_, err := q.db.Exec(ctx, reviseValue, arg.Text, arg.RecordID, arg.ID)
 	return err
 }
 

@@ -1,4 +1,4 @@
-import { Box, Building2, CalendarDays, CornerUpRight, Handshake, MessageSquare, NotebookPen, Phone, Users } from 'lucide-react'
+import { Building2, CalendarDays, CornerUpRight, FileText, Handshake, MessageSquare, NotebookPen, Phone, Table2, Users } from 'lucide-react'
 import { useState } from 'react'
 import type { Kind } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -16,11 +16,14 @@ function initials(name: string) {
   return ((words[0]?.[0] ?? '?') + (words.length > 1 ? words[words.length - 1][0] : '')).toUpperCase()
 }
 
-// RecordIcon draws a person as a round avatar and anything else as a square
-// tile: the profile picture when there is one, else lettered and tinted by
-// name.
+// RecordIcon draws a page as a document, a person as a round avatar and
+// anything else as a square tile: the profile picture when there is one, else
+// lettered and tinted by name.
 export function RecordIcon({ object, name, photo, size = 18, className }: { object: string; name: string; photo?: string; size?: number; className?: string }) {
   const [failed, setFailed] = useState<string>()
+  if (object === 'pages') {
+    return <FileText aria-hidden style={{ width: Math.min(size, 20), height: Math.min(size, 20) }} className={cn('shrink-0 text-ink-2', className)} />
+  }
   const shape = object === 'people' ? 'rounded-full' : 'rounded-[28%]'
   if (photo && failed !== photo) {
     return (
@@ -51,10 +54,10 @@ export function RecordIcon({ object, name, photo, size = 18, className }: { obje
   )
 }
 
-const objectIcons: Record<string, typeof Box> = { people: Users, companies: Building2, deals: Handshake, follow_ups: CornerUpRight }
+const objectIcons: Record<string, typeof Table2> = { people: Users, companies: Building2, deals: Handshake, follow_ups: CornerUpRight, pages: FileText }
 
 export function ObjectIcon({ slug, className }: { slug: string; className?: string }) {
-  const Icon = objectIcons[slug] ?? Box
+  const Icon = objectIcons[slug] ?? Table2
   return <Icon className={className} />
 }
 

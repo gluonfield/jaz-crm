@@ -1,8 +1,6 @@
-import { Link, useRouterState } from '@tanstack/react-router'
-import { Check, ChevronDown, Inbox, LoaderCircle, LogOut, Monitor, Moon, PlugZap, Plus, Search, Settings, Sun } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
+import { Check, ChevronDown, Inbox, LogOut, Monitor, Moon, PlugZap, Plus, Search, Settings, Sun } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
-import { Button } from '@jaz/ui/button'
-import { inputClass } from '@/components/controls'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,7 +12,6 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { signOut, useMe } from '@/lib/account'
 import { embedded } from '@/lib/api'
@@ -23,10 +20,12 @@ import { steps, syncing, useConnections } from '@/lib/sync'
 import { setSchemePreference } from '@/lib/theme'
 import type { Contact } from '@/lib/types'
 import { setUI } from '@/lib/ui'
-import { cn } from '@/lib/utils'
 import { useMoveWorkspace, useWorkspaces } from '@/lib/workspaces'
+import { DataNav } from './data-nav'
 import { ObjectIcon, RecordIcon } from './icons'
+import { NavItem } from './nav-item'
 import { Kbd } from './kbd'
+import { NameDialog } from './prompt-dialog'
 
 export function Sidebar() {
   const objects = useObjects() ?? []
@@ -55,12 +54,15 @@ export function Sidebar() {
         Triage
       </NavItem>
       <Section title="Records">
-        {objects.map((o) => (
-          <NavItem key={o.slug} to={`/o/${o.slug}`} icon={<ObjectIcon slug={o.slug} />}>
-            {o.name}
-          </NavItem>
-        ))}
+        {objects
+          .filter((o) => o.standard && o.slug !== 'pages')
+          .map((o) => (
+            <NavItem key={o.slug} to={`/o/${o.slug}`} icon={<ObjectIcon slug={o.slug} />}>
+              {o.name}
+            </NavItem>
+          ))}
       </Section>
+      <DataNav />
       <Section title="Workspace">
         <NavItem to="/connections" icon={<PlugZap />} busy={sync && (steps[sync.step ?? ''] ?? steps.GmailBackfill)}>
           Connections
@@ -79,29 +81,6 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
       <div className="flex h-7 items-center px-2 text-[12px] font-medium text-ink-3">{title}</div>
       {children}
     </div>
-  )
-}
-
-function NavItem({ to, icon, count, busy, children }: { to: string; icon: ReactNode; count?: number; busy?: string; children: ReactNode }) {
-  const path = useRouterState({ select: (s) => s.location.pathname })
-  const active = path === to || path.startsWith(to + '/')
-  return (
-    <Link
-      to={to}
-      className={cn(
-        'flex h-7 items-center gap-2.5 rounded-[var(--radius-control)] px-2 font-medium text-ink-2 outline-none transition-colors duration-100 hover:bg-list-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-4 [&_svg]:shrink-0',
-        active && 'bg-list-active text-ink hover:bg-list-active',
-      )}
-    >
-      {icon}
-      <span className="flex-1 truncate">{children}</span>
-      {!!count && <span className="text-[12px] tabular-nums text-ink-3">{count}</span>}
-      {busy && (
-        <span title={busy} className="flex text-ink-3">
-          <LoaderCircle aria-label={busy} className="animate-spin motion-reduce:animate-none" />
-        </span>
-      )}
-    </Link>
   )
 }
 
@@ -164,40 +143,7 @@ function WorkspaceMenu() {
           )}
         </DropdownMenuContent>
       </DropdownMenu>
-      <NewWorkspace open={creating} onOpenChange={setCreating} />
+      <NameDialog open={creating} onOpenChange={setCreating} title="New workspace" placeholder="Name, such as Acme" action="Create" onSubmit={(name) => move.mutate({ name })} />
     </>
-  )
-}
-
-// NewWorkspace names a workspace and moves there.
-function NewWorkspace({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
-  const [name, setName] = useState('')
-  const move = useMoveWorkspace()
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent showCloseButton={false} className="w-[380px] gap-3 rounded-[12px] border-border bg-raised p-4 shadow-[var(--shadow-raised)]">
-        <DialogTitle className="text-[14px] font-semibold text-ink">New workspace</DialogTitle>
-        <form
-          className="flex gap-2"
-          onSubmit={(e) => {
-            e.preventDefault()
-            move.mutate(
-              { name },
-              {
-                onSuccess: () => {
-                  onOpenChange(false)
-                  setName('')
-                },
-              },
-            )
-          }}
-        >
-          <input autoFocus aria-label="Workspace name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Name, such as Acme" className={cn(inputClass, 'flex-1')} />
-          <Button variant="primary" type="submit" disabled={!name.trim() || move.isPending}>
-            Create
-          </Button>
-        </form>
-      </DialogContent>
-    </Dialog>
   )
 }

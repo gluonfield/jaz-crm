@@ -26,7 +26,7 @@ func validName(slug, name string) error {
 	return nil
 }
 
-// CreateObject adds a record type with a name attribute.
+// CreateObject adds a table: a record type with a name and markdown content.
 func (s *Service) CreateObject(ctx context.Context, actor auth.Actor, slug, name string) (Object, error) {
 	name = strings.TrimSpace(name)
 	if err := validName(slug, name); err != nil {
@@ -34,6 +34,7 @@ func (s *Service) CreateObject(ctx context.Context, actor auth.Actor, slug, name
 	}
 	err := s.store.CreateObject(ctx, actor.WorkspaceID, storage.NewObject{Slug: slug, Name: name, Attributes: []storage.NewAttribute{
 		{Slug: titleAttribute, Name: "Name", Type: Text},
+		{Slug: ContentAttribute, Name: "Content", Type: Markdown},
 	}})
 	if errors.Is(err, storage.ErrConflict) {
 		return Object{}, errs.Invalidf("object %q already exists", slug)
@@ -139,4 +140,60 @@ func (s *Service) Delete(ctx context.Context, actor auth.Actor, id string) error
 		return errs.Invalidf("no record %q", id)
 	}
 	return s.store.DeleteRecord(ctx, actor.WorkspaceID, id)
+}
+
+// EditObject renames or deletes one of the workspace's own tables.
+func (s *Service) EditObject(ctx context.Context, actor auth.Actor, object, action, name string) error {
+	sc, err := s.schema(ctx, actor.WorkspaceID)
+	if err != nil {
+		return err
+	}
+	o, err := sc.object(object)
+	if err != nil {
+		return err
+	}
+	if standard(o.Slug) {
+		return errs.Invalidf("%s is built in; only the workspace's own tables are renamed or deleted", o.Slug)
+	}
+	switch action {
+	case "rename":
+		name = strings.TrimSpace(name)
+		if err := validName(o.Slug, name); err != nil {
+			return err
+		}
+		return s.store.RenameObject(ctx, actor.WorkspaceID, o.ID, name)
+	case "delete":
+		return s.store.DeleteObject(ctx, actor.WorkspaceID, o.ID)
+	}
+	return errs.Invalidf("action is rename or delete")
+}
+
+// EditAttribute renames an attribute, or deletes one the workspace added.
+func (s *Service) EditAttribute(ctx context.Context, actor auth.Actor, object, attribute, action, name string) error {
+	sc, err := s.schema(ctx, actor.WorkspaceID)
+	if err != nil {
+		return err
+	}
+	o, err := sc.object(object)
+	if err != nil {
+		return err
+	}
+	a, err := sc.attribute(o, attribute)
+	if err != nil {
+		return err
+	}
+	switch action {
+	case "rename":
+		name = strings.TrimSpace(name)
+		if err := validName(a.Slug, name); err != nil {
+			return err
+		}
+		return s.store.RenameAttribute(ctx, actor.WorkspaceID, a.ID, name)
+	case "delete":
+		if a.Slug == titleAttribute || a.Type == Markdown || standard(o.Slug, a.Slug) {
+			return errs.Invalidf("%s.%s is built in and stays", o.Slug, a.Slug)
+		}
+		return s.store.DeleteAttribute(ctx, actor.WorkspaceID, a)
+	}
+	return errs.Invalidf("action is rename or delete")
 }

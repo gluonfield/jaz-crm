@@ -1,0 +1,18 @@
+# Pages and tables
+
+- [x] A Data section in the sidebar with + to create a Page or a Table.
+- [x] Tables are workspace objects; columns have types, including references to people, companies, deals, pages or other tables.
+- [x] Clicking a row opens it as a page with a WYSIWYG markdown editor.
+- [x] Standalone pages nest from the start: sub-pages, a sidebar tree, breadcrumbs and moving pages.
+- [x] Typing @ in a page mentions a person, company or page by title, with its path shown, as a clickable link.
+- [x] Rename and delete tables and columns.
+- [x] Agents read and write all of it through MCP: tables, columns, rows, page content, nesting and mentions.
+- [ ] Review, verify real PostgreSQL/MCP persistence and the actual UI, commit/push and activate locally and on Railway.
+
+A table is a workspace object and its records are pages: every object a workspace creates has `name` and markdown `content`. Standalone pages are the standard `pages` object, nested through a single-valued `parent` reference to itself. A single-valued self-reference refuses cycles. A mention is a markdown link to `/r/<record id>`, so agents read and write mentions as ordinary links.
+
+Content is one record value, so history and source attribution apply. One member's edits within ten minutes revise one version instead of adding one per autosave, and any writer replaces it whole. Writes may `expect` the content they read; the editor always does, so it never overwrites an agent's change it has not seen and shows the latest version instead. Lists leave content out, while text search still matches it.
+
+The editor is Tiptap 3.31.4 (MIT) with its official markdown package, approved on 2026-10-02. Saving rewrites agent markdown into Tiptap's normal form (`*` emphasis, padded tables, explicit autolinks); the meaning is unchanged and a second round trip is identical.
+
+Deleting a page moves its pages to the top level. Deleting a table deletes its records and the reference columns pointing at it, and drops those columns' saved-filter conditions.

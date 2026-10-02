@@ -35,6 +35,51 @@ func (s *Store) CreateAttribute(ctx context.Context, attr storage.AttributeInput
 	return mapError(err)
 }
 
+func (s *Store) RenameObject(ctx context.Context, workspaceID, id, name string) error {
+	return affected(s.rec.RenameObject(ctx, recdb.RenameObjectParams{Name: name, WorkspaceID: workspaceID, ID: id}))
+}
+
+func (s *Store) DeleteObject(ctx context.Context, workspaceID, id string) error {
+	return mapError(pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
+		q := s.in.WithTx(tx)
+		r := s.rec.WithTx(tx)
+		ids, err := q.InteractionsOfObject(ctx, intdb.InteractionsOfObjectParams{WorkspaceID: workspaceID, ObjectID: id})
+		if err != nil {
+			return err
+		}
+		attrs, err := r.ListAttributes(ctx, workspaceID)
+		if err != nil {
+			return err
+		}
+		var references []string
+		for _, attr := range attrs {
+			if attr.TargetObjectID != nil && *attr.TargetObjectID == id && attr.ObjectID != id {
+				references = append(references, attr.ID)
+			}
+		}
+		if err := r.DropFilterConditions(ctx, recdb.DropFilterConditionsParams{AttributeIDs: references, WorkspaceID: workspaceID}); err != nil {
+			return err
+		}
+		if err := affected(r.DeleteObject(ctx, recdb.DeleteObjectParams{WorkspaceID: workspaceID, ID: id})); err != nil {
+			return err
+		}
+		return q.ClearUnlinkedContent(ctx, ids)
+	}))
+}
+
+func (s *Store) RenameAttribute(ctx context.Context, workspaceID, id, name string) error {
+	return affected(s.rec.RenameAttribute(ctx, recdb.RenameAttributeParams{Name: name, WorkspaceID: workspaceID, ID: id}))
+}
+
+func (s *Store) DeleteAttribute(ctx context.Context, workspaceID string, attr storage.Attribute) error {
+	return s.tx(ctx, func(_ *authdb.Queries, r *recdb.Queries) error {
+		if err := r.DropFilterConditions(ctx, recdb.DropFilterConditionsParams{AttributeIDs: []string{attr.ID}, WorkspaceID: workspaceID}); err != nil {
+			return err
+		}
+		return affected(r.DeleteAttribute(ctx, recdb.DeleteAttributeParams{WorkspaceID: workspaceID, ID: attr.ID}))
+	})
+}
+
 func (s *Store) AddAttributeOption(ctx context.Context, workspaceID, attributeID, value string) (string, error) {
 	option, err := s.rec.AddAttributeOption(ctx, recdb.AddAttributeOptionParams{WorkspaceID: workspaceID, AttributeID: attributeID, Value: value})
 	return option, mapError(err)
@@ -131,6 +176,11 @@ func (s *Store) WriteRecord(ctx context.Context, workspaceID, objectID, id strin
 		}
 		if err := r.CloseValues(ctx, recdb.CloseValuesParams{RecordID: id, IDs: changes.Close}); err != nil {
 			return err
+		}
+		for _, revision := range changes.Revise {
+			if err := r.ReviseValue(ctx, recdb.ReviseValueParams{Text: &revision.Text, RecordID: id, ID: revision.ID}); err != nil {
+				return err
+			}
 		}
 		for _, value := range changes.Insert {
 			value.RecordID = id

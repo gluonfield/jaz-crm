@@ -19,6 +19,31 @@ WITH updated AS (
 )
 SELECT option::text FROM updated, unnest(options) AS option WHERE lower(option) = lower(@value::text);
 
+-- name: RenameObject :execrows
+UPDATE objects SET name = @name WHERE workspace_id = @workspace_id AND id = @id;
+
+-- name: DeleteObject :execrows
+DELETE FROM objects WHERE workspace_id = @workspace_id AND id = @id;
+
+-- name: RenameAttribute :execrows
+UPDATE attributes SET name = @name FROM objects
+WHERE attributes.object_id = objects.id AND objects.workspace_id = @workspace_id AND attributes.id = @id;
+
+-- name: DeleteAttribute :execrows
+DELETE FROM attributes USING objects
+WHERE attributes.object_id = objects.id AND objects.workspace_id = @workspace_id AND attributes.id = @id;
+
+-- name: DropFilterConditions :exec
+-- DropFilterConditions takes attributes out of the saved filters on them.
+UPDATE saved_filters SET filters = (
+  SELECT coalesce(jsonb_agg(condition ORDER BY position), '[]'::jsonb) FROM jsonb_array_elements(filters) WITH ORDINALITY AS conditions(condition, position)
+  WHERE NOT EXISTS (
+    SELECT 1 FROM attributes
+    WHERE attributes.id = ANY(@attribute_ids::uuid[]) AND attributes.object_id = saved_filters.object_id AND attributes.slug = condition->>'attribute'
+  )
+)
+WHERE workspace_id = @workspace_id AND object_id IN (SELECT object_id FROM attributes WHERE id = ANY(@attribute_ids::uuid[]));
+
 -- name: ListObjects :many
 SELECT * FROM objects WHERE workspace_id = $1 ORDER BY created_at, slug;
 
@@ -146,6 +171,9 @@ ORDER BY parents.id, children.created_at DESC, children.id;
 -- name: CloseValues :exec
 UPDATE record_values SET active_until = now()
 WHERE record_id = @record_id AND id = ANY(@ids::bigint[]) AND active_until IS NULL;
+
+-- name: ReviseValue :exec
+UPDATE record_values SET text = @text WHERE record_id = @record_id AND id = @id AND active_until IS NULL;
 
 -- name: InsertValue :exec
 INSERT INTO record_values (record_id, attribute_id, text, ref_record_id, unique_key, source, actor_id)

@@ -25,6 +25,7 @@ func NewService(store storage.RecordStore) *Service {
 type Object struct {
 	Slug       string
 	Name       string
+	Standard   bool
 	Attributes []Attribute
 }
 
@@ -124,7 +125,7 @@ func (s *Service) Objects(ctx context.Context, actor auth.Actor) ([]Object, erro
 	}
 	out := []Object{}
 	for _, o := range sc.objects {
-		view := Object{Slug: o.Slug, Name: o.Name}
+		view := Object{Slug: o.Slug, Name: o.Name, Standard: standard(o.Slug)}
 		for _, a := range sc.attributes(o.ID) {
 			attr := Attribute{Slug: a.Slug, Name: a.Name, Type: a.Type, Multi: a.Multi, Unique: a.IsUnique, Options: a.Options}
 			if a.TargetObjectID != nil {
@@ -153,7 +154,7 @@ func (s *Service) get(ctx context.Context, workspaceID string, sc schema, id str
 	if len(records) == 0 {
 		return Record{}, errs.Invalidf("no record %q", id)
 	}
-	views, err := s.views(ctx, workspaceID, sc, records)
+	views, err := s.views(ctx, workspaceID, sc, records, true)
 	if err != nil {
 		return Record{}, err
 	}
@@ -235,8 +236,9 @@ func (s *Service) owners(ctx context.Context, workspaceID string, attrIDs, keys 
 	return s.store.RecordsByUniqueKeys(ctx, workspaceID, attrIDs, keys)
 }
 
-// views loads records' current values, naming referenced records.
-func (s *Service) views(ctx context.Context, workspaceID string, sc schema, records []storage.Record) ([]Record, error) {
+// views loads records' current values, naming referenced records; only a
+// full view carries documents.
+func (s *Service) views(ctx context.Context, workspaceID string, sc schema, records []storage.Record, full bool) ([]Record, error) {
 	ids := make([]string, len(records))
 	for i, r := range records {
 		ids[i] = r.ID
@@ -262,6 +264,9 @@ func (s *Service) views(ctx context.Context, workspaceID string, sc schema, reco
 	for i, r := range records {
 		view := Record{ID: r.ID, Object: sc.objectByID(r.ObjectID).Slug, CreatedAt: r.CreatedAt, Fields: []Field{}}
 		for _, attr := range sc.attributes(r.ObjectID) {
+			if attr.Type == Markdown && !full {
+				continue
+			}
 			field := Field{Attribute: attr.Slug, Multi: attr.Multi}
 			for _, v := range held[[2]string{r.ID, attr.ID}] {
 				if v.RefRecordID != nil {

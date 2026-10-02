@@ -1,7 +1,9 @@
 // Wire shapes of the server's tools; field names are their JSON names.
 
+// attributeTypes are the types a new attribute can take; markdown is the
+// content of pages and table records.
 export const attributeTypes = ['text', 'number', 'date', 'checkbox', 'url', 'select', 'status', 'member', 'email', 'domain', 'phone', 'reference'] as const
-export type AttributeType = (typeof attributeTypes)[number]
+export type AttributeType = (typeof attributeTypes)[number] | 'markdown'
 
 export type Attribute = {
   slug: string
@@ -13,7 +15,7 @@ export type Attribute = {
   options?: string[]
 }
 
-export type CrmObject = { slug: string; name: string; attributes: Attribute[] }
+export type CrmObject = { slug: string; name: string; standard?: boolean; attributes: Attribute[] }
 
 export type StageEdit = {
   object: string

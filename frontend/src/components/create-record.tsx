@@ -68,7 +68,7 @@ function Form({ object, initial = {}, record, openCreated, close }: { object: Cr
   const members = useWorkspace()?.members ?? []
   const me = members.find((m) => m.is_me)
   const identity = object.attributes.find((a) => a.unique)
-  const properties = object.attributes.filter((a) => a.slug !== 'name' && a !== identity && a.type !== 'checkbox')
+  const properties = object.attributes.filter((a) => a.slug !== 'name' && a !== identity && a.type !== 'checkbox' && a.type !== 'markdown')
   const held = (slug: string) => (record ? valuesOf(record, slug).map(valueKey) : [])
   const [name, setName] = useState(held('name')[0] ?? '')
   const [key, setKey] = useState(identity ? held(identity.slug).join(', ') : '')

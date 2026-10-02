@@ -28,6 +28,7 @@ const (
 	Domain    = "domain"
 	Phone     = "phone"
 	Reference = "reference"
+	Markdown  = "markdown"
 )
 
 // uniqueTypes can identify a record.
@@ -40,6 +41,13 @@ const titleAttribute = "name"
 // Every write replaces it whole, whoever wrote it before: writers merge the
 // current context with what they learned, and its history keeps each version.
 const ContextAttribute = "context"
+
+// ContentAttribute is the markdown body of a page and of every record of a
+// workspace's own tables. A link to /r/<record id> mentions that record.
+const ContentAttribute = "content"
+
+// Pages are documents that nest under a parent page.
+const Pages = "pages"
 
 // StandardObjects is the schema every workspace starts with, listed in this
 // order.
@@ -99,6 +107,18 @@ var StandardObjects = []storage.NewObject{
 			{Attribute: "waiting_on", Operator: "is", Value: "Them"},
 		}},
 	}},
+	{Slug: Pages, Name: "Pages", Attributes: []storage.NewAttribute{
+		{Slug: titleAttribute, Name: "Name", Type: Text},
+		{Slug: "parent", Name: "Parent", Type: Reference, Target: Pages},
+		{Slug: ContentAttribute, Name: "Content", Type: Markdown},
+	}},
+}
+
+// standard reports whether every workspace has the object, or the attribute
+// of an object when one is named. The CRM relies on these; they stay.
+func standard(object string, attribute ...string) bool {
+	i := slices.IndexFunc(StandardObjects, func(o storage.NewObject) bool { return o.Slug == object })
+	return i >= 0 && (len(attribute) == 0 || slices.ContainsFunc(StandardObjects[i].Attributes, func(a storage.NewAttribute) bool { return a.Slug == attribute[0] }))
 }
 
 // entry is a validated value ready to store: text, or a referenced record,

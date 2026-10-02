@@ -11,16 +11,18 @@ const sources: Record<string, string> = { sync: 'Sync', agent: 'An agent' }
 export function History({ recordId, createdAt, attributes }: { recordId: string; createdAt: string; attributes: Attribute[] }) {
   const changes = useTool<{ changes: Change[] }>('record_history', { record_id: recordId }).data?.changes
   const label = (slug: string) => attributes.find((a) => a.slug === slug)?.name ?? slug
+  // A document's versions are named, not shown in full.
+  const isDocument = (slug: string) => attributes.find((a) => a.slug === slug)?.type === 'markdown'
   return (
     <ol className="mt-4 flex flex-col text-[13px]">
       {changes?.map((c, index) => (
         <li key={index} className="flex items-baseline gap-2 py-1.5">
           <span className="min-w-0 flex-1 text-ink-2">
             {!c.removed && <span className="text-ink">{c.source === 'user' ? c.actor || 'Someone' : (sources[c.source ?? ''] ?? 'Someone')} </span>}
-            {c.removed ? 'Removed ' : 'set '}
+            {c.removed ? 'Removed ' : isDocument(c.attribute) ? 'edited ' : 'set '}
             <span className="text-ink">{label(c.attribute)}</span>
-            {c.removed ? ' ' : ' to '}
-            {c.record_id ? (
+            {isDocument(c.attribute) ? null : c.removed ? ' ' : ' to '}
+            {isDocument(c.attribute) ? null : c.record_id ? (
               <Link to="/r/$recordId" params={{ recordId: c.record_id }} className="text-ink hover:underline">
                 {c.value}
               </Link>

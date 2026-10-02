@@ -20,7 +20,10 @@ import (
 	"github.com/pressly/goose/v3"
 )
 
-func TestMessageMigration(t *testing.T) {
+// legacy returns a database migrated up to version, as one deployed then,
+// and its URL, which postgres.Open migrates the rest of the way.
+func legacy(t *testing.T, version int64) (*sql.DB, string) {
+	t.Helper()
 	ctx := context.Background()
 	base := os.Getenv("TEST_DATABASE_URL")
 	if base == "" {
@@ -35,12 +38,6 @@ func TestMessageMigration(t *testing.T) {
 	if _, err := admin.Exec(ctx, "CREATE DATABASE "+quoted); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() {
-		if _, err := admin.Exec(ctx, "DROP DATABASE "+quoted+" WITH (FORCE)"); err != nil {
-			t.Error(err)
-		}
-		_ = admin.Close(ctx)
-	})
 	u, err := url.Parse(base)
 	if err != nil {
 		t.Fatal(err)
@@ -50,14 +47,26 @@ func TestMessageMigration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	t.Cleanup(func() {
+		_ = db.Close()
+		if _, err := admin.Exec(ctx, "DROP DATABASE "+quoted+" WITH (FORCE)"); err != nil {
+			t.Error(err)
+		}
+		_ = admin.Close(ctx)
+	})
 	provider, err := goose.NewProvider(goose.DialectPostgres, db, os.DirFS("migrations"), goose.WithDisableGlobalRegistry(true), goose.WithGoMigrations(datamigrations.DealFollowups, datamigrations.FollowUps))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := provider.UpTo(ctx, 17); err != nil {
+	if _, err := provider.UpTo(ctx, version); err != nil {
 		t.Fatal(err)
 	}
+	return db, u.String()
+}
+
+func TestMessageMigration(t *testing.T) {
+	ctx := context.Background()
+	db, dsn := legacy(t, 17)
 	var workspace, user, object, record, messageID, noteID, otherNoteID, callID string
 	for _, seed := range []struct {
 		query string
@@ -109,7 +118,7 @@ func TestMessageMigration(t *testing.T) {
 		}
 	}
 	for pass := range 2 {
-		store, err := postgres.Open(ctx, u.String())
+		store, err := postgres.Open(ctx, dsn)
 		if err != nil {
 			t.Fatal(err)
 		}

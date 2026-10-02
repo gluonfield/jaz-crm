@@ -127,10 +127,18 @@ type SavedFilter struct {
 	ObjectID string         `json:"-"`
 }
 
-// ValueChanges closes current values by ID and inserts new ones.
+// ValueChanges closes current values by ID and inserts new ones. Revise
+// rewrites current values' text in place, keeping one version of a document
+// while one writer goes on editing it.
 type ValueChanges struct {
 	Close  []int64
 	Insert []NewRecordValue
+	Revise []ValueRevision
+}
+
+type ValueRevision struct {
+	ID   int64
+	Text string
 }
 
 // RecordMutation decides a record's changes from its current values.
@@ -150,6 +158,15 @@ type RecordStore interface {
 	Attributes(ctx context.Context, workspaceID string) ([]Attribute, error)
 	CreateObject(ctx context.Context, workspaceID string, object NewObject) error
 	CreateAttribute(ctx context.Context, attr AttributeInput) error
+	RenameObject(ctx context.Context, workspaceID, id, name string) error
+	// DeleteObject removes an object with its records, their values and the
+	// reference attributes pointing at it, with those attributes' conditions
+	// in saved filters.
+	DeleteObject(ctx context.Context, workspaceID, id string) error
+	RenameAttribute(ctx context.Context, workspaceID, id, name string) error
+	// DeleteAttribute removes an attribute with its values and its conditions
+	// in saved filters.
+	DeleteAttribute(ctx context.Context, workspaceID string, attr Attribute) error
 	AddAttributeOption(ctx context.Context, workspaceID, attributeID, value string) (string, error)
 	EditStatus(ctx context.Context, workspaceID, attributeID string, mutate StatusMutation) error
 	DeleteRecord(ctx context.Context, workspaceID, id string) error

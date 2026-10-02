@@ -60,7 +60,7 @@ func (s *Service) Search(ctx context.Context, actor auth.Actor, q Search) ([]Rec
 	}
 	query.Limit = 20
 	if q.Limit > 0 {
-		query.Limit = int32(min(q.Limit, 100))
+		query.Limit = int32(min(q.Limit, 500))
 	}
 	if text := strings.TrimSpace(q.Query); text != "" {
 		escaped := literalPattern(text)
@@ -70,7 +70,7 @@ func (s *Service) Search(ctx context.Context, actor auth.Actor, q Search) ([]Rec
 	if err != nil {
 		return nil, err
 	}
-	views, err := s.views(ctx, actor.WorkspaceID, sc, found)
+	views, err := s.views(ctx, actor.WorkspaceID, sc, found, false)
 	if err != nil {
 		return nil, err
 	}

@@ -1,16 +1,15 @@
 import { useNavigate } from '@tanstack/react-router'
 import { ArrowUpRight, Contrast, Pencil, Tags, Trash2, UserRound } from 'lucide-react'
-import { type ReactNode, useId, useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
 import { useAction, useWorkspace, useWrite } from '@/lib/queries'
 import type { Attribute, CrmObject, CrmRecord } from '@/lib/types'
-import { Button } from '@jaz/ui/button'
 import { CreateRecord } from './create-record'
+import { ConfirmDialog } from './prompt-dialog'
 import { RecordIcon } from './icons'
 import { ValueDot } from './select-field'
 import { StageDot } from './stage'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuOptions, ContextMenuSeparator, ContextMenuTrigger } from './ui/context-menu'
-import { Dialog, DialogContent, DialogTitle } from './ui/dialog'
 
 // Choice attributes are set from the menu, each under its kind's icon.
 const propertyIcons: Partial<Record<Attribute['type'], ReactNode>> = { status: <Contrast />, member: <UserRound />, select: <Tags /> }
@@ -21,7 +20,6 @@ export function RecordMenu({ object, record, children }: { object: CrmObject; re
   const remove = useAction<{ record_id: string }>('delete_record', 150)
   const [editing, setEditing] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const description = useId()
   const properties = object.attributes.filter((a) => propertyIcons[a.type])
   return (
     <>
@@ -48,37 +46,11 @@ export function RecordMenu({ object, record, children }: { object: CrmObject; re
         </ContextMenuContent>
       </ContextMenu>
       <CreateRecord object={object} record={record} open={editing} onOpenChange={setEditing} />
-      <Dialog open={deleting} onOpenChange={setDeleting}>
-        <DialogContent
-          aria-describedby={description}
-          showCloseButton={false}
-          onOpenAutoFocus={(e) => {
-            const dialog = e.currentTarget as HTMLElement
-            e.preventDefault()
-            dialog.focus()
-          }}
-          className="bg-raised text-ink sm:max-w-sm"
-        >
-          <DialogTitle className="text-[14px] leading-snug [overflow-wrap:anywhere]">Delete {recordName(record)}?</DialogTitle>
-          <p id={description} className="text-[13px] leading-relaxed text-ink-2">
-            Its details and links to conversations will be deleted. This cannot be undone.
-            {record.object === 'people' && ' Their addresses move to Skipped in Triage, so sync will not add them back.'}
-            {record.object === 'companies' && ' Contacts at its domains move to Skipped in Triage, including future senders, so sync will not add the company back.'}
-          </p>
-          <div className="flex justify-end gap-2">
-            <Button onClick={() => setDeleting(false)}>Cancel</Button>
-            <Button
-              variant="danger"
-              onClick={() => {
-                setDeleting(false)
-                remove.mutate({ record_id: record.id })
-              }}
-            >
-              Delete
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog open={deleting} onOpenChange={setDeleting} title={`Delete ${recordName(record)}?`} onConfirm={() => remove.mutate({ record_id: record.id })}>
+        Its details and links to conversations will be deleted. This cannot be undone.
+        {record.object === 'people' && ' Their addresses move to Skipped in Triage, so sync will not add them back.'}
+        {record.object === 'companies' && ' Contacts at its domains move to Skipped in Triage, including future senders, so sync will not add the company back.'}
+      </ConfirmDialog>
     </>
   )
 }

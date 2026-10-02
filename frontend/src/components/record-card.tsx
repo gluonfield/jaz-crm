@@ -8,7 +8,7 @@ import type { CrmRecord } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 const labels: Record<string, string> = { company: 'Company', people: 'Contacts', owner: 'Owner', job_title: 'Job title', context: 'Context', founded_year: 'Founded year', size: 'Size', domains: 'Website', email_addresses: 'Email', phone_numbers: 'Phone', categories: 'Categories', tags: 'Tags' }
-const kinds: Record<string, string> = { people: 'Person', companies: 'Company', deals: 'Deal' }
+const kinds: Record<string, string> = { people: 'Person', companies: 'Company', deals: 'Deal', pages: 'Page' }
 
 export function RecordCard({ recordId, onOpen }: { recordId: string; onOpen: (url: string) => void }) {
   const result = useTool<CrmRecord>('get_record', { record_id: recordId }, { staleTime: 60_000 })
@@ -51,7 +51,7 @@ export function RecordCard({ recordId, onOpen }: { recordId: string; onOpen: (ur
           {fields.map((slug) => (
             <div key={slug} className="contents">
               <dt className="truncate text-ink-3">{labels[slug] ?? slug.replaceAll('_', ' ')}</dt>
-              <dd className={cn('m-0 min-w-0 whitespace-pre-wrap break-words text-ink-2', slug === 'context' && 'line-clamp-3')}>{valuesOf(record, slug).map(valueText).join(', ')}</dd>
+              <dd className={cn('m-0 min-w-0 whitespace-pre-wrap break-words text-ink-2', (slug === 'context' || slug === 'content') && 'line-clamp-3')}>{valuesOf(record, slug).map(valueText).join(', ')}</dd>
             </div>
           ))}
         </dl>

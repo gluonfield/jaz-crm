@@ -7,7 +7,9 @@ import { FollowUpQueue } from '@/components/follow-ups'
 import { Stage } from '@/components/stage'
 import { Button } from '@jaz/ui/button'
 import { Header } from '@/components/controls'
+import { AddColumn, ColumnHeader } from '@/components/columns'
 import { CreateRecord } from '@/components/create-record'
+import { Field } from '@/components/fields'
 import { ExternalLink } from '@/components/external-link'
 import { ConnectGoogle, EmptyState } from '@/components/empty-state'
 import { ObjectIcon, RecordIcon } from '@/components/icons'
@@ -42,7 +44,8 @@ const open = [{ attribute: 'status', operator: 'is' as const, value: 'Open' }]
 
 function ObjectPage() {
   const { object: slug } = Route.useParams()
-  const object = useObjects()?.find((o) => o.slug === slug)
+  const objects = useObjects()
+  const object = objects?.find((o) => o.slug === slug)
   const search = Route.useSearch()
   const { sort, view, q = '', filters = [], saved, limit = 100 } = search
   const query = useDebounced(q.trim())
@@ -59,7 +62,8 @@ function ObjectPage() {
   if (!object) {
     return <Header>{slug}</Header>
   }
-  const columns = object.attributes.filter((a) => a.slug !== 'name').sort((a, b) => Number(b.type === 'select') - Number(a.type === 'select'))
+  const own = !object.standard
+  const columns = object.attributes.filter((a) => a.slug !== 'name' && a.type !== 'markdown').sort((a, b) => Number(b.type === 'select') - Number(a.type === 'select'))
   const status = statusOf(object.attributes)
   const board = view === 'table' || slug === 'follow_ups' ? undefined : status
   return (
@@ -116,7 +120,7 @@ function ObjectPage() {
       <CreateRecord object={object} open={creating} onOpenChange={setCreating} openCreated />
       {result.isError ? <EmptyState title={result.error.message} icon={<Search />} /> : board ? (
         records && <Board object={object} status={board} records={records} />
-      ) : records?.length === 0 ? (
+      ) : records?.length === 0 && (!own || query || filters.length > 0) ? (
         <Empty object={object} query={query} filtered={filters.length > 0} />
       ) : queue ? (
         records && <FollowUpQueue records={records} focus={focus} onOpen={openRecord} />
@@ -125,13 +129,20 @@ function ObjectPage() {
           <table className="w-full border-collapse text-[13px]">
             <thead className="sticky top-0 z-10 bg-bg">
               <tr className="h-9 border-b border-border text-left text-[12px] text-ink-3">
-                <th className="sticky left-0 z-20 min-w-56 bg-bg px-4 font-medium">{slug === 'companies' ? 'Company' : 'Name'}</th>
+                <th className="sticky left-0 z-20 min-w-56 bg-bg px-4 font-medium">
+                  {own ? <ColumnHeader object={object} attribute={object.attributes.find((a) => a.slug === 'name')!} /> : slug === 'companies' ? 'Company' : 'Name'}
+                </th>
                 {slug === 'companies' && <th className="min-w-56 whitespace-nowrap px-3 font-medium">People</th>}
                 {columns.map((a) => (
                   <th key={a.slug} className="whitespace-nowrap px-3 font-medium">
-                    {a.name}
+                    {own ? <ColumnHeader object={object} attribute={a} /> : a.name}
                   </th>
                 ))}
+                {own && (
+                  <th className="w-full px-3 text-right">
+                    <AddColumn object={object} objects={objects ?? []} />
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody ref={rows}>
@@ -152,9 +163,20 @@ function ObjectPage() {
                     {slug === 'companies' && <td className="min-w-56 px-3 text-ink-2"><CompanyPeople company={r} /></td>}
                     {columns.map((a) => (
                       <td key={a.slug} className={cn('max-w-80 px-3 text-ink-2', a.type === 'select' ? 'min-w-56' : 'min-w-40')}>
-                        {a.type === 'select' ? <div onClick={(e) => e.stopPropagation()}><SelectField record={r} attribute={a} /></div> : cell(r, a)}
+                        {own ? (
+                          <div onClick={(e) => e.stopPropagation()}>
+                            <Field record={r} attribute={a} />
+                          </div>
+                        ) : a.type === 'select' ? (
+                          <div onClick={(e) => e.stopPropagation()}>
+                            <SelectField record={r} attribute={a} />
+                          </div>
+                        ) : (
+                          cell(r, a)
+                        )}
                       </td>
                     ))}
+                    {own && <td />}
                   </tr>
                 </RecordMenu>
               ))}

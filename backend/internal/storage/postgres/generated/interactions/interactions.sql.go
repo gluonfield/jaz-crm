@@ -774,6 +774,37 @@ func (q *Queries) InteractionsOfHandles(ctx context.Context, handleIds []string)
 	return items, nil
 }
 
+const interactionsOfObject = `-- name: InteractionsOfObject :many
+SELECT DISTINCT links.interaction_id FROM links
+JOIN records ON records.id = links.record_id
+WHERE records.workspace_id = $1 AND records.object_id = $2
+`
+
+type InteractionsOfObjectParams struct {
+	WorkspaceID string
+	ObjectID    string
+}
+
+func (q *Queries) InteractionsOfObject(ctx context.Context, arg InteractionsOfObjectParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, interactionsOfObject, arg.WorkspaceID, arg.ObjectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var interaction_id string
+		if err := rows.Scan(&interaction_id); err != nil {
+			return nil, err
+		}
+		items = append(items, interaction_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const keptWithoutPerson = `-- name: KeptWithoutPerson :many
 SELECT id, workspace_id, kind, value, name, person_id, triage, decided_by, reason, created_at, photo_url FROM handles WHERE workspace_id = $1 AND triage = 'kept' AND person_id IS NULL AND decided_by = 'user'
 `

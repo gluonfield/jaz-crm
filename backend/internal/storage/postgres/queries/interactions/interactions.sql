@@ -168,6 +168,11 @@ DELETE FROM parts WHERE interaction_id = $1;
 -- name: InteractionsOfHandles :many
 SELECT DISTINCT interaction_id FROM participants WHERE handle_id = ANY(@handle_ids::uuid[]);
 
+-- name: InteractionsOfObject :many
+SELECT DISTINCT links.interaction_id FROM links
+JOIN records ON records.id = links.record_id
+WHERE records.workspace_id = @workspace_id AND records.object_id = @object_id;
+
 -- name: DeleteSyncLinks :exec
 DELETE FROM links WHERE source = 'sync' AND interaction_id = ANY(@ids::uuid[]);
 

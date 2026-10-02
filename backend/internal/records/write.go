@@ -5,6 +5,7 @@ import (
 	"errors"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"github.com/gluonfield/jaz-crm/backend/internal/errs"
@@ -37,12 +38,15 @@ func (s Source) rank() int {
 // Write sets and removes values on one record: the record with RecordID,
 // else the record holding a unique value being set, else a new one. Set adds
 // to multi-valued attributes and replaces single-valued ones; Remove drops
-// the listed values, or every value when the list is empty.
+// the listed values, or every value when the list is empty. Expect names the
+// value single-valued attributes must still hold, empty for none, so an
+// editor cannot overwrite a change it has not seen.
 type Write struct {
 	Object   string
 	RecordID string
 	Set      map[string][]string
 	Remove   map[string][]string
+	Expect   map[string]string
 }
 
 // Skip is a change left out because a higher-ranked source holds the value.
@@ -85,14 +89,31 @@ func (s *Service) upsert(ctx context.Context, actor auth.Actor, source Source, w
 	if err != nil {
 		return Record{}, nil, err
 	}
+	// Documents are written whole by whoever edits them, and pages belong to
+	// people and agents alike.
 	for _, c := range [][]change{set, remove} {
 		for i := range c {
-			c[i].force = object.Slug == "people" && c[i].attr.Slug == ContextAttribute
+			c[i].force = c[i].attr.Type == Markdown || object.Slug == Pages || object.Slug == "people" && c[i].attr.Slug == ContextAttribute
 		}
+	}
+	expect := map[string]string{}
+	for slug, value := range w.Expect {
+		attr, err := sc.attribute(object, slug)
+		if err != nil {
+			return Record{}, nil, err
+		}
+		expect[attr.ID] = strings.TrimSpace(value)
 	}
 	id, err := s.target(ctx, actor.WorkspaceID, object, w.RecordID, set)
 	if err != nil {
 		return Record{}, nil, err
+	}
+	for _, c := range set {
+		if id != "" && c.attr.Type == Reference && !c.attr.Multi && *c.attr.TargetObjectID == object.ID {
+			if err := s.acyclic(ctx, actor.WorkspaceID, c.attr, id, *c.entries[0].ref); err != nil {
+				return Record{}, nil, err
+			}
+		}
 	}
 	if id == "" && !slices.ContainsFunc(set, func(c change) bool { return len(c.entries) > 0 }) {
 		return Record{}, nil, errs.Invalidf("a new %s record needs at least one value", object.Slug)
@@ -105,6 +126,15 @@ func (s *Service) upsert(ctx context.Context, actor auth.Actor, source Source, w
 	}
 	var skips []Skip
 	id, err = s.store.WriteRecord(ctx, actor.WorkspaceID, object.ID, id, func(current []storage.RecordValue) (storage.ValueChanges, error) {
+		for attrID, value := range expect {
+			held := ""
+			if i := slices.IndexFunc(current, func(v storage.RecordValue) bool { return v.AttributeID == attrID }); i >= 0 {
+				held = valueIdentity(current[i])
+			}
+			if held != value {
+				return storage.ValueChanges{}, errs.Invalidf("%s changed since it was read", sc.attributeByID(attrID).Slug)
+			}
+		}
 		set, remove, err := guardDraft(sc, object, current, slices.Clone(set), slices.Clone(remove), source)
 		if err != nil {
 			return storage.ValueChanges{}, err
@@ -121,6 +151,28 @@ func (s *Service) upsert(ctx context.Context, actor auth.Actor, source Source, w
 	}
 	record, err := s.get(ctx, actor.WorkspaceID, sc, id)
 	return record, skips, err
+}
+
+// acyclic refuses a parent that is the record itself or one of its
+// descendants, through a single-valued reference from an object to itself
+// such as a page's parent.
+func (s *Service) acyclic(ctx context.Context, workspaceID string, attr storage.Attribute, id, parent string) error {
+	for at, depth := parent, 0; at != ""; depth++ {
+		if at == id || depth > 100 {
+			return errs.Invalidf("%s: a record cannot sit inside itself", attr.Slug)
+		}
+		values, err := s.store.CurrentValues(ctx, workspaceID, []string{at})
+		if err != nil {
+			return err
+		}
+		at = ""
+		for _, v := range values {
+			if v.AttributeID == attr.ID {
+				at = *v.RefRecordID
+			}
+		}
+	}
+	return nil
 }
 
 // defaults fills what a new record is not given: each status starts in its
@@ -252,6 +304,8 @@ func plan(current []storage.RecordValue, set, remove []change, source Source, ac
 			case i >= 0:
 				out.Close = append(out.Close, existing[i].ID)
 				insert(c.attr, e)
+			case c.attr.Type == Markdown && len(existing) == 1 && revising(existing[0], source, actorID):
+				out.Revise = append(out.Revise, storage.ValueRevision{ID: existing[0].ID, Text: *e.text})
 			case c.attr.Multi || len(existing) == 0 || release(c, existing[0]):
 				insert(c.attr, e)
 			}
@@ -265,4 +319,14 @@ func plan(current []storage.RecordValue, set, remove []change, source Source, ac
 		}
 	}
 	return out, skips
+}
+
+// revisionWindow is how long one writer's edits to a document make one
+// version of it.
+const revisionWindow = 10 * time.Minute
+
+// revising reports whether a document's current version is one the member
+// writing is still editing.
+func revising(v storage.RecordValue, source Source, actorID string) bool {
+	return Source(v.Source) == source && v.ActorID != nil && *v.ActorID == actorID && time.Since(v.ActiveFrom) < revisionWindow
 }
