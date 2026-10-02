@@ -5,37 +5,19 @@ import { Button } from '@jaz/ui/button'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
 import { formatDay } from '@/lib/format'
 import { call } from '@/lib/api'
-import { toolQuery, useAction, useTool, useWrite } from '@/lib/queries'
+import { toolQuery, useTool, useWrite } from '@/lib/queries'
 import { useConnections } from '@/lib/sync'
 import type { CrmRecord, DraftSender, Interaction, Ref } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { RecordChip } from './controls'
 import { MessageThread } from './email-thread'
 import { Signature } from './signature'
+import { Release } from './draft-release'
 
 const text = (record: CrmRecord, slug: string) => valuesOf(record, slug).map(valueText).join(', ')
 const today = () => new Date().toLocaleDateString('en-CA')
 
 const list = (record: CrmRecord, slug: string) => valuesOf(record, slug).map(valueText)
-
-// Release sends an email draft from the mailbox shown, or approves any other
-// one for its sender; the server refuses a draft that changed since, and
-// anyone but a person signed in to the CRM.
-function Release({ record, channel, sender, disabled }: { record: CrmRecord; channel: string; sender?: DraftSender; disabled?: boolean }) {
-  const send = useAction<{ record_id: string; draft: string; from?: string; to: string[]; cc: string[] }>('send_draft')
-  const state = text(record, 'draft_status')
-  const email = channel === 'Email'
-  if (state === 'Sent' || state === 'Sending' || (!email && state === 'Approved')) {
-    return <span className="text-[12px] text-ink-3">{state === 'Approved' ? 'Approved · waiting for the sender' : state}</span>
-  }
-  return (
-    <Button variant="primary" size="sm" disabled={disabled || send.isPending || !text(record, 'draft') || !channel || (email && !sender)} onClick={() => {
-      send.mutate({ record_id: record.id, draft: text(record, 'draft'), from: sender?.from, to: email ? sender?.to ?? [] : list(record, 'to'), cc: email ? sender?.cc ?? [] : list(record, 'cc') })
-    }}>
-      {email ? 'Send' : 'Approve'}
-    </Button>
-  )
-}
 
 // FollowUpQueue lists follow-ups as a review queue: what is owed, to whom and
 // by when. The focused follow-up opens to its draft and what we know of the

@@ -1,0 +1,99 @@
+import { Button } from '@jaz/ui/button'
+import { useRef, useState } from 'react'
+import { embedded } from '@/lib/api'
+import { valueText, valuesOf } from '@/lib/crm'
+import { useAction, useWorkspace } from '@/lib/queries'
+import type { CrmRecord, DraftSender } from '@/lib/types'
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from './ui/dialog'
+import { Signature } from './signature'
+
+const list = (record: CrmRecord, slug: string) => valuesOf(record, slug).map(valueText)
+const text = (record: CrmRecord, slug: string) => list(record, slug).join(', ')
+
+export async function reviewInBrowser(recordId: string, workspace: string) {
+  const url = new URL(`/send/${encodeURIComponent(recordId)}`, document.getElementById('root')?.dataset.mcpUrl ?? window.location.href)
+  url.searchParams.set('workspace', workspace)
+  const { app } = await import('@/lib/mcp-app')
+  await app.openLink({ url: url.href })
+}
+
+export function Release({ record, channel, sender, disabled }: { record: CrmRecord; channel: string; sender?: DraftSender; disabled?: boolean }) {
+  const [open, setOpen] = useState(false)
+  const workspace = useWorkspace()
+  const state = text(record, 'draft_status')
+  const email = channel === 'Email'
+  if (state === 'Sent' || state === 'Sending' || (!email && state === 'Approved')) {
+    return <span className="text-[12px] text-ink-3">{state === 'Approved' ? 'Approved · waiting for the sender' : state}</span>
+  }
+  const unavailable = disabled || !text(record, 'draft').trim() || !channel || (email && !sender)
+  // The host's MCP credential cannot attest a person's click. Confirm with the CRM's browser session.
+  if (embedded()) {
+    return unavailable || !workspace
+      ? <Button variant="primary" size="sm" disabled>{email ? 'Send' : 'Approve'}</Button>
+      : <Button variant="primary" size="sm" onClick={() => void reviewInBrowser(record.id, workspace.name)}>{email ? 'Send' : 'Approve'}</Button>
+  }
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild><Button variant="primary" size="sm" disabled={unavailable}>{email ? 'Send' : 'Approve'}</Button></DialogTrigger>
+      {open && <DraftConfirmation record={record} sender={sender} channel={channel} onClose={() => setOpen(false)} onSent={() => setOpen(false)} />}
+    </Dialog>
+  )
+}
+
+export function DraftConfirmation({ record, sender, channel, workspace, onClose, onSent }: { record: CrmRecord; sender?: DraftSender; channel: string; workspace?: string; onClose: () => void; onSent: () => void }) {
+  const email = channel === 'Email'
+  // Keep the reviewed text and recipients fixed while background queries refresh.
+  const [seen] = useState(() => ({
+    record_id: record.id,
+    workspace,
+    draft: text(record, 'draft'),
+    from: sender?.from,
+    to: email ? sender?.to ?? [] : list(record, 'to'),
+    cc: email ? sender?.cc ?? [] : list(record, 'cc'),
+    signature: sender?.signature,
+  }))
+  const send = useAction<Omit<typeof seen, 'signature'>>('send_draft')
+  const sending = useRef(false)
+  return (
+    <DialogContent
+      aria-describedby="send-description"
+      showCloseButton={false}
+      onEscapeKeyDown={(event) => {
+        if (send.isPending) {
+          event.preventDefault()
+        }
+      }}
+      onInteractOutside={(event) => event.preventDefault()}
+      className="max-h-[calc(100dvh-2rem)] overflow-y-auto border-border bg-raised p-4 text-ink"
+    >
+      <DialogTitle className="text-[14px]">{email ? 'Send email?' : 'Approve reply?'}</DialogTitle>
+      <p id="send-description" className="text-[13px] text-ink-2">{email ? 'Send this reply now?' : 'Approve this reply for sending?'}</p>
+      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-[12px] text-ink-2">
+        {[['From', seen.from], ['To', seen.to.join(', ')], ['Cc', seen.cc.join(', ')]].filter(([, value]) => value).map(([label, value]) => (
+          <div key={label} className="contents"><dt className="text-ink-3">{label}</dt><dd className="min-w-0 [overflow-wrap:anywhere]">{value}</dd></div>
+        ))}
+      </dl>
+      <div className="max-h-[40dvh] overflow-y-auto rounded-[var(--radius-control)] bg-bg p-3 text-[13px] leading-5">
+        <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{seen.draft}</p>
+        {seen.signature && <div className="mt-3 border-t border-border pt-2"><Signature html={seen.signature} /></div>}
+      </div>
+      {send.error && <p role="alert" className="text-[13px] text-danger">{send.error.message}</p>}
+      <div className="flex justify-end gap-2">
+        <Button autoFocus disabled={send.isPending} onClick={onClose}>Cancel</Button>
+        <Button variant="primary" disabled={send.isPending || embedded()} onClick={() => {
+          if (sending.current) {
+            return
+          }
+          sending.current = true
+          const { signature: _signature, ...input } = seen
+          send.mutate(input, {
+            onSuccess: onSent,
+            onError: () => {
+              sending.current = false
+            },
+          })
+        }}>{send.isPending ? (email ? 'Sending…' : 'Approving…') : (email ? 'Send' : 'Approve')}</Button>
+      </div>
+    </DialogContent>
+  )
+}

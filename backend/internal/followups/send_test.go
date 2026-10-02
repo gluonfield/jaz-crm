@@ -20,6 +20,7 @@ import (
 	"github.com/gluonfield/jaz-crm/backend/internal/connections"
 	"github.com/gluonfield/jaz-crm/backend/internal/followups"
 	"github.com/gluonfield/jaz-crm/backend/internal/google"
+	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/mcpapi"
 	"github.com/gluonfield/jaz-crm/backend/internal/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
@@ -261,9 +262,7 @@ func TestReleaseSendsEmailRepliesAndApprovesOthers(t *testing.T) {
 	if err := conns.SetTeammatesSend(ctx, ownerActor, mailbox.ID, true); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := svc.Release(ctx, mateActor, reply, seen); err != nil {
-		t.Fatal(err)
-	}
+	releaseThroughHTTP(t, auth.NewService(store, auth.Config{PublicURL: "http://crm.test"}), mcpapi.Services{Records: crm, Workspaces: people, Connections: conns, FollowUps: svc}, mate.ID, reply, seen)
 	if draft, status := state(reply); draft != records.DraftSent || status != "Done" {
 		t.Fatalf("a sent reply closes its follow-up: %q %q", draft, status)
 	}
