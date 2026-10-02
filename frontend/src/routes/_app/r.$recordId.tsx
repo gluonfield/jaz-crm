@@ -29,7 +29,7 @@ function RecordPage() {
   const record = useTool<CrmRecord>('get_record', { record_id: recordId }).data
   const objects = useObjects()
   const object = objects?.find((o) => o.slug === record?.object)
-  const upcoming = useUpcoming(recordId)
+  const upcoming = useUpcoming(recordId, !!object?.standard && object.slug !== 'pages')
   const { tab } = Route.useSearch()
   const navigate = useNavigate()
   const remove = useAction<object>('delete_record')

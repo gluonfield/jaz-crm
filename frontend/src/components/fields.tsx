@@ -159,7 +159,7 @@ export function TextInput({
 
 function ReferenceField({ record, attribute, values }: { record: CrmRecord; attribute: Attribute; values: Value[] }) {
   const write = useWrite(record)
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState<string>()
   const found = useRecords(attribute.target ?? '', useDebounced(search), 20).data?.records ?? []
   const target = attribute.target ?? ''
   return (

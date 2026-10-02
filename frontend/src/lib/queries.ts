@@ -4,14 +4,20 @@ import { toast } from 'sonner'
 import { call } from './api'
 import type { CrmObject, CrmRecord, Interaction, RecordFilter, Relation, Workspace } from './types'
 
-// Every query is a tool call keyed by [tool, args]. Any successful change
-// refetches what is on screen, so views never patch caches by hand, and any
-// failed one shows its error.
+// recordWrites change only records and their schema, which recordReads show.
+const recordWrites = new Set(['upsert_record', 'add_attribute_option', 'edit_pipeline_stage', 'create_object', 'create_attribute', 'edit_object', 'edit_attribute'])
+const recordReads = new Set(['search_records', 'get_record', 'list_objects', 'record_history', 'list_saved_filters'])
+
+// Every query is a tool call keyed by [tool, args]. A successful change
+// refetches what it can alter on screen, everything unless it only writes
+// records, so views never patch caches by hand; any failed one shows its
+// error. Data read moments ago is reused on the way back to it.
 export function newQueryClient() {
   const client: QueryClient = new QueryClient({
-    defaultOptions: { queries: { retry: 1 } },
+    defaultOptions: { queries: { retry: 1, staleTime: 10_000 } },
     mutationCache: new MutationCache({
-      onSuccess: () => client.invalidateQueries(),
+      onSuccess: (_data, _variables, _context, mutation) =>
+        client.invalidateQueries(recordWrites.has(String(mutation.options.mutationKey?.[0])) ? { predicate: (query) => recordReads.has(String(query.queryKey[0])) } : undefined),
       onError: (error) => {
         toast.error(error.message)
       },
@@ -29,7 +35,7 @@ export function useTool<T>(tool: string, args: object = {}, options: Omit<UseQue
 // useAction runs a tool. A removal passes how long its exit animation runs, so
 // the refetch that drops the element cannot cut the animation short.
 export function useAction<A extends object, T = unknown>(tool: string, settleAfter = 0) {
-  return useMutation({ mutationFn: async (args: A) => (await Promise.all([call<T>(tool, args), new Promise((done) => setTimeout(done, settleAfter))]))[0] })
+  return useMutation({ mutationKey: [tool], mutationFn: async (args: A) => (await Promise.all([call<T>(tool, args), new Promise((done) => setTimeout(done, settleAfter))]))[0] })
 }
 
 export function useObjects() {
@@ -40,8 +46,10 @@ export function useWorkspace() {
   return useTool<Workspace>('get_workspace').data
 }
 
-export function useRecords(object: string, query = '', limit = 100, filters: RecordFilter[] = [], include?: Relation[], sort?: string) {
-  return useTool<{ records: CrmRecord[] }>('search_records', { object, query, limit, filters, include, sort }, { placeholderData: (previous) => previous })
+// useRecords finds records to pick once a picker opens and searches, its
+// query undefined until then.
+export function useRecords(object: string, query: string | undefined, limit: number) {
+  return useTool<{ records: CrmRecord[] }>('search_records', { object, query, limit }, { enabled: query !== undefined, placeholderData: (previous) => previous })
 }
 
 export function useWrite(record: CrmRecord) {
@@ -83,9 +91,10 @@ export function useRecordSearch(query: string, limit = 5) {
 
 const pageSize = 20
 
-// useUpcoming lists a record's scheduled interactions, soonest first.
-export function useUpcoming(recordId: string) {
-  return useTool<{ interactions: Interaction[] }>('list_interactions', { record_id: recordId, upcoming: true, limit: 5 }).data?.interactions ?? []
+// useUpcoming lists a record's scheduled interactions, soonest first, for
+// records that have them.
+export function useUpcoming(recordId: string, enabled = true) {
+  return useTool<{ interactions: Interaction[] }>('list_interactions', { record_id: recordId, upcoming: true, limit: 5 }, { enabled }).data?.interactions ?? []
 }
 
 // useTimeline pages back through a record's interactions of some kinds, or

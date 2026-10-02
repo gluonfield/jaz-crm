@@ -312,7 +312,7 @@ function ReferenceProperty({
   toggle: (value: string) => void
   onLabel: (id: string, label: Label) => void
 }) {
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState<string>()
   const target = attribute.target ?? ''
   const found = useRecords(target, useDebounced(search), 20).data?.records ?? []
   const first = labels[values[0]]
