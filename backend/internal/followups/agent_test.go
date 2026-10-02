@@ -82,7 +82,7 @@ func TestAgentKeepsFollowUpsCurrent(t *testing.T) {
 	convs := interactions.NewService(interactions.Params{Store: store, Connections: store, Workspaces: store, Records: crm})
 	brain := &planner{}
 	agent := followups.NewAgent(followups.AgentParams{Service: followups.NewService(crm, store, conns), Workspaces: store, Connections: store, Interactions: convs, Logger: log.New(io.Discard), Planner: brain})
-	jane, _, err := crm.Upsert(ctx, actor, records.SourceUser, records.Write{Object: "people", Set: map[string][]string{"name": {"Jane"}}})
+	jane, _, err := crm.Upsert(ctx, actor, records.SourceUser, records.Write{Object: "people", Set: map[string][]string{"name": {"Jane"}, "context": {"- Head of purchasing at Acme"}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,12 +116,19 @@ func TestAgentKeepsFollowUpsCurrent(t *testing.T) {
 	}
 
 	message("m1", "Could you send a revised quote for 500 brackets by Friday?", time.Now().Add(-time.Minute))
+	merged := "- Head of purchasing at Acme\n- 2026-10-01: asked for a revised quote for 500 brackets by Friday"
 	brain.plans = []followups.Plan{{FollowUps: []followups.Change{
 		{Action: "Send revised quote for 500 brackets", WaitingOn: "Us", ReviewOn: "2026-10-02", Status: "Open", Person: jane.ID, Company: "made-up", Reply: "Hi Jane, here is the revised quote."},
 		{ID: "invented", Status: "Done"},
-	}}}
+	}, Contexts: []followups.Context{{Person: jane.ID, Context: merged}, {Person: deal.ID, Context: "- not a person in this conversation"}}}}
 	if run() != 1 {
 		t.Fatal("the new message was not read")
+	}
+	if got := brain.read[0].Contexts; len(got) != 1 || got[0].Person != jane.ID || got[0].Context != "- Head of purchasing at Acme" {
+		t.Fatalf("the planner must read the current context of each person in the conversation: %+v", got)
+	}
+	if person, err := crm.Get(ctx, actor, jane.ID); err != nil || !slices.ContainsFunc(person.Fields, func(f records.Field) bool { return f.Attribute == "context" && f.Values[0].Text == merged }) {
+		t.Fatalf("the merged context must replace the one a person wrote: %+v %v", person.Fields, err)
 	}
 	if got := brain.read[0]; got.Channel != "email" || len(got.Messages) != 2 || got.Messages[1].Text != "Could you send a revised quote for 500 brackets by Friday?" {
 		t.Fatalf("planner read %+v", got)

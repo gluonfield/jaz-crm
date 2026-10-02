@@ -34,8 +34,16 @@ type Conversation struct {
 	Messages     []Line             `json:"messages"`
 	Records      []interactions.Ref `json:"records"`
 	FollowUps    []Open             `json:"open_follow_ups"`
+	Contexts     []Context          `json:"contexts"`
 	// owner is the member whose mailbox the conversation came from.
 	owner string
+}
+
+// Context is a person's relationship summary: the current one a planner
+// reads, or the merged one it returns.
+type Context struct {
+	Person  string `json:"person"`
+	Context string `json:"context"`
 }
 
 type Person struct {
@@ -60,9 +68,11 @@ type Open struct {
 	Draft     string `json:"draft,omitempty"`
 }
 
-// Plan is the follow-ups to create or change; an empty one changes nothing.
+// Plan is the follow-ups to create or change and the contexts to rewrite;
+// an empty one changes nothing.
 type Plan struct {
-	FollowUps []Change `json:"follow_ups"`
+	FollowUps []Change  `json:"follow_ups"`
+	Contexts  []Context `json:"contexts"`
 }
 
 // Change creates a follow-up, or with an id changes an open one. Empty
@@ -174,6 +184,15 @@ func (a *Agent) follow(ctx context.Context, workspaceID, id string) (bool, error
 			return true, err
 		}
 	}
+	for _, c := range plan.Contexts {
+		i := slices.IndexFunc(in.Contexts, func(current Context) bool { return current.Person == c.Person })
+		if i < 0 || strings.TrimSpace(c.Context) == "" || strings.TrimSpace(c.Context) == in.Contexts[i].Context {
+			continue
+		}
+		if _, _, err := a.crm.Upsert(ctx, actor, records.SourceAgent, records.Write{Object: "people", RecordID: c.Person, Set: map[string][]string{records.ContextAttribute: {c.Context}}}); err != nil {
+			return true, err
+		}
+	}
 	return true, nil
 }
 
@@ -196,6 +215,17 @@ func (a *Agent) conversation(ctx context.Context, actor auth.Actor, conv interac
 		if len(stored) == 1 && stored[0].UserID != nil && *stored[0].UserID == u.ID {
 			in.owner = u.Email
 		}
+	}
+	in.Contexts = []Context{}
+	for _, ref := range conv.Records {
+		if ref.Object != "people" {
+			continue
+		}
+		person, err := a.crm.Get(ctx, actor, ref.ID)
+		if err != nil {
+			return Conversation{}, err
+		}
+		in.Contexts = append(in.Contexts, Context{Person: ref.ID, Context: value(person, records.ContextAttribute)})
 	}
 	for _, ref := range conv.Records {
 		attribute := map[string]string{"people": "people", "companies": "company"}[ref.Object]

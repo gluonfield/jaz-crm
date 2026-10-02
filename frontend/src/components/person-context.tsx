@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { valueText, valuesOf } from '@/lib/crm'
+import { contextHint, valueText, valuesOf } from '@/lib/crm'
 import { useWrite } from '@/lib/queries'
 import type { CrmRecord } from '@/lib/types'
 
@@ -25,7 +25,7 @@ export function PersonContext({ record }: { record: CrmRecord }) {
         value={text}
         disabled={write.pending}
         rows={3}
-        placeholder="Add context…"
+        placeholder={contextHint}
         onChange={(e) => setText(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => {

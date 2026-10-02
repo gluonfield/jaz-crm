@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { Button } from '@jaz/ui/button'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
 import { formatDay } from '@/lib/format'
-import { useAction, useWrite } from '@/lib/queries'
+import { useAction, useTool, useWrite } from '@/lib/queries'
 import type { CrmRecord, Ref } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { RecordIcon } from './icons'
@@ -79,7 +79,7 @@ function FollowUp({ record, focused, index, onOpen }: { record: CrmRecord; focus
           {review && <span className={cn('ml-auto shrink-0 text-[12px] tabular-nums', due ? 'text-ink' : 'text-ink-3')}>{formatDay(review)}</span>}
         </div>
         {(who || waiting) && <div className="truncate text-[12px] text-ink-3">{[who, waiting].filter(Boolean).join(' · ')}</div>}
-        {draft && <Draft key={`${record.id}:${draft}`} record={record} />}
+        {draft && <Draft key={`${record.id}:${draft}`} record={record} person={person} />}
       </div>
       <div className="flex shrink-0 items-start gap-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
         <Button variant="ghost" size="icon-sm" aria-label="Done" title="Done" onClick={(e) => {
@@ -101,7 +101,8 @@ function FollowUp({ record, focused, index, onOpen }: { record: CrmRecord; focus
 
 // Draft edits a follow-up's draft in the queue, the one place drafts appear,
 // and sends or approves it once the edit is saved.
-function Draft({ record }: { record: CrmRecord }) {
+function Draft({ record, person }: { record: CrmRecord; person?: Ref }) {
+  const context = useTool<CrmRecord>('get_record', { record_id: person?.id }, { enabled: !!person }).data
   const current = text(record, 'draft')
   const [draft, setDraft] = useState(current)
   const write = useWrite(record)
@@ -118,6 +119,9 @@ function Draft({ record }: { record: CrmRecord }) {
   }
   return (
     <div className="flex flex-col gap-2 rounded-[var(--radius-card)] bg-panel px-3 py-2" onClick={(e) => e.stopPropagation()}>
+      {context && text(context, 'context') && (
+        <p className="whitespace-pre-wrap border-b border-border pb-2 text-[12px] leading-[18px] text-ink-3">{text(context, 'context')}</p>
+      )}
       <textarea
         aria-label="Draft"
         value={draft}

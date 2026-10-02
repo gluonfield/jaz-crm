@@ -29,6 +29,7 @@ func respond(t *testing.T, schema string, answer any) http.HandlerFunc {
 					Type, Name string
 					Strict     bool
 					Schema     struct {
+						Properties           map[string]any
 						Required             []string
 						AdditionalProperties bool `json:"additionalProperties"`
 					}
@@ -45,7 +46,7 @@ func respond(t *testing.T, schema string, answer any) http.HandlerFunc {
 		if req.Model != "gpt-6-luna" || req.Reasoning.Effort != "medium" || req.Store == nil || *req.Store || req.Instructions == "" || !json.Valid([]byte(req.Input)) {
 			t.Errorf("request model %q effort %q store %v input %q", req.Model, req.Reasoning.Effort, req.Store, req.Input)
 		}
-		if f.Type != "json_schema" || f.Name != schema || !f.Strict || f.Schema.AdditionalProperties || len(f.Schema.Required) != 1 {
+		if f.Type != "json_schema" || f.Name != schema || !f.Strict || f.Schema.AdditionalProperties || len(f.Schema.Required) != len(f.Schema.Properties) {
 			t.Errorf("format %+v", f)
 		}
 		text, _ := json.Marshal(answer)
@@ -57,7 +58,7 @@ func respond(t *testing.T, schema string, answer any) http.HandlerFunc {
 }
 
 func TestPlanAndClassify(t *testing.T) {
-	want := followups.Plan{FollowUps: []followups.Change{{Action: "Send revised quote", WaitingOn: "Us", ReviewOn: "2026-10-02", Status: "Open", Person: "p1", Reply: "Hi Jane"}}}
+	want := followups.Plan{FollowUps: []followups.Change{{Action: "Send revised quote", WaitingOn: "Us", ReviewOn: "2026-10-02", Status: "Open", Person: "p1", Reply: "Hi Jane"}}, Contexts: []followups.Context{{Person: "p1", Context: "- Head of purchasing at Acme"}}}
 	judged := []interactions.Judgement{{Address: "jane@acme.com", Verdict: "keep", Reason: "customer"}}
 	routes := http.NewServeMux()
 	srv := httptest.NewServer(routes)

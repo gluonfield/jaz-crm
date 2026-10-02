@@ -20,9 +20,14 @@ You get one conversation whose content just changed, in the JSON input: its kind
 - reply: only for a conversation on the email or linkedin channel whose latest message needs an answer from us, a complete reply ready to send, in the conversation's language and tone, signed with the first name of the teammate it is from. Never invent facts, prices, dates, attachments or promises; when the answer needs something we have not said, leave reply empty and name what is needed in the action. Otherwise reply is empty.
 - Dates are YYYY-MM-DD; today is given. Status is Open unless closing.
 
-Return {"follow_ups": []} when nothing changes.`
+contexts holds each person in the conversation's records with their current context, the TLDR of the relationship. For every person this conversation tells us something new about, return their whole new context: the current one merged with what this conversation adds, as short bullet points each starting with "- ". First who they are and how we know them, then dated events as "YYYY-MM-DD: what happened", newest first. Keep every fact from the current context that is still true, drop what this conversation makes untrue, and keep at most 10 bullets by folding older events together. State only facts from the messages and the current context. Leave out people the conversation adds nothing about.
 
-var plan = object(map[string]any{"follow_ups": list(object(map[string]any{
+Return {"follow_ups": [], "contexts": []} when nothing changes.`
+
+var plan = object(map[string]any{"contexts": list(object(map[string]any{
+	"person":  text("a person's record id from contexts"),
+	"context": text("their whole new context as bullet points"),
+})), "follow_ups": list(object(map[string]any{
 	"id":         text("an open follow-up's id to change, or empty to create one"),
 	"action":     text("the next step as a short imperative; empty keeps it"),
 	"waiting_on": choice("Us", "Them", ""),

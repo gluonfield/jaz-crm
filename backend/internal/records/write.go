@@ -85,6 +85,11 @@ func (s *Service) upsert(ctx context.Context, actor auth.Actor, source Source, w
 	if err != nil {
 		return Record{}, nil, err
 	}
+	for _, c := range [][]change{set, remove} {
+		for i := range c {
+			c[i].force = object.Slug == "people" && c[i].attr.Slug == ContextAttribute
+		}
+	}
 	id, err := s.target(ctx, actor.WorkspaceID, object, w.RecordID, set)
 	if err != nil {
 		return Record{}, nil, err

@@ -36,6 +36,11 @@ var uniqueTypes = []string{Text, Number, URL, Email, Domain, Phone}
 // titleAttribute names a record wherever it is referenced.
 const titleAttribute = "name"
 
+// ContextAttribute is a person's relationship so far as a short summary.
+// Every write replaces it whole, whoever wrote it before: writers merge the
+// current context with what they learned, and its history keeps each version.
+const ContextAttribute = "context"
+
 // StandardObjects is the schema every workspace starts with, listed in this
 // order.
 var StandardObjects = []storage.NewObject{
@@ -54,7 +59,7 @@ var StandardObjects = []storage.NewObject{
 		{Slug: "phone_numbers", Name: "Phone numbers", Type: Phone, Multi: true, IsUnique: true},
 		{Slug: "company", Name: "Company", Type: Reference, Target: "companies"},
 		{Slug: "job_title", Name: "Job title", Type: Text},
-		{Slug: "context", Name: "Context", Type: Text},
+		{Slug: ContextAttribute, Name: "Context", Type: Text},
 	}},
 	{Slug: "deals", Name: "Deals", Attributes: []storage.NewAttribute{
 		{Slug: titleAttribute, Name: "Name", Type: Text},

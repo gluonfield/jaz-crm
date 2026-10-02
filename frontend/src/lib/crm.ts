@@ -23,3 +23,7 @@ export const slugify = (name: string) =>
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^[^a-z]+|_+$/g, '')
     .slice(0, 40)
+
+// contextHint suggests a person's context as a bullet-point TLDR, the form
+// agents keep it in.
+export const contextHint = '- Who they are and how you know them\n- 2026-10-01: what happened'

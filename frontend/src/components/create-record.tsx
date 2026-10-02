@@ -3,7 +3,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { X } from 'lucide-react'
 import { type ReactNode, forwardRef, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
-import { recordName, valueKey, valuesOf } from '@/lib/crm'
+import { contextHint, recordName, valueKey, valuesOf } from '@/lib/crm'
 import { useDebounced } from '@/lib/hooks'
 import { useAction, useRecords, useWorkspace } from '@/lib/queries'
 import type { Attribute, CrmObject, CrmRecord, Member } from '@/lib/types'
@@ -243,7 +243,7 @@ function Property({
         <textarea
           value={values[0] ?? ''}
           rows={3}
-          placeholder="Add context…"
+          placeholder={contextHint}
           onChange={(e) => onChange(e.target.value ? [e.target.value] : [])}
           className="field-sizing-content mt-1 block max-h-80 min-h-20 w-full resize-y rounded-[var(--radius-control)] border border-border bg-transparent px-2 py-2 text-[13px] leading-5 text-ink outline-none placeholder:text-ink-3 focus:bg-bg"
         />
