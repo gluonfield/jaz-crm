@@ -1,8 +1,9 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
-import { FileText, MoreHorizontal, Trash2 } from 'lucide-react'
+import { FileText, MoreHorizontal, Plus, Trash2 } from 'lucide-react'
 import { Fragment } from 'react'
 import { Button } from '@jaz/ui/button'
 import { Header, Tab } from '@/components/controls'
+import { useNewPage } from '@/components/data-nav'
 import { Field, TextInput } from '@/components/fields'
 import { PageEditor } from '@/components/editor'
 import { History } from '@/components/history'
@@ -32,6 +33,7 @@ function RecordPage() {
   const navigate = useNavigate()
   const remove = useAction<object>('delete_record')
   const pages = usePages()
+  const newPage = useNewPage()
   if (!record || !objects || !object) {
     return <Header />
   }
@@ -98,6 +100,9 @@ function RecordPage() {
             </h1>
             <PageEditor key={record.id} record={record} />
             <Related recordId={record.id} object={object.slug} objects={objects} />
+            <Button variant="ghost" className="-ml-2 self-start" onClick={() => newPage(record.id)}>
+              <Plus /> Add page
+            </Button>
           </div>
         </div>
       </>

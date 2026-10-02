@@ -19,15 +19,16 @@ function detail(record: CrmRecord, object: CrmObject) {
 const lastContact = (r: CrmRecord) => r.activity?.last_at ?? ''
 
 // Related lists the records that point at this one, grouped by object and
-// attribute: the people at a company, its deals. People come most recently
-// in touch first. Follow-ups stay in their own queue.
+// attribute: the people at a company, its deals, a page's pages. People come
+// most recently in touch first, then in the order they were added, as pages
+// do. Follow-ups stay in their own queue.
 export function Related({ recordId, object, objects }: { recordId: string; object: string; objects: CrmObject[] }) {
   const links = objects.filter((o) => o.slug !== 'follow_ups').flatMap((o) => o.attributes.filter((a) => a.type === 'reference' && a.target === object).map((a) => ({ object: o, attribute: a })))
   const results = useQueries({
     queries: links.map(({ object: o, attribute: a }) => toolQuery<{ records: CrmRecord[] }>('search_records', { object: o.slug, where: { [a.slug]: recordId }, limit: 50 })),
   })
   return links.map(({ object: o, attribute: a }, i) => {
-    const records = [...(results[i].data?.records ?? [])].sort((x, y) => lastContact(y).localeCompare(lastContact(x)))
+    const records = [...(results[i].data?.records ?? [])].sort((x, y) => lastContact(y).localeCompare(lastContact(x)) || x.created_at.localeCompare(y.created_at))
     if (records.length === 0) {
       return null
     }
