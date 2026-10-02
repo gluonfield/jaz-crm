@@ -41,7 +41,7 @@ func (p *planner) Summarize(_ context.Context, h followups.History) (string, err
 	return p.summary, nil
 }
 
-func (p *planner) Plan(_ context.Context, c followups.Conversation) (followups.Plan, error) {
+func (p *planner) Plan(_ context.Context, c followups.Conversation, _ followups.ReadTools) (followups.Plan, error) {
 	p.read = append(p.read, c)
 	if p.onPlan != nil {
 		p.onPlan()

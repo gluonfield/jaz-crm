@@ -18,7 +18,7 @@ import (
 // Planner reads a conversation that changed and says what it means for the
 // follow-ups of the records it concerns.
 type Planner interface {
-	Plan(ctx context.Context, c Conversation) (Plan, error)
+	Plan(ctx context.Context, c Conversation, tools ReadTools) (Plan, error)
 }
 
 // Summarizer writes a person's context from scratch, for people with open
@@ -311,7 +311,7 @@ func (a *Agent) follow(ctx context.Context, workspaceID, id string) (string, str
 	if err != nil {
 		return "", "Could not load the information needed to draft. The system will retry.", err
 	}
-	plan, err := a.planner.Plan(ctx, in)
+	plan, err := a.planner.Plan(ctx, in, NewReadTools(a.crm, a.convs, actor))
 	if err != nil {
 		reason := "The drafting model could not complete the request. The system will retry."
 		var failure interface{ DraftingReason() string }

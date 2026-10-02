@@ -12,8 +12,9 @@ import (
 
 type Record struct {
 	interactions.Ref
-	Values map[string][]string `json:"values"`
-	Path   string              `json:"path,omitempty"`
+	Values     map[string][]string `json:"values"`
+	Path       string              `json:"path,omitempty"`
+	References map[string][]string `json:"references,omitempty"`
 }
 
 func recordInput(r records.Record) Record {
@@ -24,6 +25,12 @@ func recordInput(r records.Record) Record {
 		}
 		for _, v := range f.Values {
 			out.Values[f.Attribute] = append(out.Values[f.Attribute], v.Text)
+			if v.RecordID != "" {
+				if out.References == nil {
+					out.References = map[string][]string{}
+				}
+				out.References[f.Attribute] = append(out.References[f.Attribute], v.RecordID)
+			}
 		}
 	}
 	return out

@@ -102,7 +102,7 @@ func TestDraftRequestIncludesFullConversationAndCompanyKnowledge(t *testing.T) {
 	requests := make(chan followups.Conversation, 3)
 	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
-			Input string
+			Input []struct{ Content string }
 			Tools []json.RawMessage
 		}
 		var input followups.Conversation
@@ -111,16 +111,16 @@ func TestDraftRequestIncludesFullConversationAndCompanyKnowledge(t *testing.T) {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		if err := json.Unmarshal([]byte(req.Input), &input); err != nil {
+		if err := json.Unmarshal([]byte(req.Input[0].Content), &input); err != nil {
 			t.Error(err)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		if len(req.Tools) != 0 {
-			t.Error("one-shot drafting must not advertise tools")
+		if len(req.Tools) != 6 {
+			t.Error("drafting must advertise the six read-only tools")
 		}
 		var fields map[string]json.RawMessage
-		if err := json.Unmarshal([]byte(req.Input), &fields); err != nil {
+		if err := json.Unmarshal([]byte(req.Input[0].Content), &fields); err != nil {
 			t.Error(err)
 		}
 		if _, duplicate := fields["contexts"]; duplicate {
@@ -128,10 +128,10 @@ func TestDraftRequestIncludesFullConversationAndCompanyKnowledge(t *testing.T) {
 		}
 		requests <- input
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"id":"resp_1","object":"response","status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"{\"follow_ups\":[],\"contexts\":[]}"}]}]}`)
+		fmt.Fprint(w, `{"id":"resp_1","object":"response","status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"{\"follow_ups\":[],\"contexts\":[],\"skip_reason\":\"The supplied conversation needs review.\"}"}]}]}`)
 	}))
 	t.Cleanup(api.Close)
-	client := llm.New(llm.Config{BaseURL: api.URL, APIKey: "test", Model: "gpt-6-luna", Effort: "medium"})
+	client := llm.New(llm.Config{BaseURL: api.URL, APIKey: "test", Model: "gpt-6-luna", Effort: "medium"}, log.New(io.Discard))
 	agent := followups.NewAgent(followups.AgentParams{Service: followups.NewService(crm, store, nil, store), Workspaces: store, Interactions: convs, Logger: log.New(io.Discard), Planner: client})
 	run := func() followups.Conversation {
 		t.Helper()

@@ -7,8 +7,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"time"
 
+	"github.com/charmbracelet/log"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 	"github.com/openai/openai-go/v3/responses"
@@ -26,11 +28,13 @@ type Client struct {
 	model  string
 	effort shared.ReasoningEffort
 	api    openai.Client
+	logger *log.Logger
 }
 
-func New(cfg Config) *Client {
+func New(cfg Config, logger *log.Logger) *Client {
 	return &Client{
 		model:  cfg.Model,
+		logger: logger.WithPrefix("llm"),
 		effort: shared.ReasoningEffort(cfg.Effort),
 		api:    openai.NewClient(option.WithAPIKey(cfg.APIKey), option.WithBaseURL(cfg.BaseURL), option.WithRequestTimeout(2*time.Minute)),
 	}
@@ -69,6 +73,7 @@ func object(properties map[string]any) map[string]any {
 	for name := range properties {
 		required = append(required, name)
 	}
+	slices.Sort(required)
 	return map[string]any{"type": "object", "properties": properties, "required": required, "additionalProperties": false}
 }
 

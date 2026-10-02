@@ -1,0 +1,133 @@
+package followups
+
+import (
+	"context"
+	"encoding/json"
+
+	"github.com/gluonfield/jaz-crm/backend/internal/auth"
+	"github.com/gluonfield/jaz-crm/backend/internal/errs"
+	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
+	"github.com/gluonfield/jaz-crm/backend/internal/records"
+	"github.com/google/jsonschema-go/jsonschema"
+)
+
+type ReadTools struct {
+	WorkspaceID string
+	Tools       []ReadTool
+}
+
+type ReadTool struct {
+	Name        string
+	Description string
+	Parameters  map[string]any
+	Run         func(context.Context, json.RawMessage) (any, error)
+}
+
+type recordQuery struct {
+	Object string        `json:"object" jsonschema:"Object slug from list_objects, such as people, companies, deals or pages"`
+	Query  string        `json:"query" jsonschema:"Search text; empty lists all matches"`
+	Where  []recordMatch `json:"where" jsonschema:"Equality filters; reference values are record IDs, e.g. parent for child pages or company for colleagues; empty means no filters"`
+	Offset int           `json:"offset" jsonschema:"Number of records to skip, starting at zero"`
+	Limit  int           `json:"limit" jsonschema:"Page size, 1 to 100"`
+}
+
+type recordMatch struct {
+	Attribute string `json:"attribute"`
+	Value     string `json:"value"`
+}
+
+type recordID struct {
+	ID string `json:"record_id"`
+}
+
+type interactionID struct {
+	ID string `json:"interaction_id"`
+}
+
+type interactionQuery struct {
+	Query string `json:"query" jsonschema:"Search conversation titles and content; empty lists recent conversations"`
+	Limit int    `json:"limit" jsonschema:"Maximum matches, 1 to 100; narrow the query if the limit is reached"`
+}
+
+type timelineQuery struct {
+	RecordID string `json:"record_id"`
+	Cursor   string `json:"cursor" jsonschema:"Empty for the first page, then the last interaction ID from the preceding page"`
+	Limit    int    `json:"limit" jsonschema:"Page size, 1 to 100; continue until an empty page"`
+}
+
+// The same services back MCP reads. Bind the workspace here; model arguments
+// cannot select another actor, add a tool or reach a write operation.
+func NewReadTools(crm *records.Service, convs *interactions.Service, actor auth.Actor) ReadTools {
+	return ReadTools{WorkspaceID: actor.WorkspaceID, Tools: []ReadTool{
+		readTool("list_objects", "Discover this workspace's object and attribute schemas, including reference targets. Use these to choose record searches.", func(ctx context.Context, _ struct{}) (any, error) {
+			return crm.Objects(ctx, actor)
+		}),
+		readTool("search_records", "Find records and pages anywhere in this workspace, regardless of the configured company knowledge root. Results omit document bodies: use get_record to read them. Use total and offset to page through all matches.", func(ctx context.Context, in recordQuery) (any, error) {
+			if in.Offset < 0 || in.Limit < 1 || in.Limit > 100 {
+				return nil, errs.Invalidf("offset must be nonnegative and limit must be 1 to 100")
+			}
+			filters := make([]records.Filter, 0, len(in.Where))
+			for _, match := range in.Where {
+				filters = append(filters, records.Filter{Attribute: match.Attribute, Operator: "is", Value: match.Value})
+			}
+			found, total, err := crm.Search(ctx, actor, records.Search{Object: in.Object, Query: in.Query, Filters: filters, Offset: in.Offset, Limit: in.Limit})
+			out := struct {
+				Records []Record `json:"records"`
+				Total   int      `json:"total"`
+			}{Records: make([]Record, 0, len(found)), Total: total}
+			for _, r := range found {
+				out.Records = append(out.Records, recordInput(r))
+			}
+			return out, err
+		}),
+		readTool("get_record", "Read all fields of a record or the full content of a page. Reference IDs can be opened or used to find related records and child pages.", func(ctx context.Context, in recordID) (any, error) {
+			r, err := crm.Get(ctx, actor, in.ID)
+			return recordInput(r), err
+		}),
+		readTool("list_interactions", "List a person's, company's or deal's past conversations and notes, newest first, with previews. Page with cursor; use get_interaction for complete stored content.", func(ctx context.Context, in timelineQuery) (any, error) {
+			if in.Limit < 1 || in.Limit > 100 {
+				return nil, errs.Invalidf("limit must be 1 to 100")
+			}
+			return convs.Timeline(ctx, actor, in.RecordID, nil, in.Cursor, false, in.Limit)
+		}),
+		readTool("search_interactions", "Find relevant conversations and notes across this workspace by title or content. Results are previews, not full history; use get_interaction to read each relevant match.", func(ctx context.Context, in interactionQuery) (any, error) {
+			if in.Limit < 1 || in.Limit > 100 {
+				return nil, errs.Invalidf("limit must be 1 to 100")
+			}
+			return convs.Search(ctx, actor, in.Query, in.Limit)
+		}),
+		readTool("get_interaction", "Read an entire stored conversation, transcript or note, including original message text and quoted history.", func(ctx context.Context, in interactionID) (any, error) {
+			return convs.Source(ctx, actor, in.ID)
+		}),
+	}}
+}
+
+func readTool[In any](name, description string, run func(context.Context, In) (any, error)) ReadTool {
+	schema, err := jsonschema.For[In](nil)
+	if err != nil {
+		panic(err)
+	}
+	if schema.Properties == nil {
+		schema.Properties = map[string]*jsonschema.Schema{}
+	}
+	resolved, err := schema.Resolve(nil)
+	if err != nil {
+		panic(err)
+	}
+	return ReadTool{Name: name, Description: description, Parameters: map[string]any{
+		"type": "object", "properties": schema.Properties, "required": append([]string{}, schema.Required...), "additionalProperties": false,
+	}, Run: func(ctx context.Context, raw json.RawMessage) (any, error) {
+		var value any
+		if err := json.Unmarshal(raw, &value); err != nil {
+			return nil, errs.Invalidf("invalid JSON arguments: %v", err)
+		}
+		if err := resolved.Validate(value); err != nil {
+			return nil, errs.Invalidf("invalid arguments: %v", err)
+		}
+		var in In
+		if err := json.Unmarshal(raw, &in); err != nil {
+			return nil, errs.Invalidf("invalid arguments: %v", err)
+		}
+		return run(ctx, in)
+	}}
+}

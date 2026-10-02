@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+
+	"github.com/charmbracelet/log"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -23,8 +26,8 @@ func TestDraftingFailureReasonKeepsProviderDetailsPrivate(t *testing.T) {
 		fmt.Fprint(w, `{"error":{"message":"Invalid credential: private-provider-detail","type":"invalid_request_error","code":"invalid_api_key"}}`)
 	}))
 	t.Cleanup(srv.Close)
-	client := llm.New(llm.Config{BaseURL: srv.URL, APIKey: "key", Model: "gpt-6-luna", Effort: "medium"})
-	_, err := client.Plan(t.Context(), followups.Conversation{})
+	client := llm.New(llm.Config{BaseURL: srv.URL, APIKey: "key", Model: "gpt-6-luna", Effort: "medium"}, log.New(io.Discard))
+	_, err := client.Plan(t.Context(), followups.Conversation{}, followups.ReadTools{})
 	var failure interface{ DraftingReason() string }
 	if !errors.As(err, &failure) || !strings.Contains(failure.DraftingReason(), "credentials") || strings.Contains(failure.DraftingReason(), "private-provider-detail") {
 		t.Fatalf("unsafe or missing reason: %v", err)
@@ -41,7 +44,7 @@ func respond(t *testing.T, schema string, answer any) http.HandlerFunc {
 		var req struct {
 			Model        string
 			Instructions string
-			Input        string
+			Input        json.RawMessage
 			Store        *bool
 			Reasoning    struct{ Effort string }
 			Text         struct {
@@ -62,8 +65,19 @@ func respond(t *testing.T, schema string, answer any) http.HandlerFunc {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			t.Fatal(err)
 		}
+		var input string
+		if schema == "follow_ups" {
+			var items []struct{ Content string }
+			if err := json.Unmarshal(req.Input, &items); err != nil || len(items) != 1 {
+				t.Errorf("draft input: %s (%v)", req.Input, err)
+				return
+			}
+			input = items[0].Content
+		} else if err := json.Unmarshal(req.Input, &input); err != nil {
+			t.Error(err)
+		}
 		f := req.Text.Format
-		if req.Model != "gpt-6-luna" || req.Reasoning.Effort != "medium" || req.Store == nil || *req.Store || req.Instructions == "" || !json.Valid([]byte(req.Input)) {
+		if req.Model != "gpt-6-luna" || req.Reasoning.Effort != "medium" || req.Store == nil || *req.Store || req.Instructions == "" || !json.Valid([]byte(input)) {
 			t.Errorf("request model %q effort %q store %v input %q", req.Model, req.Reasoning.Effort, req.Store, req.Input)
 		}
 		if f.Type != "json_schema" || f.Name != schema || !f.Strict || f.Schema.AdditionalProperties || len(f.Schema.Required) != len(f.Schema.Properties) {
@@ -83,10 +97,10 @@ func TestPlanAndClassify(t *testing.T) {
 	routes := http.NewServeMux()
 	srv := httptest.NewServer(routes)
 	t.Cleanup(srv.Close)
-	client := llm.New(llm.Config{BaseURL: srv.URL, APIKey: "key", Model: "gpt-6-luna", Effort: "medium"})
+	client := llm.New(llm.Config{BaseURL: srv.URL, APIKey: "key", Model: "gpt-6-luna", Effort: "medium"}, log.New(io.Discard))
 
 	routes.HandleFunc("/responses", respond(t, "follow_ups", want))
-	got, err := client.Plan(t.Context(), followups.Conversation{Kind: "email", Messages: []followups.Line{{Author: "Jane", Text: "Quote please"}}})
+	got, err := client.Plan(t.Context(), followups.Conversation{Kind: "email", Messages: []followups.Line{{Author: "Jane", Text: "Quote please"}}}, followups.ReadTools{})
 	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Fatalf("plan %+v, %v", got, err)
 	}
