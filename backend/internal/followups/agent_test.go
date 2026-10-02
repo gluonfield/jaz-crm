@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -123,7 +124,7 @@ func TestAgentKeepsFollowUpsCurrent(t *testing.T) {
 	}
 
 	message("m1", "Could you send a revised quote for 500 brackets by Friday?", time.Now().Add(-time.Minute))
-	merged := "- Head of purchasing at Acme\n- 2026-10-01: asked for a revised quote for 500 brackets by Friday"
+	merged := "- Head of purchasing at Acme\n- 2026-10-01: asked for a revised quote for 500–600 brackets by Friday"
 	brain.plans = []followups.Plan{{FollowUps: []followups.Change{
 		{Action: "Send revised quote for 500 brackets", WaitingOn: "Us", ReviewOn: "2026-10-02", Status: "Open", Person: jane.ID, Company: "made-up", Reply: "Hi Jane, here is the revised quote."},
 		{ID: "invented", Status: "Done"},
@@ -134,8 +135,10 @@ func TestAgentKeepsFollowUpsCurrent(t *testing.T) {
 	if got := brain.read[0].Contexts; len(got) != 1 || got[0].Person != jane.ID || got[0].Context != "- Head of purchasing at Acme" {
 		t.Fatalf("the planner must read the current context of each person in the conversation: %+v", got)
 	}
-	if person, err := crm.Get(ctx, actor, jane.ID); err != nil || !slices.ContainsFunc(person.Fields, func(f records.Field) bool { return f.Attribute == "context" && f.Values[0].Text == merged }) {
-		t.Fatalf("the merged context must replace the one a person wrote: %+v %v", person.Fields, err)
+	if person, err := crm.Get(ctx, actor, jane.ID); err != nil || !slices.ContainsFunc(person.Fields, func(f records.Field) bool {
+		return f.Attribute == "context" && f.Values[0].Text == strings.Replace(merged, "500–600", "500-600", 1)
+	}) {
+		t.Fatalf("the merged context must replace the one a person wrote, keeping its bullets and hyphenating ranges: %+v %v", person.Fields, err)
 	}
 	if got := brain.read[0]; got.Channel != "email" || len(got.Messages) != 2 || got.Messages[1].Text != "Could you send a revised quote for 500 brackets by Friday?" {
 		t.Fatalf("planner read %+v", got)
@@ -180,7 +183,7 @@ func TestAgentKeepsFollowUpsCurrent(t *testing.T) {
 		t.Fatal("a conversation the model could not plan counted as read")
 	}
 	brain.fail = false
-	brain.plans = []followups.Plan{{FollowUps: []followups.Change{{ID: f.ID, Status: "Done", Reply: "Thanks Jane, speak next week."}}}}
+	brain.plans = []followups.Plan{{FollowUps: []followups.Change{{ID: f.ID, Action: "Confirm the order — next week", Status: "Done", Reply: "Thanks Jane—speak next week. Delivery is October 7–8 -- see you then.\n\n—Augustinas"}}}}
 	if run() != 1 {
 		t.Fatal("a conversation the model could not plan must be read again")
 	}
@@ -199,6 +202,9 @@ func TestAgentKeepsFollowUpsCurrent(t *testing.T) {
 	}
 	if !slices.Equal(after["status"], []string{"Done"}) || !slices.Equal(after["to"], []string{"jane@acme.com"}) || !slices.Equal(after["cc"], []string{"bob@acme.com"}) {
 		t.Fatalf("the follow-up must be closed, and a new draft must replace its recipients, dropping Sam: %v", after)
+	}
+	if want := []string{"Thanks Jane, speak next week. Delivery is October 7-8, see you then.\n\nAugustinas"}; !slices.Equal(after["draft"], want) || !slices.Equal(after["name"], []string{"Confirm the order, next week"}) {
+		t.Fatalf("drafts and actions must be written without dashes: %q %q", after["draft"], after["name"])
 	}
 
 	if len(brain.histories) != 0 {

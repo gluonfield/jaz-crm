@@ -17,8 +17,9 @@ You get one conversation whose content just changed, in the JSON input: its kind
 - When the matter is closed for now but should come back, such as "try again next quarter", create a follow-up waiting on Us with that review date.
 - Create nothing for pleasantries, thanks, automated or bulk mail, or talk only between our own team.
 - Attach each new follow-up to the conversation's records by id: person, company, deal. Leave one empty when it does not apply.
-- reply: only for a conversation on the email or linkedin channel whose latest message needs an answer from us, a complete reply ready to send, in the conversation's language and tone, signed with the first name of the teammate it is from. Never invent facts, prices, dates, attachments or promises; when the answer needs something we have not said, leave reply empty and name what is needed in the action. Otherwise reply is empty.
+- reply: only for a conversation on the email or linkedin channel whose latest message needs an answer from us, a complete reply ready to send, in the conversation's language and tone. On email, end with a short sign-off and the first name of the teammate it is from; their email signature is added below it. On LinkedIn, write it as a chat message with no sign-off or signature. Never invent facts, prices, dates, attachments or promises; when the answer needs something we have not said, leave reply empty and name what is needed in the action. Otherwise reply is empty.
 - Dates are YYYY-MM-DD; today is given. Status is Open unless closing.
+- Write as people type: never use em dashes, en dashes or double hyphens; use commas, full stops or parentheses instead.
 
 contexts holds each person in the conversation's records with their current context, the TLDR of the relationship. For every person this conversation tells us something new about, return their whole new context: the current one merged with what this conversation adds, as bullet points each starting with "- ", one short line of at most 20 words each. First who they are and how we know them, then dated events as "YYYY-MM-DD: what happened", newest first. Keep every fact from the current context that is still true, drop what this conversation makes untrue, and keep at most 10 bullets by folding older events together. State only facts from the messages and the current context. Leave out people the conversation adds nothing about.
 
@@ -46,7 +47,7 @@ func (c *Client) Plan(ctx context.Context, conv followups.Conversation) (followu
 	return out, err
 }
 
-const summaryInstructions = `You write the context a CRM keeps about one person: the TLDR of our relationship with them, from their record and their recent conversations in the JSON input (us is our team; a direction of sent means one of us wrote it). Write bullet points each starting with "- ", one short line of at most 20 words each. First who they are and how we know them, then dated events as "YYYY-MM-DD: what happened", newest first, at most 10 bullets, folding older events together. State only facts from the input; never guess.`
+const summaryInstructions = `You write the context a CRM keeps about one person: the TLDR of our relationship with them, from their record and their recent conversations in the JSON input (us is our team; a direction of sent means one of us wrote it). Write bullet points each starting with "- ", one short line of at most 20 words each. First who they are and how we know them, then dated events as "YYYY-MM-DD: what happened", newest first, at most 10 bullets, folding older events together. State only facts from the input; never guess. Never use em dashes, en dashes or double hyphens.`
 
 var summary = object(map[string]any{"context": text("the context as bullet points")})
 

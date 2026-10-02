@@ -236,7 +236,7 @@ func (a *Agent) backfill(ctx context.Context, workspaceID string) error {
 			if strings.TrimSpace(context) == "" {
 				continue
 			}
-			if _, _, err := a.crm.Upsert(ctx, actor, records.SourceAgent, records.Write{Object: "people", RecordID: id, Set: map[string][]string{records.ContextAttribute: {context}}}); err != nil {
+			if _, _, err := a.crm.Upsert(ctx, actor, records.SourceAgent, records.Write{Object: "people", RecordID: id, Set: map[string][]string{records.ContextAttribute: {plain(context)}}}); err != nil {
 				return err
 			}
 			written++
@@ -344,7 +344,7 @@ func (a *Agent) follow(ctx context.Context, workspaceID, id string) (bool, error
 		if i < 0 || strings.TrimSpace(c.Context) == "" || strings.TrimSpace(c.Context) == in.Contexts[i].Context {
 			continue
 		}
-		if _, _, err := a.crm.Upsert(ctx, actor, records.SourceAgent, records.Write{Object: "people", RecordID: c.Person, Set: map[string][]string{records.ContextAttribute: {c.Context}}}); err != nil {
+		if _, _, err := a.crm.Upsert(ctx, actor, records.SourceAgent, records.Write{Object: "people", RecordID: c.Person, Set: map[string][]string{records.ContextAttribute: {plain(c.Context)}}}); err != nil {
 			return true, err
 		}
 	}
@@ -436,7 +436,7 @@ func (a *Agent) apply(ctx context.Context, actor auth.Actor, conv interactions.I
 	if c.ID == "" {
 		put("owner", in.owner)
 	}
-	put("name", c.Action)
+	put("name", plain(c.Action))
 	put("waiting_on", c.WaitingOn)
 	put("status", c.Status)
 	if _, err := time.Parse(time.DateOnly, c.ReviewOn); err == nil {
@@ -479,7 +479,7 @@ func (a *Agent) apply(ctx context.Context, actor auth.Actor, conv interactions.I
 // draft sets a reply's text and channel; an email reply goes to everyone on
 // the latest message, as reply-all, but us.
 func (a *Agent) draft(ctx context.Context, actor auth.Actor, conv interactions.Interaction, reply string, set map[string][]string) error {
-	set["draft"] = []string{reply}
+	set["draft"] = []string{plain(reply)}
 	if conv.Channel != "email" {
 		set["channel"] = []string{"LinkedIn"}
 		return nil
