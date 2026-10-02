@@ -11,6 +11,7 @@ overrides:
       provider_id: ProviderID
       author_handle_id: AuthorHandleID
       person_id: PersonID
+      company_page_id: CompanyPageID
       meet_code: MeetCode
       attribute_ids: AttributeIDs
       ref_record_id: RefRecordID

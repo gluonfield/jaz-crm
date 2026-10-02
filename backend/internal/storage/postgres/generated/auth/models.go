@@ -78,6 +78,7 @@ type Workspace struct {
 	AutoKeepMeetings bool
 	AutoKeepRecords  bool
 	AutoKeepAi       bool
+	CompanyPageID    *string
 }
 
 type WorkspaceInvite struct {

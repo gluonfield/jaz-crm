@@ -41,8 +41,8 @@ func (s *Store) CreateOwnedWorkspace(ctx context.Context, name string, owner sto
 	return one(toUser)(user, err)
 }
 
-func (s *Store) UpdateWorkspace(ctx context.Context, id, name, description string) error {
-	return affected(s.auth.UpdateWorkspace(ctx, authdb.UpdateWorkspaceParams{ID: id, Name: name, Description: description}))
+func (s *Store) UpdateWorkspace(ctx context.Context, workspace storage.Workspace) error {
+	return affected(s.auth.UpdateWorkspace(ctx, authdb.UpdateWorkspaceParams{ID: workspace.ID, Name: workspace.Name, Description: workspace.Description, CompanyPageID: workspace.CompanyPageID}))
 }
 
 func (s *Store) LockWorkspace(ctx context.Context, workspaceID string) error {

@@ -13,6 +13,7 @@ import (
 type Record struct {
 	interactions.Ref
 	Values map[string][]string `json:"values"`
+	Path   string              `json:"path,omitempty"`
 }
 
 func recordInput(r records.Record) Record {
@@ -41,7 +42,7 @@ func (a *Agent) conversation(ctx context.Context, actor auth.Actor, conv interac
 	if err != nil {
 		return Conversation{}, err
 	}
-	in := Conversation{Today: time.Now().UTC().Format(time.DateOnly), Purpose: ws.Description, Kind: conv.Kind, Channel: conv.Channel, Title: conv.Title, Description: conv.Invitation, Messages: conversationLines(conv), Records: []Record{}, FollowUps: []Open{}, Contexts: []Context{}}
+	in := Conversation{Today: time.Now().UTC().Format(time.DateOnly), Purpose: ws.Description, Kind: conv.Kind, Channel: conv.Channel, Title: conv.Title, Description: conv.Invitation, Messages: conversationLines(conv), Records: []Record{}, FollowUps: []Open{}}
 	for _, u := range users {
 		person := Person{Name: u.Name, Address: u.Email}
 		in.Us = append(in.Us, person)
@@ -50,7 +51,7 @@ func (a *Agent) conversation(ctx context.Context, actor auth.Actor, conv interac
 		}
 	}
 	for _, p := range conv.Participants {
-		in.Participants = append(in.Participants, Person{Name: p.Name, Address: p.Address})
+		in.Participants = append(in.Participants, Person{Name: p.Name, Address: p.Address, PersonID: p.PersonID})
 	}
 	pending := []string{}
 	for _, ref := range conv.Records {
@@ -68,9 +69,6 @@ func (a *Agent) conversation(ctx context.Context, actor auth.Actor, conv interac
 			return Conversation{}, err
 		}
 		in.Records = append(in.Records, recordInput(r))
-		if r.Object == "people" {
-			in.Contexts = append(in.Contexts, Context{Person: r.ID, Context: value(r, records.ContextAttribute)})
-		}
 		if r.Object == "people" || r.Object == "deals" {
 			pending = append(pending, refs(r, "company")...)
 		}
@@ -95,33 +93,37 @@ func (a *Agent) conversation(ctx context.Context, actor auth.Actor, conv interac
 			}
 		}
 	}
-	in.Company, err = a.companyKnowledge(ctx, actor)
+	in.Company, err = a.companyKnowledge(ctx, actor, ws.CompanyPageID)
 	return in, err
 }
 
-func (a *Agent) companyKnowledge(ctx context.Context, actor auth.Actor) ([]Record, error) {
-	pages, err := a.searchRecords(ctx, actor, records.Search{Object: records.Pages, Where: map[string]string{"name": "Company"}})
-	if err != nil {
-		return nil, err
-	}
+func (a *Agent) companyKnowledge(ctx context.Context, actor auth.Actor, root *string) ([]Record, error) {
 	out := []Record{}
-	seen := map[string]bool{}
+	if root == nil {
+		return out, nil
+	}
+	pages := []string{*root}
+	paths := map[string]string{*root: ""}
 	for i := 0; i < len(pages); i++ {
-		id := pages[i].ID
-		if seen[id] {
-			continue
-		}
-		seen[id] = true
+		id := pages[i]
 		page, err := a.crm.Get(ctx, actor, id)
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, recordInput(page))
+		doc := recordInput(page)
+		doc.Path = paths[id] + doc.Name
+		out = append(out, doc)
 		children, err := a.searchRecords(ctx, actor, records.Search{Object: records.Pages, Where: map[string]string{"parent": id}})
 		if err != nil {
 			return nil, err
 		}
-		pages = append(pages, children...)
+		for _, child := range children {
+			if _, found := paths[child.ID]; found {
+				continue
+			}
+			pages = append(pages, child.ID)
+			paths[child.ID] = doc.Path + " / "
+		}
 	}
 	return out, nil
 }

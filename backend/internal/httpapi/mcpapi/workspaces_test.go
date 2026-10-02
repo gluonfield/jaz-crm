@@ -187,3 +187,51 @@ func TestTriageSettingsAuthorization(t *testing.T) {
 		t.Fatalf("another workspace inherited approvals: %v", got)
 	}
 }
+
+func TestCompanyKnowledgeSettings(t *testing.T) {
+	e := serve(t)
+	owner := e.session(t, e.apiKey(t, "owner@example.com"))
+	other := e.session(t, e.apiKey(t, "other@example.com"))
+	page := mustCall(t, owner, "upsert_record", map[string]any{"object": "pages", "values": map[string]any{"name": "Our business"}})["record"].(map[string]any)["id"]
+	foreign := mustCall(t, other, "upsert_record", map[string]any{"object": "pages", "values": map[string]any{"name": "Company"}})["record"].(map[string]any)["id"]
+	person := mustCall(t, owner, "upsert_record", map[string]any{"object": "people", "values": map[string]any{"name": "Jane"}})["record"].(map[string]any)["id"]
+	if got := mustCall(t, owner, "get_workspace", nil); got["company_page_id"] != nil {
+		t.Fatalf("new workspaces must have no implicit knowledge root: %v", got)
+	}
+	if got := mustCall(t, owner, "update_workspace", map[string]any{"company_page_id": page}); got["company_page_id"] != page {
+		t.Fatalf("selected knowledge page not returned: %v", got)
+	}
+	mustCall(t, owner, "update_workspace", map[string]any{"name": "CAS"})
+	for _, invalid := range []any{foreign, person, "invalid-id"} {
+		if _, failure := call(t, owner, "update_workspace", map[string]any{"name": "Should not change", "company_page_id": invalid}); failure == "" {
+			t.Fatalf("accepted an invalid knowledge root: %v", invalid)
+		}
+	}
+	if got := mustCall(t, owner, "get_workspace", nil); got["company_page_id"] != page || got["name"] != "CAS" {
+		t.Fatalf("omission must preserve the root and rejected updates must be atomic: %v", got)
+	}
+	if got := mustCall(t, other, "get_workspace", nil); got["company_page_id"] != nil {
+		t.Fatalf("another workspace inherited the knowledge root: %v", got)
+	}
+	mustCall(t, owner, "invite_member", map[string]any{"email": "knowledge-member@example.com"})
+	member, err := e.people.SignIn(t.Context(), signin.Identity{Issuer: "https://idp.test", Subject: "knowledge-member", Email: "knowledge-member@example.com", EmailVerified: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	key, _, err := e.keys.CreateKey(t.Context(), member.ID, "member", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, failure := call(t, e.session(t, key), "update_workspace", map[string]any{"company_page_id": ""}); failure == "" {
+		t.Fatal("non-admin cleared the Company knowledge root")
+	}
+	mustCall(t, owner, "update_workspace", map[string]any{"company_page_id": ""})
+	if got := mustCall(t, owner, "get_workspace", nil); got["company_page_id"] != nil {
+		t.Fatalf("explicit clearing did not persist: %v", got)
+	}
+	mustCall(t, owner, "update_workspace", map[string]any{"company_page_id": page})
+	mustCall(t, owner, "delete_record", map[string]any{"record_id": page})
+	if got := mustCall(t, owner, "get_workspace", nil); got["company_page_id"] != nil {
+		t.Fatalf("deleting a root must clear its reference: %v", got)
+	}
+}

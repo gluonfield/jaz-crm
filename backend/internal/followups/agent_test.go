@@ -158,8 +158,10 @@ func TestAgentKeepsFollowUpsCurrent(t *testing.T) {
 		t.Fatal("the new message was not read")
 	}
 	state("completed", "")
-	if got := brain.read[0].Contexts; len(got) != 1 || got[0].Person != jane.ID || got[0].Context != "- Head of purchasing at Acme" {
-		t.Fatalf("the planner must read the current context of each person in the conversation: %+v", got)
+	if !slices.ContainsFunc(brain.read[0].Records, func(r followups.Record) bool {
+		return r.ID == jane.ID && r.Object == "people" && slices.Equal(r.Values["context"], []string{"- Head of purchasing at Acme"})
+	}) {
+		t.Fatalf("the planner must read the current context in each person's record: %+v", brain.read[0].Records)
 	}
 	if person, err := crm.Get(ctx, actor, jane.ID); err != nil || !slices.ContainsFunc(person.Fields, func(f records.Field) bool {
 		return f.Attribute == "context" && f.Values[0].Text == strings.Replace(merged, "500–600", "500-600", 1)

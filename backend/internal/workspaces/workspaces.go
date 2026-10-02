@@ -168,9 +168,9 @@ func (s *Service) Invite(ctx context.Context, actor auth.Actor, email string) (s
 	return invite, err
 }
 
-// Update lets an admin change the workspace's name and description; the
-// description tells the triage agent which contacts belong in the CRM.
-func (s *Service) Update(ctx context.Context, actor auth.Actor, name, description *string) (storage.Workspace, error) {
+// Update lets an admin change the workspace's name, triage description and
+// company knowledge root.
+func (s *Service) Update(ctx context.Context, actor auth.Actor, name, description, companyPageID *string) (storage.Workspace, error) {
 	if err := s.requireAdmin(ctx, actor); err != nil {
 		return storage.Workspace{}, err
 	}
@@ -184,13 +184,23 @@ func (s *Service) Update(ctx context.Context, actor auth.Actor, name, descriptio
 	if description != nil {
 		workspace.Description = strings.TrimSpace(*description)
 	}
+	if companyPageID != nil {
+		workspace.CompanyPageID = companyPageID
+		if *companyPageID == "" {
+			workspace.CompanyPageID = nil
+		}
+	}
 	if workspace.Name == "" || len([]rune(workspace.Name)) > 80 {
 		return workspace, ErrInvalidName
 	}
 	if len([]rune(workspace.Description)) > 2000 {
 		return workspace, errs.Invalidf("a workspace description is at most 2000 characters")
 	}
-	return workspace, s.store.UpdateWorkspace(ctx, workspace.ID, workspace.Name, workspace.Description)
+	err = s.store.UpdateWorkspace(ctx, workspace)
+	if errors.Is(err, storage.ErrNotFound) {
+		err = errs.Invalidf("choose a Company knowledge page in this workspace")
+	}
+	return workspace, err
 }
 
 // Memberships lists the workspaces the actor's person belongs to.

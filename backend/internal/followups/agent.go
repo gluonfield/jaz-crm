@@ -48,32 +48,31 @@ type Thread struct {
 // Conversation is what a planner reads: the complete stored conversation,
 // who we are, the records it concerns and their open follow-ups.
 type Conversation struct {
-	Today        string    `json:"today"`
-	Purpose      string    `json:"crm_purpose"`
-	Us           []Person  `json:"us"`
-	Kind         string    `json:"kind"`
-	Channel      string    `json:"channel,omitempty"`
-	Title        string    `json:"title"`
-	Participants []Person  `json:"participants"`
-	Messages     []Line    `json:"messages"`
-	Records      []Record  `json:"records"`
-	FollowUps    []Open    `json:"open_follow_ups"`
-	Contexts     []Context `json:"contexts"`
-	Sender       *Person   `json:"sender,omitempty"`
-	Company      []Record  `json:"company_knowledge"`
-	Description  string    `json:"description,omitempty"`
+	Today        string   `json:"today"`
+	Purpose      string   `json:"crm_purpose"`
+	Us           []Person `json:"us"`
+	Kind         string   `json:"kind"`
+	Channel      string   `json:"channel,omitempty"`
+	Title        string   `json:"title"`
+	Participants []Person `json:"participants"`
+	Messages     []Line   `json:"messages"`
+	Records      []Record `json:"records"`
+	FollowUps    []Open   `json:"open_follow_ups"`
+	Sender       *Person  `json:"sender,omitempty"`
+	Company      []Record `json:"company_knowledge"`
+	Description  string   `json:"description,omitempty"`
 }
 
-// Context is a person's relationship summary: the current one a planner
-// reads, or the merged one it returns.
+// Context is a person's updated relationship summary returned by the planner.
 type Context struct {
 	Person  string `json:"person"`
 	Context string `json:"context"`
 }
 
 type Person struct {
-	Name    string `json:"name,omitempty"`
-	Address string `json:"address,omitempty"`
+	Name     string `json:"name,omitempty"`
+	Address  string `json:"address,omitempty"`
+	PersonID string `json:"person_id,omitempty"`
 }
 
 // Line is one message, speaker turn or note of a conversation.
@@ -332,8 +331,8 @@ func (a *Agent) follow(ctx context.Context, workspaceID, id string) (string, str
 		attempted = attempted || strings.TrimSpace(change.Reply) != ""
 	}
 	for _, c := range plan.Contexts {
-		i := slices.IndexFunc(in.Contexts, func(current Context) bool { return current.Person == c.Person })
-		if i < 0 || strings.TrimSpace(c.Context) == "" || strings.TrimSpace(c.Context) == in.Contexts[i].Context {
+		i := slices.IndexFunc(in.Records, func(current Record) bool { return current.Object == "people" && current.ID == c.Person })
+		if i < 0 || strings.TrimSpace(c.Context) == "" || slices.Equal([]string{strings.TrimSpace(c.Context)}, in.Records[i].Values[records.ContextAttribute]) {
 			continue
 		}
 		if _, _, err := a.crm.Upsert(ctx, actor, records.SourceAgent, records.Write{Object: "people", RecordID: c.Person, Set: map[string][]string{records.ContextAttribute: {plain(c.Context)}}}); err != nil {

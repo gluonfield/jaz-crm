@@ -53,7 +53,7 @@ func registerWorkspace(r *registry, members *workspaces.Service, keys *auth.Serv
 				return workspaceView{}, err
 			}
 			users, invites, err := members.Members(ctx, actor)
-			out := workspaceView{ID: workspace.ID, Name: workspace.Name, Description: workspace.Description, Members: []memberView{}, Invited: []string{}}
+			out := workspaceView{ID: workspace.ID, Name: workspace.Name, Description: workspace.Description, CompanyPageID: workspace.CompanyPageID, Members: []memberView{}, Invited: []string{}}
 			for _, u := range users {
 				m := memberView{Name: u.Name, Email: u.Email, Admin: u.Admin, IsMe: u.ID == actor.UserID}
 				if u.AvatarURL != nil {
@@ -73,10 +73,10 @@ func registerWorkspace(r *registry, members *workspaces.Service, keys *auth.Serv
 			return inviteOutput{Invited: invite.Email}, err
 		})
 	add(r, &mcp.Tool{Name: "update_workspace", Title: "Update workspace",
-		Description: "Change this workspace's name or description. The description tells triage which contacts belong in the CRM. Admins only."},
+		Description: "Change this workspace's name, description or Company knowledge root page. Drafting reads that page and all descendants, including after renames. The description tells triage which contacts belong in the CRM. Admins only."},
 		func(ctx context.Context, actor auth.Actor, in updateWorkspaceInput) (workspaceView, error) {
-			workspace, err := members.Update(ctx, actor, in.Name, in.Description)
-			return workspaceView{ID: workspace.ID, Name: workspace.Name, Description: workspace.Description}, err
+			workspace, err := members.Update(ctx, actor, in.Name, in.Description, in.CompanyPageID)
+			return workspaceView{ID: workspace.ID, Name: workspace.Name, Description: workspace.Description, CompanyPageID: workspace.CompanyPageID}, err
 		})
 	add(r, &mcp.Tool{Name: "delete_workspace", Title: "Delete workspace", Annotations: &mcp.ToolAnnotations{DestructiveHint: new(true)},
 		Description: "Permanently delete the workspace this call acts in and all its CRM data, memberships, connections and credentials. Admins only. Confirm with its ID and current name from get_workspace. Every connection to it loses access; other workspaces are preserved."},
@@ -94,11 +94,12 @@ type memberView struct {
 }
 
 type workspaceView struct {
-	ID          string       `json:"id"`
-	Name        string       `json:"name"`
-	Description string       `json:"description"`
-	Members     []memberView `json:"members,omitempty"`
-	Invited     []string     `json:"invited,omitempty"`
+	ID            string       `json:"id"`
+	Name          string       `json:"name"`
+	Description   string       `json:"description"`
+	CompanyPageID *string      `json:"company_page_id,omitempty"`
+	Members       []memberView `json:"members,omitempty"`
+	Invited       []string     `json:"invited,omitempty"`
 }
 
 type inviteInput struct {
@@ -110,8 +111,9 @@ type inviteOutput struct {
 }
 
 type updateWorkspaceInput struct {
-	Name        *string `json:"name,omitempty"`
-	Description *string `json:"description,omitempty" jsonschema:"who this workspace's CRM is for, such as: manufacturing customers, suppliers and partners"`
+	Name          *string `json:"name,omitempty"`
+	Description   *string `json:"description,omitempty" jsonschema:"who this workspace's CRM is for, such as: manufacturing customers, suppliers and partners"`
+	CompanyPageID *string `json:"company_page_id,omitempty" jsonschema:"page ID whose full subtree supplies our company knowledge for drafting; empty clears it; omission preserves it"`
 }
 
 type workspaceRef struct {

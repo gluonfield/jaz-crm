@@ -14,6 +14,7 @@ type Workspace struct {
 	AutoKeepMeetings bool
 	AutoKeepRecords  bool
 	AutoKeepAi       bool
+	CompanyPageID    *string
 }
 
 // User is a person's membership of one workspace.
@@ -178,7 +179,7 @@ type WorkspaceStore interface {
 	// CreateOwnedWorkspace creates a workspace, its owner linked to the
 	// identity, and its objects, atomically.
 	CreateOwnedWorkspace(ctx context.Context, name string, owner NewUser, identity Identity, objects []NewObject) (User, error)
-	UpdateWorkspace(ctx context.Context, id, name, description string) error
+	UpdateWorkspace(ctx context.Context, workspace Workspace) error
 	TriageSettings(ctx context.Context, workspaceID string) (TriageSettings, error)
 	UpdateTriageSettings(ctx context.Context, workspaceID string, settings TriageSettings) error
 	DeleteWorkspace(ctx context.Context, id, name string) error

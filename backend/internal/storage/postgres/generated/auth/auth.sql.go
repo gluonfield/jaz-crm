@@ -115,7 +115,7 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) er
 }
 
 const createWorkspace = `-- name: CreateWorkspace :one
-INSERT INTO workspaces (name) VALUES ($1) RETURNING id, name, created_at, description, auto_keep_email, auto_keep_meetings, auto_keep_records, auto_keep_ai
+INSERT INTO workspaces (name) VALUES ($1) RETURNING id, name, created_at, description, auto_keep_email, auto_keep_meetings, auto_keep_records, auto_keep_ai, company_page_id
 `
 
 func (q *Queries) CreateWorkspace(ctx context.Context, name string) (Workspace, error) {
@@ -130,6 +130,7 @@ func (q *Queries) CreateWorkspace(ctx context.Context, name string) (Workspace, 
 		&i.AutoKeepMeetings,
 		&i.AutoKeepRecords,
 		&i.AutoKeepAi,
+		&i.CompanyPageID,
 	)
 	return i, err
 }
@@ -237,7 +238,7 @@ func (q *Queries) GetUser(ctx context.Context, id string) (User, error) {
 }
 
 const getWorkspace = `-- name: GetWorkspace :one
-SELECT id, name, created_at, description, auto_keep_email, auto_keep_meetings, auto_keep_records, auto_keep_ai FROM workspaces WHERE id = $1
+SELECT id, name, created_at, description, auto_keep_email, auto_keep_meetings, auto_keep_records, auto_keep_ai, company_page_id FROM workspaces WHERE id = $1
 `
 
 func (q *Queries) GetWorkspace(ctx context.Context, id string) (Workspace, error) {
@@ -252,6 +253,7 @@ func (q *Queries) GetWorkspace(ctx context.Context, id string) (Workspace, error
 		&i.AutoKeepMeetings,
 		&i.AutoKeepRecords,
 		&i.AutoKeepAi,
+		&i.CompanyPageID,
 	)
 	return i, err
 }
@@ -582,17 +584,27 @@ func (q *Queries) UpdateTriageSettings(ctx context.Context, arg UpdateTriageSett
 }
 
 const updateWorkspace = `-- name: UpdateWorkspace :execrows
-UPDATE workspaces SET name = $2, description = $3 WHERE id = $1
+UPDATE workspaces SET name = $1, description = $2, company_page_id = $3
+WHERE workspaces.id = $4 AND ($3::uuid IS NULL OR EXISTS (
+  SELECT 1 FROM records JOIN objects ON objects.id = records.object_id
+  WHERE records.id = $3 AND records.workspace_id = $4 AND objects.slug = 'pages'
+))
 `
 
 type UpdateWorkspaceParams struct {
-	ID          string
-	Name        string
-	Description string
+	Name          string
+	Description   string
+	CompanyPageID *string
+	ID            string
 }
 
 func (q *Queries) UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams) (int64, error) {
-	result, err := q.db.Exec(ctx, updateWorkspace, arg.ID, arg.Name, arg.Description)
+	result, err := q.db.Exec(ctx, updateWorkspace,
+		arg.Name,
+		arg.Description,
+		arg.CompanyPageID,
+		arg.ID,
+	)
 	if err != nil {
 		return 0, err
 	}

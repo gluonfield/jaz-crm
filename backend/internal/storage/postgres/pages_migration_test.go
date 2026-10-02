@@ -64,3 +64,66 @@ func TestPagesMigration(t *testing.T) {
 		t.Fatalf("a migrated workspace nests pages: %v", err)
 	}
 }
+
+func TestCompanyKnowledgeMigration(t *testing.T) {
+	ctx := t.Context()
+	db, dsn := legacy(t, 26)
+	roots := map[string]string{}
+	for _, count := range []int{0, 1, 2} {
+		var workspace, object, name, parent string
+		if err := db.QueryRowContext(ctx, "INSERT INTO workspaces(name) VALUES('CAS') RETURNING id").Scan(&workspace); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.QueryRowContext(ctx, "INSERT INTO objects(workspace_id,slug,name) VALUES($1,'pages','Pages') RETURNING id", workspace).Scan(&object); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.QueryRowContext(ctx, "INSERT INTO attributes(object_id,slug,name,type) VALUES($1,'name','Name','text') RETURNING id", object).Scan(&name); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.QueryRowContext(ctx, "INSERT INTO attributes(object_id,slug,name,type,target_object_id) VALUES($1,'parent','Parent','reference',$1) RETURNING id", object).Scan(&parent); err != nil {
+			t.Fatal(err)
+		}
+		page := func(under string) string {
+			t.Helper()
+			var id string
+			if err := db.QueryRowContext(ctx, "INSERT INTO records(workspace_id,object_id) VALUES($1,$2) RETURNING id", workspace, object).Scan(&id); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.ExecContext(ctx, "INSERT INTO record_values(record_id,attribute_id,text,source) VALUES($1,$2,'Company','user')", id, name); err != nil {
+				t.Fatal(err)
+			}
+			if under != "" {
+				if _, err := db.ExecContext(ctx, "INSERT INTO record_values(record_id,attribute_id,ref_record_id,source) VALUES($1,$2,$3,'user')", id, parent, under); err != nil {
+					t.Fatal(err)
+				}
+			}
+			return id
+		}
+		roots[workspace] = ""
+		for range count {
+			root := page("")
+			page(root)
+			if count == 1 {
+				roots[workspace] = root
+			}
+		}
+	}
+	store, err := postgres.Open(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	for id, want := range roots {
+		ws, err := store.Workspace(ctx, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := ""
+		if ws.CompanyPageID != nil {
+			got = *ws.CompanyPageID
+		}
+		if got != want {
+			t.Fatalf("migrate only an unambiguous top-level Company page: got %q want %q", got, want)
+		}
+	}
+}

@@ -49,7 +49,11 @@ SELECT * FROM workspaces WHERE id = $1;
 SELECT id FROM workspaces WHERE id = $1 FOR NO KEY UPDATE;
 
 -- name: UpdateWorkspace :execrows
-UPDATE workspaces SET name = $2, description = $3 WHERE id = $1;
+UPDATE workspaces SET name = @name, description = @description, company_page_id = sqlc.narg(company_page_id)
+WHERE workspaces.id = @id AND (sqlc.narg(company_page_id)::uuid IS NULL OR EXISTS (
+  SELECT 1 FROM records JOIN objects ON objects.id = records.object_id
+  WHERE records.id = sqlc.narg(company_page_id) AND records.workspace_id = @id AND objects.slug = 'pages'
+));
 
 -- name: DeleteWorkspace :execrows
 DELETE FROM workspaces WHERE id = $1 AND name = $2;
