@@ -7,6 +7,7 @@
 - [x] Typing @ in a page mentions a person, company or page by title, with its path shown, as a clickable link.
 - [x] Rename and delete tables and columns.
 - [x] Every page adds a page inside it from an Add page button, so a Knowledge Base page can hold Vision, Strategy and Team.
+- [x] Pages look like Notion: titles are borderless headings that wrap, and a page lists its pages as plain links.
 - [x] Agents read and write all of it through MCP: tables, columns, rows, page content, nesting and mentions.
 - [x] Review, verify real PostgreSQL/MCP persistence and the actual UI, commit/push and activate locally and on Railway.
 

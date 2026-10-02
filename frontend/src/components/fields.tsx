@@ -101,7 +101,6 @@ export function TextInput({
   placeholder,
   display,
   required,
-  autoFocus,
   className,
   onCommit,
 }: {
@@ -111,7 +110,6 @@ export function TextInput({
   placeholder: string
   display?: string
   required?: boolean
-  autoFocus?: boolean
   className?: string
   onCommit: (text: string) => void
 }) {
@@ -138,7 +136,7 @@ export function TextInput({
       aria-label={label}
       type={type}
       placeholder={placeholder}
-      autoFocus={autoFocus || editing}
+      autoFocus={editing}
       onChange={(e) => setText(e.target.value)}
       onBlur={commit}
       onKeyDown={(e) => {

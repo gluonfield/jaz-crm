@@ -1,15 +1,15 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
-import { FileText, MoreHorizontal, Plus, Trash2 } from 'lucide-react'
-import { Fragment } from 'react'
+import { FileText, MoreHorizontal, Trash2 } from 'lucide-react'
+import { Fragment, useState } from 'react'
 import { Button } from '@jaz/ui/button'
 import { Header, Tab } from '@/components/controls'
-import { useNewPage } from '@/components/data-nav'
-import { Field, TextInput } from '@/components/fields'
+import { Field } from '@/components/fields'
 import { PageEditor } from '@/components/editor'
 import { History } from '@/components/history'
 import { ObjectIcon } from '@/components/icons'
 import { PersonContext } from '@/components/person-context'
 import { Related } from '@/components/related'
+import { SubPages } from '@/components/sub-pages'
 import { Summary } from '@/components/summary'
 import { Timeline } from '@/components/timeline'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -33,7 +33,6 @@ function RecordPage() {
   const navigate = useNavigate()
   const remove = useAction<object>('delete_record')
   const pages = usePages()
-  const newPage = useNewPage()
   if (!record || !objects || !object) {
     return <Header />
   }
@@ -94,15 +93,17 @@ function RecordPage() {
       <>
         {header}
         <div className="scrollbar-quiet @container min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto flex max-w-[760px] flex-col gap-6 px-6 pb-24 pt-10">
-            <h1 className="-ml-1.5 text-[22px] font-semibold leading-tight tracking-[-0.015em] text-ink">
+          <div className="mx-auto flex max-w-[720px] flex-col px-6 pb-24 pt-16">
+            <h1 className="text-[30px] font-semibold leading-tight tracking-[-0.02em] text-ink">
               <Title key={`${record.id}:${name}`} record={record} object={object} name={name} />
             </h1>
-            <PageEditor key={record.id} record={record} />
-            <Related recordId={record.id} object={object.slug} objects={objects} />
-            <Button variant="ghost" className="-ml-2 self-start" onClick={() => newPage(record.id)}>
-              <Plus /> Add page
-            </Button>
+            <div className="mt-3">
+              <PageEditor key={record.id} record={record} />
+            </div>
+            <div className="mt-6 flex flex-col gap-8">
+              <SubPages page={record.id} />
+              <Related recordId={record.id} object={object.slug} objects={objects} />
+            </div>
           </div>
         </div>
       </>
@@ -115,7 +116,7 @@ function RecordPage() {
         <div className="mx-auto grid max-w-[1120px] gap-x-14 gap-y-8 px-6 pb-20 pt-8 [grid-template-areas:'summary'_'details'_'main'] @5xl:grid-cols-[minmax(0,1fr)_272px] @5xl:px-10 @5xl:[grid-template-areas:'summary_details'_'main_details']">
           <div className="min-w-0 [grid-area:summary]">
             <Summary record={record} object={object} name={name} upcoming={upcoming}>
-              <h1 className="-ml-1.5 text-[22px] font-semibold leading-tight tracking-[-0.015em] text-ink">
+              <h1 className="text-[22px] font-semibold leading-tight tracking-[-0.015em] text-ink">
                 <Title key={`${record.id}:${name}`} record={record} object={object} name={name} />
               </h1>
             </Summary>
@@ -151,16 +152,40 @@ function RecordPage() {
   )
 }
 
-// Title shows a record's name, which a click edits when the object has one.
+// Title shows a record's name as a heading that edits in place when the
+// object has one, as Jaz Tasks titles issues. A new page starts untitled, its
+// title ready to type.
 function Title({ record, object, name }: { record: CrmRecord; object: CrmObject; name: string }) {
   const write = useWrite(record)
-  if (!object.attributes.some((a) => a.slug === 'name')) {
-    return <span className="block truncate px-1.5">{name}</span>
-  }
-  // A new page starts untitled, with its title ready to type.
   const untitled = record.object === 'pages' && name === 'Untitled'
+  const [title, setTitle] = useState(untitled ? '' : name)
+  if (!object.attributes.some((a) => a.slug === 'name')) {
+    return <span className="block truncate">{name}</span>
+  }
   return (
-    <TextInput label="Name" initial={untitled ? '' : name} placeholder={untitled ? 'Untitled' : 'Name'} autoFocus={untitled} required className="h-9 text-[22px] font-semibold" onCommit={(text) => write.set('name', text)} />
+    <textarea
+      rows={1}
+      aria-label="Name"
+      value={title}
+      placeholder="Untitled"
+      autoFocus={untitled}
+      onChange={(e) => setTitle(e.target.value.replace(/\n/g, ' '))}
+      onBlur={() => {
+        const next = title.trim()
+        if (next && next !== name) {
+          write.set('name', next)
+        } else {
+          setTitle(untitled ? '' : name)
+        }
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === 'Escape') {
+          e.preventDefault()
+          e.currentTarget.blur()
+        }
+      }}
+      className="field-sizing-content block w-full resize-none bg-transparent outline-none placeholder:text-ink-3"
+    />
   )
 }
 
