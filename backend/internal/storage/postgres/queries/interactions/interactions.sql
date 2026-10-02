@@ -319,14 +319,22 @@ JOIN (
   GROUP BY parts.interaction_id
 ) AS latest ON latest.interaction_id = interactions.id
 WHERE interactions.workspace_id = @workspace_id AND NOT interactions.skipped
-  AND latest.at > coalesce(interactions.followed_up_at, '-infinity')
+  AND (latest.at > coalesce(interactions.followed_up_at, '-infinity')
+    OR interactions.drafting_state = 'failed'
+    OR (interactions.drafting_state = 'drafting' AND interactions.drafting_started_at < now() - interval '15 minutes'))
   AND EXISTS (SELECT 1 FROM links WHERE links.interaction_id = interactions.id)
   AND NOT EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.content IS NULL AND parts.provider_id IS NOT NULL)
 ORDER BY latest.at DESC
 LIMIT @row_limit;
 
--- name: ClaimFollowUp :execrows
+-- name: ClaimFollowUp :one
 -- ClaimFollowUp moves what the agent has read from previous to at, unless
 -- another worker moved it first.
-UPDATE interactions SET followed_up_at = sqlc.narg(at)
-WHERE id = @id AND followed_up_at IS NOT DISTINCT FROM sqlc.narg(previous);
+UPDATE interactions SET followed_up_at = sqlc.narg(at), drafting_state = 'drafting', drafting_reason = '', drafting_started_at = now()
+WHERE id = @id AND followed_up_at IS NOT DISTINCT FROM sqlc.narg(previous)
+  AND (drafting_state <> 'drafting' OR drafting_started_at < now() - interval '15 minutes')
+RETURNING drafting_started_at;
+
+-- name: FinishFollowUp :execrows
+UPDATE interactions SET followed_up_at = sqlc.narg(at), drafting_state = @state, drafting_reason = @reason
+WHERE id = @id AND drafting_started_at = @started_at AND drafting_state = 'drafting';

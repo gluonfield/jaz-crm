@@ -49,4 +49,7 @@ type Interaction struct {
 	Provenance          string
 	DateOnly            bool
 	FollowedUpAt        *time.Time
+	DraftingState       string
+	DraftingReason      string
+	DraftingStartedAt   *time.Time
 }

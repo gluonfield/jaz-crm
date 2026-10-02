@@ -31,6 +31,7 @@ type planner struct {
 	read      []followups.Conversation
 	plans     []followups.Plan
 	fail      bool
+	onPlan    func()
 	histories []followups.History
 	summary   string
 }
@@ -42,6 +43,9 @@ func (p *planner) Summarize(_ context.Context, h followups.History) (string, err
 
 func (p *planner) Plan(_ context.Context, c followups.Conversation) (followups.Plan, error) {
 	p.read = append(p.read, c)
+	if p.onPlan != nil {
+		p.onPlan()
+	}
 	if p.fail {
 		return followups.Plan{}, errors.New("model unavailable")
 	}
@@ -122,6 +126,16 @@ func TestAgentKeepsFollowUpsCurrent(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	state := func(want, reason string) {
+		t.Helper()
+		conv, err := convs.Get(ctx, actor, thread)
+		if err != nil || conv.Drafting == nil || conv.Drafting.State != want || conv.Drafting.StartedAt == nil || !strings.Contains(conv.Drafting.Reason, reason) {
+			t.Fatalf("drafting state: %+v, %v; want %s with %q", conv.Drafting, err, want, reason)
+		}
+	}
+	brain.onPlan = func() {
+		state("drafting", "")
+	}
 	run := func() int {
 		read, err := agent.Run(ctx, owner.WorkspaceID)
 		if err != nil {
@@ -143,6 +157,7 @@ func TestAgentKeepsFollowUpsCurrent(t *testing.T) {
 	if run() != 1 {
 		t.Fatal("the new message was not read")
 	}
+	state("completed", "")
 	if got := brain.read[0].Contexts; len(got) != 1 || got[0].Person != jane.ID || got[0].Context != "- Head of purchasing at Acme" {
 		t.Fatalf("the planner must read the current context of each person in the conversation: %+v", got)
 	}
@@ -193,11 +208,13 @@ func TestAgentKeepsFollowUpsCurrent(t *testing.T) {
 	if run() != 0 {
 		t.Fatal("a conversation the model could not plan counted as read")
 	}
+	state("failed", "model could not complete")
 	brain.fail = false
 	brain.plans = []followups.Plan{{FollowUps: []followups.Change{{ID: f.ID, Action: "Confirm the order — next week", Status: "Done", Reply: "Thanks Jane—speak next week. Delivery is October 7–8 -- see you then.\n\n—Augustinas"}}}}
 	if run() != 1 {
 		t.Fatal("a conversation the model could not plan must be read again")
 	}
+	state("completed", "")
 	if seen := brain.read[len(brain.read)-1].FollowUps; len(seen) != 1 || seen[0].ID != f.ID {
 		t.Fatalf("the planner must see the open follow-up: %+v", seen)
 	}
@@ -216,6 +233,15 @@ func TestAgentKeepsFollowUpsCurrent(t *testing.T) {
 	}
 	if want := []string{"Thanks Jane, speak next week. Delivery is October 7-8, see you then.\n\nAugustinas"}; !slices.Equal(after["draft"], want) || !slices.Equal(after["name"], []string{"Confirm the order, next week"}) {
 		t.Fatalf("drafts and actions must be written without dashes: %q %q", after["draft"], after["name"])
+	}
+	message("m3", "Does this work with CNC?", time.Now().Add(time.Millisecond))
+	brain.plans = []followups.Plan{{SkipReason: "CNC compatibility has not been confirmed."}}
+	if run() != 1 {
+		t.Fatal("a reviewed conversation without a reply must finish")
+	}
+	state("skipped", "CNC compatibility has not been confirmed.")
+	if run() != 0 {
+		t.Fatal("an intentionally skipped draft must not retry without new input")
 	}
 
 	if len(brain.histories) != 0 {

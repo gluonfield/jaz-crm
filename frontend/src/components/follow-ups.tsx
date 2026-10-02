@@ -1,6 +1,6 @@
 import { Check, ChevronDown, LoaderCircle, X } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Fragment, type ReactNode, useState } from 'react'
+import { Fragment, type ReactNode, useEffect, useState } from 'react'
 import { Button } from '@jaz/ui/button'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
 import { formatDay } from '@/lib/format'
@@ -71,8 +71,17 @@ function FollowUp({ record, open, index, onToggle }: { record: CrmRecord; open: 
   const waiting = { Us: 'Our move', Them: 'Waiting on them' }[text(record, 'waiting_on')]
   const draft = text(record, 'draft')
   const context = useTool<CrmRecord>('get_record', { record_id: person?.id ?? '' }, { enabled: open && !!person })
-  const conversations = useTool<{ interactions: Interaction[] }>('list_interactions', { record_id: record.id, kinds: ['message'], limit: 1 }, { enabled: open })
+  const conversations = useTool<{ interactions: Interaction[] }>('list_interactions', { record_id: record.id, kinds: ['message'], limit: 1 }, { enabled: open, refetchInterval: open ? 3000 : false })
   const conversation = conversations.data?.interactions[0]
+  const drafting = conversation?.drafting
+  const draftingState = drafting?.state
+  const draftingStartedAt = drafting?.started_at
+  const client = useQueryClient()
+  useEffect(() => {
+    if (open && draftingState && draftingState !== 'drafting') {
+      void client.invalidateQueries({ queryKey: ['search_records'] })
+    }
+  }, [open, draftingState, draftingStartedAt, client])
   const thread = useTool<Interaction>('get_interaction', { interaction_id: conversation?.id ?? '' }, { enabled: open && !!conversation })
   const channel = text(record, 'channel') || channels[conversation?.channel ?? ''] || ''
   const email = channel === 'Email'
@@ -119,7 +128,7 @@ function FollowUp({ record, open, index, onToggle }: { record: CrmRecord; open: 
             {conversation && (messages.length > 0
               ? <MessageThread key={conversation.id} interaction={thread.data ?? conversation} messages={messages} initialVisible={1} />
               : <p className="text-[12px] text-ink-3">Message text is not available yet.</p>)}
-            <Draft record={record} channel={channel} sender={sender.data} error={sender.error?.message} />
+            <Draft record={record} channel={channel} sender={sender.data} error={sender.error?.message} drafting={drafting} />
           </div>
         </Reveal>
       </div>
@@ -195,7 +204,7 @@ function Context({ record }: { record: CrmRecord }) {
   )
 }
 
-function Draft({ record, channel, sender, error }: { record: CrmRecord; channel: string; sender?: DraftSender; error?: string }) {
+function Draft({ record, channel, sender, error, drafting }: { record: CrmRecord; channel: string; sender?: DraftSender; error?: string; drafting?: Interaction['drafting'] }) {
   const current = text(record, 'draft')
   const [edited, setEdited] = useState<string | null>(null)
   const draft = edited ?? current
@@ -242,6 +251,13 @@ function Draft({ record, channel, sender, error }: { record: CrmRecord; channel:
           <Address label="Cc" value={sender?.cc.join(', ')} />
         </>}
       </div>
+      {drafting && <div role="status" aria-live="polite" className="flex items-start gap-1.5 text-[12px] leading-[18px] text-ink-3">
+        {drafting.state === 'drafting' && <LoaderCircle aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 animate-spin motion-reduce:animate-none" />}
+        <span>
+          <span className={cn('font-medium', drafting.state === 'failed' ? 'text-danger' : 'text-ink-2')}>{ { drafting: 'Drafting…', completed: 'Completed', failed: 'Failed', skipped: 'Skipped' }[drafting.state] }</span>
+          {drafting.reason && <> · {drafting.reason}</>}
+        </span>
+      </div>}
       <textarea
         aria-label="Draft"
         placeholder="Write a reply…"

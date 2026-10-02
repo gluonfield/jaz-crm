@@ -2,6 +2,7 @@ package followups
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"strings"
 	"time"
@@ -98,8 +99,9 @@ type Open struct {
 // Plan is the follow-ups to create or change and the contexts to rewrite;
 // an empty one changes nothing.
 type Plan struct {
-	FollowUps []Change  `json:"follow_ups"`
-	Contexts  []Context `json:"contexts"`
+	FollowUps  []Change  `json:"follow_ups"`
+	Contexts   []Context `json:"contexts"`
+	SkipReason string    `json:"skip_reason"`
 }
 
 // Change creates a follow-up, or with an id changes an open one. Empty
@@ -152,8 +154,7 @@ const (
 // Run reads up to a batch of the workspace's conversations whose content
 // changed since the agent last read them, newest first, and reports how many
 // it read. Each is claimed first, so concurrent runs never read one twice. One
-// the model could not plan is left for a later run; one whose plan could not
-// be applied is logged and read again only when it changes.
+// that fails is left for a later run, with its failure visible in the CRM.
 func (a *Agent) Run(ctx context.Context, workspaceID string) (int, error) {
 	if a.planner == nil {
 		return 0, nil
@@ -164,24 +165,26 @@ func (a *Agent) Run(ctx context.Context, workspaceID string) (int, error) {
 	}
 	read := 0
 	for _, c := range candidates {
-		claimed, err := a.store.ClaimFollowUp(ctx, c.ID, c.FollowedUpAt, &c.LatestAt)
+		started, err := a.store.ClaimFollowUp(ctx, c.ID, c.FollowedUpAt, &c.LatestAt)
 		if err != nil {
 			return read, err
 		}
-		if !claimed {
+		if started == nil {
 			continue
 		}
-		planned, err := a.follow(ctx, workspaceID, c.ID)
-		if !planned {
-			if _, err := a.store.ClaimFollowUp(ctx, c.ID, &c.LatestAt, c.FollowedUpAt); err != nil {
-				return read, err
-			}
-		}
+		state, reason, err := a.follow(ctx, workspaceID, c.ID)
+		at := &c.LatestAt
 		if err != nil {
-			a.logger.Warn("conversation not followed up", "interaction", c.ID, "planned", planned, "error", err)
-			continue
+			a.logger.Warn("conversation not followed up", "interaction", c.ID, "error", err)
+			state, at = "failed", c.FollowedUpAt
 		}
-		read++
+		finished, finishErr := a.store.FinishFollowUp(ctx, c.ID, *started, at, state, reason)
+		if finishErr != nil {
+			return read, finishErr
+		}
+		if finished && err == nil {
+			read++
+		}
 	}
 	if err := a.backfill(ctx, workspaceID); err != nil {
 		a.logger.Warn("contexts not written", "workspace", workspaceID, "error", err)
@@ -298,26 +301,35 @@ func conversationLines(conv interactions.Interaction) []Line {
 // subjects maps the objects a follow-up references to its attributes.
 var subjects = map[string]string{"people": "person", "companies": "company", "deals": "deal"}
 
-// follow plans a conversation and applies the plan, reporting whether the
-// model planned it.
-func (a *Agent) follow(ctx context.Context, workspaceID, id string) (bool, error) {
+// follow reports the outcome of drafting, independently of follow-up changes.
+func (a *Agent) follow(ctx context.Context, workspaceID, id string) (string, string, error) {
 	actor := auth.Actor{WorkspaceID: workspaceID, Agent: true}
 	conv, err := a.convs.Source(ctx, actor, id)
 	if err != nil {
-		return false, err
+		return "", "Could not load the conversation. The system will retry.", err
 	}
 	in, err := a.conversation(ctx, actor, conv)
 	if err != nil {
-		return false, err
+		return "", "Could not load the information needed to draft. The system will retry.", err
 	}
 	plan, err := a.planner.Plan(ctx, in)
 	if err != nil {
-		return false, err
-	}
-	for _, change := range plan.FollowUps {
-		if err := a.apply(ctx, actor, conv, in, change); err != nil {
-			return true, err
+		reason := "The drafting model could not complete the request. The system will retry."
+		var failure interface{ DraftingReason() string }
+		if errors.As(err, &failure) {
+			reason = failure.DraftingReason()
 		}
+		return "", reason, err
+	}
+	drafted := false
+	attempted := false
+	for _, change := range plan.FollowUps {
+		written, err := a.apply(ctx, actor, conv, in, change)
+		if err != nil {
+			return "", "Could not save the draft or follow-up. The system will retry.", err
+		}
+		drafted = drafted || written
+		attempted = attempted || strings.TrimSpace(change.Reply) != ""
 	}
 	for _, c := range plan.Contexts {
 		i := slices.IndexFunc(in.Contexts, func(current Context) bool { return current.Person == c.Person })
@@ -325,17 +337,26 @@ func (a *Agent) follow(ctx context.Context, workspaceID, id string) (bool, error
 			continue
 		}
 		if _, _, err := a.crm.Upsert(ctx, actor, records.SourceAgent, records.Write{Object: "people", RecordID: c.Person, Set: map[string][]string{records.ContextAttribute: {plain(c.Context)}}}); err != nil {
-			return true, err
+			return "", "Could not save the updated person context. The system will retry.", err
 		}
 	}
-	return true, nil
+	if drafted {
+		return "completed", "", nil
+	}
+	reason := plain(strings.TrimSpace(plan.SkipReason))
+	if attempted {
+		reason = "The generated reply could not replace the existing draft or did not match this follow-up."
+	} else if reason == "" {
+		reason = "The conversation was reviewed without generating a new reply."
+	}
+	return "skipped", reason, nil
 }
 
 // apply writes one change as the agent and links the conversation to the
 // follow-up. It ignores follow-ups and records the planner was not shown.
-func (a *Agent) apply(ctx context.Context, actor auth.Actor, conv interactions.Interaction, in Conversation, c Change) error {
+func (a *Agent) apply(ctx context.Context, actor auth.Actor, conv interactions.Interaction, in Conversation, c Change) (bool, error) {
 	if c.ID != "" && !slices.ContainsFunc(in.FollowUps, func(o Open) bool { return o.ID == c.ID }) {
-		return nil
+		return false, nil
 	}
 	set := map[string][]string{}
 	put := func(attribute, value string) {
@@ -361,12 +382,12 @@ func (a *Agent) apply(ctx context.Context, actor auth.Actor, conv interactions.I
 	remove := map[string][]string{}
 	if strings.TrimSpace(c.Reply) != "" && (conv.Channel == "email" || conv.Channel == "linkedin") {
 		if err := a.draft(ctx, actor, conv, c.Reply, set); err != nil {
-			return err
+			return false, err
 		}
 		if c.ID != "" && set["to"] != nil {
 			current, err := a.crm.Get(ctx, actor, c.ID)
 			if err != nil {
-				return err
+				return false, err
 			}
 			for _, attribute := range []string{"to", "cc"} {
 				remove[attribute] = slices.DeleteFunc(values(current, attribute), func(address string) bool { return slices.Contains(set[attribute], address) })
@@ -377,13 +398,16 @@ func (a *Agent) apply(ctx context.Context, actor auth.Actor, conv interactions.I
 		}
 	}
 	if c.ID == "" && set["name"] == nil || len(set) == 0 {
-		return nil
+		return false, nil
 	}
-	f, _, err := a.crm.Upsert(ctx, actor, records.SourceAgent, records.Write{Object: records.FollowUps, RecordID: c.ID, Set: set, Remove: remove})
+	f, skipped, err := a.crm.Upsert(ctx, actor, records.SourceAgent, records.Write{Object: records.FollowUps, RecordID: c.ID, Set: set, Remove: remove})
 	if err != nil {
-		return err
+		return false, err
 	}
-	return a.store.AddLink(ctx, conv.ID, f.ID, interactions.ByAgent)
+	drafted := len(set["draft"]) > 0 && !slices.ContainsFunc(skipped, func(s records.Skip) bool {
+		return s.Attribute == "draft"
+	})
+	return drafted, a.store.AddLink(ctx, conv.ID, f.ID, interactions.ByAgent)
 }
 
 // draft sets a reply's text and channel; an email reply goes to everyone on

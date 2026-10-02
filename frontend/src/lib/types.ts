@@ -73,6 +73,7 @@ export type Interaction = {
   messages?: CrmMessage[]
   provenance?: string
   last_message?: CrmMessage
+  drafting?: { state: 'drafting' | 'completed' | 'failed' | 'skipped'; reason?: string; started_at?: string }
 }
 
 export type Verdict = 'pending' | 'kept' | 'skipped'

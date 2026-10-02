@@ -84,7 +84,10 @@ type Interaction struct {
 	Provenance          string
 	DateOnly            bool
 	// FollowedUpAt is the newest content the follow-up agent has read.
-	FollowedUpAt *time.Time
+	FollowedUpAt      *time.Time
+	DraftingState     string
+	DraftingReason    string
+	DraftingStartedAt *time.Time
 }
 
 type NewInteraction struct {
@@ -264,6 +267,7 @@ type InteractionStore interface {
 	RecordActivity(ctx context.Context, workspaceID string, recordIDs []string) ([]Activity, error)
 	FollowUpCandidates(ctx context.Context, workspaceID string, since time.Time, limit int32) ([]FollowUpCandidate, error)
 	// ClaimFollowUp moves what the agent has read from previous to at,
-	// reporting false when another worker moved it first.
-	ClaimFollowUp(ctx context.Context, id string, previous, at *time.Time) (bool, error)
+	// returning the attempt's start time, or nil when another worker owns it.
+	ClaimFollowUp(ctx context.Context, id string, previous, at *time.Time) (*time.Time, error)
+	FinishFollowUp(ctx context.Context, id string, started time.Time, at *time.Time, state, reason string) (bool, error)
 }

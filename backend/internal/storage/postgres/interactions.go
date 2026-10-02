@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"maps"
 	"slices"
 	"time"
@@ -212,8 +213,16 @@ func (s *Store) FollowUpCandidates(ctx context.Context, workspaceID string, sinc
 		s.in.FollowUpCandidates(ctx, intdb.FollowUpCandidatesParams{Since: &since, WorkspaceID: workspaceID, Limit: limit}))
 }
 
-func (s *Store) ClaimFollowUp(ctx context.Context, id string, previous, at *time.Time) (bool, error) {
-	n, err := s.in.ClaimFollowUp(ctx, intdb.ClaimFollowUpParams{At: at, ID: id, Previous: previous})
+func (s *Store) ClaimFollowUp(ctx context.Context, id string, previous, at *time.Time) (*time.Time, error) {
+	started, err := s.in.ClaimFollowUp(ctx, intdb.ClaimFollowUpParams{At: at, ID: id, Previous: previous})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	return started, err
+}
+
+func (s *Store) FinishFollowUp(ctx context.Context, id string, started time.Time, at *time.Time, state, reason string) (bool, error) {
+	n, err := s.in.FinishFollowUp(ctx, intdb.FinishFollowUpParams{ID: id, StartedAt: &started, At: at, State: state, Reason: reason})
 	return n == 1, err
 }
 

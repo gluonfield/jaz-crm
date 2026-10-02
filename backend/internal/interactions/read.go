@@ -44,6 +44,12 @@ type Speech struct {
 	At      string `json:"at,omitempty"`
 }
 
+type Drafting struct {
+	State     string     `json:"state"`
+	Reason    string     `json:"reason,omitempty"`
+	StartedAt *time.Time `json:"started_at,omitempty"`
+}
+
 type Interaction struct {
 	ID           string        `json:"id"`
 	Kind         string        `json:"kind"`
@@ -63,6 +69,7 @@ type Interaction struct {
 	Provenance   string        `json:"provenance,omitempty"`
 	Preview      string        `json:"preview,omitempty"`
 	LastMessage  *MessageView  `json:"last_message,omitempty"`
+	Drafting     *Drafting     `json:"drafting,omitempty"`
 }
 
 func limitOf(limit int) int32 {
@@ -195,6 +202,13 @@ func (s *Service) views(ctx context.Context, workspaceID string, list []storage.
 	for i, it := range list {
 		index[it.ID] = i
 		out[i] = Interaction{ID: it.ID, Kind: it.Kind, Source: it.Source, Title: it.Title, StartedAt: formatAt(it.StartedAt, it.DateOnly), EndedAt: it.EndedAt, Channel: it.Channel, Participants: []Party{}, Records: []Ref{}}
+		if it.DraftingState != "" {
+			out[i].Drafting = &Drafting{State: it.DraftingState, Reason: it.DraftingReason, StartedAt: it.DraftingStartedAt}
+			if it.DraftingState == "drafting" && it.DraftingStartedAt != nil && time.Since(*it.DraftingStartedAt) > 15*time.Minute {
+				out[i].Drafting.State = "failed"
+				out[i].Drafting.Reason = "Drafting was interrupted. The system will retry."
+			}
+		}
 		if it.MeetCode != "" {
 			out[i].MeetURL = "https://meet.google.com/" + it.MeetCode
 		}

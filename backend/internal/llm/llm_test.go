@@ -2,17 +2,37 @@ package llm_test
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/gluonfield/jaz-crm/backend/internal/followups"
 	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
 	"github.com/gluonfield/jaz-crm/backend/internal/llm"
 )
+
+func TestDraftingFailureReasonKeepsProviderDetailsPrivate(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		fmt.Fprint(w, `{"error":{"message":"Invalid credential: private-provider-detail","type":"invalid_request_error","code":"invalid_api_key"}}`)
+	}))
+	t.Cleanup(srv.Close)
+	client := llm.New(llm.Config{BaseURL: srv.URL, APIKey: "key", Model: "gpt-6-luna", Effort: "medium"})
+	_, err := client.Plan(t.Context(), followups.Conversation{})
+	var failure interface{ DraftingReason() string }
+	if !errors.As(err, &failure) || !strings.Contains(failure.DraftingReason(), "credentials") || strings.Contains(failure.DraftingReason(), "private-provider-detail") {
+		t.Fatalf("unsafe or missing reason: %v", err)
+	}
+	if !strings.Contains(err.Error(), "private-provider-detail") {
+		t.Fatal("provider diagnostics were lost from the logged error")
+	}
+}
 
 // respond serves OpenAI's Responses API: it checks a request asks for the
 // configured model and effort with a strict schema, and answers with text.
