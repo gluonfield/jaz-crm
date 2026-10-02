@@ -12,9 +12,10 @@ export const valueText = (value: Value) => (typeof value === 'string' ? value : 
 // valueKey is how a write names a value: its text, or a referenced record's id.
 export const valueKey = (value: Value) => (typeof value === 'string' ? value : value.id)
 
-// recordName falls back to the first text value, such as an email address.
+// recordName falls back to an identifying value such as an email address,
+// then to any text, as the server names references.
 export function recordName(record: CrmRecord) {
-  const name = valuesOf(record, 'name')[0] ?? Object.values(record.values).flat().find((v) => typeof v === 'string')
+  const name = ['name', 'email_addresses', 'domains', 'phone_numbers'].map((slug) => valuesOf(record, slug)[0]).find(Boolean) ?? Object.values(record.values).flat().find((v) => typeof v === 'string')
   return name ? valueText(name) : 'Unnamed'
 }
 

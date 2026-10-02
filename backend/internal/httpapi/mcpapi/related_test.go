@@ -85,10 +85,10 @@ func TestSearchIncludesRelatedRecords(t *testing.T) {
 	if preview["id"] != unnamed || preview["name"] != "unnamed@acme.com" {
 		t.Fatalf("a person without a name lost their email label: %v", preview)
 	}
-	mustCall(t, a, "upsert_record", map[string]any{"object": "people", "record_id": unnamed, "values": map[string]any{"context": "Context fallback"}})
+	mustCall(t, a, "upsert_record", map[string]any{"object": "people", "record_id": unnamed, "values": map[string]any{"context": "- Buyer at Acme"}})
 	preview = mustCall(t, a, "search_records", args)["records"].([]any)[0].(map[string]any)["related"].(map[string]any)["people.company"].([]any)[0].(map[string]any)
-	if preview["name"] != "Context fallback" {
-		t.Fatalf("preview differs from the full record's first text label: %v", preview)
+	if preview["name"] != "unnamed@acme.com" {
+		t.Fatalf("a person without a name must keep their email label over their context: %v", preview)
 	}
 	mustCall(t, a, "upsert_record", map[string]any{"object": "people", "record_id": unnamed, "values": map[string]any{"name": "Named person"}})
 	preview = mustCall(t, a, "search_records", args)["records"].([]any)[0].(map[string]any)["related"].(map[string]any)["people.company"].([]any)[0].(map[string]any)

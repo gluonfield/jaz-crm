@@ -155,6 +155,11 @@ func TestReferencesAndSearch(t *testing.T) {
 		t.Fatalf("company reference: %+v", company)
 	}
 	upsert(t, svc, a, records.SourceAgent, records.Write{Object: "people", Set: set("name", "Ann Stone")})
+	amol, _ := upsert(t, svc, a, records.SourceAgent, records.Write{Object: "people", Set: set("email_addresses", "amol@jcbl.com", "context", "- Buyer at Jcbl")})
+	deal, _ := upsert(t, svc, a, records.SourceAgent, records.Write{Object: "deals", Set: set("name", "Jcbl pilot", "people", amol.ID)})
+	if got := deal.Fields[slices.IndexFunc(deal.Fields, func(f records.Field) bool { return f.Attribute == "people" })].Values[0].Text; got != "amol@jcbl.com" {
+		t.Fatalf("a nameless person must be named by their address, not their context: %q", got)
+	}
 
 	for name, q := range map[string]records.Search{
 		"company by domain": {Object: "people", Where: map[string]string{"company": "ACME.com"}},

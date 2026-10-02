@@ -311,21 +311,31 @@ func (s *Service) Labels(ctx context.Context, workspaceID string, ids []string) 
 	return out, err
 }
 
-// names prefers the title attribute, then the first text attribute alphabetically.
+// names names records by their title, else an identifying value such as an
+// email address, else any text; alphabetically by attribute among equals.
 func (s *Service) names(ctx context.Context, workspaceID string, sc schema, ids []string) (map[string]string, error) {
 	out := map[string]string{}
 	if len(ids) == 0 {
 		return out, nil
 	}
 	values, err := s.store.CurrentValues(ctx, workspaceID, ids)
-	selected := map[string]string{}
+	rank := func(a storage.Attribute) int {
+		switch {
+		case a.Slug == titleAttribute:
+			return 0
+		case a.IsUnique:
+			return 1
+		}
+		return 2
+	}
+	selected := map[string]storage.Attribute{}
 	for _, v := range values {
 		if v.Text == nil {
 			continue
 		}
-		attr := sc.attributeByID(v.AttributeID).Slug
-		first, found := selected[v.RecordID]
-		if !found || first != titleAttribute && (attr == titleAttribute || attr < first) {
+		attr := sc.attributeByID(v.AttributeID)
+		was, found := selected[v.RecordID]
+		if !found || rank(attr) < rank(was) || rank(attr) == rank(was) && attr.Slug < was.Slug {
 			out[v.RecordID] = *v.Text
 			selected[v.RecordID] = attr
 		}

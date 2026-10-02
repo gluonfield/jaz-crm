@@ -73,14 +73,18 @@ function FollowUp({ record, open, index, onToggle }: { record: CrmRecord; open: 
       data-row={index}
       aria-expanded={open}
       onClick={onToggle}
-      className={cn('group -mx-2 flex cursor-default gap-3 rounded-[var(--radius-control)] px-2 py-2.5 hover:bg-list-hover', open && 'bg-list-hover')}
+      className={cn(
+        'group relative -mx-2 flex cursor-default gap-3 rounded-[var(--radius-card)] px-2 py-3 hover:bg-list-hover',
+        'before:absolute before:inset-x-2 before:top-0 before:h-px before:bg-border first:before:hidden hover:before:opacity-0 [&:hover+li]:before:opacity-0',
+        open && 'bg-list-hover before:opacity-0 [&+li]:before:opacity-0',
+      )}
     >
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex min-w-0 items-baseline gap-2 text-[13px]">
           <span className="truncate font-medium text-ink">{recordName(record)}</span>
           {review && <span className={cn('ml-auto shrink-0 text-[12px] tabular-nums', due ? 'text-ink' : 'text-ink-3')}>{formatDay(review)}</span>}
         </div>
-        <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[12px] text-ink-3">
+        <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[12px] text-ink-3">
           {Object.entries(subjects).flatMap(([slug, object]) => (valuesOf(record, slug) as Ref[]).map((v) => <RecordChip key={v.id} object={object} value={v} />))}
           {waiting && <span className="ml-0.5 shrink-0">{waiting}</span>}
           {open && draft && (
@@ -96,7 +100,7 @@ function FollowUp({ record, open, index, onToggle }: { record: CrmRecord; open: 
           )}
         </div>
         <Reveal open={!open && draft !== ''}>
-          <p className="truncate pt-1.5 text-[12px] text-ink-3">
+          <p className="truncate pt-1 text-[12px] text-ink-3">
             <span className="mr-1.5 text-ink-2">{text(record, 'draft_status') || 'Draft'}</span>
             {draft.replace(/\s+/g, ' ')}
           </p>
