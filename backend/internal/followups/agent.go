@@ -8,7 +8,6 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
-	"github.com/gluonfield/jaz-crm/backend/internal/google"
 	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
 	"github.com/gluonfield/jaz-crm/backend/internal/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
@@ -117,7 +116,6 @@ type Change struct {
 type Agent struct {
 	*Service
 	workspaces storage.WorkspaceStore
-	addresses  storage.ConnectionStore
 	convs      *interactions.Service
 	planner    Planner
 	summarizer Summarizer
@@ -128,7 +126,6 @@ type AgentParams struct {
 	fx.In
 	Service      *Service
 	Workspaces   storage.WorkspaceStore
-	Connections  storage.ConnectionStore
 	Interactions *interactions.Service
 	Logger       *log.Logger
 	// Planner and Summarizer are absent when no model is configured, and the
@@ -138,7 +135,7 @@ type AgentParams struct {
 }
 
 func NewAgent(p AgentParams) *Agent {
-	return &Agent{Service: p.Service, workspaces: p.Workspaces, addresses: p.Connections, convs: p.Interactions, planner: p.Planner, summarizer: p.Summarizer, logger: p.Logger.WithPrefix("follow-ups")}
+	return &Agent{Service: p.Service, workspaces: p.Workspaces, convs: p.Interactions, planner: p.Planner, summarizer: p.Summarizer, logger: p.Logger.WithPrefix("follow-ups")}
 }
 
 const (
@@ -497,24 +494,15 @@ func (a *Agent) draft(ctx context.Context, actor auth.Actor, conv interactions.I
 	if err != nil {
 		return err
 	}
-	own, err := a.addresses.InternalAddresses(ctx, actor.WorkspaceID)
+	to, cc, err := a.recipients(ctx, actor.WorkspaceID, last)
 	if err != nil {
 		return err
 	}
-	answer := last.ReplyTo
-	if len(answer) == 0 {
-		answer = append(answer, last.From)
+	if len(to) > 0 {
+		set["to"] = to
 	}
-	for _, field := range []struct {
-		name string
-		list []google.Address
-	}{{"to", append(answer, last.To...)}, {"cc", last.Cc}} {
-		for _, address := range field.list {
-			taken := slices.Contains(set["to"], address.Email) || slices.Contains(set["cc"], address.Email)
-			if address.Email != "" && !taken && !slices.Contains(own, address.Email) {
-				set[field.name] = append(set[field.name], address.Email)
-			}
-		}
+	if len(cc) > 0 {
+		set["cc"] = cc
 	}
 	return nil
 }

@@ -55,6 +55,7 @@ func (g *gmail) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		id := strings.TrimPrefix(r.URL.Path, "/gmail/v1/users/me/messages/g")
 		fmt.Fprintf(w, `{"id":"g%s","threadId":"t9","internalDate":"0","payload":{"headers":[
 			{"name":"From","value":"Jane <jane@acme.com>"},{"name":"Subject","value":"Quote for 500 brackets"},
+			{"name":"To","value":"owner@cas.dev"},{"name":"Cc","value":"bob@acme.com, owner@cas.dev"},
 			{"name":"Message-ID","value":"<m%s@acme.com>"},{"name":"References","value":"<m1@acme.com>"}]}}`, id, id)
 	case "/gmail/v1/users/me/settings/sendAs/owner@cas.dev":
 		fmt.Fprint(w, `{"sendAsEmail":"owner@cas.dev","signature":"<div>Owner Name<br>CAS</div>"}`)
@@ -127,7 +128,7 @@ func TestReleaseSendsEmailRepliesAndApprovesOthers(t *testing.T) {
 		t.Fatal(err)
 	}
 	crm := records.NewService(store)
-	svc := followups.NewService(crm, store, conns)
+	svc := followups.NewService(crm, store, conns, store)
 	thread, err := store.UpsertEmailThread(ctx, storage.EmailThread{WorkspaceID: owner.WorkspaceID, ExternalID: "t9", ConnectionID: &mailbox.ID, Title: "Quote for 500 brackets", At: time.Now().Add(-time.Hour)})
 	if err != nil {
 		t.Fatal(err)
@@ -185,14 +186,37 @@ func TestReleaseSendsEmailRepliesAndApprovesOthers(t *testing.T) {
 	reply := followUp("Email")
 	agent := ownerActor
 	agent.Agent = true
+	manual, _, err := crm.Upsert(ctx, agent, records.SourceAgent, records.Write{Object: records.FollowUps, Set: map[string][]string{"name": {"Check the quote, then reply"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.AddLink(ctx, thread, manual.ID, "agent"); err != nil {
+		t.Fatal(err)
+	}
+	preview, err := svc.Sender(ctx, mateActor, manual.ID)
+	if err != nil || preview.From != seen.From || !slices.Equal(preview.To, seen.To) || !slices.Equal(preview.Cc, seen.Cc) {
+		t.Fatalf("a follow-up without a generated draft must offer its mailbox and reply-all recipients: %+v %v", preview, err)
+	}
+	manualText := "Hi Jane, I will check the requirements and get back to you."
+	if _, _, err := crm.Upsert(ctx, mateActor, records.SourceUser, records.Write{Object: records.FollowUps, RecordID: manual.ID, Set: map[string][]string{
+		"draft": {manualText}, "channel": {"Email"}, "to": preview.To, "cc": preview.Cc,
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	updated, skipped, err := crm.Upsert(ctx, agent, records.SourceAgent, records.Write{Object: records.FollowUps, RecordID: manual.ID, Set: map[string][]string{"draft": {"A later generated reply"}}})
+	if err != nil || !slices.ContainsFunc(skipped, func(s records.Skip) bool { return s.Attribute == "draft" && s.Source == records.SourceUser }) || !slices.ContainsFunc(updated.Fields, func(f records.Field) bool {
+		return f.Attribute == "draft" && len(f.Values) == 1 && f.Values[0].Text == manualText
+	}) {
+		t.Fatalf("a later generated draft must preserve the person's saved text: %+v %+v %v", updated, skipped, err)
+	}
 	if _, err := svc.Release(ctx, agent, reply, seen); err == nil {
 		t.Fatal("an agent sent a draft")
 	}
 	if _, err := svc.Release(ctx, mateActor, reply, followups.Seen{Draft: "An older text", To: seen.To, Cc: seen.Cc}); err == nil {
 		t.Fatal("a draft was sent that differs from what the person saw")
 	}
-	if from, signature, err := svc.Sender(ctx, mateActor, reply); err != nil || from != seen.From || signature != "<div>Owner Name<br>CAS</div>" {
-		t.Fatalf("a teammate's reply must go from the mailbox holding the conversation, signed as it: %q %q %v", from, signature, err)
+	if sender, err := svc.Sender(ctx, mateActor, reply); err != nil || sender.From != seen.From || sender.Signature != "<div>Owner Name<br>CAS</div>" || !slices.Equal(sender.To, seen.To) || !slices.Equal(sender.Cc, seen.Cc) {
+		t.Fatalf("a teammate's reply must carry its mailbox, signature and reply-all recipients: %+v %v", sender, err)
 	}
 	if _, err := svc.Release(ctx, mateActor, reply, followups.Seen{Draft: seen.Draft, From: "mate@cas.dev", To: seen.To, Cc: seen.Cc}); err == nil || len(g.sent) != 0 {
 		t.Fatalf("a draft was sent from a mailbox other than the one the person saw: %v", err)

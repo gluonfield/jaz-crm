@@ -113,6 +113,8 @@ export type Connection = {
 
 export type Connections = { connections: Connection[]; connect_url?: string; since: string }
 
+export type DraftSender = { from: string; signature?: string; to: string[]; cc: string[] }
+
 export type TriageSettings = {
   auto_keep_email: boolean
   auto_keep_meetings: boolean

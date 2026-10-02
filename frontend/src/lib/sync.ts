@@ -14,6 +14,7 @@ export const steps: Record<string, string> = {
   Triage: 'Sorting contacts',
   CompanyLogos: 'Fetching company logos',
   FetchContent: 'Fetching conversations',
+  FollowUps: 'Preparing replies',
   Photos: 'Fetching profile pictures',
   Watch: 'Checking for updates',
   DueMeetings: 'Checking meetings',
@@ -24,8 +25,8 @@ export const syncing = (c: Connection) => c.status === 'active' && (!c.backfille
 
 // useConnections polls the workspace's connections, every few seconds while
 // one syncs and every half minute otherwise.
-export function useConnections() {
-  return useTool<Connections>('list_connections', {}, { refetchInterval: (query) => (query.state.data?.connections.some(syncing) ? 3000 : 30_000) }).data
+export function useConnections(interval?: number) {
+  return useTool<Connections>('list_connections', {}, { refetchInterval: (query) => interval ?? (query.state.data?.connections.some(syncing) ? 3000 : 30_000) }).data
 }
 
 // useMail says whether any mail is connected and whether it is still

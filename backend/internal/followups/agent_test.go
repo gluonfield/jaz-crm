@@ -89,7 +89,7 @@ func TestAgentKeepsFollowUpsCurrent(t *testing.T) {
 	crm := records.NewService(store)
 	convs := interactions.NewService(interactions.Params{Store: store, Connections: store, Workspaces: store, Records: crm})
 	brain := &planner{}
-	agent := followups.NewAgent(followups.AgentParams{Service: followups.NewService(crm, store, conns), Workspaces: store, Connections: store, Interactions: convs, Logger: log.New(io.Discard), Planner: brain, Summarizer: brain})
+	agent := followups.NewAgent(followups.AgentParams{Service: followups.NewService(crm, store, conns, store), Workspaces: store, Interactions: convs, Logger: log.New(io.Discard), Planner: brain, Summarizer: brain})
 	jane, _, err := crm.Upsert(ctx, actor, records.SourceUser, records.Write{Object: "people", Set: map[string][]string{"name": {"Jane"}, "context": {"- Head of purchasing at Acme"}}})
 	if err != nil {
 		t.Fatal(err)

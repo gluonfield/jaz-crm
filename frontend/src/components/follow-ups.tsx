@@ -1,12 +1,16 @@
-import { Check, X } from 'lucide-react'
+import { Check, ChevronDown, LoaderCircle, X } from 'lucide-react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Fragment, type ReactNode, useEffect, useRef, useState } from 'react'
 import { Button } from '@jaz/ui/button'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
 import { formatDay } from '@/lib/format'
-import { useAction, useTool, useWrite } from '@/lib/queries'
-import type { CrmRecord, Ref } from '@/lib/types'
+import { call } from '@/lib/api'
+import { toolQuery, useAction, useTool, useWrite } from '@/lib/queries'
+import { useConnections } from '@/lib/sync'
+import type { CrmRecord, DraftSender, Interaction, Ref } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { RecordChip } from './controls'
+import { InteractionDialog } from './interaction-dialog'
 import { Signature } from './signature'
 
 const text = (record: CrmRecord, slug: string) => valuesOf(record, slug).map(valueText).join(', ')
@@ -17,15 +21,15 @@ const list = (record: CrmRecord, slug: string) => valuesOf(record, slug).map(val
 // Release sends an email draft from the mailbox shown, or approves any other
 // one for its sender; the server refuses a draft that changed since, and
 // anyone but a person signed in to the CRM.
-function Release({ record, from, disabled }: { record: CrmRecord; from?: string; disabled?: boolean }) {
+function Release({ record, channel, from, disabled }: { record: CrmRecord; channel: string; from?: string; disabled?: boolean }) {
   const send = useAction<{ record_id: string; draft: string; from?: string; to: string[]; cc: string[] }>('send_draft')
   const state = text(record, 'draft_status')
-  const email = text(record, 'channel') === 'Email'
+  const email = channel === 'Email'
   if (state === 'Sent' || state === 'Sending' || (!email && state === 'Approved')) {
     return <span className="text-[12px] text-ink-3">{state === 'Approved' ? 'Approved · waiting for the sender' : state}</span>
   }
   return (
-    <Button variant="primary" size="sm" disabled={disabled || send.isPending || (email && !from)} onClick={() => {
+    <Button variant="primary" size="sm" disabled={disabled || send.isPending || !text(record, 'draft') || !channel || (email && !from)} onClick={() => {
       send.mutate({ record_id: record.id, draft: text(record, 'draft'), from, to: list(record, 'to'), cc: list(record, 'cc') })
     }}>
       {email ? 'Send' : 'Approve'}
@@ -37,8 +41,13 @@ function Release({ record, from, disabled }: { record: CrmRecord; from?: string;
 // by when. The focused follow-up opens to its draft and what we know of the
 // person.
 export function FollowUpQueue({ records, focus, onFocus }: { records: CrmRecord[]; focus: number; onFocus: (index: number) => void }) {
+  const preparing = useConnections(3000)?.connections.some((c) => c.status === 'active' && c.step === 'FollowUps')
   return (
     <div className="scrollbar-quiet min-h-0 flex-1 overflow-y-auto">
+      {preparing && <div role="status" className="mx-auto flex max-w-[880px] items-center gap-2 px-4 pt-3 text-[12px] text-ink-2">
+        <LoaderCircle aria-hidden="true" className="size-3.5 animate-spin motion-reduce:animate-none" />
+        Preparing replies…
+      </div>}
       <ul className="mx-auto max-w-[880px] px-4 py-3">
         {records.map((r, index) => (
           <FollowUp key={r.id} record={r} open={focus === index} index={index} onToggle={() => onFocus(focus === index ? -1 : index)} />
@@ -52,6 +61,7 @@ export function FollowUpQueue({ records, focus, onFocus }: { records: CrmRecord[
 export const editDraft = (index: number) => document.querySelector<HTMLElement>(`[data-row="${index}"] textarea`)?.focus()
 
 const subjects = { person: 'people', company: 'companies', deal: 'deals' }
+const channels: Record<string, string> = { email: 'Email', linkedin: 'LinkedIn' }
 
 function FollowUp({ record, open, index, onToggle }: { record: CrmRecord; open: boolean; index: number; onToggle: () => void }) {
   const write = useWrite(record)
@@ -66,8 +76,10 @@ function FollowUp({ record, open, index, onToggle }: { record: CrmRecord; open: 
   const due = review !== '' && review <= today()
   const waiting = { Us: 'Our move', Them: 'Waiting on them' }[text(record, 'waiting_on')]
   const draft = text(record, 'draft')
-  const email = text(record, 'channel') === 'Email'
-  const sender = useTool<{ from: string; signature?: string }>('get_draft_sender', { record_id: record.id }, { enabled: open && email && draft !== '' })
+  const conversation = useTool<{ interactions: Interaction[] }>('list_interactions', { record_id: record.id, kinds: ['message'], limit: 1 }, { enabled: open }).data?.interactions[0]
+  const channel = text(record, 'channel') || channels[conversation?.channel ?? ''] || ''
+  const email = channel === 'Email'
+  const sender = useTool<DraftSender>('get_draft_sender', { record_id: record.id }, { enabled: open && email })
   return (
     <li
       ref={row}
@@ -88,17 +100,13 @@ function FollowUp({ record, open, index, onToggle }: { record: CrmRecord; open: 
         <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[12px] text-ink-3">
           {Object.entries(subjects).flatMap(([slug, object]) => (valuesOf(record, slug) as Ref[]).map((v) => <RecordChip key={v.id} object={object} value={v} />))}
           {waiting && <span className="ml-0.5 shrink-0">{waiting}</span>}
-          {open && draft && (
-            <span className="ml-auto flex min-w-0 items-center gap-3 transition-opacity duration-150 starting:opacity-0">
-              {email ? (
-                <>
-                  {sender.error ? <span className="truncate text-ink-2">{sender.error.message}</span> : <Address label="From" value={sender.data?.from} />}
-                  <Address label="To" value={text(record, 'to')} />
-                  <Address label="Cc" value={text(record, 'cc')} />
-                </>
-              ) : text(record, 'channel')}
-            </span>
-          )}
+          <Button variant="ghost" size="sm" aria-expanded={open} aria-controls={`follow-up-${record.id}`} onClick={(e) => {
+            e.stopPropagation()
+            onToggle()
+          }} className="ml-auto">
+            Context & reply
+            <ChevronDown aria-hidden="true" className={cn('size-3.5 transition-transform duration-150 motion-reduce:transition-none', open && 'rotate-180')} />
+          </Button>
         </div>
         <Reveal open={!open && draft !== ''}>
           <p className="truncate pt-1 text-[12px] text-ink-3">
@@ -107,9 +115,9 @@ function FollowUp({ record, open, index, onToggle }: { record: CrmRecord; open: 
           </p>
         </Reveal>
         <Reveal open={open} onOpened={() => row.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })}>
-          <div className="flex cursor-auto flex-col gap-3 pt-3" onClick={(e) => e.stopPropagation()}>
-            {draft && <Draft key={`${record.id}:${draft}`} record={record} from={sender.data?.from} signature={sender.data?.signature} />}
+          <div id={`follow-up-${record.id}`} className="flex cursor-auto flex-col gap-3 pt-3" onClick={(e) => e.stopPropagation()}>
             {person && <Context person={person} load={open} />}
+            <Draft record={record} channel={channel} sender={sender.data} error={sender.error?.message} conversation={conversation} />
           </div>
         </Reveal>
       </div>
@@ -155,14 +163,16 @@ function Address({ label, value }: { label: string; value?: string }) {
 // Context is what we know of the person a follow-up concerns, to check and
 // fix its draft against: who they are, then dated events as a timeline.
 function Context({ person, load }: { person: Ref; load: boolean }) {
-  const record = useTool<CrmRecord>('get_record', { record_id: person.id }, { enabled: load }).data
+  const query = useTool<CrmRecord>('get_record', { record_id: person.id }, { enabled: load })
+  const record = query.data
   const lines = (record ? text(record, 'context') : '').split('\n').map((line) => line.replace(/^\s*[-*•]\s*/, '').trim()).filter(Boolean)
-  if (lines.length === 0) {
+  if (lines.length === 0 && !query.isLoading) {
     return null
   }
   return (
-    <section className="px-3">
-      <h3 className="mb-1.5 text-[12px] font-medium text-ink-2">Person Context</h3>
+    <section className="rounded-[var(--radius-control)] bg-panel px-3 py-2.5">
+      <h3 className="mb-2 text-[13px] font-medium text-ink">Person context</h3>
+      {query.isLoading && <p role="status" className="text-[12px] text-ink-3">Loading context…</p>}
       <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[12px] leading-[18px] text-ink-2">
         {lines.map((line, i) => {
           const [, day, event] = line.match(/^(\d{4}-\d{2}-\d{2}):\s*(.*)$/) ?? []
@@ -183,33 +193,68 @@ function Context({ person, load }: { person: Ref; load: boolean }) {
 // Draft edits a follow-up's draft in the queue, the one place drafts appear,
 // above the sender's signature as it will go out, and sends or approves it
 // once the edit is saved.
-function Draft({ record, from, signature }: { record: CrmRecord; from?: string; signature?: string }) {
+function Draft({ record, channel, sender, error, conversation }: { record: CrmRecord; channel: string; sender?: DraftSender; error?: string; conversation?: Interaction }) {
   const current = text(record, 'draft')
-  const [draft, setDraft] = useState(current)
-  const write = useWrite(record)
+  const [edited, setEdited] = useState<string | null>(null)
+  const draft = edited ?? current
+  const client = useQueryClient()
   const locked = ['Sending', 'Sent'].includes(text(record, 'draft_status'))
+  const email = channel === 'Email'
+  const to = list(record, 'to')
+  const cc = list(record, 'cc')
+  const write = useMutation({
+    mutationKey: ['upsert_record'],
+    scope: { id: `draft:${record.id}` },
+    mutationFn: async (next: string) => {
+      const values: Record<string, string | string[]> = { draft: next }
+      let replyChannel = channel
+      if (next && !replyChannel) {
+        const source = await client.fetchQuery(toolQuery<{ interactions: Interaction[] }>('list_interactions', { record_id: record.id, kinds: ['message'], limit: 1 }))
+        replyChannel = channels[source.interactions[0]?.channel ?? ''] ?? ''
+      }
+      if (replyChannel && !text(record, 'channel')) {
+        values.channel = replyChannel
+      }
+      if (next && replyChannel === 'Email' && to.length === 0 && !error) {
+        const defaults = sender ?? await client.fetchQuery<DraftSender>(toolQuery<DraftSender>('get_draft_sender', { record_id: record.id }))
+        values.to = defaults.to
+        values.cc = defaults.cc
+      }
+      return call('upsert_record', { object: record.object, record_id: record.id, ...(next ? { values } : { remove: { draft: [] } }) })
+    },
+  })
   const commit = () => {
     const next = draft.trim()
-    if (next !== current && !write.pending) {
-      if (next) {
-        write.set('draft', next)
-      } else {
-        write.remove('draft', [])
-      }
+    if (!locked && (write.isPending ? next !== write.variables : next !== current)) {
+      write.mutate(next, {
+        onSuccess: () => setEdited((latest) => latest?.trim() === next ? null : latest),
+      })
     }
   }
   return (
-    <div className="flex flex-col gap-2 rounded-[var(--radius-card)] bg-panel px-3 py-2.5">
+    <div className="flex flex-col gap-2 rounded-[var(--radius-control)] bg-panel px-3 py-2.5">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-[13px] font-medium text-ink">{channel ? `${channel} reply` : 'Reply'}</h3>
+        {conversation && <InteractionDialog interactionId={conversation.id}>
+          <Button variant="ghost" size="sm">View message</Button>
+        </InteractionDialog>}
+      </div>
+      {email && <div className="flex flex-wrap gap-x-3 gap-y-1 text-[12px] text-ink-3">
+        {error ? <span className="text-ink-2">{error}</span> : <Address label="From" value={sender?.from} />}
+        <Address label="To" value={(to.length ? to : sender?.to ?? []).join(', ')} />
+        <Address label="Cc" value={(to.length ? cc : sender?.cc ?? []).join(', ')} />
+      </div>}
       <textarea
         aria-label="Draft"
+        placeholder="Write a reply…"
         value={draft}
-        disabled={write.pending || locked}
-        onChange={(e) => setDraft(e.target.value)}
+        disabled={locked}
+        onChange={(e) => setEdited(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => {
           e.stopPropagation()
           if (e.key === 'Escape') {
-            setDraft(current)
+            setEdited(null)
           } else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
             e.preventDefault()
             e.currentTarget.blur()
@@ -217,9 +262,9 @@ function Draft({ record, from, signature }: { record: CrmRecord; from?: string; 
         }}
         className="field-sizing-content block max-h-96 min-h-24 w-full resize-none bg-transparent text-[13px] leading-5 text-ink-2 outline-none focus:text-ink disabled:opacity-70"
       />
-      {signature && <div className="cursor-default border-t border-border pt-2"><Signature html={signature} /></div>}
+      {sender?.signature && <div className="cursor-default border-t border-border pt-2"><Signature html={sender.signature} /></div>}
       <div className="flex justify-end">
-        <Release record={record} from={from} disabled={write.pending || draft.trim() !== current} />
+        <Release record={record} channel={channel} from={sender?.from} disabled={write.isPending || draft.trim() !== current} />
       </div>
     </div>
   )

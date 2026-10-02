@@ -16,16 +16,10 @@ func registerFollowUps(r *registry, svc *followups.Service) {
 			return recordOf(record, nil), err
 		})
 	add(r, &mcp.Tool{Name: "get_draft_sender", Title: "Get draft sender", Meta: mcp.Meta{"ui": map[string]any{"visibility": []string{"app"}}},
-		Description: "The mailbox a follow-up's email draft would be sent from by the person in the CRM, and the HTML of the Gmail signature added below it."},
-		func(ctx context.Context, actor auth.Actor, in recordInput) (senderView, error) {
-			from, signature, err := svc.Sender(ctx, actor, in.RecordID)
-			return senderView{From: from, Signature: signature}, err
+		Description: "The mailbox, reply-all recipients and Gmail signature for a follow-up's email reply, including before a draft has been written."},
+		func(ctx context.Context, actor auth.Actor, in recordInput) (followups.Sender, error) {
+			return svc.Sender(ctx, actor, in.RecordID)
 		})
-}
-
-type senderView struct {
-	From      string `json:"from"`
-	Signature string `json:"signature,omitempty"`
 }
 
 type sendInput struct {

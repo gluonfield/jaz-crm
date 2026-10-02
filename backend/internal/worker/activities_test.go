@@ -179,7 +179,7 @@ func TestSyncAgainstGoogle(t *testing.T) {
 	}
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestActivityEnvironment()
-	agent := followups.NewAgent(followups.AgentParams{Service: followups.NewService(crm, store, conns), Workspaces: store, Connections: store, Interactions: convs, Logger: log.New(io.Discard)})
+	agent := followups.NewAgent(followups.AgentParams{Service: followups.NewService(crm, store, conns, store), Workspaces: store, Interactions: convs, Logger: log.New(io.Discard)})
 	a := NewActivities(conns, convs, logos.NewService(store, logos.Fetcher{Client: srv.Client(), Home: func(domain string) string { return srv.URL + "/site/" + domain + "/" }}), agent, Config{})
 	env.RegisterActivity(a)
 	run := func(activity any, out any, args ...any) {

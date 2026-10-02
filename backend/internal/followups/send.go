@@ -20,13 +20,14 @@ import (
 )
 
 type Service struct {
-	crm   *records.Service
-	store storage.InteractionStore
-	conns *connections.Service
+	crm       *records.Service
+	store     storage.InteractionStore
+	conns     *connections.Service
+	addresses storage.ConnectionStore
 }
 
-func NewService(crm *records.Service, store storage.InteractionStore, conns *connections.Service) *Service {
-	return &Service{crm: crm, store: store, conns: conns}
+func NewService(crm *records.Service, store storage.InteractionStore, conns *connections.Service, addresses storage.ConnectionStore) *Service {
+	return &Service{crm: crm, store: store, conns: conns, addresses: addresses}
 }
 
 // Seen is the draft a person released, as they saw it, with the mailbox an
@@ -110,25 +111,6 @@ type outgoing struct {
 	mailbox *google.Client
 	account string
 	message google.Outgoing
-}
-
-// Sender is the mailbox a follow-up's email draft goes from for the actor,
-// with the HTML of the signature Gmail adds below it.
-func (s *Service) Sender(ctx context.Context, actor auth.Actor, id string) (account string, signature string, err error) {
-	f, err := s.crm.Get(ctx, actor, id)
-	if err != nil {
-		return "", "", err
-	}
-	_, sender, err := s.sender(ctx, actor, f)
-	if err != nil {
-		return "", "", err
-	}
-	mailbox, err := s.conns.Google(ctx, sender)
-	if err != nil {
-		return "", "", err
-	}
-	sig, err := mailbox.Signature(ctx, sender.Account)
-	return sender.Account, sig.HTML, err
 }
 
 // sender finds the newest message of the email conversations a follow-up is
