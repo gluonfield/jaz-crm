@@ -8,11 +8,26 @@ const kept: Record<string, string> = {
   UL: 'ul', OL: 'ol', LI: 'li', BLOCKQUOTE: 'blockquote', PRE: 'pre', CODE: 'code',
 }
 const dropped = new Set(['SCRIPT', 'STYLE', 'TEMPLATE', 'HEAD', 'TITLE', 'NOSCRIPT', 'IFRAME', 'OBJECT', 'EMBED', 'SVG', 'MATH', 'FORM'])
+const hidden = (el: Element) => dropped.has(el.tagName) || el.classList.contains('gmail_quote') || el.classList.contains('yahoo_quoted') || (el.tagName === 'BLOCKQUOTE' && el.getAttribute('type') === 'cite')
+const blank = (node: Node): boolean => node instanceof Element
+  ? hidden(node) || (node.tagName !== 'IMG' && !node.textContent?.trim() && !node.querySelector('img'))
+  : node.nodeType !== Node.TEXT_NODE || !node.textContent?.trim()
 
 // Rebuild untrusted email HTML as elements without copying styles or event attributes.
 export function HTMLContent({ html, className }: { html: string; className?: string }) {
   const body = new DOMParser().parseFromString(html, 'text/html').body
+  trimEnd(body)
   return <div className={cn('max-w-[68ch] text-[13px] leading-5 text-ink-3 [overflow-wrap:anywhere] [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5 [&_p]:mb-3 [&_p:last-child]:mb-0 [&_table]:max-w-full [&_td]:align-top [&_th]:align-top [&_pre]:whitespace-pre-wrap', className)}>{children(body)}</div>
+}
+
+// trimEnd drops the empty lines and hidden quotes that would pad a message's end.
+function trimEnd(node: Node) {
+  while (node.lastChild && blank(node.lastChild)) {
+    node.lastChild.remove()
+  }
+  if (node.lastChild) {
+    trimEnd(node.lastChild)
+  }
 }
 
 function children(node: Node): ReactNode[] {
@@ -20,10 +35,7 @@ function children(node: Node): ReactNode[] {
     if (child.nodeType === Node.TEXT_NODE) {
       return child.textContent
     }
-    if (!(child instanceof Element) || dropped.has(child.tagName)) {
-      return null
-    }
-    if (child.classList.contains('gmail_quote') || child.classList.contains('yahoo_quoted') || (child.tagName === 'BLOCKQUOTE' && child.getAttribute('type') === 'cite')) {
+    if (!(child instanceof Element) || hidden(child)) {
       return null
     }
     const inner = children(child)

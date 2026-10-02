@@ -6,6 +6,7 @@ import type { Interaction, CrmMessage } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { RecordIcon } from './icons'
 import { Message } from './message'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 export function MessageState({ message }: { message: CrmMessage }) {
   const author = message.sender || message.sender_address
@@ -19,6 +20,8 @@ export function MessageState({ message }: { message: CrmMessage }) {
   )
 }
 
+const authorOf = (message: CrmMessage) => message.sender || message.sender_address || 'Unknown sender'
+
 export function MessageThread({ interaction, messages, initialVisible = 6 }: { interaction: Interaction; messages: CrmMessage[]; initialVisible?: number }) {
   const [expanded, setExpanded] = useState(false)
   const start = expanded ? 0 : Math.max(0, messages.length - initialVisible)
@@ -31,28 +34,41 @@ export function MessageThread({ interaction, messages, initialVisible = 6 }: { i
           <ChevronDown aria-hidden="true" className={cn('transition-transform duration-150 motion-reduce:transition-none', expanded && 'rotate-180')} />
         </Button>
       )}
-      <ol className="flex min-w-0 flex-col gap-4">
+      <ol className="flex min-w-0 flex-col">
         {messages.slice(start).map((message, index) => {
           const i = start + index
           const sent = message.direction === 'sent'
-          const author = message.sender || message.sender_address || 'Unknown sender'
+          const author = authorOf(message)
           const recipients = [...new Set(message.recipients?.map((address) => participant(address)?.name || address))].filter((name) => name !== author)
           const day = formatDate(message.at)
+          const newDay = index === 0 || day !== formatDate(messages[i - 1].at)
+          // Consecutive messages from one sender on one day group like a chat,
+          // with the sender's picture beside the last of them.
+          const first = newDay || authorOf(messages[i - 1]) !== author
+          const last = i === messages.length - 1 || authorOf(messages[i + 1]) !== author || formatDate(messages[i + 1].at) !== day
           return (
-            <li key={i} className="flex min-w-0 flex-col gap-4">
-              {(index === 0 || day !== formatDate(messages[i - 1].at)) && <time dateTime={message.at} className="self-center text-[11.5px] text-ink-3">{day}</time>}
-              <div className={cn('flex max-w-[92%] flex-col gap-1.5 sm:max-w-[86%]', sent ? 'self-end' : 'self-start')}>
-                <div className={cn('flex min-w-0 items-center gap-1.5 text-[12px] text-ink-3', sent && 'justify-end')}>
-                  <RecordIcon object="people" name={author} photo={participant(message.sender_address)?.photo} size={20} />
-                  <span className="truncate">
-                    <span className="font-medium text-ink-2" title={message.sender_address}>{author}</span>
-                    {recipients.length > 0 && <span title={message.recipients?.join(', ')}> to {recipients.join(', ')}</span>}
-                  </span>
-                </div>
-                <div className={cn('min-w-0 rounded-[16px] px-3.5 pb-2 pt-2.5', sent ? 'rounded-tr-[4px] bg-primary-soft' : 'rounded-tl-[4px] bg-list-hover')}>
+            <li key={i} className={cn('flex min-w-0 flex-col', index > 0 && (first ? 'mt-4' : 'mt-1'))}>
+              {newDay && <time dateTime={message.at} className="mb-4 self-center text-[11.5px] text-ink-3">{day}</time>}
+              <div className={cn('flex max-w-[88%] items-end gap-2 sm:max-w-[76%]', sent ? 'flex-row-reverse self-end' : 'self-start')}>
+                {last ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="shrink-0">
+                        <RecordIcon object="people" name={author} photo={participant(message.sender_address)?.photo} size={24} />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" align={sent ? 'end' : 'start'} className="flex flex-col">
+                      <span className="font-medium">{author}</span>
+                      {message.sender_address !== author && <span>{message.sender_address}</span>}
+                      {recipients.length > 0 && <span>to {recipients.join(', ')}</span>}
+                    </TooltipContent>
+                  </Tooltip>
+                ) : <span aria-hidden="true" className="w-6 shrink-0" />}
+                <div className={cn('min-w-0 rounded-[18px] px-3.5 pb-1.5 pt-2', sent ? 'bg-primary-soft' : 'bg-list-hover', last && (sent ? 'rounded-br-[6px]' : 'rounded-bl-[6px]'))}>
+                  <span className="sr-only">{author}: </span>
                   {message.text || message.html ? <Message text={message.text} html={message.html} /> : <p className="text-[13px] text-ink-3">The text arrives with the next sync.</p>}
                   {message.partial && <p className="mt-2 text-[11.5px] text-ink-3">Message excerpt</p>}
-                  {message.at.length > 10 && <time dateTime={message.at} title={formatDateTime(message.at)} className="mt-1 block text-right text-[11px] tabular-nums text-ink-3">{formatTime(message.at)}</time>}
+                  {message.at.length > 10 && <time dateTime={message.at} title={formatDateTime(message.at)} className="mt-0.5 block text-right text-[11px] tabular-nums text-ink-3">{formatTime(message.at)}</time>}
                 </div>
               </div>
             </li>
