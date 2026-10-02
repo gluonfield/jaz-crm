@@ -8,6 +8,7 @@ import { PageEditor } from '@/components/editor'
 import { History } from '@/components/history'
 import { ObjectIcon } from '@/components/icons'
 import { PersonContext } from '@/components/person-context'
+import { Properties } from '@/components/properties'
 import { Related } from '@/components/related'
 import { SubPages } from '@/components/sub-pages'
 import { Summary } from '@/components/summary'
@@ -88,7 +89,9 @@ function RecordPage() {
       </DropdownMenu>
     </Header>
   )
-  if (page) {
+  // Pages and the records of the workspace's own tables read as documents:
+  // a table record's properties sit under its title, as in Notion.
+  if (page || !object.standard) {
     return (
       <>
         {header}
@@ -97,11 +100,16 @@ function RecordPage() {
             <h1 className="text-[30px] font-semibold leading-tight tracking-[-0.02em] text-ink">
               <Title key={`${record.id}:${name}`} record={record} object={object} name={name} />
             </h1>
-            <div className="mt-3">
+            {!page && (
+              <div className="mt-4">
+                <Properties record={record} object={object} objects={objects} />
+              </div>
+            )}
+            <div className={page ? 'mt-3' : 'mt-6'}>
               <PageEditor key={record.id} record={record} />
             </div>
             <div className="mt-6 flex flex-col gap-8">
-              <SubPages page={record.id} />
+              {page && <SubPages page={record.id} />}
               <Related recordId={record.id} object={object.slug} objects={objects} />
             </div>
           </div>
@@ -121,11 +129,6 @@ function RecordPage() {
               </h1>
             </Summary>
             {record.object === 'people' && <PersonContext key={`${record.id}:${record.values.context ?? ''}`} record={record} />}
-            {object.attributes.some((a) => a.type === 'markdown') && (
-              <div className="mt-6">
-                <PageEditor key={record.id} record={record} />
-              </div>
-            )}
           </div>
           <Details record={record} object={object} />
           <div className="flex min-w-0 flex-col gap-8 [grid-area:main]">
@@ -197,7 +200,7 @@ function Details({ record, object }: { record: CrmRecord; object: CrmObject }) {
       <h2 className="mb-1.5 text-[12px] font-medium text-ink-3">Details</h2>
       <dl className="grid grid-cols-[100px_minmax(0,1fr)] items-center gap-x-2 gap-y-0.5 text-[13px] @3xl:grid-cols-[100px_minmax(0,1fr)_100px_minmax(0,1fr)] @5xl:grid-cols-[100px_minmax(0,1fr)]">
         {object.attributes
-          .filter((a) => a.slug !== 'name' && a.type !== 'markdown' && !(record.object === 'people' && a.slug === 'context') && !(record.object === 'follow_ups' && a.slug === 'draft'))
+          .filter((a) => a.slug !== 'name' && !(record.object === 'people' && a.slug === 'context') && !(record.object === 'follow_ups' && a.slug === 'draft'))
           .map((a) => (
             <div key={a.slug} className="contents">
               <dt className="truncate text-ink-3">{a.name}</dt>

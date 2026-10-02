@@ -1,5 +1,4 @@
-import { Button } from '@jaz/ui/button'
-import { AlignLeft, AtSign, Calendar, CircleChevronDown, Contrast, Hash, Link2, Pencil, Phone, Plus, SquareCheck, Tags, Trash2, UserRound } from 'lucide-react'
+import { AlignLeft, ArrowUpRight, AtSign, Calendar, CircleChevronDown, Contrast, Hash, Link2, Pencil, Phone, SquareCheck, Tags, Trash2, UserRound } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { slugify } from '@/lib/crm'
 import { useAction } from '@/lib/queries'
@@ -14,15 +13,21 @@ import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
 
 // ColumnHeader names a table's column and renames or deletes it; the name
 // column stays.
-export function ColumnHeader({ object, attribute }: { object: CrmObject; attribute: Attribute }) {
+export function ColumnHeader({ object, attribute, icon, className }: { object: CrmObject; attribute: Attribute; icon?: ReactNode; className?: string }) {
   const edit = useAction<object>('edit_attribute')
   const [renaming, setRenaming] = useState(false)
   const [deleting, setDeleting] = useState(false)
   return (
     <>
       <DropdownMenu>
-        <DropdownMenuTrigger className="-mx-1.5 flex h-7 items-center rounded-[var(--radius-control)] px-1.5 font-medium outline-none hover:bg-list-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-list-active">
-          {attribute.name}
+        <DropdownMenuTrigger
+          className={cn(
+            '-mx-1.5 flex h-7 min-w-0 items-center gap-2 rounded-[var(--radius-control)] px-1.5 font-medium outline-none hover:bg-list-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-list-active',
+            className,
+          )}
+        >
+          {icon}
+          <span className="truncate">{attribute.name}</span>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-44">
           <DropdownMenuItem onSelect={() => setRenaming(true)}>
@@ -62,10 +67,18 @@ const kinds: Kind[] = [
   { label: 'Phone', icon: <Phone />, type: 'phone' },
 ]
 
+// typeIcon is the icon of a column's type, as the column menu shows it.
+export function typeIcon(attribute: Attribute) {
+  if (attribute.type === 'reference') {
+    return <ArrowUpRight />
+  }
+  return (kinds.find((k) => k.type === attribute.type && !!k.multi === !!attribute.multi) ?? kinds.find((k) => k.type === attribute.type))?.icon ?? <AlignLeft />
+}
+
 // AddColumn names a column and picks its type, or a link to records of
 // another object, as Notion adds a property. An unnamed column takes its
 // type's name.
-export function AddColumn({ object, objects }: { object: CrmObject; objects: CrmObject[] }) {
+export function AddColumn({ object, objects, children }: { object: CrmObject; objects: CrmObject[]; children: ReactNode }) {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const create = useAction<object>('create_attribute')
@@ -94,11 +107,7 @@ export function AddColumn({ object, objects }: { object: CrmObject; objects: Crm
         setName('')
       }}
     >
-      <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon-sm" aria-label="Add column">
-          <Plus />
-        </Button>
-      </PopoverTrigger>
+      <PopoverTrigger asChild>{children}</PopoverTrigger>
       <PopoverContent align="start" sideOffset={6} className="scrollbar-quiet max-h-[min(75vh,600px)] w-60 overflow-y-auto p-1.5">
         <input
           autoFocus

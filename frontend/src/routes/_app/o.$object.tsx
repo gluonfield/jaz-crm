@@ -142,7 +142,11 @@ function ObjectPage() {
                 ))}
                 {own && (
                   <th className="w-full px-1">
-                    <AddColumn object={object} objects={objects ?? []} />
+                    <AddColumn object={object} objects={objects ?? []}>
+                      <Button variant="ghost" size="icon-sm" aria-label="Add column">
+                        <Plus />
+                      </Button>
+                    </AddColumn>
                   </th>
                 )}
               </tr>
