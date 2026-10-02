@@ -191,7 +191,7 @@ func TestReleaseSendsEmailRepliesAndApprovesOthers(t *testing.T) {
 	if _, err := svc.Release(ctx, mateActor, reply, followups.Seen{Draft: "An older text", To: seen.To, Cc: seen.Cc}); err == nil {
 		t.Fatal("a draft was sent that differs from what the person saw")
 	}
-	if from, signature, err := svc.Sender(ctx, mateActor, reply); err != nil || from != seen.From || signature != "Owner Name\nCAS" {
+	if from, signature, err := svc.Sender(ctx, mateActor, reply); err != nil || from != seen.From || signature != "<div>Owner Name<br>CAS</div>" {
 		t.Fatalf("a teammate's reply must go from the mailbox holding the conversation, signed as it: %q %q %v", from, signature, err)
 	}
 	if _, err := svc.Release(ctx, mateActor, reply, followups.Seen{Draft: seen.Draft, From: "mate@cas.dev", To: seen.To, Cc: seen.Cc}); err == nil || len(g.sent) != 0 {

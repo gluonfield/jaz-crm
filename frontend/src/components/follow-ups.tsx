@@ -7,6 +7,7 @@ import { useAction, useTool, useWrite } from '@/lib/queries'
 import type { CrmRecord, Ref } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { RecordChip } from './controls'
+import { Signature } from './signature'
 
 const text = (record: CrmRecord, slug: string) => valuesOf(record, slug).map(valueText).join(', ')
 const today = () => new Date().toLocaleDateString('en-CA')
@@ -213,7 +214,7 @@ function Draft({ record, from, signature }: { record: CrmRecord; from?: string; 
         }}
         className="field-sizing-content block max-h-96 min-h-24 w-full resize-none bg-transparent text-[13px] leading-5 text-ink-2 outline-none focus:text-ink disabled:opacity-70"
       />
-      {signature && <p className="whitespace-pre-wrap text-[13px] leading-5 text-ink-3">{signature}</p>}
+      {signature && <Signature html={signature} />}
       <div className="flex justify-end">
         <Release record={record} from={from} disabled={write.pending || draft.trim() !== current} />
       </div>

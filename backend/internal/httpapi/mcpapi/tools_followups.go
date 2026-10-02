@@ -16,7 +16,7 @@ func registerFollowUps(r *registry, svc *followups.Service) {
 			return recordOf(record, nil), err
 		})
 	add(r, &mcp.Tool{Name: "get_draft_sender", Title: "Get draft sender", Meta: mcp.Meta{"ui": map[string]any{"visibility": []string{"app"}}},
-		Description: "The mailbox a follow-up's email draft would be sent from by the person in the CRM, and the Gmail signature added below it."},
+		Description: "The mailbox a follow-up's email draft would be sent from by the person in the CRM, and the HTML of the Gmail signature added below it."},
 		func(ctx context.Context, actor auth.Actor, in recordInput) (senderView, error) {
 			from, signature, err := svc.Sender(ctx, actor, in.RecordID)
 			return senderView{From: from, Signature: signature}, err

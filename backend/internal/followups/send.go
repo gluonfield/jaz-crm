@@ -113,7 +113,7 @@ type outgoing struct {
 }
 
 // Sender is the mailbox a follow-up's email draft goes from for the actor,
-// with the text of the signature Gmail adds below it.
+// with the HTML of the signature Gmail adds below it.
 func (s *Service) Sender(ctx context.Context, actor auth.Actor, id string) (account string, signature string, err error) {
 	f, err := s.crm.Get(ctx, actor, id)
 	if err != nil {
@@ -128,7 +128,7 @@ func (s *Service) Sender(ctx context.Context, actor auth.Actor, id string) (acco
 		return "", "", err
 	}
 	sig, err := mailbox.Signature(ctx, sender.Account)
-	return sender.Account, sig.Text, err
+	return sender.Account, sig.HTML, err
 }
 
 // sender finds the newest message of the email conversations a follow-up is
