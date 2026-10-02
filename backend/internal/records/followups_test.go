@@ -95,7 +95,7 @@ func TestFollowUpsAreReferencedAndSortedByReviewDate(t *testing.T) {
 		f, _ := upsert(t, svc, a, records.SourceUser, records.Write{Object: records.FollowUps, Set: set(pairs...)})
 		ids = append(ids, f.ID)
 	}
-	sorted, err := svc.Search(ctx, a, records.Search{Object: records.FollowUps, Sort: "review_on"})
+	sorted, _, err := svc.Search(ctx, a, records.Search{Object: records.FollowUps, Sort: "review_on"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,8 +106,8 @@ func TestFollowUpsAreReferencedAndSortedByReviewDate(t *testing.T) {
 	if want := []string{ids[2], ids[0], ids[1]}; !slices.Equal(got, want) {
 		t.Fatalf("follow-ups must sort earliest review first, undated last: %v, want %v", got, want)
 	}
-	if _, err := svc.Search(ctx, a, records.Search{Object: records.FollowUps, Sort: "name"}); err == nil {
-		t.Fatal("sorting by a text attribute must be refused")
+	if _, _, err := svc.Search(ctx, a, records.Search{Object: records.FollowUps, Sort: "waiting_on"}); err == nil {
+		t.Fatal("sorting by a select attribute must be refused")
 	}
 	referenced, err := svc.Referenced(ctx, a, jane, 20)
 	if err != nil {

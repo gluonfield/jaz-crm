@@ -143,7 +143,7 @@ func TestAgentKeepsFollowUpsCurrent(t *testing.T) {
 	if !slices.ContainsFunc(brain.read[0].Records, func(r interactions.Ref) bool { return r.ID == deal.ID && r.Object == "deals" }) {
 		t.Fatalf("the planner must see the deals of the people in the conversation: %+v", brain.read[0].Records)
 	}
-	open, err := crm.Search(ctx, actor, records.Search{Object: records.FollowUps})
+	open, _, err := crm.Search(ctx, actor, records.Search{Object: records.FollowUps})
 	if err != nil || len(open) != 1 {
 		t.Fatalf("follow-ups: %v %v", open, err)
 	}

@@ -269,7 +269,7 @@ func TestDeletedPeopleStayDeleted(t *testing.T) {
 	if got := e.contacts(t, interactions.Skipped)["ada@customer.io"]; got.DecidedBy != interactions.ByUser || got.PersonID != "" {
 		t.Fatalf("ada after deletion: %+v", got)
 	}
-	people, err := e.crm.Search(ctx, e.a, records.Search{Object: "people"})
+	people, _, err := e.crm.Search(ctx, e.a, records.Search{Object: "people"})
 	if err != nil || len(people) != 0 {
 		t.Fatalf("triage recreated the person: %d %v", len(people), err)
 	}

@@ -39,7 +39,7 @@ func TestCombinedFiltersUseCurrentValues(t *testing.T) {
 		{"exclude unknown company", []records.Filter{{Attribute: "company", Operator: "is_not", Value: "unknown.test"}}, []string{ada.ID, bob.ID, ann.ID}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			found, err := svc.Search(ctx, a, records.Search{Object: "people", Filters: test.filters})
+			found, _, err := svc.Search(ctx, a, records.Search{Object: "people", Filters: test.filters})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -60,11 +60,11 @@ func TestCombinedFiltersUseCurrentValues(t *testing.T) {
 		{Attribute: "name", Operator: "contains", Value: " "},
 		{Attribute: "company", Operator: "contains", Value: "Acme"},
 	} {
-		if _, err := svc.Search(ctx, a, records.Search{Object: "people", Filters: []records.Filter{filter}}); err == nil {
+		if _, _, err := svc.Search(ctx, a, records.Search{Object: "people", Filters: []records.Filter{filter}}); err == nil {
 			t.Errorf("invalid condition accepted: %+v", filter)
 		}
 	}
-	found, err := svc.Search(ctx, a, records.Search{Object: "people", Query: "stone", Where: map[string]string{"tags": "Founder"}, Filters: []records.Filter{{Attribute: "company", Operator: "is_not_empty"}}})
+	found, _, err := svc.Search(ctx, a, records.Search{Object: "people", Query: "stone", Where: map[string]string{"tags": "Founder"}, Filters: []records.Filter{{Attribute: "company", Operator: "is_not_empty"}}})
 	if err != nil || len(found) != 1 || found[0].ID != ada.ID {
 		t.Fatalf("query, legacy where and conditions must combine: %v %v", found, err)
 	}
@@ -86,7 +86,7 @@ func TestDateFilterComparisons(t *testing.T) {
 		{"on_or_after", []string{same.ID, late.ID}},
 	} {
 		t.Run(test.operator, func(t *testing.T) {
-			found, err := svc.Search(ctx, a, records.Search{Object: "deals", Filters: []records.Filter{{Attribute: "next_follow_up_date", Operator: test.operator, Value: "2027-01-05"}}})
+			found, _, err := svc.Search(ctx, a, records.Search{Object: "deals", Filters: []records.Filter{{Attribute: "next_follow_up_date", Operator: test.operator, Value: "2027-01-05"}}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -106,8 +106,29 @@ func TestDateFilterComparisons(t *testing.T) {
 		{Attribute: "value", Operator: "after", Value: "10"},
 		{Attribute: "next_follow_up_date", Operator: "on_or_before", Value: "January"},
 	} {
-		if _, err := svc.Search(ctx, a, records.Search{Object: "deals", Filters: []records.Filter{filter}}); err == nil {
+		if _, _, err := svc.Search(ctx, a, records.Search{Object: "deals", Filters: []records.Filter{filter}}); err == nil {
 			t.Errorf("invalid date filter accepted: %+v", filter)
 		}
+	}
+}
+
+// A search pages through records in name order and counts every match.
+func TestSearchPages(t *testing.T) {
+	svc, a, _ := setup(t)
+	for _, name := range []string{"Eve", "Ada", "Dan", "Cy", "Bo"} {
+		upsert(t, svc, a, records.SourceUser, records.Write{Object: "people", Set: set("name", name)})
+	}
+	var names []string
+	for offset := 0; offset < 6; offset += 2 {
+		page, total, err := svc.Search(ctx, a, records.Search{Object: "people", Sort: "name", Offset: offset, Limit: 2})
+		if err != nil || total != 5 && len(page) > 0 {
+			t.Fatalf("page at %d: %d records of %d, %v", offset, len(page), total, err)
+		}
+		for _, r := range page {
+			names = append(names, values(r, "name")[0])
+		}
+	}
+	if !slices.Equal(names, []string{"Ada", "Bo", "Cy", "Dan", "Eve"}) {
+		t.Fatalf("paged names: %v", names)
 	}
 }

@@ -121,8 +121,18 @@ func (s *Store) Records(ctx context.Context, workspaceID string, ids []string) (
 	return many(toRecord)(s.rec.GetRecords(ctx, recdb.GetRecordsParams{WorkspaceID: workspaceID, IDs: ids}))
 }
 
-func (s *Store) SearchRecords(ctx context.Context, query storage.RecordQuery) ([]storage.Record, error) {
-	return many(toRecord)(s.rec.SearchRecords(ctx, recdb.SearchRecordsParams(query)))
+func (s *Store) SearchRecords(ctx context.Context, query storage.RecordQuery) ([]storage.Record, int, error) {
+	rows, err := s.rec.SearchRecords(ctx, recdb.SearchRecordsParams(query))
+	if err != nil {
+		return nil, 0, mapError(err)
+	}
+	out := make([]storage.Record, len(rows))
+	total := 0
+	for i, row := range rows {
+		out[i] = toRecord(row.Record)
+		total = int(row.Total)
+	}
+	return out, total, nil
 }
 
 func (s *Store) RelatedRecords(ctx context.Context, workspaceID, attributeID string, ids []string, limit int32) ([]storage.RelatedRecord, error) {

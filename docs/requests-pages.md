@@ -10,6 +10,7 @@
 - [x] Pages look like Notion: titles are borderless headings that wrap, and a page lists its pages as plain links.
 - [x] Columns are added as in Notion: + after the last column opens a name field and a list of types with icons, including links to people, companies, pages or tables. A new table starts with one untitled row and opens as a table; a status added later starts existing rows in its first stage.
 - [x] A table's records open as pages: the title, then the record's properties with their type icons and Add a property, then its content; no conversations, changes or details panel.
+- [x] Lists show the true number of records and load more as they scroll; name sorting runs on the server across pages. Column widths drag and persist per object, multi-value chips wrap in their cells, and an empty date shows Add… instead of the date mask.
 - [x] Agents read and write all of it through MCP: tables, columns, rows, page content, nesting and mentions.
 - [x] Review, verify real PostgreSQL/MCP persistence and the actual UI, commit/push and activate locally and on Railway.
 

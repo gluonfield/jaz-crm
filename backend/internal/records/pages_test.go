@@ -26,7 +26,7 @@ func TestPages(t *testing.T) {
 	if len(skips) > 0 || !slices.Equal(values(moved, "name"), []string{"Slow quoting"}) || !slices.Equal(values(moved, "parent"), []string{root.ID}) || !slices.Equal(values(moved, "content"), []string{mention}) {
 		t.Fatalf("an agent's edit of a person's page: %+v %+v", moved, skips)
 	}
-	found, err := svc.Search(ctx, a, records.Search{Object: records.Pages, Query: "lead times"})
+	found, _, err := svc.Search(ctx, a, records.Search{Object: records.Pages, Query: "lead times"})
 	if err != nil || len(found) != 1 || found[0].ID != leaf.ID || len(values(found[0], "content")) != 0 {
 		t.Fatalf("searching content finds the page without carrying it: %+v %v", found, err)
 	}

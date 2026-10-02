@@ -200,7 +200,7 @@ func (a *Agent) backfill(ctx context.Context, workspaceID string) error {
 		return nil
 	}
 	actor := auth.Actor{WorkspaceID: workspaceID, Agent: true}
-	open, err := a.crm.Search(ctx, actor, records.Search{Object: records.FollowUps, Where: map[string]string{"status": "Open"}, Limit: 100})
+	open, _, err := a.crm.Search(ctx, actor, records.Search{Object: records.FollowUps, Where: map[string]string{"status": "Open"}, Limit: 100})
 	if err != nil {
 		return err
 	}
@@ -387,7 +387,7 @@ func (a *Agent) conversation(ctx context.Context, actor auth.Actor, conv interac
 		if attribute == "" {
 			continue
 		}
-		deals, err := a.crm.Search(ctx, actor, records.Search{Object: "deals", Where: map[string]string{attribute: ref.ID}, Limit: 20})
+		deals, _, err := a.crm.Search(ctx, actor, records.Search{Object: "deals", Where: map[string]string{attribute: ref.ID}, Limit: 20})
 		if err != nil {
 			return Conversation{}, err
 		}
@@ -407,7 +407,7 @@ func (a *Agent) conversation(ctx context.Context, actor auth.Actor, conv interac
 		if !ok {
 			continue
 		}
-		open, err := a.crm.Search(ctx, actor, records.Search{Object: records.FollowUps, Where: map[string]string{attribute: ref.ID, "status": "Open"}, Limit: 20})
+		open, _, err := a.crm.Search(ctx, actor, records.Search{Object: records.FollowUps, Where: map[string]string{attribute: ref.ID, "status": "Open"}, Limit: 20})
 		if err != nil {
 			return Conversation{}, err
 		}

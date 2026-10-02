@@ -168,18 +168,18 @@ func TestReferencesAndSearch(t *testing.T) {
 		"name":              {Object: "people", Where: map[string]string{"name": "bob stone"}},
 		"text and filter":   {Object: "people", Query: "stone", Where: map[string]string{"company": "acme.com"}},
 	} {
-		found, err := svc.Search(ctx, a, q)
+		found, _, err := svc.Search(ctx, a, q)
 		if err != nil || len(found) != 1 || found[0].ID != bob.ID {
 			t.Errorf("%s: %v %v", name, found, err)
 		}
 	}
-	if found, _ := svc.Search(ctx, a, records.Search{Object: "people", Query: "STONE"}); len(found) != 2 {
+	if found, _, _ := svc.Search(ctx, a, records.Search{Object: "people", Query: "STONE"}); len(found) != 2 {
 		t.Errorf("text search: %d records", len(found))
 	}
-	if found, err := svc.Search(ctx, a, records.Search{Object: "people", Where: map[string]string{"company": "unknown.com"}}); err != nil || len(found) != 0 {
+	if found, _, err := svc.Search(ctx, a, records.Search{Object: "people", Where: map[string]string{"company": "unknown.com"}}); err != nil || len(found) != 0 {
 		t.Errorf("unknown company: %v %v", found, err)
 	}
-	if found, _ := svc.Search(ctx, a, records.Search{Object: "people", Query: "%"}); len(found) != 0 {
+	if found, _, _ := svc.Search(ctx, a, records.Search{Object: "people", Query: "%"}); len(found) != 0 {
 		t.Errorf("a %% in the query must match literally: %d records", len(found))
 	}
 
@@ -192,7 +192,7 @@ func TestReferencesAndSearch(t *testing.T) {
 	if _, _, err := svc.Upsert(ctx, b, records.SourceAgent, records.Write{Object: "people", RecordID: bob.ID, Set: set("name", "Eve")}); err == nil {
 		t.Fatal("wrote a record in another workspace")
 	}
-	if found, _ := svc.Search(ctx, b, records.Search{Object: "people"}); len(found) != 0 {
+	if found, _, _ := svc.Search(ctx, b, records.Search{Object: "people"}); len(found) != 0 {
 		t.Fatalf("searched another workspace: %v", found)
 	}
 	other, _ := upsert(t, svc, b, records.SourceAgent, records.Write{Object: "people", Set: set("email_addresses", "bob@acme.com")})
@@ -210,7 +210,7 @@ func TestConcurrentUpsertsCreateOneRecord(t *testing.T) {
 	// the others are still dialing and no two ever race.
 	for range ids {
 		wg.Go(func() {
-			_, _ = svc.Search(ctx, a, records.Search{Object: "people"})
+			_, _, _ = svc.Search(ctx, a, records.Search{Object: "people"})
 		})
 	}
 	wg.Wait()

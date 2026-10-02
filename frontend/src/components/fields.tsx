@@ -123,10 +123,12 @@ export function TextInput({
       onCommit(text.trim())
     }
   }
-  if (display && !editing) {
+  // An empty date shows its placeholder rather than the browser's date mask.
+  const shown = display ?? (type === 'date' && !text ? placeholder : undefined)
+  if (shown && !editing) {
     return (
-      <button type="button" aria-label={`${label}: ${display}`} className={cn(valueButton, className)} onClick={() => setEditing(true)}>
-        {display}
+      <button type="button" aria-label={display ? `${label}: ${display}` : label} className={cn(valueButton, !display && 'text-ink-3', className)} onClick={() => setEditing(true)}>
+        {shown}
       </button>
     )
   }

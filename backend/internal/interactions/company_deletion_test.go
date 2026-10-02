@@ -39,7 +39,7 @@ func TestDeletedCompanyExcludesItsDomains(t *testing.T) {
 			t.Fatalf("deleted domain allowed %s: %+v", address, got)
 		}
 	}
-	companies, err := e.crm.Search(ctx, e.a, records.Search{Object: "companies"})
+	companies, _, err := e.crm.Search(ctx, e.a, records.Search{Object: "companies"})
 	if err != nil || len(companies) != 0 {
 		t.Fatalf("company recreated: %+v %v", companies, err)
 	}
@@ -54,7 +54,7 @@ func TestDeletedCompanyExcludesItsDomains(t *testing.T) {
 	if _, err := e.svc.Decide(ctx, e.a, interactions.Decision{Addresses: []string{"new@boardy.ai"}, Keep: true}); err != nil {
 		t.Fatal(err)
 	}
-	companies, err = e.crm.Search(ctx, e.a, records.Search{Object: "companies"})
+	companies, _, err = e.crm.Search(ctx, e.a, records.Search{Object: "companies"})
 	if err != nil || len(companies) != 1 {
 		t.Fatalf("explicit address approval did not restore company: %+v %v", companies, err)
 	}
@@ -98,7 +98,7 @@ func TestLateClassifierCannotOverrideDeletionOrDisabledApprovals(t *testing.T) {
 	if got := e.contacts(t, interactions.Skipped)["keep@a.io"]; got.DecidedBy != interactions.ByUser || got.Reason == "" {
 		t.Fatalf("late AI approval overrode deletion: %+v", got)
 	}
-	companies, err := e.crm.Search(ctx, e.a, records.Search{Object: "companies"})
+	companies, _, err := e.crm.Search(ctx, e.a, records.Search{Object: "companies"})
 	if err != nil || len(companies) != 0 {
 		t.Fatalf("late AI approval recreated company: %+v %v", companies, err)
 	}

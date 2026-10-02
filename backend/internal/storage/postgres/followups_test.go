@@ -121,7 +121,7 @@ JOIN objects ON objects.id = records.object_id WHERE objects.slug = 'companies';
 			t.Fatal(err)
 		}
 		personActor := auth.Actor{WorkspaceID: workspaceID}
-		people, err := svc.Search(ctx, personActor, records.Search{Object: "people"})
+		people, _, err := svc.Search(ctx, personActor, records.Search{Object: "people"})
 		if err != nil || len(people) != 1 {
 			t.Fatalf("upgrade lost %s person: %v %v", name, people, err)
 		}
@@ -141,7 +141,7 @@ JOIN objects ON objects.id = records.object_id WHERE objects.slug = 'companies';
 		if values["name"] != "Existing person" || values["context"] != "Met through a friend.\nDiscussing a pilot." {
 			t.Fatalf("%s upgrade changed existing values: %v", name, values)
 		}
-		companies, err := svc.Search(ctx, personActor, records.Search{Object: "companies"})
+		companies, _, err := svc.Search(ctx, personActor, records.Search{Object: "companies"})
 		if err != nil || len(companies) != 1 {
 			t.Fatalf("upgrade lost %s company: %v %v", name, companies, err)
 		}
@@ -181,14 +181,14 @@ JOIN objects ON objects.id = records.object_id WHERE objects.slug = 'companies';
 	if err != nil || len(filters) != 1 {
 		t.Fatalf("existing workspace did not get default: %v %v", filters, err)
 	}
-	found, err := svc.Search(ctx, actor, records.Search{Object: "deals"})
+	found, _, err := svc.Search(ctx, actor, records.Search{Object: "deals"})
 	if err != nil || len(found) != 1 {
 		t.Fatalf("upgrade lost existing deal: %v %v", found, err)
 	}
 	if _, _, err := svc.Upsert(ctx, actor, records.SourceUser, records.Write{Object: "deals", RecordID: found[0].ID, Set: map[string][]string{"stage": {"On hold"}, "next_follow_up_date": {"2000-01-01"}, "next_action": {"Call back"}}}); err != nil {
 		t.Fatal(err)
 	}
-	if due, err := svc.Search(ctx, actor, records.Search{Object: "deals", Filters: filters[0].Filters}); err != nil || len(due) != 1 || due[0].ID != found[0].ID {
+	if due, _, err := svc.Search(ctx, actor, records.Search{Object: "deals", Filters: filters[0].Filters}); err != nil || len(due) != 1 || due[0].ID != found[0].ID {
 		t.Fatalf("migrated follow-up fields/filter unusable: %v %v", due, err)
 	}
 	followUpFilters, err := svc.SavedFilters(ctx, actor, records.FollowUps)
@@ -199,7 +199,7 @@ JOIN objects ON objects.id = records.object_id WHERE objects.slug = 'companies';
 	if err != nil {
 		t.Fatalf("migrated follow-ups unusable: %v", err)
 	}
-	if due, err := svc.Search(ctx, actor, records.Search{Object: records.FollowUps, Filters: followUpFilters[0].Filters}); err != nil || len(due) != 1 || due[0].ID != followUp.ID {
+	if due, _, err := svc.Search(ctx, actor, records.Search{Object: records.FollowUps, Filters: followUpFilters[0].Filters}); err != nil || len(due) != 1 || due[0].ID != followUp.ID {
 		t.Fatalf("migrated Needs attention filter does not find a due follow-up: %v %v", due, err)
 	}
 	if err := svc.DeleteFilter(ctx, actor, filters[0].ID); err != nil {

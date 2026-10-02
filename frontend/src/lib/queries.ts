@@ -1,4 +1,5 @@
 import { MutationCache, QueryClient, type UseQueryOptions, useInfiniteQuery, useMutation, useQueries, useQuery } from '@tanstack/react-query'
+import { useMemo } from 'react'
 import { toast } from 'sonner'
 import { call } from './api'
 import type { CrmObject, CrmRecord, Interaction, RecordFilter, Relation, Workspace } from './types'
@@ -50,6 +51,25 @@ export function useWrite(record: CrmRecord) {
     set: (slug: string, value: string) => upsert.mutate({ object: record.object, record_id: record.id, values: { [slug]: value } }),
     remove: (slug: string, values: string[]) => upsert.mutate({ object: record.object, record_id: record.id, remove: { [slug]: values } }),
   }
+}
+
+// useRecordPages pages through an object's records, each page with the count
+// of every match; pages repeat no record when others were added meanwhile.
+export function useRecordPages(object: string, query: string, filters: RecordFilter[], include: Relation[] | undefined, sort: string | undefined, limit: number) {
+  const args = { object, query, filters, include, sort, limit }
+  const result = useInfiniteQuery({
+    queryKey: ['search_records', 'pages', args],
+    queryFn: ({ pageParam }) => call<{ records: CrmRecord[]; total: number }>('search_records', { ...args, offset: pageParam }),
+    initialPageParam: 0,
+    getNextPageParam: (last, pages) => {
+      const loaded = pages.reduce((sum, page) => sum + page.records.length, 0)
+      return last.records.length > 0 && loaded < last.total ? loaded : undefined
+    },
+    placeholderData: (previous) => previous,
+  })
+  const pages = result.data?.pages
+  const records = useMemo(() => pages && [...new Map(pages.flatMap((page) => page.records).map((r) => [r.id, r])).values()], [pages])
+  return { ...result, records, total: pages?.[0]?.total }
 }
 
 // useRecordSearch finds records of every object by text.

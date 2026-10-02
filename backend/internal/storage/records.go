@@ -104,9 +104,10 @@ type RecordQuery struct {
 	AttributeIDs []string
 	Operators    []string
 	Matches      []string
-	// SortAttributeID orders records by that date attribute, earliest first
-	// and undated last; nil keeps the newest first.
+	// SortAttributeID orders records by that attribute's value, earliest or
+	// first alphabetically, empty last; nil keeps the newest first.
 	SortAttributeID *string
+	Offset          int32
 	Limit           int32
 }
 
@@ -173,7 +174,8 @@ type RecordStore interface {
 	EditStatus(ctx context.Context, workspaceID, attributeID string, mutate StatusMutation) error
 	DeleteRecord(ctx context.Context, workspaceID, id string) error
 	Records(ctx context.Context, workspaceID string, ids []string) ([]Record, error)
-	SearchRecords(ctx context.Context, query RecordQuery) ([]Record, error)
+	// SearchRecords returns a page of matching records and how many match.
+	SearchRecords(ctx context.Context, query RecordQuery) ([]Record, int, error)
 	RelatedRecords(ctx context.Context, workspaceID, attributeID string, ids []string, limit int32) ([]RelatedRecord, error)
 	SavedFilters(ctx context.Context, workspaceID, objectID string) ([]SavedFilter, error)
 	SaveFilter(ctx context.Context, workspaceID string, filter SavedFilter) (SavedFilter, error)

@@ -126,7 +126,9 @@ WHERE records.workspace_id = @workspace_id AND record_values.active_until IS NUL
   );
 
 -- name: SearchRecords :many
-SELECT records.* FROM records
+-- SearchRecords lists a page of an object's matching records, each with the
+-- count of every match.
+SELECT sqlc.embed(records), count(*) OVER () AS total FROM records
 WHERE records.workspace_id = @workspace_id AND records.object_id = @object_id
   AND (sqlc.narg(query)::text IS NULL OR EXISTS (
     SELECT 1 FROM record_values
@@ -158,7 +160,7 @@ ORDER BY (
     WHERE record_values.record_id = records.id AND record_values.active_until IS NULL
       AND record_values.attribute_id = sqlc.narg(sort_attribute_id)::uuid
   ) NULLS LAST, records.created_at DESC, records.id
-LIMIT @row_limit;
+LIMIT @row_limit OFFSET @row_offset;
 
 -- name: RelatedRecords :many
 SELECT parents.id AS parent_id, children.id FROM records parents

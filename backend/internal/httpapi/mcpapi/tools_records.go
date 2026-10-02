@@ -34,7 +34,7 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 		Description: "List an object's records, newest first or by a date, filtered by text and attribute values, with how often and when last each was in touch. Returns a filtered resource_uri that renders the matching CRM list or deal pipeline, and opens it automatically. Records, and the records they reference, carry a picture: a person's profile picture when Google has one, else the website logo of a record with a domain. Listed records leave out their markdown content, which query still matches and get_record returns.",
 		Meta:        mcp.Meta{"ui": map[string]any{"resourceUri": appURI}}},
 		func(ctx context.Context, actor auth.Actor, in searchInput) (recordsOutput, error) {
-			found, err := crm.Search(ctx, actor, records.Search{Object: in.Object, Query: in.Query, Where: in.Where, Filters: in.Filters, Sort: in.Sort, Limit: in.Limit, Include: in.Include})
+			found, total, err := crm.Search(ctx, actor, records.Search{Object: in.Object, Query: in.Query, Where: in.Where, Filters: in.Filters, Sort: in.Sort, Offset: in.Offset, Limit: in.Limit, Include: in.Include})
 			if err != nil {
 				return recordsOutput{}, err
 			}
@@ -47,7 +47,7 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 				return recordsOutput{}, err
 			}
 			photos, err := pics.of(ctx, actor, found)
-			out := recordsOutput{Records: []recordView{}, ResourceURI: recordSearchURI(in)}
+			out := recordsOutput{Records: []recordView{}, Total: total, ResourceURI: recordSearchURI(in)}
 			for _, record := range found {
 				out.Records = append(out.Records, recordWith(record, activity, photos))
 			}
@@ -249,14 +249,17 @@ type searchInput struct {
 	Query   string             `json:"query,omitempty" jsonschema:"text that any value contains, case-insensitively"`
 	Where   map[string]string  `json:"where,omitempty" jsonschema:"attribute slug to a value the record must hold; a reference takes a record id or a unique value such as a domain"`
 	Filters []records.Filter   `json:"filters,omitempty" jsonschema:"multiple attribute conditions; every condition must match, including repeated attributes"`
-	Sort    string             `json:"sort,omitempty" jsonschema:"a date attribute to order by, earliest first and undated last, such as review_on; omit for newest first"`
+	Sort    string             `json:"sort,omitempty" jsonschema:"a date or text attribute to order by, earliest or first alphabetically and empty last, such as review_on or name; omit for newest first"`
+	Offset  int                `json:"offset,omitempty" jsonschema:"matching records to skip, for the next page"`
 	Limit   int                `json:"limit,omitempty" jsonschema:"at most 500, default 20"`
 	Include []records.Relation `json:"include,omitempty" jsonschema:"at most 8 reverse relationships to include as compact references, keyed by object.attribute in each record's related field"`
 }
 
 type recordsOutput struct {
-	Records     []recordView `json:"records"`
-	ResourceURI string       `json:"resource_uri"`
+	Records []recordView `json:"records"`
+	// Total counts every matching record, beyond this page.
+	Total       int    `json:"total"`
+	ResourceURI string `json:"resource_uri"`
 }
 
 type recordInput struct {

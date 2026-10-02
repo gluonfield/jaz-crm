@@ -23,6 +23,20 @@ export function useKeys(keys: Record<string, () => void>) {
   }, [keys])
 }
 
+// useInView calls onView while active whenever the element comes near the
+// visible area, such as the end of a list that loads more.
+export function useInView(ref: RefObject<HTMLElement | null>, active: boolean, onView: () => void) {
+  useEffect(() => {
+    const element = ref.current
+    if (!active || !element) {
+      return
+    }
+    const observer = new IntersectionObserver((entries) => entries[0].isIntersecting && onView(), { rootMargin: '600px' })
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [ref, active, onView])
+}
+
 // useListKeys moves a focused row with j/k or the arrows and hands other keys
 // the focused index. Rows carry data-row={index} to be scrolled into view.
 export function useListKeys(length: number, keys: Record<string, (index: number) => void> = {}) {

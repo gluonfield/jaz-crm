@@ -31,7 +31,7 @@ func TestFailedApprovalRollsBackRecordsAndDecision(t *testing.T) {
 		t.Fatal("Postgres accepted the invalid verdict")
 	}
 	for _, object := range []string{"people", "companies"} {
-		got, err := e.crm.Search(ctx, e.a, records.Search{Object: object})
+		got, _, err := e.crm.Search(ctx, e.a, records.Search{Object: object})
 		if err != nil || len(got) != 0 {
 			t.Fatalf("failed approval left %s: %+v %v", object, got, err)
 		}

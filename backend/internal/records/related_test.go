@@ -37,7 +37,7 @@ func TestRelatedRecordsBatchTheSelectedPage(t *testing.T) {
 		company, _ := upsert(t, svc, actor, records.SourceUser, records.Write{Object: "companies", Set: set("name", fmt.Sprintf("Company %d", i))})
 		upsert(t, svc, actor, records.SourceUser, records.Write{Object: "people", Set: set("name", "Person", "company", company.ID)})
 	}
-	page, err := svc.Search(ctx, actor, records.Search{Object: "companies", Limit: 10, Include: []records.Relation{{Object: "people", Attribute: "company", Limit: 4}}})
+	page, _, err := svc.Search(ctx, actor, records.Search{Object: "companies", Limit: 10, Include: []records.Relation{{Object: "people", Attribute: "company", Limit: 4}}})
 	if err != nil {
 		t.Fatal(err)
 	}

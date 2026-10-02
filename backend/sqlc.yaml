@@ -16,6 +16,7 @@ overrides:
       ref_record_id: RefRecordID
       target_object_id: TargetObjectID
       row_limit: Limit
+      row_offset: Offset
       avatar_url: AvatarURL
       photo_url: PhotoURL
       redirect_uris: RedirectURIs

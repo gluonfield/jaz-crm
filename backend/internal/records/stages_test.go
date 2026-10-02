@@ -45,7 +45,7 @@ func TestWriteWithOutdatedStages(t *testing.T) {
 	if _, _, err := writer.Upsert(ctx, a, records.SourceUser, records.Write{Object: "deals", Set: set("name", "Stale", "stage", "Lead")}); err == nil {
 		t.Fatal("stored a stage removed after validation")
 	}
-	if found, err := svc.Search(ctx, a, records.Search{Object: "deals"}); err != nil || len(found) != 0 {
+	if found, _, err := svc.Search(ctx, a, records.Search{Object: "deals"}); err != nil || len(found) != 0 {
 		t.Fatalf("failed write left records: %v %v", found, err)
 	}
 	race.beforeWrite = func() { rename("Qualified", "Prospect") }

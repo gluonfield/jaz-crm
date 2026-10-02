@@ -812,7 +812,7 @@ func (q *Queries) ReviseValue(ctx context.Context, arg ReviseValueParams) error 
 }
 
 const searchRecords = `-- name: SearchRecords :many
-SELECT records.id, records.workspace_id, records.object_id, records.created_at FROM records
+SELECT records.id, records.workspace_id, records.object_id, records.created_at, count(*) OVER () AS total FROM records
 WHERE records.workspace_id = $1 AND records.object_id = $2
   AND ($3::text IS NULL OR EXISTS (
     SELECT 1 FROM record_values
@@ -844,7 +844,7 @@ ORDER BY (
     WHERE record_values.record_id = records.id AND record_values.active_until IS NULL
       AND record_values.attribute_id = $7::uuid
   ) NULLS LAST, records.created_at DESC, records.id
-LIMIT $8
+LIMIT $9 OFFSET $8
 `
 
 type SearchRecordsParams struct {
@@ -855,10 +855,18 @@ type SearchRecordsParams struct {
 	Operators       []string
 	Matches         []string
 	SortAttributeID *string
+	Offset          int32
 	Limit           int32
 }
 
-func (q *Queries) SearchRecords(ctx context.Context, arg SearchRecordsParams) ([]Record, error) {
+type SearchRecordsRow struct {
+	Record Record
+	Total  int64
+}
+
+// SearchRecords lists a page of an object's matching records, each with the
+// count of every match.
+func (q *Queries) SearchRecords(ctx context.Context, arg SearchRecordsParams) ([]SearchRecordsRow, error) {
 	rows, err := q.db.Query(ctx, searchRecords,
 		arg.WorkspaceID,
 		arg.ObjectID,
@@ -867,20 +875,22 @@ func (q *Queries) SearchRecords(ctx context.Context, arg SearchRecordsParams) ([
 		arg.Operators,
 		arg.Matches,
 		arg.SortAttributeID,
+		arg.Offset,
 		arg.Limit,
 	)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Record{}
+	items := []SearchRecordsRow{}
 	for rows.Next() {
-		var i Record
+		var i SearchRecordsRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.WorkspaceID,
-			&i.ObjectID,
-			&i.CreatedAt,
+			&i.Record.ID,
+			&i.Record.WorkspaceID,
+			&i.Record.ObjectID,
+			&i.Record.CreatedAt,
+			&i.Total,
 		); err != nil {
 			return nil, err
 		}

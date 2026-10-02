@@ -18,9 +18,11 @@ type Search struct {
 	Query   string
 	Where   map[string]string
 	Filters []Filter
-	// Sort names a date attribute to order by, earliest first and undated
-	// last; empty lists the newest first.
+	// Sort names a date or text attribute to order by, earliest or first
+	// alphabetically, empty last; empty lists the newest first. Offset skips
+	// records for the next page.
 	Sort    string
+	Offset  int
 	Limit   int
 	Include []Relation
 }
@@ -31,14 +33,15 @@ type Relation struct {
 	Limit     int    `json:"limit,omitempty" jsonschema:"per searched record, at most 20, default 4"`
 }
 
-func (s *Service) Search(ctx context.Context, actor auth.Actor, q Search) ([]Record, error) {
+// Search lists a page of an object's matching records and how many match.
+func (s *Service) Search(ctx context.Context, actor auth.Actor, q Search) ([]Record, int, error) {
 	sc, err := s.schema(ctx, actor.WorkspaceID)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	object, err := sc.object(q.Object)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	filters := append([]Filter{}, q.Filters...)
 	for slug, value := range q.Where {
@@ -46,18 +49,19 @@ func (s *Service) Search(ctx context.Context, actor auth.Actor, q Search) ([]Rec
 	}
 	query, err := s.filterQuery(ctx, actor, sc, object, filters)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	if q.Sort != "" {
 		attr, err := sc.attribute(object, q.Sort)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
-		if attr.Type != Date {
-			return nil, errs.Invalidf("sort takes a date attribute; %s is %s", attr.Slug, attr.Type)
+		if attr.Type != Date && attr.Type != Text {
+			return nil, 0, errs.Invalidf("sort takes a date or text attribute; %s is %s", attr.Slug, attr.Type)
 		}
 		query.SortAttributeID = &attr.ID
 	}
+	query.Offset = int32(max(q.Offset, 0))
 	query.Limit = 20
 	if q.Limit > 0 {
 		query.Limit = int32(min(q.Limit, 500))
@@ -66,18 +70,18 @@ func (s *Service) Search(ctx context.Context, actor auth.Actor, q Search) ([]Rec
 		escaped := literalPattern(text)
 		query.Query = &escaped
 	}
-	found, err := s.store.SearchRecords(ctx, query)
+	found, total, err := s.store.SearchRecords(ctx, query)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	views, err := s.views(ctx, actor.WorkspaceID, sc, found, false)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	if err := s.include(ctx, actor, sc, object, views, q.Include); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	return views, nil
+	return views, total, nil
 }
 
 func (s *Service) filterQuery(ctx context.Context, actor auth.Actor, sc schema, object storage.Object, filters []Filter) (storage.RecordQuery, error) {
