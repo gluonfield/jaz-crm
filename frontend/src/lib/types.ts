@@ -126,3 +126,4 @@ export type TriageSettings = {
 export const filterOperators = ['is', 'is_not', 'contains', 'not_contains', 'is_empty', 'is_not_empty', 'before', 'on_or_before', 'after', 'on_or_after'] as const
 export type RecordFilter = { attribute: string; operator: (typeof filterOperators)[number]; value?: string }
 export type SavedFilter = { id: string; name: string; query?: string; filters: RecordFilter[] }
+export type ActiveFilter = { query: string; filters: RecordFilter[]; saved_id?: string }

@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogTitle } from './ui/dialog'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
 
 export function RecordFilters({ object, filters, query, selected, onChange, onApply }: { object: CrmObject; filters: RecordFilter[]; query: string; selected?: string; onChange: (filters: RecordFilter[]) => void; onApply: (filter?: SavedFilter) => void }) {
-  const saved = useTool<{ filters: SavedFilter[] }>('list_saved_filters', { object: object.slug }).data?.filters ?? []
+  const saved = useTool<{ filters: SavedFilter[] }>('list_saved_filters', { object: object.slug }, { refetchInterval: 5000 }).data?.filters ?? []
   const active = saved.find((f) => f.id === selected)
   const save = useAction<{ object: string; id?: string; name: string; query: string; filters: RecordFilter[] }, SavedFilter>('save_filter')
   const remove = useAction<{ id: string }>('delete_saved_filter')

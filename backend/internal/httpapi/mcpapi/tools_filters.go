@@ -10,6 +10,16 @@ import (
 )
 
 func registerFilters(r *registry, crm *records.Service) {
+	add(r, &mcp.Tool{Name: "get_active_filter", Title: "Get workspace filter", Annotations: readOnly,
+		Description: "Get the active text search and conditions for an object's list, shared by all workspace members."},
+		func(ctx context.Context, actor auth.Actor, in filterObjectInput) (storage.ActiveFilter, error) {
+			return crm.ActiveFilter(ctx, actor, in.Object)
+		})
+	add(r, &mcp.Tool{Name: "set_active_filter", Title: "Set workspace filter",
+		Description: "Replace the active text search and conditions for an object's list for every workspace member. Empty filters and query show all records. saved_id optionally identifies the named preset being edited."},
+		func(ctx context.Context, actor auth.Actor, in activeFilterInput) (storage.ActiveFilter, error) {
+			return crm.SetActiveFilter(ctx, actor, in.Object, storage.ActiveFilter{Query: in.Query, Filters: in.Filters, SavedID: in.SavedID})
+		})
 	add(r, &mcp.Tool{Name: "list_saved_filters", Title: "List saved filters", Annotations: readOnly,
 		Description: "List named filters for an object in this workspace. Apply one by passing its query and filters to search_records."},
 		func(ctx context.Context, actor auth.Actor, in filterObjectInput) (filtersOutput, error) {
@@ -30,6 +40,13 @@ func registerFilters(r *registry, crm *records.Service) {
 
 type filterObjectInput struct {
 	Object string `json:"object"`
+}
+
+type activeFilterInput struct {
+	Object  string           `json:"object"`
+	Query   string           `json:"query,omitempty"`
+	Filters []records.Filter `json:"filters,omitempty"`
+	SavedID string           `json:"saved_id,omitempty"`
 }
 
 type filterIDInput struct {

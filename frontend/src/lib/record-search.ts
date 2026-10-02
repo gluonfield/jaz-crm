@@ -20,7 +20,7 @@ export function validateRecordSearch(search: Record<string, unknown>): { sort?: 
     view: search.view === 'table' || search.view === 'board' ? search.view : undefined,
     sort: search.sort === 'name' ? 'name' : undefined,
     q: ['string', 'number', 'boolean'].includes(typeof search.q) ? String(search.q) : undefined,
-    filters: filters.length ? filters : undefined,
+    filters: filters.length || Array.isArray(search.filters) ? filters : undefined,
     saved: typeof search.saved === 'string' ? search.saved : undefined,
     limit: typeof search.limit === 'number' && Number.isInteger(search.limit) ? Math.max(1, Math.min(search.limit, 100)) : undefined,
   }

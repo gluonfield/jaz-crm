@@ -15,6 +15,31 @@ func savedFilter(row recdb.SavedFilter) (storage.SavedFilter, error) {
 	return filter, err
 }
 
+func (s *Store) ActiveFilter(ctx context.Context, workspaceID, objectID string) (storage.ActiveFilter, error) {
+	row, err := s.rec.GetActiveFilter(ctx, recdb.GetActiveFilterParams{WorkspaceID: workspaceID, ObjectID: objectID})
+	if err != nil {
+		return storage.ActiveFilter{}, mapError(err)
+	}
+	filter := storage.ActiveFilter{Query: row.Query}
+	if row.SavedID != nil {
+		filter.SavedID = *row.SavedID
+	}
+	err = json.Unmarshal(row.Filters, &filter.Filters)
+	return filter, err
+}
+
+func (s *Store) SetActiveFilter(ctx context.Context, workspaceID, objectID string, filter storage.ActiveFilter) error {
+	data, err := json.Marshal(filter.Filters)
+	if err != nil {
+		return err
+	}
+	var savedID *string
+	if filter.SavedID != "" {
+		savedID = &filter.SavedID
+	}
+	return affected(s.rec.SetActiveFilter(ctx, recdb.SetActiveFilterParams{WorkspaceID: workspaceID, ObjectID: objectID, Query: filter.Query, Filters: data, SavedID: savedID}))
+}
+
 func (s *Store) SavedFilters(ctx context.Context, workspaceID, objectID string) ([]storage.SavedFilter, error) {
 	rows, err := s.rec.ListSavedFilters(ctx, recdb.ListSavedFiltersParams{WorkspaceID: workspaceID, ObjectID: objectID})
 	if err != nil {

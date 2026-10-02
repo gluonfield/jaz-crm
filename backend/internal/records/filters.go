@@ -24,6 +24,48 @@ func (s *Service) SavedFilters(ctx context.Context, actor auth.Actor, slug strin
 	return s.store.SavedFilters(ctx, actor.WorkspaceID, object.ID)
 }
 
+func (s *Service) ActiveFilter(ctx context.Context, actor auth.Actor, slug string) (storage.ActiveFilter, error) {
+	sc, err := s.schema(ctx, actor.WorkspaceID)
+	if err != nil {
+		return storage.ActiveFilter{}, err
+	}
+	object, err := sc.object(slug)
+	if err != nil {
+		return storage.ActiveFilter{}, err
+	}
+	filter, err := s.store.ActiveFilter(ctx, actor.WorkspaceID, object.ID)
+	if errors.Is(err, storage.ErrNotFound) {
+		filter.Filters = []Filter{}
+		if slug == "follow_ups" {
+			filter.Filters = []Filter{{Attribute: "status", Operator: "is", Value: "Open"}}
+		}
+		return filter, nil
+	}
+	return filter, err
+}
+
+func (s *Service) SetActiveFilter(ctx context.Context, actor auth.Actor, slug string, filter storage.ActiveFilter) (storage.ActiveFilter, error) {
+	sc, err := s.schema(ctx, actor.WorkspaceID)
+	if err != nil {
+		return filter, err
+	}
+	object, err := sc.object(slug)
+	if err != nil {
+		return filter, err
+	}
+	if _, err := s.filterQuery(ctx, actor, sc, object, filter.Filters); err != nil {
+		return filter, err
+	}
+	if filter.Filters == nil {
+		filter.Filters = []Filter{}
+	}
+	err = s.store.SetActiveFilter(ctx, actor.WorkspaceID, object.ID, filter)
+	if errors.Is(err, storage.ErrNotFound) {
+		return filter, errs.Invalidf("saved filter not found for this object")
+	}
+	return filter, err
+}
+
 func (s *Service) SaveFilter(ctx context.Context, actor auth.Actor, slug string, filter storage.SavedFilter) (storage.SavedFilter, error) {
 	filter.Name = strings.TrimSpace(filter.Name)
 	filter.Query = strings.TrimSpace(filter.Query)

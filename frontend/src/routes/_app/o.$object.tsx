@@ -1,6 +1,6 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { ArrowDownAZ, Kanban, ListChecks, Plus, Search, Table2 } from 'lucide-react'
-import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { Board } from '@/components/board'
 import { CompanyPeople } from '@/components/company-people'
 import { editDraft, FollowUpQueue } from '@/components/follow-ups'
@@ -20,12 +20,13 @@ import { SelectField } from '@/components/select-field'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
 import { formatDay, formatNumber } from '@/lib/format'
 import { useDebounced, useFlip, useInView, useListKeys } from '@/lib/hooks'
-import { useObjects, useRecordPages } from '@/lib/queries'
+import { useObjects, useRecordPages, useWorkspace } from '@/lib/queries'
+import { useActiveFilter } from '@/lib/active-filter'
 import { useColumnWidths } from '@/lib/use-column-widths'
 import { validateRecordSearch } from '@/lib/record-search'
 import { statusOf } from '@/lib/stages'
 import { useMail } from '@/lib/sync'
-import type { Attribute, CrmObject, CrmRecord } from '@/lib/types'
+import type { ActiveFilter, Attribute, CrmObject, CrmRecord } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 export const Route = createFileRoute('/_app/o/$object')({
@@ -40,18 +41,33 @@ const arrivals: Record<string, string> = {
   follow_ups: 'Next steps appear here as conversations with the people you keep create them.',
 }
 
-// open is the queue's default view: the follow-ups still to act on.
-const open = [{ attribute: 'status', operator: 'is' as const, value: 'Open' }]
-
 function ObjectPage() {
   const { object: slug } = Route.useParams()
+  const search = Route.useSearch()
+  const workspace = useWorkspace()
+  const initial = useMemo(() => search.filters !== undefined || search.q !== undefined || search.saved !== undefined
+    ? { filters: search.filters ?? [], query: search.q ?? '', saved_id: search.saved }
+    : undefined, [search.filters, search.q, search.saved])
+  return workspace && <FilteredObject key={`${workspace.id}:${slug}:${JSON.stringify(initial)}`} slug={slug} initial={initial} />
+}
+
+function FilteredObject({ slug, initial }: { slug: string; initial?: ActiveFilter }) {
+  const { filter, error, setFilter, flush } = useActiveFilter(slug, initial)
+  if (!filter) {
+    return error ? <EmptyState title={error.message} icon={<Search />} /> : <Header>{slug}</Header>
+  }
+  return <ObjectList slug={slug} filter={filter} setFilter={setFilter} flush={flush} />
+}
+
+function ObjectList({ slug, filter, setFilter, flush }: { slug: string; filter: ActiveFilter; setFilter: (filter: ActiveFilter, debounce?: boolean) => void; flush: () => void }) {
   const objects = useObjects()
   const object = objects?.find((o) => o.slug === slug)
   const search = Route.useSearch()
-  const { sort, view, q = '', filters = [], saved, limit = 100 } = search
+  const { sort, view, limit = 100 } = search
+  const { query: q, filters, saved_id: saved } = filter
   const query = useDebounced(q.trim())
   const queue = slug === 'follow_ups' && view !== 'table'
-  const result = useRecordPages(slug, query, queue && filters.length === 0 ? open : filters, slug === 'companies' ? [{ object: 'people', attribute: 'company', limit: 4 }] : undefined, queue ? 'review_on' : sort, limit)
+  const result = useRecordPages(slug, query, filters, slug === 'companies' ? [{ object: 'people', attribute: 'company', limit: 4 }] : undefined, queue ? 'review_on' : sort, limit)
   const { records, total, hasNextPage, isFetchingNextPage, fetchNextPage } = result
   const { width, resize } = useColumnWidths(slug)
   const status = object && statusOf(object.attributes)
@@ -96,8 +112,8 @@ function ObjectPage() {
         )}
         <div className="ml-auto flex min-w-0 items-center gap-1 font-normal">
           <RecordFilters key={slug} object={object} filters={filters} query={q} selected={saved}
-            onChange={(filters) => void navigate({ to: '.', search: { ...search, filters }, replace: true })}
-            onApply={(filter) => void navigate({ to: '.', search: { ...search, filters: filter?.filters ?? [], q: filter?.query, saved: filter?.id }, replace: true })}
+            onChange={(filters) => setFilter({ ...filter, filters })}
+            onApply={(saved) => setFilter({ filters: saved?.filters ?? [], query: saved?.query ?? '', saved_id: saved?.id })}
           />
           <Picker
             trigger={
@@ -117,7 +133,8 @@ function ObjectPage() {
               type="search"
               autoComplete="off"
               value={q}
-              onChange={(e) => void navigate({ to: '.', search: { ...search, q: e.target.value || undefined }, replace: true })}
+              onChange={(e) => setFilter({ ...filter, query: e.target.value }, true)}
+              onBlur={flush}
               onKeyDown={(e) => e.stopPropagation()}
               placeholder="Search"
               aria-label={`Search ${object.name.toLowerCase()}`}

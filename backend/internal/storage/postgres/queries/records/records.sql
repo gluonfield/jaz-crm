@@ -39,7 +39,18 @@ DELETE FROM attributes USING objects
 WHERE attributes.object_id = objects.id AND objects.workspace_id = @workspace_id AND attributes.id = @id;
 
 -- name: DropFilterConditions :exec
--- DropFilterConditions takes attributes out of the saved filters on them.
+WITH active AS (
+  UPDATE active_filters SET filters = (
+    SELECT coalesce(jsonb_agg(condition ORDER BY position), '[]'::jsonb)
+    FROM jsonb_array_elements(filters) WITH ORDINALITY AS conditions(condition, position)
+    WHERE NOT EXISTS (
+      SELECT 1 FROM attributes
+      WHERE attributes.id = ANY(@attribute_ids::uuid[]) AND attributes.object_id = active_filters.object_id AND attributes.slug = condition->>'attribute'
+    )
+  )
+  WHERE object_id IN (SELECT id FROM objects WHERE workspace_id = @workspace_id)
+    AND object_id IN (SELECT object_id FROM attributes WHERE id = ANY(@attribute_ids::uuid[]))
+)
 UPDATE saved_filters SET filters = (
   SELECT coalesce(jsonb_agg(condition ORDER BY position), '[]'::jsonb) FROM jsonb_array_elements(filters) WITH ORDINALITY AS conditions(condition, position)
   WHERE NOT EXISTS (
@@ -47,7 +58,7 @@ UPDATE saved_filters SET filters = (
     WHERE attributes.id = ANY(@attribute_ids::uuid[]) AND attributes.object_id = saved_filters.object_id AND attributes.slug = condition->>'attribute'
   )
 )
-WHERE workspace_id = @workspace_id AND object_id IN (SELECT object_id FROM attributes WHERE id = ANY(@attribute_ids::uuid[]));
+WHERE saved_filters.workspace_id = @workspace_id AND saved_filters.object_id IN (SELECT object_id FROM attributes WHERE id = ANY(@attribute_ids::uuid[]));
 
 -- name: ListObjects :many
 SELECT * FROM objects WHERE workspace_id = $1 ORDER BY created_at, slug;
@@ -188,6 +199,19 @@ VALUES ($1, $2, $3, $4, $5, $6, $7);
 
 -- name: ListSavedFilters :many
 SELECT * FROM saved_filters WHERE workspace_id = $1 AND object_id = $2 ORDER BY lower(name), id;
+
+-- name: GetActiveFilter :one
+SELECT active_filters.* FROM active_filters JOIN objects ON objects.id = active_filters.object_id
+WHERE objects.workspace_id = @workspace_id AND objects.id = @object_id;
+
+-- name: SetActiveFilter :execrows
+INSERT INTO active_filters (object_id, query, filters, saved_id)
+SELECT objects.id, @query, @filters, sqlc.narg(saved_id)::text FROM objects
+WHERE objects.workspace_id = @workspace_id AND objects.id = @object_id
+  AND (sqlc.narg(saved_id)::text IS NULL OR EXISTS (
+    SELECT 1 FROM saved_filters WHERE id = sqlc.narg(saved_id) AND object_id = objects.id
+  ))
+ON CONFLICT (object_id) DO UPDATE SET query = EXCLUDED.query, filters = EXCLUDED.filters, saved_id = EXCLUDED.saved_id;
 
 -- name: CreateSavedFilter :one
 INSERT INTO saved_filters (id, workspace_id, object_id, name, query, filters)
