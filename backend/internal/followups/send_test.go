@@ -111,6 +111,14 @@ func plainText(t *testing.T, m *mail.Message) string {
 }
 
 func TestReleaseSendsEmailRepliesAndApprovesOthers(t *testing.T) {
+	for _, transport := range []string{"browser", "mcp"} {
+		t.Run(transport, func(t *testing.T) {
+			releaseSendsEmailRepliesAndApprovesOthers(t, transport)
+		})
+	}
+}
+
+func releaseSendsEmailRepliesAndApprovesOthers(t *testing.T, transport string) {
 	store := postgrestest.New(t)
 	people := workspaces.NewService(store, workspaces.Config{})
 	owner, err := people.Provision(ctx, "owner@cas.dev")
@@ -196,7 +204,7 @@ func TestReleaseSendsEmailRepliesAndApprovesOthers(t *testing.T) {
 		return pick("draft_status"), pick("status")
 	}
 
-	seen := followups.Seen{Draft: "Hi Jane, the revised quote is attached.", From: "owner@cas.dev", To: []string{"jane@acme.com"}, Cc: []string{"bob@acme.com"}}
+	seen := followups.Seen{Confirmed: true, Draft: "Hi Jane, the revised quote is attached.", From: "owner@cas.dev", To: []string{"jane@acme.com"}, Cc: []string{"bob@acme.com"}}
 	reply := followUp("Email")
 	agent := ownerActor
 	agent.Agent = true
@@ -223,16 +231,18 @@ func TestReleaseSendsEmailRepliesAndApprovesOthers(t *testing.T) {
 	}) {
 		t.Fatalf("a later generated draft must preserve the person's saved text: %+v %+v %v", updated, skipped, err)
 	}
-	if _, err := svc.Release(ctx, agent, reply, seen); err == nil {
-		t.Fatal("an agent sent a draft")
+	unconfirmed := seen
+	unconfirmed.Confirmed = false
+	if _, err := svc.Release(ctx, agent, reply, unconfirmed); err == nil {
+		t.Fatal("an unconfirmed draft was sent")
 	}
-	if _, err := svc.Release(ctx, mateActor, reply, followups.Seen{Draft: "An older text", To: seen.To, Cc: seen.Cc}); err == nil {
+	if _, err := svc.Release(ctx, mateActor, reply, followups.Seen{Confirmed: true, Draft: "An older text", To: seen.To, Cc: seen.Cc}); err == nil {
 		t.Fatal("a draft was sent that differs from what the person saw")
 	}
 	if sender, err := svc.Sender(ctx, mateActor, reply); err != nil || sender.From != seen.From || sender.Signature != "<div>Owner Name<br>CAS</div>" || !slices.Equal(sender.To, seen.To) || !slices.Equal(sender.Cc, seen.Cc) {
 		t.Fatalf("a teammate's reply must carry its mailbox, signature and reply-all recipients: %+v %v", sender, err)
 	}
-	if _, err := svc.Release(ctx, mateActor, reply, followups.Seen{Draft: seen.Draft, From: "mate@cas.dev", To: seen.To, Cc: seen.Cc}); err == nil || len(g.sent) != 0 {
+	if _, err := svc.Release(ctx, mateActor, reply, followups.Seen{Confirmed: true, Draft: seen.Draft, From: "mate@cas.dev", To: seen.To, Cc: seen.Cc}); err == nil || len(g.sent) != 0 {
 		t.Fatalf("a draft was sent from a mailbox other than the one the person saw: %v", err)
 	}
 	g.fail = true
@@ -262,7 +272,7 @@ func TestReleaseSendsEmailRepliesAndApprovesOthers(t *testing.T) {
 	if err := conns.SetTeammatesSend(ctx, ownerActor, mailbox.ID, true); err != nil {
 		t.Fatal(err)
 	}
-	releaseThroughHTTP(t, auth.NewService(store, auth.Config{PublicURL: "http://crm.test"}), mcpapi.Services{Records: crm, Workspaces: people, Connections: conns, FollowUps: svc}, mate.ID, reply, seen)
+	releaseThroughHTTP(t, auth.NewService(store, auth.Config{PublicURL: "http://crm.test"}), mcpapi.Services{Records: crm, Workspaces: people, Connections: conns, FollowUps: svc}, mate.ID, reply, seen, transport)
 	if draft, status := state(reply); draft != records.DraftSent || status != "Done" {
 		t.Fatalf("a sent reply closes its follow-up: %q %q", draft, status)
 	}

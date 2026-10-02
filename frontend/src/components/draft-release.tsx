@@ -1,6 +1,5 @@
 import { Button } from '@jaz/ui/button'
 import { useRef, useState } from 'react'
-import { embedded } from '@/lib/api'
 import { valueText, valuesOf } from '@/lib/crm'
 import { useAction, useWorkspace } from '@/lib/queries'
 import type { CrmRecord, DraftSender } from '@/lib/types'
@@ -10,7 +9,7 @@ import { Signature } from './signature'
 const list = (record: CrmRecord, slug: string) => valuesOf(record, slug).map(valueText)
 const text = (record: CrmRecord, slug: string) => list(record, slug).join(', ')
 
-export function Release({ record, channel, sender, disabled }: { record: CrmRecord; channel: string; sender?: DraftSender; disabled?: boolean }) {
+export function Release({ record, draft, channel, sender, beforeSend, disabled }: { record: CrmRecord; draft: string; channel: string; sender?: DraftSender; beforeSend: (draft: string) => Promise<unknown>; disabled?: boolean }) {
   const [open, setOpen] = useState(false)
   const workspace = useWorkspace()
   const state = text(record, 'draft_status')
@@ -18,36 +17,38 @@ export function Release({ record, channel, sender, disabled }: { record: CrmReco
   if (state === 'Sent' || state === 'Sending' || (!email && state === 'Approved')) {
     return <span className="text-[12px] text-ink-3">{state === 'Approved' ? 'Approved · waiting for the sender' : state}</span>
   }
-  const unavailable = disabled || !text(record, 'draft').trim() || !channel || (email && !sender)
+  const unavailable = disabled || !draft.trim() || !channel || (email && !sender)
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild><Button variant="primary" size="sm" disabled={unavailable}>{email ? 'Send' : 'Approve'}</Button></DialogTrigger>
-      {open && <DraftConfirmation record={record} sender={sender} channel={channel} workspace={workspace?.name} onClose={() => setOpen(false)} onSent={() => setOpen(false)} />}
+      {open && <DraftConfirmation record={record} draft={draft} sender={sender} channel={channel} workspace={workspace?.name} beforeSend={beforeSend} onClose={() => setOpen(false)} onSent={() => setOpen(false)} />}
     </Dialog>
   )
 }
 
-function DraftConfirmation({ record, sender, channel, workspace, onClose, onSent }: { record: CrmRecord; sender?: DraftSender; channel: string; workspace?: string; onClose: () => void; onSent: () => void }) {
+function DraftConfirmation({ record, draft, sender, channel, workspace, beforeSend, onClose, onSent }: { record: CrmRecord; draft: string; sender?: DraftSender; channel: string; workspace?: string; beforeSend: (draft: string) => Promise<unknown>; onClose: () => void; onSent: () => void }) {
   const email = channel === 'Email'
   // Keep the reviewed text and recipients fixed while background queries refresh.
   const [seen] = useState(() => ({
     record_id: record.id,
     workspace,
-    draft: text(record, 'draft'),
+    draft: draft.trim(),
     from: sender?.from,
     to: email ? sender?.to ?? [] : list(record, 'to'),
     cc: email ? sender?.cc ?? [] : list(record, 'cc'),
     signature: sender?.signature,
   }))
-  const send = useAction<Omit<typeof seen, 'signature'>>('send_draft')
+  const send = useAction<Omit<typeof seen, 'signature'> & { confirmed: boolean }>('send_draft')
   const sending = useRef(false)
-  const unavailable = embedded()
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const pending = saving || send.isPending
   return (
     <DialogContent
       aria-describedby="send-description"
       showCloseButton={false}
       onEscapeKeyDown={(event) => {
-        if (send.isPending) {
+        if (pending) {
           event.preventDefault()
         }
       }}
@@ -66,22 +67,33 @@ function DraftConfirmation({ record, sender, channel, workspace, onClose, onSent
         {seen.signature && <div className="mt-3 border-t border-border pt-2"><Signature html={seen.signature} /></div>}
       </div>
       {send.error && <p role="alert" className="text-[13px] text-danger">{send.error.message}</p>}
-      {unavailable && <p role="status" className="text-[13px] text-ink-2">{email ? 'Sending' : 'Approval'} inside Jaz is currently unavailable. Your draft is saved.</p>}
+      {saveError && <p role="alert" className="text-[13px] text-danger">{saveError}</p>}
       <div className="flex justify-end gap-2">
-        <Button autoFocus disabled={send.isPending} onClick={onClose}>Cancel</Button>
-        <Button variant="primary" disabled={send.isPending || unavailable} onClick={() => {
+        <Button autoFocus disabled={pending} onClick={onClose}>Cancel</Button>
+        <Button variant="primary" disabled={pending} onClick={async () => {
           if (sending.current) {
             return
           }
           sending.current = true
+          setSaving(true)
+          setSaveError('')
+          try {
+            await beforeSend(seen.draft)
+          } catch (error) {
+            setSaveError(error instanceof Error ? error.message : 'Could not save the reply. Try again.')
+            sending.current = false
+            return
+          } finally {
+            setSaving(false)
+          }
           const { signature: _signature, ...input } = seen
-          send.mutate(input, {
+          send.mutate({ ...input, confirmed: true }, {
             onSuccess: onSent,
             onError: () => {
               sending.current = false
             },
           })
-        }}>{send.isPending ? (email ? 'Sending…' : 'Approving…') : (email ? 'Send' : 'Approve')}</Button>
+        }}>{pending ? (email ? 'Sending…' : 'Approving…') : (email ? 'Send' : 'Approve')}</Button>
       </div>
     </DialogContent>
   )

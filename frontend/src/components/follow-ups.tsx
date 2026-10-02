@@ -1,6 +1,6 @@
 import { Check, ChevronDown, LoaderCircle, X } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Fragment, type ReactNode, useEffect, useState } from 'react'
+import { Fragment, type ReactNode, useEffect, useRef, useState } from 'react'
 import { Button } from '@jaz/ui/button'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
 import { formatDay } from '@/lib/format'
@@ -189,39 +189,45 @@ function Context({ record }: { record: CrmRecord }) {
 function Draft({ record, channel, sender, error, drafting }: { record: CrmRecord; channel: string; sender?: DraftSender; error?: string; drafting?: Interaction['drafting'] }) {
   const current = text(record, 'draft')
   const [edited, setEdited] = useState<string | null>(null)
+  const saving = useRef<{ text: string; promise: Promise<unknown> } | null>(null)
   const draft = edited ?? current
   const client = useQueryClient()
   const locked = ['Sending', 'Sent'].includes(text(record, 'draft_status'))
   const email = channel === 'Email'
   const to = list(record, 'to')
   const write = useMutation({
-    mutationKey: ['upsert_record'],
+    mutationKey: ['save_draft'],
     scope: { id: `draft:${record.id}` },
     mutationFn: async (next: string) => {
-      const values: Record<string, string | string[]> = { draft: next }
       let replyChannel = channel
+      let recipients = { to, cc: list(record, 'cc') }
       if (next && !replyChannel) {
         const source = await client.fetchQuery(toolQuery<{ interactions: Interaction[] }>('list_interactions', { record_id: record.id, kinds: ['message'], limit: 1 }))
         replyChannel = channels[source.interactions[0]?.channel ?? ''] ?? ''
       }
-      if (replyChannel && !text(record, 'channel')) {
-        values.channel = replyChannel
-      }
       if (next && replyChannel === 'Email' && to.length === 0 && !error) {
         const defaults = sender ?? await client.fetchQuery<DraftSender>(toolQuery<DraftSender>('get_draft_sender', { record_id: record.id }))
-        values.to = defaults.to
-        values.cc = defaults.cc
+        recipients = { to: defaults.to, cc: defaults.cc }
       }
-      return call('upsert_record', { object: record.object, record_id: record.id, ...(next ? { values } : { remove: { draft: [] } }) })
+      return call('save_draft', { record_id: record.id, draft: next, channel: replyChannel, ...recipients })
     },
   })
-  const commit = () => {
-    const next = draft.trim()
-    if (!locked && (write.isPending ? next !== write.variables : next !== current)) {
-      write.mutate(next, {
-        onSuccess: () => setEdited((latest) => latest?.trim() === next ? null : latest),
-      })
+  const commit = (next = draft.trim()): Promise<unknown> => {
+    if (saving.current?.text === next) {
+      return saving.current.promise
     }
+    if (locked || (!saving.current && next === current)) {
+      return Promise.resolve()
+    }
+    const promise = write.mutateAsync(next).then(() => {
+      setEdited((latest) => latest?.trim() === next ? null : latest)
+    }).finally(() => {
+      if (saving.current?.promise === promise) {
+        saving.current = null
+      }
+    })
+    saving.current = { text: next, promise }
+    return promise
   }
   return (
     <div className="flex flex-col gap-2 rounded-[var(--radius-control)] bg-bg px-3 py-2.5">
@@ -246,7 +252,7 @@ function Draft({ record, channel, sender, error, drafting }: { record: CrmRecord
         value={draft}
         disabled={locked}
         onChange={(e) => setEdited(e.target.value)}
-        onBlur={commit}
+        onBlur={() => void commit().catch(() => {})}
         onKeyDown={(e) => {
           e.stopPropagation()
           if (e.key === 'Escape') {
@@ -260,7 +266,7 @@ function Draft({ record, channel, sender, error, drafting }: { record: CrmRecord
       />
       {sender?.signature && <div className="cursor-default border-t border-border pt-2"><Signature html={sender.signature} /></div>}
       <div className="flex justify-end">
-        <Release record={record} channel={channel} sender={sender} disabled={!!error || write.isPending || draft.trim() !== current} />
+        <Release record={record} draft={draft} channel={channel} sender={sender} beforeSend={commit} disabled={!!error} />
       </div>
     </div>
   )

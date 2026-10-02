@@ -9,10 +9,16 @@ import (
 )
 
 func registerFollowUps(r *registry, svc *followups.Service) {
+	add(r, &mcp.Tool{Name: "save_draft", Title: "Save draft", Meta: mcp.Meta{"ui": map[string]any{"visibility": []string{"app"}}},
+		Description: "Save the reply edited in the CRM composer. Replaces draft text, channel and recipients; editing withdraws prior approval."},
+		func(ctx context.Context, actor auth.Actor, in saveDraftInput) (recordView, error) {
+			record, err := svc.SaveDraft(ctx, actor, in.RecordID, in.Draft, in.Channel, in.To, in.Cc)
+			return recordOf(record, nil), err
+		})
 	add(r, &mcp.Tool{Name: "send_draft", Title: "Send draft", Meta: mcp.Meta{"ui": map[string]any{"visibility": []string{"app"}}},
-		Description: "A person in the CRM releases a follow-up's draft as they saw it: an email is sent now as a reply in its newest linked conversation; a LinkedIn draft is approved for whoever sends it. Agents are refused."},
+		Description: "Release a follow-up's reviewed draft after explicit confirmation: an email is sent now as a reply in its newest linked conversation; a LinkedIn draft is approved for whoever sends it. The CRM app calls this only after Send/Approve is confirmed."},
 		func(ctx context.Context, actor auth.Actor, in sendInput) (recordView, error) {
-			record, err := svc.Release(ctx, actor, in.RecordID, followups.Seen{Draft: in.Draft, From: in.From, To: in.To, Cc: in.Cc})
+			record, err := svc.Release(ctx, actor, in.RecordID, followups.Seen{Confirmed: in.Confirmed, Draft: in.Draft, From: in.From, To: in.To, Cc: in.Cc})
 			return recordOf(record, nil), err
 		})
 	add(r, &mcp.Tool{Name: "get_draft_sender", Title: "Get draft sender", Meta: mcp.Meta{"ui": map[string]any{"visibility": []string{"app"}}},
@@ -22,10 +28,19 @@ func registerFollowUps(r *registry, svc *followups.Service) {
 		})
 }
 
-type sendInput struct {
+type saveDraftInput struct {
 	RecordID string   `json:"record_id"`
-	Draft    string   `json:"draft" jsonschema:"the draft text as the person saw it"`
-	From     string   `json:"from,omitempty" jsonschema:"the mailbox an email draft was shown going from"`
-	To       []string `json:"to,omitempty"`
-	Cc       []string `json:"cc,omitempty"`
+	Draft    string   `json:"draft"`
+	Channel  string   `json:"channel"`
+	To       []string `json:"to"`
+	Cc       []string `json:"cc"`
+}
+
+type sendInput struct {
+	Confirmed bool     `json:"confirmed" jsonschema:"true only after explicit confirmation of the displayed reply and recipients"`
+	RecordID  string   `json:"record_id"`
+	Draft     string   `json:"draft" jsonschema:"the draft text as the person saw it"`
+	From      string   `json:"from,omitempty" jsonschema:"the mailbox an email draft was shown going from"`
+	To        []string `json:"to,omitempty"`
+	Cc        []string `json:"cc,omitempty"`
 }

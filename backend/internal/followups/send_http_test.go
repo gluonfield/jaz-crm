@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -17,7 +18,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-func releaseThroughHTTP(t *testing.T, keys *auth.Service, services mcpapi.Services, userID, id string, seen followups.Seen) {
+func releaseThroughHTTP(t *testing.T, keys *auth.Service, services mcpapi.Services, userID, id string, seen followups.Seen, transport string) {
 	t.Helper()
 	logger := log.New(io.Discard)
 	authn, err := authapi.NewHandler(keys, services.Workspaces, signin.Config{PublicURL: keys.Issuer()}, logger)
@@ -34,7 +35,7 @@ func releaseThroughHTTP(t *testing.T, keys *auth.Service, services mcpapi.Servic
 	if err != nil {
 		t.Fatal(err)
 	}
-	input := map[string]any{"record_id": id, "draft": seen.Draft, "from": seen.From, "to": seen.To, "cc": seen.Cc}
+	input := map[string]any{"confirmed": false, "record_id": id, "draft": seen.Draft, "from": seen.From, "to": seen.To, "cc": seen.Cc}
 	client := mcp.NewClient(&mcp.Implementation{Name: "embedded-app", Version: "1"}, nil)
 	session, err := client.Connect(ctx, &mcp.StreamableClientTransport{Endpoint: server.URL + "/mcp", HTTPClient: &http.Client{Transport: sendBearer(key)}}, nil)
 	if err != nil {
@@ -44,8 +45,8 @@ func releaseThroughHTTP(t *testing.T, keys *auth.Service, services mcpapi.Servic
 		_ = session.Close()
 	})
 	result, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "send_draft", Arguments: input})
-	if err != nil || !result.IsError || !strings.Contains(result.Content[0].(*mcp.TextContent).Text, "only a person") {
-		t.Fatalf("MCP must retain the human approval boundary: %v %v", result, err)
+	if err != nil || !result.IsError || !strings.Contains(result.Content[0].(*mcp.TextContent).Text, "confirm the reply") {
+		t.Fatalf("MCP must require confirmation: %v %v", result, err)
 	}
 	token, _, err := keys.CreateSession(ctx, userID)
 	if err != nil {
@@ -71,16 +72,85 @@ func releaseThroughHTTP(t *testing.T, keys *auth.Service, services mcpapi.Servic
 	if status, body := post(false); status != http.StatusUnauthorized {
 		t.Fatalf("a bearer token became browser approval: %d %s", status, body)
 	}
+	if status, body := post(true); status != http.StatusBadRequest || !strings.Contains(body, "confirm the reply") {
+		t.Fatalf("browser must require confirmation: %d %s", status, body)
+	}
+	save := map[string]any{"record_id": id, "draft": seen.Draft + " Edited in the browser.", "channel": "Email", "to": []string{"old@example.com"}, "cc": []string{"old-copy@example.com"}}
+	body, _ := json.Marshal(save)
+	request, _ := http.NewRequest(http.MethodPost, server.URL+"/api/tools/save_draft", strings.NewReader(string(body)))
+	request.Header.Set("Content-Type", "application/json")
+	request.AddCookie(&http.Cookie{Name: "jc_session", Value: token})
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("browser composer save: %d", response.StatusCode)
+	}
+	save["draft"] = seen.Draft
+	save["to"] = seen.To
+	save["cc"] = seen.Cc
+	result, err = session.CallTool(ctx, &mcp.CallToolParams{Name: "save_draft", Arguments: save})
+	if err != nil || result.IsError {
+		t.Fatalf("the embedded composer could not edit the browser's draft: %v %v", result, err)
+	}
+	var saved struct {
+		Values map[string]any `json:"values"`
+	}
+	if err := json.Unmarshal([]byte(result.Content[0].(*mcp.TextContent).Text), &saved); err != nil || saved.Values["draft"] != seen.Draft || saved.Values["draft_status"] != "Draft" {
+		t.Fatalf("the embedded edit was skipped or retained approval: %+v %v", saved, err)
+	}
+	for attribute, addresses := range map[string][]string{"to": seen.To, "cc": seen.Cc} {
+		raw, _ := json.Marshal(addresses)
+		var expected any
+		_ = json.Unmarshal(raw, &expected)
+		if !reflect.DeepEqual(saved.Values[attribute], expected) {
+			t.Fatalf("%s retained old recipients: %+v", attribute, saved.Values[attribute])
+		}
+	}
+	cleared, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "save_draft", Arguments: map[string]any{
+		"record_id": id, "draft": "", "channel": "Email", "to": []string{}, "cc": []string{},
+	}})
+	if err != nil || cleared.IsError {
+		t.Fatalf("clear draft: %v %v", cleared, err)
+	}
+	saved.Values = nil
+	if err := json.Unmarshal([]byte(cleared.Content[0].(*mcp.TextContent).Text), &saved); err != nil || saved.Values["draft"] != nil || saved.Values["draft_status"] != nil || saved.Values["to"] != nil || saved.Values["cc"] != nil {
+		t.Fatalf("clearing the composer retained draft data: %+v %v", saved, err)
+	}
+	if restored, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "save_draft", Arguments: save}); err != nil || restored.IsError {
+		t.Fatalf("restore draft: %v %v", restored, err)
+	}
+	result, err = session.CallTool(ctx, &mcp.CallToolParams{Name: "upsert_record", Arguments: map[string]any{
+		"object": "follow_ups", "record_id": id, "values": map[string]string{"draft_status": "Approved"},
+	}})
+	if err != nil || !result.IsError || !strings.Contains(result.Content[0].(*mcp.TextContent).Text, "only a person") {
+		t.Fatalf("an ordinary record write bypassed confirmation: %v %v", result, err)
+	}
+	release := func() (bool, string) {
+		t.Helper()
+		if transport == "browser" {
+			status, body := post(true)
+			return status == http.StatusOK, body
+		}
+		result, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "send_draft", Arguments: input})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return !result.IsError, result.Content[0].(*mcp.TextContent).Text
+	}
+	input["confirmed"] = true
 	input["draft"] = "A stale preview"
-	if status, body := post(true); status != http.StatusBadRequest || !strings.Contains(body, "draft changed") {
-		t.Fatalf("a changed draft was sent: %d %s", status, body)
+	if success, body := release(); success || !strings.Contains(body, "draft changed") {
+		t.Fatalf("a changed draft was sent: %v %s", success, body)
 	}
 	input["draft"] = seen.Draft
-	if status, body := post(true); status != http.StatusOK || !strings.Contains(body, `"draft_status":"Sent"`) {
-		t.Fatalf("the browser confirmation could not send: %d %s", status, body)
+	if success, body := release(); !success || !strings.Contains(body, `"draft_status":"Sent"`) {
+		t.Fatalf("the confirmation could not send: %v %s", success, body)
 	}
-	if status, body := post(true); status != http.StatusBadRequest {
-		t.Fatalf("a second confirmation sent twice: %d %s", status, body)
+	if success, body := release(); success {
+		t.Fatalf("a second confirmation sent twice: %s", body)
 	}
 }
 

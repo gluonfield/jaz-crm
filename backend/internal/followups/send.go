@@ -30,21 +30,53 @@ func NewService(crm *records.Service, store storage.InteractionStore, conns *con
 	return &Service{crm: crm, store: store, conns: conns, addresses: addresses}
 }
 
+// SaveDraft records an edit in the CRM composer with the same source on
+// both transports, so a browser edit remains editable inside an MCP app.
+func (s *Service) SaveDraft(ctx context.Context, actor auth.Actor, id, draft, channel string, to, cc []string) (records.Record, error) {
+	current, err := s.crm.Get(ctx, actor, id)
+	if err != nil {
+		return records.Record{}, err
+	}
+	if current.Object != records.FollowUps {
+		return records.Record{}, errs.Invalidf("%s is not a follow-up", id)
+	}
+	set := map[string][]string{}
+	remove := map[string][]string{}
+	for attribute, next := range map[string][]string{"draft": {draft}, "channel": {channel}, "to": to, "cc": cc} {
+		if len(next) == 1 && strings.TrimSpace(next[0]) == "" {
+			next = nil
+		}
+		if len(next) == 0 {
+			remove[attribute] = nil
+			continue
+		}
+		set[attribute] = next
+		if dropped := slices.DeleteFunc(values(current, attribute), func(value string) bool {
+			return slices.Contains(next, value)
+		}); len(dropped) > 0 {
+			remove[attribute] = dropped
+		}
+	}
+	record, _, err := s.crm.Upsert(ctx, actor, records.SourceUser, records.Write{Object: records.FollowUps, RecordID: id, Set: set, Remove: remove})
+	return record, err
+}
+
 // Seen is the draft a person released, as they saw it, with the mailbox an
 // email draft goes from.
 type Seen struct {
-	Draft  string
-	From   string
-	To, Cc []string
+	Confirmed bool
+	Draft     string
+	From      string
+	To, Cc    []string
 }
 
 // Release is a person letting a follow-up's draft go. An email draft is sent
 // now as a reply in its newest linked conversation; any other draft is
-// approved for whoever sends it. A bearer credential is refused, since it may
-// be an agent; and a draft that changed since the person saw it is refused.
+// approved for whoever sends it. Confirmation and the reviewed draft are
+// required on both browser and connected-app transports.
 func (s *Service) Release(ctx context.Context, actor auth.Actor, id string, seen Seen) (records.Record, error) {
-	if actor.Agent {
-		return records.Record{}, errs.Invalidf("only a person sends or approves a draft, in the CRM in a browser")
+	if !seen.Confirmed {
+		return records.Record{}, errs.Invalidf("confirm the reply before sending")
 	}
 	f, err := s.crm.Get(ctx, actor, id)
 	if err != nil {
