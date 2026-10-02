@@ -70,7 +70,13 @@ func guardDraft(sc schema, object storage.Object, current []storage.RecordValue,
 			return nil, nil, errs.Invalidf("change a draft or its status, not both: editing a draft withdraws its approval")
 		}
 		set[i].force = true
-		return set, remove, transition(now, to, source, written)
+		if err := transition(now, to, source, written); err != nil {
+			return nil, nil, err
+		}
+		if to == DraftSent {
+			remove = append(remove, change{attr: draft, force: true})
+		}
+		return set, remove, nil
 	}
 	if j := slices.IndexFunc(remove, func(c change) bool { return c.attr.ID == status.ID }); j >= 0 {
 		remove[j].force = true

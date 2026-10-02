@@ -276,6 +276,10 @@ func releaseSendsEmailRepliesAndApprovesOthers(t *testing.T, transport string) {
 	if draft, status := state(reply); draft != records.DraftSent || status != "Done" {
 		t.Fatalf("a sent reply closes its follow-up: %q %q", draft, status)
 	}
+	sentRecord, err := crm.Get(ctx, mateActor, reply)
+	if err != nil || slices.ContainsFunc(sentRecord.Fields, func(f records.Field) bool { return f.Attribute == "draft" }) {
+		t.Fatalf("a successful send must clear its draft: %+v %v", sentRecord, err)
+	}
 	if len(g.sent) != 1 {
 		t.Fatalf("sent %d messages", len(g.sent))
 	}

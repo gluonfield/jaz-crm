@@ -237,6 +237,11 @@ func TestAgentKeepsFollowUpsCurrent(t *testing.T) {
 		t.Fatalf("drafts and actions must be written without dashes: %q %q", after["draft"], after["name"])
 	}
 	message("m3", "Does this work with CNC?", time.Now().Add(time.Millisecond))
+	brain.plans = []followups.Plan{{}}
+	if run() != 0 {
+		t.Fatal("an empty model result must remain eligible for retry")
+	}
+	state("failed", "no reply or explanation")
 	brain.plans = []followups.Plan{{SkipReason: "CNC compatibility has not been confirmed."}}
 	if run() != 1 {
 		t.Fatal("a reviewed conversation without a reply must finish")
