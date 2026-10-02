@@ -31,8 +31,15 @@ func (s *Store) CreateObject(ctx context.Context, workspaceID string, object sto
 }
 
 func (s *Store) CreateAttribute(ctx context.Context, attr storage.AttributeInput) error {
-	_, err := s.rec.CreateAttribute(ctx, recdb.CreateAttributeParams(attr))
-	return mapError(err)
+	return s.tx(ctx, func(_ *authdb.Queries, r *recdb.Queries) error {
+		created, err := r.CreateAttribute(ctx, recdb.CreateAttributeParams{
+			ObjectID: attr.ObjectID, Slug: attr.Slug, Name: attr.Name, Type: attr.Type, Multi: attr.Multi, IsUnique: attr.IsUnique, TargetObjectID: attr.TargetObjectID, Options: attr.Options,
+		})
+		if err != nil || attr.Start == nil {
+			return err
+		}
+		return r.StartRecords(ctx, recdb.StartRecordsParams{AttributeID: created.ID, Text: attr.Start.Text, Source: attr.Start.Source, ActorID: attr.Start.ActorID, ObjectID: attr.ObjectID})
+	})
 }
 
 func (s *Store) RenameObject(ctx context.Context, workspaceID, id, name string) error {

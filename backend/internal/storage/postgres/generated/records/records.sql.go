@@ -908,6 +908,31 @@ func (q *Queries) StageInUse(ctx context.Context, arg StageInUseParams) (bool, e
 	return exists, err
 }
 
+const startRecords = `-- name: StartRecords :exec
+INSERT INTO record_values (record_id, attribute_id, text, source, actor_id)
+SELECT records.id, $1, $2, $3, $4 FROM records WHERE records.object_id = $5
+`
+
+type StartRecordsParams struct {
+	AttributeID string
+	Text        *string
+	Source      string
+	ActorID     *string
+	ObjectID    string
+}
+
+// StartRecords gives every record of an object a value of a new attribute.
+func (q *Queries) StartRecords(ctx context.Context, arg StartRecordsParams) error {
+	_, err := q.db.Exec(ctx, startRecords,
+		arg.AttributeID,
+		arg.Text,
+		arg.Source,
+		arg.ActorID,
+		arg.ObjectID,
+	)
+	return err
+}
+
 const updateSavedFilter = `-- name: UpdateSavedFilter :one
 UPDATE saved_filters SET name = $1, query = $2, filters = $3
 WHERE workspace_id = $4 AND object_id = $5 AND id = $6

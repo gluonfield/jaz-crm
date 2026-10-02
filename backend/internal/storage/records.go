@@ -26,7 +26,8 @@ type Attribute struct {
 	Options        []string
 }
 
-// AttributeInput creates one attribute on an existing object.
+// AttributeInput creates one attribute on an existing object. Start is the
+// value its existing records take, such as a status's first stage.
 type AttributeInput struct {
 	ObjectID       string
 	Slug           string
@@ -36,6 +37,7 @@ type AttributeInput struct {
 	IsUnique       bool
 	TargetObjectID *string
 	Options        []string
+	Start          *NewRecordValue
 }
 
 type Record struct {

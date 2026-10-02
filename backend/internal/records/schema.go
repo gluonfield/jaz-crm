@@ -88,6 +88,13 @@ func (s *Service) CreateAttribute(ctx context.Context, actor auth.Actor, object 
 		}
 		input.TargetObjectID = &target.ID
 	}
+	if a.Type == Status {
+		// Existing records start in the first stage, as new ones do.
+		input.Start = &storage.NewRecordValue{Text: &input.Options[0], Source: string(SourceOf(actor))}
+		if actor.UserID != "" {
+			input.Start.ActorID = &actor.UserID
+		}
+	}
 	err = s.store.CreateAttribute(ctx, input)
 	if errors.Is(err, storage.ErrConflict) {
 		return Object{}, errs.Invalidf("%s already has an attribute %q", object, a.Slug)

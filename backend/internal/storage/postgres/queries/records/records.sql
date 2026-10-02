@@ -6,6 +6,11 @@ INSERT INTO attributes (object_id, slug, name, type, multi, is_unique, target_ob
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING *;
 
+-- name: StartRecords :exec
+-- StartRecords gives every record of an object a value of a new attribute.
+INSERT INTO record_values (record_id, attribute_id, text, source, actor_id)
+SELECT records.id, @attribute_id, @text, @source, @actor_id FROM records WHERE records.object_id = @object_id;
+
 -- name: AddAttributeOption :one
 WITH updated AS (
   UPDATE attributes SET options = CASE

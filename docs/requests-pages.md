@@ -8,6 +8,7 @@
 - [x] Rename and delete tables and columns.
 - [x] Every page adds a page inside it from an Add page button, so a Knowledge Base page can hold Vision, Strategy and Team.
 - [x] Pages look like Notion: titles are borderless headings that wrap, and a page lists its pages as plain links.
+- [x] Columns are added as in Notion: + after the last column opens a name field and a list of types with icons, including links to people, companies, pages or tables. A new table starts with one untitled row and opens as a table; a status added later starts existing rows in its first stage.
 - [x] Agents read and write all of it through MCP: tables, columns, rows, page content, nesting and mentions.
 - [x] Review, verify real PostgreSQL/MCP persistence and the actual UI, commit/push and activate locally and on Railway.
 

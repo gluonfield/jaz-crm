@@ -153,11 +153,11 @@ function RecordPage() {
 }
 
 // Title shows a record's name as a heading that edits in place when the
-// object has one, as Jaz Tasks titles issues. A new page starts untitled, its
-// title ready to type.
+// object has one, as Jaz Tasks titles issues. A new page or table row starts
+// untitled, its title ready to type.
 function Title({ record, object, name }: { record: CrmRecord; object: CrmObject; name: string }) {
   const write = useWrite(record)
-  const untitled = record.object === 'pages' && name === 'Untitled'
+  const untitled = name === 'Untitled'
   const [title, setTitle] = useState(untitled ? '' : name)
   if (!object.attributes.some((a) => a.slug === 'name')) {
     return <span className="block truncate">{name}</span>

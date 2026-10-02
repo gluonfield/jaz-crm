@@ -150,3 +150,21 @@ func TestEditTables(t *testing.T) {
 		t.Errorf("a filter on a column pointing at a deleted table: %+v %v", filters, err)
 	}
 }
+
+// A status added to a table puts its existing records in the first stage,
+// where new records start.
+func TestNewStatusStartsRecords(t *testing.T) {
+	svc, a, _ := setup(t)
+	if _, err := svc.CreateObject(ctx, a, "problems", "Problems"); err != nil {
+		t.Fatal(err)
+	}
+	row, _ := upsert(t, svc, a, records.SourceUser, records.Write{Object: "problems", Set: set("name", "Untitled")})
+	if _, err := svc.CreateAttribute(ctx, a, "problems", records.Attribute{Slug: "status", Name: "Status", Type: records.Status, Options: []string{"Not started", "Done"}}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := svc.Get(ctx, a, row.ID)
+	if err != nil || !slices.Equal(values(got, "status"), []string{"Not started"}) {
+		t.Fatalf("an existing record's stage: %v %v", values(got, "status"), err)
+	}
+	upsert(t, svc, a, records.SourceUser, records.Write{Object: "problems", RecordID: row.ID, Set: set("status", "Done")})
+}

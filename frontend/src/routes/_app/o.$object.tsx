@@ -63,9 +63,11 @@ function ObjectPage() {
     return <Header>{slug}</Header>
   }
   const own = !object.standard
-  const columns = object.attributes.filter((a) => a.slug !== 'name' && a.type !== 'markdown').sort((a, b) => Number(b.type === 'select') - Number(a.type === 'select'))
+  // The CRM's objects show their choices first; the workspace's own tables keep the order columns were added in.
+  const columns = object.attributes.filter((a) => a.slug !== 'name' && a.type !== 'markdown').sort((a, b) => (own ? 0 : Number(b.type === 'select') - Number(a.type === 'select')))
   const status = statusOf(object.attributes)
-  const board = view === 'table' || slug === 'follow_ups' ? undefined : status
+  // The workspace's own tables open as tables, the CRM's pipelines as boards.
+  const board = slug !== 'follow_ups' && (view ?? (own ? 'table' : 'board')) === 'board' ? status : undefined
   return (
     <>
       <Header>
@@ -74,10 +76,10 @@ function ObjectPage() {
         {records && <span className="font-normal tabular-nums text-ink-3">{records.length}</span>}
         {status && (
           <div role="group" aria-label="View" className="ml-2 flex h-7 items-center rounded-full bg-list-hover p-0.5">
-            <ViewButton active={!!board || queue} label={slug === 'follow_ups' ? 'Queue' : 'Board'} onClick={() => void navigate({ to: '.', search: { ...search, view: undefined }, replace: true })}>
+            <ViewButton active={!!board || queue} label={slug === 'follow_ups' ? 'Queue' : 'Board'} onClick={() => void navigate({ to: '.', search: { ...search, view: own ? 'board' : undefined }, replace: true })}>
               {slug === 'follow_ups' ? <ListChecks /> : <Kanban />}
             </ViewButton>
-            <ViewButton active={view === 'table'} label="Table" onClick={() => void navigate({ to: '.', search: { ...search, view: 'table' }, replace: true })}>
+            <ViewButton active={!board && !queue} label="Table" onClick={() => void navigate({ to: '.', search: { ...search, view: own ? undefined : 'table' }, replace: true })}>
               <Table2 />
             </ViewButton>
           </div>
@@ -139,7 +141,7 @@ function ObjectPage() {
                   </th>
                 ))}
                 {own && (
-                  <th className="w-full px-3 text-right">
+                  <th className="w-full px-1">
                     <AddColumn object={object} objects={objects ?? []} />
                   </th>
                 )}

@@ -1,6 +1,7 @@
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { ChevronRight, FileText, FolderInput, Pencil, Plus, Table2, Trash2 } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
+import { call } from '@/lib/api'
 import { slugify } from '@/lib/crm'
 import { type Page, type Pages, path, usePages, within } from '@/lib/pages'
 import { useAction, useObjects } from '@/lib/queries'
@@ -86,7 +87,18 @@ export function DataNav() {
         title="New table"
         placeholder="Name, such as Painpoints"
         action="Create"
-        onSubmit={(name) => createTable.mutate({ slug: slugify(name), name }, { onSuccess: (o) => void navigate({ to: '/o/$object', params: { object: o.slug } }) })}
+        onSubmit={(name) =>
+          createTable.mutate(
+            { slug: slugify(name), name },
+            {
+              // A new table starts with one untitled row, as in Notion.
+              onSuccess: async (o) => {
+                await call('upsert_record', { object: o.slug, values: { name: 'Untitled' } })
+                void navigate({ to: '/o/$object', params: { object: o.slug } })
+              },
+            },
+          )
+        }
       />
     </div>
   )
