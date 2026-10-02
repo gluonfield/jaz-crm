@@ -21,6 +21,30 @@ type Planner interface {
 	Plan(ctx context.Context, c Conversation) (Plan, error)
 }
 
+// Summarizer writes a person's context from scratch, for people with open
+// follow-ups whom no conversation has summarised yet.
+type Summarizer interface {
+	Summarize(ctx context.Context, h History) (string, error)
+}
+
+// History is what a summarizer reads: who the person is and their recent
+// conversations, newest first.
+type History struct {
+	Today         string   `json:"today"`
+	Us            []Person `json:"us"`
+	Name          string   `json:"name"`
+	Facts         []string `json:"facts"`
+	Conversations []Thread `json:"conversations"`
+}
+
+// Thread is one past conversation as a summarizer reads it.
+type Thread struct {
+	Title     string `json:"title"`
+	Channel   string `json:"channel,omitempty"`
+	StartedAt string `json:"started_at"`
+	Lines     []Line `json:"lines"`
+}
+
 // Conversation is what a planner reads: the conversation's latest content,
 // who we are, the records it concerns and their open follow-ups.
 type Conversation struct {
@@ -96,6 +120,7 @@ type Agent struct {
 	addresses  storage.ConnectionStore
 	convs      *interactions.Service
 	planner    Planner
+	summarizer Summarizer
 	logger     *log.Logger
 }
 
@@ -106,12 +131,14 @@ type AgentParams struct {
 	Connections  storage.ConnectionStore
 	Interactions *interactions.Service
 	Logger       *log.Logger
-	// Planner is absent when no model is configured, and the agent idles.
-	Planner Planner `optional:"true"`
+	// Planner and Summarizer are absent when no model is configured, and the
+	// agent idles.
+	Planner    Planner    `optional:"true"`
+	Summarizer Summarizer `optional:"true"`
 }
 
 func NewAgent(p AgentParams) *Agent {
-	return &Agent{Service: p.Service, workspaces: p.Workspaces, addresses: p.Connections, convs: p.Interactions, planner: p.Planner, logger: p.Logger.WithPrefix("follow-ups")}
+	return &Agent{Service: p.Service, workspaces: p.Workspaces, addresses: p.Connections, convs: p.Interactions, planner: p.Planner, summarizer: p.Summarizer, logger: p.Logger.WithPrefix("follow-ups")}
 }
 
 const (
@@ -157,7 +184,135 @@ func (a *Agent) Run(ctx context.Context, workspaceID string) (int, error) {
 		}
 		read++
 	}
+	if err := a.backfill(ctx, workspaceID); err != nil {
+		a.logger.Warn("contexts not written", "workspace", workspaceID, "error", err)
+	}
 	return read, nil
+}
+
+// backfillBatch bounds the missing contexts one run writes.
+const backfillBatch = 3
+
+// backfill writes a context for people with open follow-ups who have none,
+// from their recent conversations, so every follow-up shows who it is with.
+func (a *Agent) backfill(ctx context.Context, workspaceID string) error {
+	if a.summarizer == nil {
+		return nil
+	}
+	actor := auth.Actor{WorkspaceID: workspaceID, Agent: true}
+	open, err := a.crm.Search(ctx, actor, records.Search{Object: records.FollowUps, Where: map[string]string{"status": "Open"}, Limit: 100})
+	if err != nil {
+		return err
+	}
+	seen := map[string]bool{}
+	written := 0
+	for _, f := range open {
+		for _, id := range refs(f, "person") {
+			if written == backfillBatch {
+				return nil
+			}
+			if seen[id] {
+				continue
+			}
+			seen[id] = true
+			person, err := a.crm.Get(ctx, actor, id)
+			if err != nil {
+				return err
+			}
+			if value(person, records.ContextAttribute) != "" {
+				continue
+			}
+			h, err := a.history(ctx, actor, person)
+			if err != nil {
+				return err
+			}
+			if len(h.Conversations) == 0 {
+				continue
+			}
+			context, err := a.summarizer.Summarize(ctx, h)
+			if err != nil {
+				return err
+			}
+			if strings.TrimSpace(context) == "" {
+				continue
+			}
+			if _, _, err := a.crm.Upsert(ctx, actor, records.SourceAgent, records.Write{Object: "people", RecordID: id, Set: map[string][]string{records.ContextAttribute: {context}}}); err != nil {
+				return err
+			}
+			written++
+		}
+	}
+	return nil
+}
+
+// history gathers who a person is and their latest conversations within the
+// reading budget.
+func (a *Agent) history(ctx context.Context, actor auth.Actor, person records.Record) (History, error) {
+	users, err := a.workspaces.Users(ctx, actor.WorkspaceID)
+	if err != nil {
+		return History{}, err
+	}
+	h := History{Today: time.Now().UTC().Format(time.DateOnly), Name: value(person, "name"), Facts: []string{}, Conversations: []Thread{}}
+	for _, u := range users {
+		h.Us = append(h.Us, Person{Name: u.Name, Address: u.Email})
+	}
+	for _, f := range person.Fields {
+		if f.Attribute == "name" || f.Attribute == records.ContextAttribute {
+			continue
+		}
+		var texts []string
+		for _, v := range f.Values {
+			texts = append(texts, v.Text)
+		}
+		h.Facts = append(h.Facts, f.Attribute+": "+strings.Join(texts, ", "))
+	}
+	list, err := a.convs.Timeline(ctx, actor, person.ID, nil, "", false, 8)
+	if err != nil {
+		return History{}, err
+	}
+	left := budget
+	for _, item := range list {
+		if left <= 0 {
+			break
+		}
+		conv, err := a.convs.Get(ctx, actor, item.ID)
+		if err != nil {
+			return History{}, err
+		}
+		lines := latest(conv, left)
+		for _, l := range lines {
+			left -= len(l.Text)
+		}
+		if len(lines) > 0 {
+			h.Conversations = append(h.Conversations, Thread{Title: conv.Title, Channel: conv.Channel, StartedAt: conv.StartedAt, Lines: lines})
+		}
+	}
+	return h, nil
+}
+
+// latest is a conversation's note, messages and speaker turns, keeping the
+// newest within limit characters.
+func latest(conv interactions.Interaction, limit int) []Line {
+	var lines []Line
+	if conv.Text != "" {
+		lines = append(lines, Line{At: conv.StartedAt, Author: conv.Author, Text: conv.Text})
+	}
+	for _, m := range conv.Messages {
+		lines = append(lines, Line{At: m.At, Author: m.Sender, Direction: m.Direction, Text: m.Text})
+	}
+	for _, turn := range conv.Transcript {
+		lines = append(lines, Line{At: turn.At, Author: turn.Speaker, Text: turn.Text})
+	}
+	var out []Line
+	for i := len(lines) - 1; i >= 0 && limit > 0; i-- {
+		line := lines[i]
+		if len(line.Text) > limit {
+			line.Text = line.Text[len(line.Text)-limit:]
+		}
+		limit -= len(line.Text)
+		out = append([]Line{line}, out...)
+	}
+	return out
 }
 
 // subjects maps the objects a follow-up references to its attributes.
@@ -245,25 +400,7 @@ func (a *Agent) conversation(ctx context.Context, actor auth.Actor, conv interac
 	for _, p := range conv.Participants {
 		in.Participants = append(in.Participants, Person{Name: p.Name, Address: p.Address})
 	}
-	var lines []Line
-	if conv.Text != "" {
-		lines = append(lines, Line{At: conv.StartedAt, Author: conv.Author, Text: conv.Text})
-	}
-	for _, m := range conv.Messages {
-		lines = append(lines, Line{At: m.At, Author: m.Sender, Direction: m.Direction, Text: m.Text})
-	}
-	for _, turn := range conv.Transcript {
-		lines = append(lines, Line{At: turn.At, Author: turn.Speaker, Text: turn.Text})
-	}
-	left := budget
-	for i := len(lines) - 1; i >= 0 && left > 0; i-- {
-		line := lines[i]
-		if len(line.Text) > left {
-			line.Text = line.Text[len(line.Text)-left:]
-		}
-		left -= len(line.Text)
-		in.Messages = append([]Line{line}, in.Messages...)
-	}
+	in.Messages = latest(conv, budget)
 	seen := map[string]bool{}
 	for _, ref := range in.Records {
 		attribute, ok := subjects[ref.Object]

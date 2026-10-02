@@ -1,4 +1,5 @@
-import type { CrmRecord, Value } from './types'
+import { hasEnded } from './format'
+import type { CrmRecord, Interaction, Value } from './types'
 
 // valuesOf lists an attribute's current values, whether it holds one or many.
 export function valuesOf(record: CrmRecord, slug: string): Value[] {
@@ -27,3 +28,14 @@ export const slugify = (name: string) =>
 // contextHint suggests a person's context as a bullet-point TLDR, the form
 // agents keep it in.
 export const contextHint = '- Who they are and how you know them\n- 2026-10-01: what happened'
+
+const joinLink = /https?:\/\/(teams\.microsoft\.com|[\w.-]*zoom\.us|meet\.google\.com)\/\S+/
+
+// joinURL is how to join a meeting that has not ended: its Google Meet call,
+// else a call link in its invitation.
+export function joinURL(interaction: Interaction) {
+  if (interaction.kind !== 'meeting' || hasEnded(interaction.ended_at ?? interaction.started_at)) {
+    return undefined
+  }
+  return interaction.meet_url ?? interaction.invitation?.match(joinLink)?.[0]
+}

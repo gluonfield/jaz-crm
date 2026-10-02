@@ -1,12 +1,13 @@
 import { Link } from '@tanstack/react-router'
-import { CalendarClock } from 'lucide-react'
+import { CalendarClock, Video } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { valueText, valuesOf } from '@/lib/crm'
+import { joinURL, valueText, valuesOf } from '@/lib/crm'
 import { formatDate, formatNumber, timeAgo } from '@/lib/format'
 import { useWorkspace } from '@/lib/queries'
 import type { CrmObject, CrmRecord, Interaction, Member, Ref } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { DomainLink } from './domain-link'
+import { ExternalLink } from './external-link'
 import { RecordIcon } from './icons'
 import { Stage } from './stage'
 import { InteractionDialog } from './interaction-dialog'
@@ -71,6 +72,7 @@ export function Summary({ record, object, name, upcoming, children }: { record: 
   const facts = identity(record, object, useWorkspace()?.members ?? [])
   const activity = record.activity
   const next = upcoming[0]
+  const join = next && joinURL(next)
   const touch = activity?.interactions
     ? [`Last contact ${timeAgo(activity.last_at ?? record.created_at)}`, `${activity.interactions} conversation${activity.interactions === 1 ? '' : 's'} since ${formatDate(activity.first_at ?? record.created_at)}`]
     : []
@@ -83,6 +85,11 @@ export function Summary({ record, object, name, upcoming, children }: { record: 
         {(touch.length > 0 || next) && (
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[12.5px] text-ink-3">
             {touch.length > 0 && <Line>{touch}</Line>}
+            {join && (
+              <ExternalLink href={join} className="inline-flex h-6 items-center gap-1.5 rounded-full bg-primary px-2.5 font-medium text-on-primary no-underline hover:bg-primary-strong hover:text-on-primary hover:no-underline">
+                <Video className="size-3.5" /> Join
+              </ExternalLink>
+            )}
             {next && (
               <InteractionDialog interactionId={next.id}>
                 <button

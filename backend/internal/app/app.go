@@ -53,7 +53,7 @@ func shared(cfg Config) fx.Option {
 		),
 	}
 	if cfg.LLM.APIKey != "" {
-		options = append(options, fx.Supply(cfg.LLM), fx.Provide(fx.Annotate(llm.New, fx.As(new(interactions.Classifier)), fx.As(new(followups.Planner)))))
+		options = append(options, fx.Supply(cfg.LLM), fx.Provide(fx.Annotate(llm.New, fx.As(new(interactions.Classifier)), fx.As(new(followups.Planner)), fx.As(new(followups.Summarizer)))))
 	}
 	return fx.Options(options...)
 }

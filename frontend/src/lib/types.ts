@@ -66,6 +66,7 @@ export type Interaction = {
   author?: string
   text?: string
   invitation?: string
+  meet_url?: string
   transcript?: Speech[]
   messages?: CrmMessage[]
   provenance?: string

@@ -8,8 +8,8 @@ import { KindIcon, RecordIcon } from '@/components/icons'
 import { ExternalLink } from '@/components/external-link'
 import { Message } from '@/components/message'
 import { Picker } from '@/components/picker'
-import { recordName } from '@/lib/crm'
-import { formatDateTime, hasEnded, meetingTime } from '@/lib/format'
+import { joinURL, recordName } from '@/lib/crm'
+import { formatDateTime, meetingTime } from '@/lib/format'
 import { useDebounced } from '@/lib/hooks'
 import { useAction, useRecordSearch, useTool } from '@/lib/queries'
 import type { Interaction, Speech } from '@/lib/types'
@@ -17,8 +17,6 @@ import { cn } from '@/lib/utils'
 
 const kindNames = { message: 'Message', meeting: 'Meeting', call: 'Call', note: 'Note' }
 const channelNames: Record<string, string> = { email: 'Email', linkedin: 'LinkedIn', whatsapp: 'WhatsApp', telegram: 'Telegram' }
-
-const joinLink = /https?:\/\/(teams\.microsoft\.com|[\w.-]*zoom\.us|meet\.google\.com)\/\S+/
 
 export function InteractionDetails({ interactionId, onClose, onNavigate }: { interactionId: string; onClose: () => void; onNavigate?: () => void }) {
   const query = useTool<Interaction>('get_interaction', { interaction_id: interactionId })
@@ -38,7 +36,7 @@ export function InteractionDetails({ interactionId, onClose, onNavigate }: { int
     )
   }
   const ids = { interaction_id: interaction.id }
-  const join = interaction.kind === 'meeting' && !hasEnded(interaction.ended_at ?? interaction.started_at) ? interaction.invitation?.match(joinLink)?.[0] : undefined
+  const join = joinURL(interaction)
   return (
     <>
       <Header>

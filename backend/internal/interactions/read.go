@@ -57,6 +57,7 @@ type Interaction struct {
 	Author       string        `json:"author,omitempty"`
 	Text         string        `json:"text,omitempty"`
 	Invitation   string        `json:"invitation,omitempty"`
+	MeetURL      string        `json:"meet_url,omitempty"`
 	Transcript   []Speech      `json:"transcript,omitempty"`
 	Messages     []MessageView `json:"messages,omitempty"`
 	Provenance   string        `json:"provenance,omitempty"`
@@ -176,6 +177,9 @@ func (s *Service) views(ctx context.Context, workspaceID string, list []storage.
 	for i, it := range list {
 		index[it.ID] = i
 		out[i] = Interaction{ID: it.ID, Kind: it.Kind, Source: it.Source, Title: it.Title, StartedAt: formatAt(it.StartedAt, it.DateOnly), EndedAt: it.EndedAt, Channel: it.Channel, Participants: []Party{}, Records: []Ref{}}
+		if it.MeetCode != "" {
+			out[i].MeetURL = "https://meet.google.com/" + it.MeetCode
+		}
 		if it.Kind == Email {
 			out[i].Kind, out[i].Channel = Message, "email"
 		}

@@ -20,7 +20,7 @@ You get one conversation whose content just changed, in the JSON input: its kind
 - reply: only for a conversation on the email or linkedin channel whose latest message needs an answer from us, a complete reply ready to send, in the conversation's language and tone, signed with the first name of the teammate it is from. Never invent facts, prices, dates, attachments or promises; when the answer needs something we have not said, leave reply empty and name what is needed in the action. Otherwise reply is empty.
 - Dates are YYYY-MM-DD; today is given. Status is Open unless closing.
 
-contexts holds each person in the conversation's records with their current context, the TLDR of the relationship. For every person this conversation tells us something new about, return their whole new context: the current one merged with what this conversation adds, as short bullet points each starting with "- ". First who they are and how we know them, then dated events as "YYYY-MM-DD: what happened", newest first. Keep every fact from the current context that is still true, drop what this conversation makes untrue, and keep at most 10 bullets by folding older events together. State only facts from the messages and the current context. Leave out people the conversation adds nothing about.
+contexts holds each person in the conversation's records with their current context, the TLDR of the relationship. For every person this conversation tells us something new about, return their whole new context: the current one merged with what this conversation adds, as bullet points each starting with "- ", one short line of at most 20 words each. First who they are and how we know them, then dated events as "YYYY-MM-DD: what happened", newest first. Keep every fact from the current context that is still true, drop what this conversation makes untrue, and keep at most 10 bullets by folding older events together. State only facts from the messages and the current context. Leave out people the conversation adds nothing about.
 
 Return {"follow_ups": [], "contexts": []} when nothing changes.`
 
@@ -44,4 +44,17 @@ func (c *Client) Plan(ctx context.Context, conv followups.Conversation) (followu
 	var out followups.Plan
 	err := c.ask(ctx, "follow_ups", followUpInstructions, conv, plan, &out)
 	return out, err
+}
+
+const summaryInstructions = `You write the context a CRM keeps about one person: the TLDR of our relationship with them, from their record and their recent conversations in the JSON input (us is our team; a direction of sent means one of us wrote it). Write bullet points each starting with "- ", one short line of at most 20 words each. First who they are and how we know them, then dated events as "YYYY-MM-DD: what happened", newest first, at most 10 bullets, folding older events together. State only facts from the input; never guess.`
+
+var summary = object(map[string]any{"context": text("the context as bullet points")})
+
+// Summarize writes a person's context from their record and conversations.
+func (c *Client) Summarize(ctx context.Context, h followups.History) (string, error) {
+	var out struct {
+		Context string `json:"context"`
+	}
+	err := c.ask(ctx, "context", summaryInstructions, h, summary, &out)
+	return out.Context, err
 }

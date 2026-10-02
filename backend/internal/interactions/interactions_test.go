@@ -321,8 +321,8 @@ func TestMeetingsAndTranscripts(t *testing.T) {
 		t.Fatal(err)
 	}
 	full, err := e.svc.Get(ctx, e.a, meeting.ID)
-	if err != nil || len(full.Transcript) != 1 || full.Transcript[0].Speaker != "Ada" {
-		t.Fatalf("transcript: %+v %v", full.Transcript, err)
+	if err != nil || len(full.Transcript) != 1 || full.Transcript[0].Speaker != "Ada" || full.MeetURL != "https://meet.google.com/abc-defg-hij" {
+		t.Fatalf("transcript and Meet link: %+v %q %v", full.Transcript, full.MeetURL, err)
 	}
 	if due, _ := e.svc.DueMeetings(ctx, e.conn.ID); len(due) != 0 {
 		t.Fatalf("a checked meeting is due again: %+v", due)

@@ -224,3 +224,16 @@ func values(r records.Record, attribute string) []string {
 	}
 	return out
 }
+
+// refs lists the records a reference attribute points at.
+func refs(r records.Record, attribute string) []string {
+	var out []string
+	for _, f := range r.Fields {
+		if f.Attribute == attribute {
+			for _, v := range f.Values {
+				out = append(out, v.RecordID)
+			}
+		}
+	}
+	return out
+}

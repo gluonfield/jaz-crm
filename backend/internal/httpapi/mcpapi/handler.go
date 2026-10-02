@@ -23,7 +23,7 @@ import (
 )
 
 const instructions = `Jaz CRM holds records of people, companies and other objects, and the emails, meetings and calls
-with them. A person's context is the TLDR of the relationship as short bullet points: who they are
+with them. A person's context is the TLDR of the relationship as bullet points of one short line each: who they are
 and how we know them, then dated events, newest first. Read it with get_record. To add what you
 learned, write values.context with upsert_record as the whole new version, merged from the current
 context and the new information, keeping what is still true; every write replaces it, whoever wrote

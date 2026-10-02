@@ -26,9 +26,16 @@ import (
 // planner stands in for the model: it records what it read and answers with
 // the next plan, or fails.
 type planner struct {
-	read  []followups.Conversation
-	plans []followups.Plan
-	fail  bool
+	read      []followups.Conversation
+	plans     []followups.Plan
+	fail      bool
+	histories []followups.History
+	summary   string
+}
+
+func (p *planner) Summarize(_ context.Context, h followups.History) (string, error) {
+	p.histories = append(p.histories, h)
+	return p.summary, nil
 }
 
 func (p *planner) Plan(_ context.Context, c followups.Conversation) (followups.Plan, error) {
@@ -81,7 +88,7 @@ func TestAgentKeepsFollowUpsCurrent(t *testing.T) {
 	crm := records.NewService(store)
 	convs := interactions.NewService(interactions.Params{Store: store, Connections: store, Workspaces: store, Records: crm})
 	brain := &planner{}
-	agent := followups.NewAgent(followups.AgentParams{Service: followups.NewService(crm, store, conns), Workspaces: store, Connections: store, Interactions: convs, Logger: log.New(io.Discard), Planner: brain})
+	agent := followups.NewAgent(followups.AgentParams{Service: followups.NewService(crm, store, conns), Workspaces: store, Connections: store, Interactions: convs, Logger: log.New(io.Discard), Planner: brain, Summarizer: brain})
 	jane, _, err := crm.Upsert(ctx, actor, records.SourceUser, records.Write{Object: "people", Set: map[string][]string{"name": {"Jane"}, "context": {"- Head of purchasing at Acme"}}})
 	if err != nil {
 		t.Fatal(err)
@@ -192,5 +199,60 @@ func TestAgentKeepsFollowUpsCurrent(t *testing.T) {
 	}
 	if !slices.Equal(after["status"], []string{"Done"}) || !slices.Equal(after["to"], []string{"jane@acme.com"}) || !slices.Equal(after["cc"], []string{"bob@acme.com"}) {
 		t.Fatalf("the follow-up must be closed, and a new draft must replace its recipients, dropping Sam: %v", after)
+	}
+
+	if len(brain.histories) != 0 {
+		t.Fatalf("a person with a context was summarised again: %+v", brain.histories)
+	}
+	month := time.Now().Add(-30 * 24 * time.Hour)
+	older, err := store.UpsertEmailThread(ctx, storage.EmailThread{WorkspaceID: owner.WorkspaceID, ExternalID: "t-old", ConnectionID: &mailbox.ID, UserID: &owner.ID, Title: "Brackets order", At: month})
+	if err != nil {
+		t.Fatal(err)
+	}
+	order, provider := "We will order 2,000 brackets in Q1.", "gold"
+	if err := store.UpsertPart(ctx, storage.NewPart{InteractionID: older, Kind: "message", ExternalID: "old@acme.com", ConnectionID: &mailbox.ID, ProviderID: &provider, At: &month, Content: &order}); err != nil {
+		t.Fatal(err)
+	}
+	var people []string
+	for _, name := range []string{"Bob", "Carol"} {
+		p, _, err := crm.Upsert(ctx, actor, records.SourceUser, records.Write{Object: "people", Set: map[string][]string{"name": {name}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := store.AddLink(ctx, older, p.ID, "user"); err != nil {
+			t.Fatal(err)
+		}
+		people = append(people, p.ID)
+	}
+	if _, _, err := crm.Upsert(ctx, actor, records.SourceUser, records.Write{Object: records.FollowUps, Set: map[string][]string{"name": {"Ask Bob about the Q1 order"}, "person": {people[0]}}}); err != nil {
+		t.Fatal(err)
+	}
+	dave, _, err := crm.Upsert(ctx, actor, records.SourceUser, records.Write{Object: "people", Set: map[string][]string{"name": {"Dave"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := crm.Upsert(ctx, actor, records.SourceUser, records.Write{Object: records.FollowUps, Set: map[string][]string{"name": {"Introduce Dave"}, "person": {dave.ID}}}); err != nil {
+		t.Fatal(err)
+	}
+	brain.summary = "- Buys brackets for Acme\n- 2026-09-02: plans to order 2,000 brackets in Q1"
+	run()
+	run()
+	contextOf := func(id string) string {
+		p, err := crm.Get(ctx, actor, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, f := range p.Fields {
+			if f.Attribute == "context" {
+				return f.Values[0].Text
+			}
+		}
+		return ""
+	}
+	if len(brain.histories) != 1 || brain.histories[0].Name != "Bob" || len(brain.histories[0].Conversations) != 1 || brain.histories[0].Conversations[0].Lines[0].Text != order {
+		t.Fatalf("a person with an open follow-up and no context must be summarised once from their conversations, past one with none: %+v", brain.histories)
+	}
+	if contextOf(people[0]) != brain.summary || contextOf(people[1]) != "" {
+		t.Fatalf("only the person with an open follow-up gets a context: %q %q", contextOf(people[0]), contextOf(people[1]))
 	}
 }
