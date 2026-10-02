@@ -21,7 +21,7 @@ const list = (record: CrmRecord, slug: string) => valuesOf(record, slug).map(val
 // Release sends an email draft from the mailbox shown, or approves any other
 // one for its sender; the server refuses a draft that changed since, and
 // anyone but a person signed in to the CRM.
-function Release({ record, channel, from, disabled }: { record: CrmRecord; channel: string; from?: string; disabled?: boolean }) {
+function Release({ record, channel, sender, disabled }: { record: CrmRecord; channel: string; sender?: DraftSender; disabled?: boolean }) {
   const send = useAction<{ record_id: string; draft: string; from?: string; to: string[]; cc: string[] }>('send_draft')
   const state = text(record, 'draft_status')
   const email = channel === 'Email'
@@ -29,8 +29,8 @@ function Release({ record, channel, from, disabled }: { record: CrmRecord; chann
     return <span className="text-[12px] text-ink-3">{state === 'Approved' ? 'Approved · waiting for the sender' : state}</span>
   }
   return (
-    <Button variant="primary" size="sm" disabled={disabled || send.isPending || !text(record, 'draft') || !channel || (email && !from)} onClick={() => {
-      send.mutate({ record_id: record.id, draft: text(record, 'draft'), from, to: list(record, 'to'), cc: list(record, 'cc') })
+    <Button variant="primary" size="sm" disabled={disabled || send.isPending || !text(record, 'draft') || !channel || (email && !sender)} onClick={() => {
+      send.mutate({ record_id: record.id, draft: text(record, 'draft'), from: sender?.from, to: email ? sender?.to ?? [] : list(record, 'to'), cc: email ? sender?.cc ?? [] : list(record, 'cc') })
     }}>
       {email ? 'Send' : 'Approve'}
     </Button>
@@ -156,7 +156,7 @@ function Reveal({ open, children }: { open: boolean; children: ReactNode }) {
 
 function Address({ label, value }: { label: string; value?: string }) {
   return value ? (
-    <span className="min-w-0 truncate" title={value}>
+    <span className="min-w-0 [overflow-wrap:anywhere]" title={value}>
       {label} <span className="text-ink-2">{value}</span>
     </span>
   ) : null
@@ -203,7 +203,6 @@ function Draft({ record, channel, sender, error }: { record: CrmRecord; channel:
   const locked = ['Sending', 'Sent'].includes(text(record, 'draft_status'))
   const email = channel === 'Email'
   const to = list(record, 'to')
-  const cc = list(record, 'cc')
   const write = useMutation({
     mutationKey: ['upsert_record'],
     scope: { id: `draft:${record.id}` },
@@ -239,8 +238,8 @@ function Draft({ record, channel, sender, error }: { record: CrmRecord; channel:
         <h3 className="font-medium text-ink-2">{channel ? `${channel} reply` : 'Reply'}</h3>
         {email && <>
           {error ? <span className="text-ink-2">{error}</span> : <Address label="From" value={sender?.from} />}
-          <Address label="To" value={(to.length ? to : sender?.to ?? []).join(', ')} />
-          <Address label="Cc" value={(to.length ? cc : sender?.cc ?? []).join(', ')} />
+          <Address label="To" value={sender?.to.join(', ')} />
+          <Address label="Cc" value={sender?.cc.join(', ')} />
         </>}
       </div>
       <textarea
@@ -263,7 +262,7 @@ function Draft({ record, channel, sender, error }: { record: CrmRecord; channel:
       />
       {sender?.signature && <div className="cursor-default border-t border-border pt-2"><Signature html={sender.signature} /></div>}
       <div className="flex justify-end">
-        <Release record={record} channel={channel} from={sender?.from} disabled={write.isPending || draft.trim() !== current} />
+        <Release record={record} channel={channel} sender={sender} disabled={!!error || write.isPending || draft.trim() !== current} />
       </div>
     </div>
   )

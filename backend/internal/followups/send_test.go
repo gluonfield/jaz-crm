@@ -42,6 +42,8 @@ type gmail struct {
 	// leaving whether it went out unknown.
 	fail, drop bool
 	sent       []*mail.Message
+	account    string
+	headers    map[string]string
 }
 
 func (g *gmail) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -50,14 +52,25 @@ func (g *gmail) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/token":
 		fmt.Fprint(w, `{"access_token":"at","token_type":"Bearer","expires_in":3600,"refresh_token":"rt"}`)
 	case "/gmail/v1/users/me/profile":
-		fmt.Fprint(w, `{"emailAddress":"owner@cas.dev","historyId":"1"}`)
+		account := g.account
+		if account == "" {
+			account = "owner@cas.dev"
+		}
+		fmt.Fprintf(w, `{"emailAddress":%q,"historyId":"1"}`, account)
 	case "/gmail/v1/users/me/messages/g2", "/gmail/v1/users/me/messages/g3":
 		id := strings.TrimPrefix(r.URL.Path, "/gmail/v1/users/me/messages/g")
-		fmt.Fprintf(w, `{"id":"g%s","threadId":"t9","internalDate":"0","payload":{"headers":[
-			{"name":"From","value":"Jane <jane@acme.com>"},{"name":"Subject","value":"Quote for 500 brackets"},
-			{"name":"To","value":"owner@cas.dev"},{"name":"Cc","value":"bob@acme.com, owner@cas.dev"},
-			{"name":"Message-ID","value":"<m%s@acme.com>"},{"name":"References","value":"<m1@acme.com>"}]}}`, id, id)
-	case "/gmail/v1/users/me/settings/sendAs/owner@cas.dev":
+		headers := map[string]string{"From": "Jane <jane@acme.com>", "Subject": "Quote for 500 brackets", "To": "owner@cas.dev", "Cc": "bob@acme.com, owner@cas.dev", "Message-ID": "<m" + id + "@acme.com>", "References": "<m1@acme.com>"}
+		for name, value := range g.headers {
+			headers[name] = value
+		}
+		var fields []map[string]string
+		for name, value := range headers {
+			fields = append(fields, map[string]string{"name": name, "value": value})
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"id": "g" + id, "threadId": "t9", "internalDate": "0", "payload": map[string]any{"headers": fields}})
+	case "/gmail/v1/users/me/messages":
+		fmt.Fprint(w, `{"messages":[{"id":"g2","threadId":"t9"}]}`)
+	case "/gmail/v1/users/me/settings/sendAs/owner@cas.dev", "/gmail/v1/users/me/settings/sendAs/mate@cas.dev":
 		fmt.Fprint(w, `{"sendAsEmail":"owner@cas.dev","signature":"<div>Owner Name<br>CAS</div>"}`)
 	case "/gmail/v1/users/me/messages/send":
 		if g.drop {

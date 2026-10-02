@@ -22,6 +22,7 @@ import (
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
 	"github.com/gluonfield/jaz-crm/backend/internal/workspaces"
+	signin "github.com/gluonfield/jaz-tasks/auth"
 )
 
 // planner stands in for the model: it records what it read and answers with
@@ -56,6 +57,13 @@ func TestAgentKeepsFollowUpsCurrent(t *testing.T) {
 		t.Fatal(err)
 	}
 	actor := auth.Actor{UserID: owner.ID, WorkspaceID: owner.WorkspaceID}
+	workspaceService := workspaces.NewService(store, workspaces.Config{})
+	if _, err := workspaceService.Invite(ctx, actor, "bob@acme.com"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := workspaceService.SignIn(ctx, signin.Identity{Issuer: "test", Subject: "bob", Email: "bob@acme.com", EmailVerified: true}); err != nil {
+		t.Fatal(err)
+	}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
@@ -70,7 +78,7 @@ func TestAgentKeepsFollowUpsCurrent(t *testing.T) {
 		default:
 			fmt.Fprint(w, `{"id":"g","threadId":"t9","internalDate":"0","payload":{"headers":[
 				{"name":"From","value":"Jane <jane@acme.com>"},{"name":"To","value":"owner@cas.dev, Sam <sam@acme.com>"},
-				{"name":"Cc","value":"bob@acme.com, owner@cas.dev"},{"name":"Message-ID","value":"<m@acme.com>"}]}}`)
+				{"name":"Cc","value":"bob@acme.com, owner@cas.dev, sales@cas.dev"},{"name":"Message-ID","value":"<m@acme.com>"}]}}`)
 		}
 	}))
 	t.Cleanup(srv.Close)
@@ -84,6 +92,9 @@ func TestAgentKeepsFollowUpsCurrent(t *testing.T) {
 	}
 	mailbox, err := conns.Connect(ctx, actor, "code", "verifier")
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.AddAliases(ctx, mailbox.ID, []string{"sales@cas.dev"}); err != nil {
 		t.Fatal(err)
 	}
 	crm := records.NewService(store)

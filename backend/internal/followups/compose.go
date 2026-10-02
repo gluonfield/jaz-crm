@@ -6,6 +6,8 @@ import (
 
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"github.com/gluonfield/jaz-crm/backend/internal/google"
+	"github.com/gluonfield/jaz-crm/backend/internal/records"
+	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 )
 
 type Sender struct {
@@ -24,11 +26,11 @@ func (s *Service) Sender(ctx context.Context, actor auth.Actor, id string) (Send
 	if err != nil {
 		return Sender{}, err
 	}
-	original, _, err := s.original(ctx, last)
+	original, holder, err := s.original(ctx, last)
 	if err != nil {
 		return Sender{}, err
 	}
-	to, cc, err := s.recipients(ctx, actor.WorkspaceID, original)
+	to, cc, err := s.recipients(ctx, f, original, sender, holder)
 	if err != nil {
 		return Sender{}, err
 	}
@@ -40,17 +42,36 @@ func (s *Service) Sender(ctx context.Context, actor auth.Actor, id string) (Send
 	return Sender{From: sender.Account, Signature: sig.HTML, To: to, Cc: cc}, err
 }
 
-func (s *Service) recipients(ctx context.Context, workspaceID string, last google.Message) ([]string, []string, error) {
-	own, err := s.addresses.InternalAddresses(ctx, workspaceID)
+func (s *Service) recipients(ctx context.Context, f records.Record, last google.Message, sender, holder storage.Connection) ([]string, []string, error) {
+	to, cc := replyAll(last, slices.Concat([]string{sender.Account}, sender.Aliases))
+	savedTo, savedCc := values(f, "to"), values(f, "cc")
+	if len(savedTo)+len(savedCc) == 0 || sameSet(savedTo, to) && sameSet(savedCc, cc) {
+		return to, cc, nil
+	}
+	holderTo, holderCc := replyAll(last, slices.Concat([]string{holder.Account}, holder.Aliases))
+	if sameSet(savedTo, holderTo) && sameSet(savedCc, holderCc) {
+		return to, cc, nil
+	}
+	// Earlier automatic drafts excluded every workspace address. Repair only
+	// lists matching those defaults so custom recipients stay as reviewed.
+	own, err := s.addresses.InternalAddresses(ctx, sender.WorkspaceID)
 	if err != nil {
 		return nil, nil, err
 	}
+	oldTo, oldCc := replyAll(last, own)
+	if sameSet(savedTo, oldTo) && sameSet(savedCc, oldCc) {
+		return to, cc, nil
+	}
+	return savedTo, savedCc, nil
+}
+
+func replyAll(last google.Message, own []string) ([]string, []string) {
 	answer := last.ReplyTo
 	if len(answer) == 0 {
 		answer = []google.Address{last.From}
 	}
 	to, cc := []string{}, []string{}
-	for i, field := range [][]google.Address{append(answer, last.To...), last.Cc} {
+	for i, field := range [][]google.Address{slices.Concat(answer, last.To), last.Cc} {
 		for _, address := range field {
 			if address.Email == "" || slices.Contains(own, address.Email) || slices.Contains(to, address.Email) || slices.Contains(cc, address.Email) {
 				continue
@@ -62,5 +83,5 @@ func (s *Service) recipients(ctx context.Context, workspaceID string, last googl
 			}
 		}
 	}
-	return to, cc, nil
+	return to, cc
 }

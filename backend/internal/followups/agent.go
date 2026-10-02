@@ -387,7 +387,7 @@ func (a *Agent) apply(ctx context.Context, actor auth.Actor, conv interactions.I
 }
 
 // draft sets a reply's text and channel; an email reply goes to everyone on
-// the latest message, as reply-all, but us.
+// the latest message, except the sending mailbox and its aliases.
 func (a *Agent) draft(ctx context.Context, actor auth.Actor, conv interactions.Interaction, reply string, set map[string][]string) error {
 	set["draft"] = []string{plain(reply)}
 	if conv.Channel != "email" {
@@ -403,14 +403,15 @@ func (a *Agent) draft(ctx context.Context, actor auth.Actor, conv interactions.I
 	if len(parts) == 0 {
 		return nil
 	}
-	last, _, err := a.original(ctx, parts[len(parts)-1])
+	last, holder, err := a.original(ctx, parts[len(parts)-1])
 	if err != nil {
 		return err
 	}
-	to, cc, err := a.recipients(ctx, actor.WorkspaceID, last)
+	sender, err := a.conns.Mailbox(ctx, actor, holder.ID)
 	if err != nil {
 		return err
 	}
+	to, cc := replyAll(last, slices.Concat([]string{sender.Account}, sender.Aliases))
 	if len(to) > 0 {
 		set["to"] = to
 	}

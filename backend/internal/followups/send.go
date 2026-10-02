@@ -53,10 +53,13 @@ func (s *Service) Release(ctx context.Context, actor auth.Actor, id string, seen
 	if f.Object != records.FollowUps {
 		return records.Record{}, errs.Invalidf("%s is not a follow-up", id)
 	}
-	if strings.TrimSpace(value(f, "draft")) != strings.TrimSpace(seen.Draft) || !sameSet(values(f, "to"), seen.To) || !sameSet(values(f, "cc"), seen.Cc) {
+	if strings.TrimSpace(value(f, "draft")) != strings.TrimSpace(seen.Draft) {
 		return records.Record{}, errs.Invalidf("the draft changed since you saw it; review it again")
 	}
 	if value(f, "channel") != "Email" {
+		if !sameSet(values(f, "to"), seen.To) || !sameSet(values(f, "cc"), seen.Cc) {
+			return records.Record{}, errs.Invalidf("the draft changed since you saw it; review it again")
+		}
 		return s.set(ctx, actor, id, "draft_status", records.DraftApproved)
 	}
 	reply, err := s.reply(ctx, actor, f)
@@ -65,6 +68,23 @@ func (s *Service) Release(ctx context.Context, actor auth.Actor, id string, seen
 	}
 	if reply.account != seen.From {
 		return records.Record{}, errs.Invalidf("this reply now goes from %s; review it again", reply.account)
+	}
+	if !sameSet(reply.message.To, seen.To) || !sameSet(reply.message.Cc, seen.Cc) {
+		return records.Record{}, errs.Invalidf("the reply recipients changed since you saw them; review them again")
+	}
+	if !sameSet(values(f, "to"), seen.To) || !sameSet(values(f, "cc"), seen.Cc) {
+		remove := map[string][]string{}
+		for attribute, addresses := range map[string][]string{"to": seen.To, "cc": seen.Cc} {
+			if dropped := slices.DeleteFunc(values(f, attribute), func(address string) bool { return slices.Contains(addresses, address) }); len(dropped) > 0 {
+				remove[attribute] = dropped
+			}
+		}
+		f, _, err = s.crm.Upsert(ctx, actor, records.SourceUser, records.Write{Object: records.FollowUps, RecordID: id,
+			Set: map[string][]string{"to": seen.To, "cc": seen.Cc}, Remove: remove,
+		})
+		if err != nil {
+			return records.Record{}, err
+		}
 	}
 	if value(f, "draft_status") == records.DraftWritten {
 		if _, err := s.set(ctx, actor, id, "draft_status", records.DraftApproved); err != nil {
@@ -142,8 +162,7 @@ func (s *Service) sender(ctx context.Context, actor auth.Actor, f records.Record
 // the email conversations it is linked to, from its sender.
 func (s *Service) reply(ctx context.Context, actor auth.Actor, f records.Record) (outgoing, error) {
 	body := value(f, "draft")
-	to := values(f, "to")
-	if strings.TrimSpace(body) == "" || len(to) == 0 {
+	if strings.TrimSpace(body) == "" {
 		return outgoing{}, errs.Invalidf("an email draft needs text and a recipient")
 	}
 	last, sender, err := s.sender(ctx, actor, f)
@@ -160,6 +179,13 @@ func (s *Service) reply(ctx context.Context, actor auth.Actor, f records.Record)
 	original, holder, err := s.original(ctx, last)
 	if err != nil {
 		return outgoing{}, err
+	}
+	to, cc, err := s.recipients(ctx, f, original, sender, holder)
+	if err != nil {
+		return outgoing{}, err
+	}
+	if len(to)+len(cc) == 0 {
+		return outgoing{}, errs.Invalidf("an email draft needs a recipient")
 	}
 	mailbox, err := s.conns.Google(ctx, sender)
 	if err != nil {
@@ -188,7 +214,7 @@ func (s *Service) reply(ctx context.Context, actor auth.Actor, f records.Record)
 		references = append(slices.Clone(references), original.MessageID)
 	}
 	return outgoing{mailbox: mailbox, account: sender.Account, message: google.Outgoing{
-		From: sender.Account, To: to, Cc: values(f, "cc"), Subject: subject, Body: body, Signature: signature,
+		From: sender.Account, To: to, Cc: cc, Subject: subject, Body: body, Signature: signature,
 		ThreadID: thread, InReplyTo: original.MessageID, References: references,
 	}}, nil
 }
@@ -231,7 +257,7 @@ func value(r records.Record, attribute string) string {
 }
 
 func values(r records.Record, attribute string) []string {
-	var out []string
+	out := []string{}
 	for _, f := range r.Fields {
 		if f.Attribute == attribute {
 			for _, v := range f.Values {
