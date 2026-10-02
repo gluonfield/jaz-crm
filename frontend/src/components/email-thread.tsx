@@ -35,22 +35,21 @@ export function MessageThread({ interaction, messages, initialVisible = 6 }: { i
         {messages.slice(start).map((message, index) => {
           const i = start + index
           const sent = message.direction === 'sent'
-          const received = message.direction === 'received'
           const author = message.sender || message.sender_address || 'Unknown sender'
           const recipients = [...new Set(message.recipients?.map((address) => participant(address)?.name || address))].filter((name) => name !== author)
           const day = formatDate(message.at)
           return (
             <li key={i} className="flex min-w-0 flex-col gap-4">
               {(index === 0 || day !== formatDate(messages[i - 1].at)) && <time dateTime={message.at} className="self-center text-[11.5px] text-ink-3">{day}</time>}
-              <div className={cn('flex max-w-[92%] flex-col gap-1.5 sm:max-w-[86%]', received ? 'self-end' : sent ? 'self-start' : 'self-center')}>
-                <div className={cn('flex min-w-0 items-center gap-1.5 text-[12px] text-ink-3', received && 'justify-end')}>
+              <div className={cn('flex max-w-[92%] flex-col gap-1.5 sm:max-w-[86%]', sent ? 'self-end' : 'self-start')}>
+                <div className={cn('flex min-w-0 items-center gap-1.5 text-[12px] text-ink-3', sent && 'justify-end')}>
                   <RecordIcon object="people" name={author} photo={participant(message.sender_address)?.photo} size={20} />
                   <span className="truncate">
                     <span className="font-medium text-ink-2" title={message.sender_address}>{author}</span>
                     {recipients.length > 0 && <span title={message.recipients?.join(', ')}> to {recipients.join(', ')}</span>}
                   </span>
                 </div>
-                <div className={cn('min-w-0 rounded-[16px] px-3.5 pb-2 pt-2.5', received ? 'rounded-tr-[4px]' : 'rounded-tl-[4px]', sent ? 'bg-primary-soft' : 'bg-list-hover')}>
+                <div className={cn('min-w-0 rounded-[16px] px-3.5 pb-2 pt-2.5', sent ? 'rounded-tr-[4px] bg-primary-soft' : 'rounded-tl-[4px] bg-list-hover')}>
                   {message.text || message.html ? <Message text={message.text} html={message.html} /> : <p className="text-[13px] text-ink-3">The text arrives with the next sync.</p>}
                   {message.partial && <p className="mt-2 text-[11.5px] text-ink-3">Message excerpt</p>}
                   {message.at.length > 10 && <time dateTime={message.at} title={formatDateTime(message.at)} className="mt-1 block text-right text-[11px] tabular-nums text-ink-3">{formatTime(message.at)}</time>}
