@@ -17,8 +17,10 @@ Deployed `1ede8fb0c6c20f4d0a66894cb233d6c0a6b26355`: Server `9c393e31-9727-4d00-
 - [x] Change the connection polling interval from five minutes to one minute.
 - [x] Preserve Gmail history and Calendar sync cursors and push-triggered wakes.
 - [x] Verify workflow pacing, run full backend checks and review the change.
-- [ ] Commit, push and verify production polling.
+- [x] Commit, push and verify production polling.
 
 The workflow now waits one minute after a pass finishes. Its existing cursor-based fetches, activity retries and immediate catch-up passes remain in place. The workflow test checks an actual one-minute idle interval and a wake halfway through the next interval. No email or forced draft generation is needed for verification.
 
 One-minute validation: Go 1.26 build, vet and full backend tests pass. Review changes one owning interval and adjusts the existing behavioral pacing test; no dependencies, polling machinery or cursor changes. Temporal SDK timer replay compares timer identity, allowing existing workflows to adopt the new duration after their current wait or a wake.
+
+One-minute production verification: `d69facadc611d012b6e5402cf5c6fa119a7d9cfb` reached SUCCESS on Server `7ed2283e-11ad-457f-88e9-c3aacf07e3e8` and Worker `94b99ae9-7066-45e9-b153-8e3523ce766b`. Live CAS cursor observations show both connected mailboxes advance after 79.028/78.632 seconds, including the work of each pass plus its one-minute wait. Evidence: `/tmp/crm-minute-sync-20261003/deployments.json` and `live-deltas.json`. No real email was sent or drafting manually triggered.
