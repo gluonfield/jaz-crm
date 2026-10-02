@@ -67,6 +67,7 @@ type User struct {
 	AvatarURL   *string
 	Admin       bool
 	CreatedAt   time.Time
+	Addresses   []string
 }
 
 type Workspace struct {

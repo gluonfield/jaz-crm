@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
+	"github.com/gluonfield/jaz-crm/backend/internal/workspaces"
 )
 
 func TestEmailConversationView(t *testing.T) {
@@ -76,5 +77,29 @@ func TestEmailConversationView(t *testing.T) {
 		if message.HTML != "" || message.Text == "" {
 			t.Fatalf("drafting source must retain text without duplicating HTML: %+v", message)
 		}
+	}
+}
+
+func TestMemberAddressesReadAsOwnWithoutTheirDomain(t *testing.T) {
+	e := setup(t, nil)
+	if _, err := workspaces.NewService(e.store, workspaces.Config{}).SetAddresses(ctx, e.a, "owner@cas.dev", []string{"owner@uni.ac.uk"}); err != nil {
+		t.Fatal(err)
+	}
+	first := message(e.conn, "m0", "thread", "owner@uni.ac.uk", "ada@customer.io")
+	reply := message(e.conn, "m1", "thread", "ada@customer.io", "owner@uni.ac.uk", "dean@uni.ac.uk")
+	reply.Date, reply.InReplyTo = start.Add(time.Hour), "m0@mail"
+	e.ingest(t, first, reply)
+	e.triage(t)
+	internal := e.contacts(t, interactions.Internal)
+	if _, ok := internal["owner@uni.ac.uk"]; !ok {
+		t.Fatalf("the member's other address is not internal: %v", internal)
+	}
+	if _, ok := internal["dean@uni.ac.uk"]; ok {
+		t.Fatal("a colleague at the member's university became internal")
+	}
+	list := e.timeline(t, e.contacts(t, interactions.Kept)["ada@customer.io"].PersonID)
+	full, err := e.svc.Get(ctx, e.a, list[0].ID)
+	if err != nil || len(full.Messages) != 2 || full.Messages[0].Direction != "sent" || full.Messages[1].Direction != "received" {
+		t.Fatalf("directions: %+v %v", full.Messages, err)
 	}
 }

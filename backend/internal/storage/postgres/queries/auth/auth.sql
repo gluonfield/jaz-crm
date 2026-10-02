@@ -48,6 +48,9 @@ SELECT * FROM workspaces WHERE id = $1;
 -- name: LockWorkspace :one
 SELECT id FROM workspaces WHERE id = $1 FOR NO KEY UPDATE;
 
+-- name: SetUserAddresses :execrows
+UPDATE users SET addresses = @addresses::text[] WHERE id = @id AND workspace_id = @workspace_id;
+
 -- name: UpdateWorkspace :execrows
 UPDATE workspaces SET name = @name, description = @description, company_page_id = sqlc.narg(company_page_id)
 WHERE workspaces.id = @id AND (sqlc.narg(company_page_id)::uuid IS NULL OR EXISTS (

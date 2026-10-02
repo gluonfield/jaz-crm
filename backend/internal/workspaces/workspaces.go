@@ -158,7 +158,7 @@ func (s *Service) Invite(ctx context.Context, actor auth.Actor, email string) (s
 		return storage.WorkspaceInvite{}, err
 	}
 	email = strings.ToLower(strings.TrimSpace(email))
-	if local, domain, ok := strings.Cut(email, "@"); !ok || local == "" || !strings.Contains(domain, ".") {
+	if !validEmail(email) {
 		return storage.WorkspaceInvite{}, ErrInvalidEmail
 	}
 	invite, err := s.store.CreateInvite(ctx, actor.WorkspaceID, email, actor.UserID)
@@ -166,6 +166,42 @@ func (s *Service) Invite(ctx context.Context, actor auth.Actor, email string) (s
 		return invite, errs.Invalidf("%s is already invited", email)
 	}
 	return invite, err
+}
+
+// SetAddresses replaces the other addresses a member sends from, so their
+// mail from those addresses reads as the workspace's own. Members change their
+// own; admins change anyone's.
+func (s *Service) SetAddresses(ctx context.Context, actor auth.Actor, email string, addresses []string) (storage.User, error) {
+	users, err := s.store.Users(ctx, actor.WorkspaceID)
+	if err != nil {
+		return storage.User{}, err
+	}
+	i := slices.IndexFunc(users, func(u storage.User) bool { return strings.EqualFold(u.Email, strings.TrimSpace(email)) })
+	if i < 0 {
+		return storage.User{}, errs.Invalidf("%s is not a member of this workspace", email)
+	}
+	user := users[i]
+	if user.ID != actor.UserID {
+		if err := s.requireAdmin(ctx, actor); err != nil {
+			return user, err
+		}
+	}
+	user.Addresses = []string{}
+	for _, address := range addresses {
+		address = strings.ToLower(strings.TrimSpace(address))
+		if !validEmail(address) {
+			return user, errs.Invalidf("%q is not an email address", address)
+		}
+		if address != strings.ToLower(user.Email) && !slices.Contains(user.Addresses, address) {
+			user.Addresses = append(user.Addresses, address)
+		}
+	}
+	return user, s.store.SetUserAddresses(ctx, actor.WorkspaceID, user.ID, user.Addresses)
+}
+
+func validEmail(email string) bool {
+	local, domain, ok := strings.Cut(email, "@")
+	return ok && local != "" && strings.Contains(domain, ".")
 }
 
 // Update lets an admin change the workspace's name, triage description and

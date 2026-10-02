@@ -292,7 +292,7 @@ func (q *Queries) UpdateOAuthGrantUser(ctx context.Context, arg UpdateOAuthGrant
 }
 
 const userByAccessToken = `-- name: UserByAccessToken :one
-SELECT users.id, users.workspace_id, users.name, users.email, users.avatar_url, users.admin, users.created_at, oauth_grants.id AS grant_id FROM oauth_tokens
+SELECT users.id, users.workspace_id, users.name, users.email, users.avatar_url, users.admin, users.created_at, users.addresses, oauth_grants.id AS grant_id FROM oauth_tokens
 JOIN oauth_grants ON oauth_grants.id = oauth_tokens.grant_id
 JOIN users ON users.id = oauth_grants.user_id
 WHERE oauth_tokens.token_hash = $1 AND oauth_tokens.kind = 'access'
@@ -316,6 +316,7 @@ func (q *Queries) UserByAccessToken(ctx context.Context, tokenHash []byte) (User
 		&i.User.AvatarURL,
 		&i.User.Admin,
 		&i.User.CreatedAt,
+		&i.User.Addresses,
 		&i.GrantID,
 	)
 	return i, err

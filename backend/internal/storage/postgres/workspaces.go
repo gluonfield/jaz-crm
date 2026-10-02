@@ -45,6 +45,10 @@ func (s *Store) UpdateWorkspace(ctx context.Context, workspace storage.Workspace
 	return affected(s.auth.UpdateWorkspace(ctx, authdb.UpdateWorkspaceParams{ID: workspace.ID, Name: workspace.Name, Description: workspace.Description, CompanyPageID: workspace.CompanyPageID}))
 }
 
+func (s *Store) SetUserAddresses(ctx context.Context, workspaceID, userID string, addresses []string) error {
+	return affected(s.auth.SetUserAddresses(ctx, authdb.SetUserAddressesParams{ID: userID, WorkspaceID: workspaceID, Addresses: addresses}))
+}
+
 func (s *Store) LockWorkspace(ctx context.Context, workspaceID string) error {
 	_, err := s.auth.LockWorkspace(ctx, workspaceID)
 	return mapError(err)

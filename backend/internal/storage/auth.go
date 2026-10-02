@@ -26,6 +26,8 @@ type User struct {
 	AvatarURL   *string
 	Admin       bool
 	CreatedAt   time.Time
+	// Addresses are other addresses the member sends from.
+	Addresses []string
 }
 
 type NewUser struct {
@@ -180,6 +182,7 @@ type WorkspaceStore interface {
 	// identity, and its objects, atomically.
 	CreateOwnedWorkspace(ctx context.Context, name string, owner NewUser, identity Identity, objects []NewObject) (User, error)
 	UpdateWorkspace(ctx context.Context, workspace Workspace) error
+	SetUserAddresses(ctx context.Context, workspaceID, userID string, addresses []string) error
 	TriageSettings(ctx context.Context, workspaceID string) (TriageSettings, error)
 	UpdateTriageSettings(ctx context.Context, workspaceID string, settings TriageSettings) error
 	DeleteWorkspace(ctx context.Context, id, name string) error

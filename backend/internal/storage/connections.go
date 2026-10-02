@@ -61,7 +61,7 @@ type ConnectionStore interface {
 	DeleteCursor(ctx context.Context, connectionID, stream string) error
 	Cursors(ctx context.Context, connectionIDs []string) ([]SyncCursor, error)
 	// InternalAddresses are the workspace's members' and connections' emails,
-	// aliases included.
+	// the other addresses members send from and connection aliases included.
 	InternalAddresses(ctx context.Context, workspaceID string) ([]string, error)
 	AddAliases(ctx context.Context, connectionID string, aliases []string) error
 	MailProgress(ctx context.Context, connectionIDs []string) ([]MailProgress, error)

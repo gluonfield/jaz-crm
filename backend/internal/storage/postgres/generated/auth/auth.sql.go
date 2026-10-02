@@ -43,7 +43,7 @@ func (q *Queries) CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (API
 const createAuthUser = `-- name: CreateAuthUser :one
 INSERT INTO users (workspace_id, name, email, avatar_url, admin)
 VALUES ($1, $2, $3, $4, $5)
-RETURNING id, workspace_id, name, email, avatar_url, admin, created_at
+RETURNING id, workspace_id, name, email, avatar_url, admin, created_at, addresses
 `
 
 type CreateAuthUserParams struct {
@@ -71,6 +71,7 @@ func (q *Queries) CreateAuthUser(ctx context.Context, arg CreateAuthUserParams) 
 		&i.AvatarURL,
 		&i.Admin,
 		&i.CreatedAt,
+		&i.Addresses,
 	)
 	return i, err
 }
@@ -219,7 +220,7 @@ func (q *Queries) GetTriageSettings(ctx context.Context, id string) (GetTriageSe
 }
 
 const getUser = `-- name: GetUser :one
-SELECT id, workspace_id, name, email, avatar_url, admin, created_at FROM users WHERE id = $1
+SELECT id, workspace_id, name, email, avatar_url, admin, created_at, addresses FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUser(ctx context.Context, id string) (User, error) {
@@ -233,6 +234,7 @@ func (q *Queries) GetUser(ctx context.Context, id string) (User, error) {
 		&i.AvatarURL,
 		&i.Admin,
 		&i.CreatedAt,
+		&i.Addresses,
 	)
 	return i, err
 }
@@ -366,7 +368,7 @@ func (q *Queries) ListInvites(ctx context.Context, workspaceID string) ([]Worksp
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT id, workspace_id, name, email, avatar_url, admin, created_at FROM users WHERE workspace_id = $1 ORDER BY created_at
+SELECT id, workspace_id, name, email, avatar_url, admin, created_at, addresses FROM users WHERE workspace_id = $1 ORDER BY created_at
 `
 
 func (q *Queries) ListUsers(ctx context.Context, workspaceID string) ([]User, error) {
@@ -386,6 +388,7 @@ func (q *Queries) ListUsers(ctx context.Context, workspaceID string) ([]User, er
 			&i.AvatarURL,
 			&i.Admin,
 			&i.CreatedAt,
+			&i.Addresses,
 		); err != nil {
 			return nil, err
 		}
@@ -486,6 +489,24 @@ func (q *Queries) ReplaceAPIKey(ctx context.Context, arg ReplaceAPIKeyParams) (A
 	return i, err
 }
 
+const setUserAddresses = `-- name: SetUserAddresses :execrows
+UPDATE users SET addresses = $1::text[] WHERE id = $2 AND workspace_id = $3
+`
+
+type SetUserAddressesParams struct {
+	Addresses   []string
+	ID          string
+	WorkspaceID string
+}
+
+func (q *Queries) SetUserAddresses(ctx context.Context, arg SetUserAddressesParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setUserAddresses, arg.Addresses, arg.ID, arg.WorkspaceID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const shareIdentity = `-- name: ShareIdentity :many
 WITH linked AS (
   INSERT INTO identities (issuer, subject, user_id)
@@ -494,7 +515,7 @@ WITH linked AS (
   ON CONFLICT DO NOTHING
   RETURNING user_id
 )
-SELECT users.id, users.workspace_id, users.name, users.email, users.avatar_url, users.admin, users.created_at FROM users JOIN linked ON linked.user_id = users.id ORDER BY users.created_at
+SELECT users.id, users.workspace_id, users.name, users.email, users.avatar_url, users.admin, users.created_at, users.addresses FROM users JOIN linked ON linked.user_id = users.id ORDER BY users.created_at
 `
 
 type ShareIdentityParams struct {
@@ -528,6 +549,7 @@ func (q *Queries) ShareIdentity(ctx context.Context, arg ShareIdentityParams) ([
 			&i.AvatarURL,
 			&i.Admin,
 			&i.CreatedAt,
+			&i.Addresses,
 		); err != nil {
 			return nil, err
 		}
@@ -612,7 +634,7 @@ func (q *Queries) UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams
 }
 
 const userByAPIKey = `-- name: UserByAPIKey :one
-SELECT users.id, users.workspace_id, users.name, users.email, users.avatar_url, users.admin, users.created_at FROM api_keys
+SELECT users.id, users.workspace_id, users.name, users.email, users.avatar_url, users.admin, users.created_at, users.addresses FROM api_keys
 JOIN users ON users.id = api_keys.user_id
 WHERE api_keys.key_hash = $1
 `
@@ -628,12 +650,13 @@ func (q *Queries) UserByAPIKey(ctx context.Context, keyHash []byte) (User, error
 		&i.AvatarURL,
 		&i.Admin,
 		&i.CreatedAt,
+		&i.Addresses,
 	)
 	return i, err
 }
 
 const userBySession = `-- name: UserBySession :one
-SELECT users.id, users.workspace_id, users.name, users.email, users.avatar_url, users.admin, users.created_at FROM sessions
+SELECT users.id, users.workspace_id, users.name, users.email, users.avatar_url, users.admin, users.created_at, users.addresses FROM sessions
 JOIN users ON users.id = sessions.user_id
 WHERE sessions.token_hash = $1 AND sessions.expires_at > now()
 `
@@ -649,6 +672,7 @@ func (q *Queries) UserBySession(ctx context.Context, tokenHash []byte) (User, er
 		&i.AvatarURL,
 		&i.Admin,
 		&i.CreatedAt,
+		&i.Addresses,
 	)
 	return i, err
 }
@@ -683,7 +707,7 @@ func (q *Queries) UserIdentities(ctx context.Context, userID string) ([]Identity
 }
 
 const usersByEmail = `-- name: UsersByEmail :many
-SELECT id, workspace_id, name, email, avatar_url, admin, created_at FROM users WHERE lower(email) = lower($1) ORDER BY created_at
+SELECT id, workspace_id, name, email, avatar_url, admin, created_at, addresses FROM users WHERE lower(email) = lower($1) ORDER BY created_at
 `
 
 func (q *Queries) UsersByEmail(ctx context.Context, lower string) ([]User, error) {
@@ -703,6 +727,7 @@ func (q *Queries) UsersByEmail(ctx context.Context, lower string) ([]User, error
 			&i.AvatarURL,
 			&i.Admin,
 			&i.CreatedAt,
+			&i.Addresses,
 		); err != nil {
 			return nil, err
 		}
@@ -715,7 +740,7 @@ func (q *Queries) UsersByEmail(ctx context.Context, lower string) ([]User, error
 }
 
 const usersByIdentity = `-- name: UsersByIdentity :many
-SELECT users.id, users.workspace_id, users.name, users.email, users.avatar_url, users.admin, users.created_at FROM identities
+SELECT users.id, users.workspace_id, users.name, users.email, users.avatar_url, users.admin, users.created_at, users.addresses FROM identities
 JOIN users ON users.id = identities.user_id
 WHERE identities.issuer = $1 AND identities.subject = $2
 ORDER BY users.created_at
@@ -743,6 +768,7 @@ func (q *Queries) UsersByIdentity(ctx context.Context, arg UsersByIdentityParams
 			&i.AvatarURL,
 			&i.Admin,
 			&i.CreatedAt,
+			&i.Addresses,
 		); err != nil {
 			return nil, err
 		}

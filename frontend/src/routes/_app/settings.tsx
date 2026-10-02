@@ -12,7 +12,7 @@ import { embedded } from '@/lib/api'
 import { slugify } from '@/lib/crm'
 import { formatDate } from '@/lib/format'
 import { useAction, useObjects, useWorkspace } from '@/lib/queries'
-import type { CrmObject } from '@/lib/types'
+import type { CrmObject, Member } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 export const Route = createFileRoute('/_app/settings')({ component: SettingsPage })
@@ -34,10 +34,13 @@ function SettingsPage() {
             {workspace?.members?.map((m) => (
               <Row key={m.email}>
                 <div className="min-w-0 flex-1">
-                  <div className="truncate font-medium text-ink">{m.name}</div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="truncate font-medium text-ink">{m.name}</span>
+                    {m.admin && <span className="ml-auto text-[12px] text-ink-3">Admin</span>}
+                  </div>
                   <div className="truncate text-[12px] text-ink-3">{m.email}</div>
+                  <OtherAddresses key={m.addresses?.join()} member={m} editable={!!(m.is_me || admin)} />
                 </div>
-                {m.admin && <span className="text-[12px] text-ink-3">Admin</span>}
               </Row>
             ))}
             {workspace?.invited?.map((email) => (
@@ -94,6 +97,35 @@ function WorkspaceSection({ name, description, admin }: { name: string; descript
         </Row>
       )}
     </Section>
+  )
+}
+
+// OtherAddresses lists the other addresses a member sends from, so their mail
+// from those reads as ours.
+function OtherAddresses({ member, editable }: { member: Member; editable: boolean }) {
+  const current = member.addresses?.join(', ') ?? ''
+  const [text, setText] = useState(current)
+  const update = useAction<object>('update_member')
+  if (!editable) {
+    return current && <div className="truncate text-[12px] text-ink-3">Also sends from {current}</div>
+  }
+  return (
+    <input
+      aria-label={`Other addresses ${member.name} sends from`}
+      value={text}
+      disabled={update.isPending}
+      placeholder={member.is_me ? 'Other addresses you send from' : `Other addresses ${member.name} sends from`}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={() => text !== current && update.mutate({ email: member.email, addresses: text.split(/[\s,;]+/).filter(Boolean) }, { onError: () => setText(current) })}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.currentTarget.blur()
+        } else if (e.key === 'Escape') {
+          setText(current)
+        }
+      }}
+      className={cn(inputClass, 'mt-2 w-full text-[12px]')}
+    />
   )
 }
 

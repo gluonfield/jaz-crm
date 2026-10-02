@@ -55,11 +55,7 @@ func registerWorkspace(r *registry, members *workspaces.Service, keys *auth.Serv
 			users, invites, err := members.Members(ctx, actor)
 			out := workspaceView{ID: workspace.ID, Name: workspace.Name, Description: workspace.Description, CompanyPageID: workspace.CompanyPageID, Members: []memberView{}, Invited: []string{}}
 			for _, u := range users {
-				m := memberView{Name: u.Name, Email: u.Email, Admin: u.Admin, IsMe: u.ID == actor.UserID}
-				if u.AvatarURL != nil {
-					m.Photo = *u.AvatarURL
-				}
-				out.Members = append(out.Members, m)
+				out.Members = append(out.Members, memberOf(u, actor))
 			}
 			for _, i := range invites {
 				out.Invited = append(out.Invited, i.Email)
@@ -71,6 +67,12 @@ func registerWorkspace(r *registry, members *workspaces.Service, keys *auth.Serv
 		func(ctx context.Context, actor auth.Actor, in inviteInput) (inviteOutput, error) {
 			invite, err := members.Invite(ctx, actor, in.Email)
 			return inviteOutput{Invited: invite.Email}, err
+		})
+	add(r, &mcp.Tool{Name: "update_member", Title: "Update member",
+		Description: "Replace the other addresses a member sends from, such as a university or personal mailbox, so their mail from them reads as the workspace's own: sent rather than received, never a contact. Their domains stay outside the workspace. Members change their own; admins change anyone's."},
+		func(ctx context.Context, actor auth.Actor, in updateMemberInput) (memberView, error) {
+			user, err := members.SetAddresses(ctx, actor, in.Email, in.Addresses)
+			return memberOf(user, actor), err
 		})
 	add(r, &mcp.Tool{Name: "update_workspace", Title: "Update workspace",
 		Description: "Change this workspace's name, description or Company knowledge root page. Drafting reads that page and all descendants, including after renames. The description tells triage which contacts belong in the CRM. Admins only."},
@@ -86,11 +88,25 @@ func registerWorkspace(r *registry, members *workspaces.Service, keys *auth.Serv
 }
 
 type memberView struct {
-	Name  string `json:"name"`
-	Email string `json:"email"`
-	Admin bool   `json:"admin,omitempty"`
-	IsMe  bool   `json:"is_me,omitempty"`
-	Photo string `json:"photo,omitempty"`
+	Name      string   `json:"name"`
+	Email     string   `json:"email"`
+	Addresses []string `json:"addresses,omitempty"`
+	Admin     bool     `json:"admin,omitempty"`
+	IsMe      bool     `json:"is_me,omitempty"`
+	Photo     string   `json:"photo,omitempty"`
+}
+
+func memberOf(u storage.User, actor auth.Actor) memberView {
+	m := memberView{Name: u.Name, Email: u.Email, Addresses: u.Addresses, Admin: u.Admin, IsMe: u.ID == actor.UserID}
+	if u.AvatarURL != nil {
+		m.Photo = *u.AvatarURL
+	}
+	return m
+}
+
+type updateMemberInput struct {
+	Email     string   `json:"email" jsonschema:"the member's sign-in email, as get_workspace lists it"`
+	Addresses []string `json:"addresses" jsonschema:"every other address they send from; an empty list removes them all"`
 }
 
 type workspaceView struct {

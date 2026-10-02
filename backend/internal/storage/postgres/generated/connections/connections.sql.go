@@ -134,13 +134,16 @@ func (q *Queries) GetCursor(ctx context.Context, arg GetCursorParams) (string, e
 const internalAddresses = `-- name: InternalAddresses :many
 SELECT lower(users.email)::text AS address FROM users WHERE users.workspace_id = $1
 UNION
+SELECT lower(address)::text FROM users, unnest(users.addresses) AS address WHERE users.workspace_id = $1
+UNION
 SELECT lower(connections.account)::text FROM connections WHERE connections.workspace_id = $1
 UNION
 SELECT lower(alias)::text FROM connections, unnest(connections.aliases) AS alias WHERE connections.workspace_id = $1
 `
 
 // InternalAddresses are the workspace's own addresses: its members' emails and
-// its connected accounts with their aliases.
+// the other addresses they send from, and its connected accounts with their
+// aliases.
 func (q *Queries) InternalAddresses(ctx context.Context, workspaceID string) ([]string, error) {
 	rows, err := q.db.Query(ctx, internalAddresses, workspaceID)
 	if err != nil {

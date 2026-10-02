@@ -39,8 +39,11 @@ SELECT * FROM sync_cursors WHERE connection_id = ANY(@connection_ids::uuid[]);
 
 -- name: InternalAddresses :many
 -- InternalAddresses are the workspace's own addresses: its members' emails and
--- its connected accounts with their aliases.
+-- the other addresses they send from, and its connected accounts with their
+-- aliases.
 SELECT lower(users.email)::text AS address FROM users WHERE users.workspace_id = @workspace_id
+UNION
+SELECT lower(address)::text FROM users, unnest(users.addresses) AS address WHERE users.workspace_id = @workspace_id
 UNION
 SELECT lower(connections.account)::text FROM connections WHERE connections.workspace_id = @workspace_id
 UNION

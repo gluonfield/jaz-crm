@@ -23,9 +23,21 @@ func (s *Service) Known(ctx context.Context, workspaceID string) (Known, error) 
 	if err != nil {
 		return k, err
 	}
+	users, err := s.workspaces.Users(ctx, workspaceID)
+	if err != nil {
+		return k, err
+	}
+	// A member's university or personal mailbox is theirs alone; its domain
+	// holds people outside the workspace.
+	personal := map[string]bool{}
+	for _, u := range users {
+		for _, address := range u.Addresses {
+			personal[address] = true
+		}
+	}
 	for _, address := range addresses {
 		k.own[address] = true
-		if domain := workDomain(address); domain != "" {
+		if domain := workDomain(address); domain != "" && !personal[address] {
 			k.domains[domain] = true
 		}
 	}
