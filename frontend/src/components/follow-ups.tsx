@@ -10,7 +10,7 @@ import { useConnections } from '@/lib/sync'
 import type { CrmRecord, DraftSender, Interaction, Ref } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { RecordChip } from './controls'
-import { InteractionDialog } from './interaction-dialog'
+import { MessageThread } from './email-thread'
 import { Signature } from './signature'
 
 const text = (record: CrmRecord, slug: string) => valuesOf(record, slug).map(valueText).join(', ')
@@ -100,13 +100,6 @@ function FollowUp({ record, open, index, onToggle }: { record: CrmRecord; open: 
         <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[12px] text-ink-3">
           {Object.entries(subjects).flatMap(([slug, object]) => (valuesOf(record, slug) as Ref[]).map((v) => <RecordChip key={v.id} object={object} value={v} />))}
           {waiting && <span className="ml-0.5 shrink-0">{waiting}</span>}
-          <Button variant="ghost" size="sm" aria-expanded={open} aria-controls={`follow-up-${record.id}`} onClick={(e) => {
-            e.stopPropagation()
-            onToggle()
-          }} className="ml-auto">
-            Context & reply
-            <ChevronDown aria-hidden="true" className={cn('size-3.5 transition-transform duration-150 motion-reduce:transition-none', open && 'rotate-180')} />
-          </Button>
         </div>
         <Reveal open={!open && draft !== ''}>
           <p className="truncate pt-1 text-[12px] text-ink-3">
@@ -115,9 +108,10 @@ function FollowUp({ record, open, index, onToggle }: { record: CrmRecord; open: 
           </p>
         </Reveal>
         <Reveal open={open} onOpened={() => row.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })}>
-          <div id={`follow-up-${record.id}`} className="flex cursor-auto flex-col gap-3 pt-3" onClick={(e) => e.stopPropagation()}>
+          <div id={`follow-up-${record.id}`} className="flex cursor-auto flex-col gap-4 pt-4" onClick={(e) => e.stopPropagation()}>
             {person && <Context person={person} load={open} />}
-            <Draft record={record} channel={channel} sender={sender.data} error={sender.error?.message} conversation={conversation} />
+            {conversation && <Conversation conversation={conversation} load={open} />}
+            <Draft record={record} channel={channel} sender={sender.data} error={sender.error?.message} />
           </div>
         </Reveal>
       </div>
@@ -160,40 +154,55 @@ function Address({ label, value }: { label: string; value?: string }) {
   ) : null
 }
 
-// Context is what we know of the person a follow-up concerns, to check and
-// fix its draft against: who they are, then dated events as a timeline.
 function Context({ person, load }: { person: Ref; load: boolean }) {
   const query = useTool<CrmRecord>('get_record', { record_id: person.id }, { enabled: load })
+  const [expanded, setExpanded] = useState(true)
   const record = query.data
   const lines = (record ? text(record, 'context') : '').split('\n').map((line) => line.replace(/^\s*[-*•]\s*/, '').trim()).filter(Boolean)
   if (lines.length === 0 && !query.isLoading) {
     return null
   }
   return (
-    <section className="rounded-[var(--radius-control)] bg-panel px-3 py-2.5">
-      <h3 className="mb-2 text-[13px] font-medium text-ink">Person context</h3>
-      {query.isLoading && <p role="status" className="text-[12px] text-ink-3">Loading context…</p>}
-      <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[12px] leading-[18px] text-ink-2">
-        {lines.map((line, i) => {
-          const [, day, event] = line.match(/^(\d{4}-\d{2}-\d{2}):\s*(.*)$/) ?? []
-          return day ? (
-            <Fragment key={i}>
-              <span className="whitespace-nowrap tabular-nums text-ink-3">{formatDay(day)}</span>
-              <span>{event}</span>
-            </Fragment>
-          ) : (
-            <span key={i} className="col-span-2 mb-1">{line}</span>
-          )
-        })}
+    <section className="rounded-[var(--radius-control)] bg-list-hover px-3 py-2.5">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-[11px] font-medium uppercase tracking-[0.08em] text-ink-3">Person context</h3>
+        <Button variant="ghost" size="icon-sm" aria-label={expanded ? 'Hide person context' : 'Show person context'} aria-expanded={expanded} onClick={() => setExpanded(!expanded)} className="-my-1 -mr-1">
+          <ChevronDown aria-hidden="true" className={cn('transition-transform duration-150 motion-reduce:transition-none', expanded && 'rotate-180')} />
+        </Button>
       </div>
+      <Reveal open={expanded}>
+        {query.isLoading && <p role="status" className="pt-2 text-[12px] text-ink-3">Loading context…</p>}
+        <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 pt-2 text-[12px] leading-[18px] text-ink-2">
+          {lines.map((line, i) => {
+            const [, day, event] = line.match(/^(\d{4}-\d{2}-\d{2}):\s*(.*)$/) ?? []
+            return day ? (
+              <Fragment key={i}>
+                <span className="whitespace-nowrap tabular-nums text-ink-3">{formatDay(day)}</span>
+                <span>{event}</span>
+              </Fragment>
+            ) : (
+              <span key={i} className="col-span-2 mb-1">{line}</span>
+            )
+          })}
+        </div>
+      </Reveal>
     </section>
   )
 }
 
-// Draft edits a follow-up's draft in the queue, the one place drafts appear,
-// above the sender's signature as it will go out, and sends or approves it
-// once the edit is saved.
-function Draft({ record, channel, sender, error, conversation }: { record: CrmRecord; channel: string; sender?: DraftSender; error?: string; conversation?: Interaction }) {
+function Conversation({ conversation, load }: { conversation: Interaction; load: boolean }) {
+  const query = useTool<Interaction>('get_interaction', { interaction_id: conversation.id }, { enabled: load })
+  const interaction = query.data ?? conversation
+  const messages = query.data?.messages ?? (conversation.last_message ? [conversation.last_message] : [])
+  return (
+    <div className="min-w-0">
+      {query.error && <p role="alert" className="mb-2 text-[12px] text-ink-3">{query.error.message}</p>}
+      {messages.length ? <MessageThread interaction={interaction} messages={messages} initialVisible={1} /> : <p role="status" className="text-[12px] text-ink-3">{query.isLoading ? 'Loading message…' : 'Message text is not available yet.'}</p>}
+    </div>
+  )
+}
+
+function Draft({ record, channel, sender, error }: { record: CrmRecord; channel: string; sender?: DraftSender; error?: string }) {
   const current = text(record, 'draft')
   const [edited, setEdited] = useState<string | null>(null)
   const draft = edited ?? current
@@ -232,18 +241,15 @@ function Draft({ record, channel, sender, error, conversation }: { record: CrmRe
     }
   }
   return (
-    <div className="flex flex-col gap-2 rounded-[var(--radius-control)] bg-panel px-3 py-2.5">
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="text-[13px] font-medium text-ink">{channel ? `${channel} reply` : 'Reply'}</h3>
-        {conversation && <InteractionDialog interactionId={conversation.id}>
-          <Button variant="ghost" size="sm">View message</Button>
-        </InteractionDialog>}
+    <div className="flex flex-col gap-2 rounded-[var(--radius-control)] bg-bg px-3 py-2.5">
+      <div className="flex min-w-0 flex-wrap gap-x-3 gap-y-1 text-[12px] text-ink-3">
+        <h3 className="font-medium text-ink-2">{channel ? `${channel} reply` : 'Reply'}</h3>
+        {email && <>
+          {error ? <span className="text-ink-2">{error}</span> : <Address label="From" value={sender?.from} />}
+          <Address label="To" value={(to.length ? to : sender?.to ?? []).join(', ')} />
+          <Address label="Cc" value={(to.length ? cc : sender?.cc ?? []).join(', ')} />
+        </>}
       </div>
-      {email && <div className="flex flex-wrap gap-x-3 gap-y-1 text-[12px] text-ink-3">
-        {error ? <span className="text-ink-2">{error}</span> : <Address label="From" value={sender?.from} />}
-        <Address label="To" value={(to.length ? to : sender?.to ?? []).join(', ')} />
-        <Address label="Cc" value={(to.length ? cc : sender?.cc ?? []).join(', ')} />
-      </div>}
       <textarea
         aria-label="Draft"
         placeholder="Write a reply…"
