@@ -5,7 +5,7 @@
 - [x] Use one OpenAI SDK response with full stored context, current text and recipients, selected company pages, no model tools, no web retrieval and no truncation.
 - [x] Verify latest text/recipients survive delayed results, repeated edits and Undo; show failures and keep sending separately confirmed.
 - [x] Run full Go build/vet/tests, frontend checks/build, server startup, live model checks, browser verification and strict review.
-- [ ] Commit/push and verify production.
+- [x] Commit/push and verify production: 1cf3452 is SUCCESS on Server (1a002fcb) and Worker (76f36be2); health, actual composer/menu and a read-only live rewrite pass. The stored record was identical before/after and no mail was sent.
 
 Browser verification covered light/dark themes, a real 390px viewport, imported-draft revision advancement, local/remote edits during rewriting, recipient changes, Undo, errors, duplicate clicks and unmount cancellation. Native keyboard injection was unavailable; keyboard submission was not verified.
 
