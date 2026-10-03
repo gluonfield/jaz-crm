@@ -130,7 +130,7 @@ function ObjectList({ slug, filter, setFilter, flush }: { slug: string; filter: 
   }
   // The queue has no page header: its own column holds what chooses its
   // records, the view as its title, the order and a search that narrows the
-  // view, beside the way to the table and to a new follow-up.
+  // view.
   const controls = (
     <>
       <div className="flex min-w-0 items-center gap-1">
@@ -141,12 +141,6 @@ function ObjectList({ slug, filter, setFilter, flush }: { slug: string; filter: 
             <ArrowUp className="text-ink-3" />
           </Button>,
         )}
-        <Button variant="ghost" size="icon" aria-label="Table" title="Table" onClick={() => void navigate({ to: '.', search: { ...search, view: 'table' }, replace: true })}>
-          <Table2 />
-        </Button>
-        <Button variant="ghost" size="icon" aria-label="New follow-up" title="New follow-up" onClick={() => setCreating(true)}>
-          <Plus />
-        </Button>
       </div>
       <label className="flex h-8 items-center gap-2 rounded-[8px] bg-list-hover px-2.5 text-ink-3 transition-colors focus-within:bg-list-active">
         <Search className="size-3.5 shrink-0" />
