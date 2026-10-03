@@ -7,9 +7,11 @@
 - [x] Keep concrete reasons to wait, manual overrides and separate commitments; explain intentional deferral or no reply.
 - [x] Verify real model plans for new/repeated messages and exceptions, full checks and strict review.
 - [x] Recheck the reported follow-up before correcting its date: it was completed by the user's reply during the investigation, so no pending response remains to reschedule.
-- [ ] Commit/push and verify production.
+- [x] Commit/push and verify production: `7a81532` is SUCCESS on Server and Worker; health passes.
 
 Validation: nine live gpt-6-luna plans cover first/repeated incoming requests, manual dates, an explicit wait, waiting on Them, no reply needed, missing facts, overdue responses and a later deliverable with an immediate acknowledgement. The original prompt fails both immediate-response cases. All backend build/vet/PostgreSQL tests and frontend tests/typecheck/lint/builds pass. Strict review keeps scheduling judgment in the existing planner and removes the three-working-day convention; no new branches, transport changes or dependencies.
+
+A further live plan confirms that receiving another question while waiting on Them creates an Us response due today. A distinct outstanding request may remain its own follow-up.
 
 - [x] Visible Chase preset for existing and new workspaces: open, waiting on Them, overdue; chronological ordering.
 - [x] Replace review_on with an optional action_date that preserves date-only or timestamp precision; migrate values and saved/active filters.
