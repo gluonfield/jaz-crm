@@ -18,7 +18,7 @@ import { embedded } from '@/lib/api'
 import { useObjects, useTool, useWorkspace } from '@/lib/queries'
 import { steps, syncing, useConnections } from '@/lib/sync'
 import { setSchemePreference } from '@/lib/theme'
-import type { Contact } from '@/lib/types'
+import type { Contact, CrmObject } from '@/lib/types'
 import { setUI } from '@/lib/ui'
 import { useMoveWorkspace, useWorkspaces } from '@/lib/workspaces'
 import { DataNav } from './data-nav'
@@ -31,6 +31,12 @@ export function Sidebar() {
   const objects = useObjects() ?? []
   const pending = useTool<{ contacts: Contact[] }>('list_triage', { status: 'pending', limit: 200 }).data?.contacts.length ?? 0
   const sync = useConnections()?.connections.find(syncing)
+  const records = objects.filter((o) => o.standard && o.slug !== 'pages')
+  const nav = (o: CrmObject) => (
+    <NavItem key={o.slug} to={`/o/${o.slug}`} icon={<ObjectIcon slug={o.slug} />}>
+      {o.name}
+    </NavItem>
+  )
   return (
     <aside className="flex w-[232px] shrink-0 flex-col gap-px px-2.5 pb-3 pt-2.5 text-[13px]">
       <div className="mb-2 flex items-center gap-1">
@@ -53,15 +59,8 @@ export function Sidebar() {
       <NavItem to="/triage" icon={<Inbox />} count={pending}>
         Triage
       </NavItem>
-      <Section title="Records">
-        {objects
-          .filter((o) => o.standard && o.slug !== 'pages')
-          .map((o) => (
-            <NavItem key={o.slug} to={`/o/${o.slug}`} icon={<ObjectIcon slug={o.slug} />}>
-              {o.name}
-            </NavItem>
-          ))}
-      </Section>
+      {records.filter((o) => o.slug === 'follow_ups').map(nav)}
+      <Section title="Records">{records.filter((o) => o.slug !== 'follow_ups').map(nav)}</Section>
       <DataNav />
       <Section title="Workspace">
         <NavItem to="/connections" icon={<PlugZap />} busy={sync && (steps[sync.step ?? ''] ?? steps.GmailBackfill)}>
