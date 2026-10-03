@@ -1,6 +1,6 @@
 import { Check, ChevronsRight, LoaderCircle } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button } from '@jaz/ui/button'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
 import { DateField, DateLabel } from './date-field'
@@ -61,16 +61,15 @@ function FollowUp({ record, index, selected, onSelect }: { record: CrmRecord; in
       aria-current={selected || undefined}
       onClick={onSelect}
       className={cn(
-        'group relative -mx-2 flex cursor-default gap-3 rounded-[var(--radius-card)] px-2 py-2.5 text-[12px] text-ink-3 hover:bg-list-hover',
-        'before:absolute before:inset-x-2 before:top-0 before:h-px before:bg-border first:before:hidden hover:before:opacity-0 [&:hover+li]:before:opacity-0',
-        selected && 'bg-list-hover before:opacity-0 [&+li]:before:opacity-0',
+        'group relative -mx-2 flex cursor-default gap-3 rounded-[var(--radius-card)] px-2.5 py-2.5 text-[12px] text-ink-3 hover:bg-list-hover',
+        selected && 'bg-list-hover',
       )}
     >
-      {refs[0] ? <RecordIcon object={refs[0].plural} name={refs[0].ref.name ?? ''} photo={refs[0].ref.photo} size={28} className="mt-0.5" /> : <span aria-hidden="true" className="size-7 shrink-0" />}
+      {refs[0] ? <RecordIcon object={refs[0].plural} name={refs[0].ref.name ?? ''} photo={refs[0].ref.photo} size={32} /> : <span aria-hidden="true" className="size-8 shrink-0" />}
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+        <div className="flex min-w-0 items-baseline gap-2">
           <span className="truncate text-[13px] font-medium text-ink">{recordName(record)}</span>
-          {review && <span className={cn('ml-auto shrink-0 tabular-nums transition-opacity duration-150 group-focus-within:opacity-0 group-hover:opacity-0')}><DateLabel value={review} suggested={text(record, 'action_date_basis') === 'Suggested'} /></span>}
+          {review && <span title={text(record, 'action_date_basis') === 'Suggested' ? 'Suggested date' : undefined} className="ml-auto shrink-0 transition-opacity duration-150 group-focus-within:opacity-0 group-hover:opacity-0"><DateLabel value={review} /></span>}
         </div>
         <p className="truncate">{[...refs.map(({ ref }) => ref.name), moves[text(record, 'waiting_on')]].filter(Boolean).join(' · ')}</p>
         {draft && <p className="truncate">
@@ -139,12 +138,7 @@ function Conversation({ record, onClose }: { record: CrmRecord; onClose: () => v
   const loading = !conversations.isFetched || (!!conversation && !thread.isFetched)
   const messages = thread.data?.messages ?? (conversation?.last_message ? [conversation.last_message] : [])
   const error = conversations.error ?? thread.error
-  const body = useRef<HTMLDivElement>(null)
-  useLayoutEffect(() => {
-    if (!loading && body.current) {
-      body.current.scrollTop = body.current.scrollHeight
-    }
-  }, [loading])
+  const body = useStickToBottom()
   return (
     <section data-conversation aria-label={recordName(record)} className="flex min-w-0 flex-1 flex-col">
       <header className="shrink-0 border-b border-border px-5 pb-4 pt-2">
@@ -158,25 +152,55 @@ function Conversation({ record, onClose }: { record: CrmRecord; onClose: () => v
         {context.data && <Context record={context.data} />}
       </header>
       <div ref={body} className="scrollbar-quiet min-h-0 flex-1 overflow-y-auto px-5 py-4">
-        {loading ? (
-          <div role="status" className="flex h-28 items-center justify-center gap-2 text-[12px] text-ink-3">
-            <LoaderCircle aria-hidden="true" className="size-4 animate-spin motion-reduce:animate-none" />
-            Loading conversation…
-          </div>
-        ) : (
-          <>
-            {error && <p role="alert" className="mb-4 text-[12px] text-ink-3">{error.message}</p>}
-            {conversation && (messages.length > 0
-              ? <MessageThread key={conversation.id} interaction={thread.data ?? conversation} messages={messages} initialVisible={4} />
-              : <p className="text-[12px] text-ink-3">Message text is not available yet.</p>)}
-          </>
-        )}
+        <div>
+          {loading ? (
+            <div role="status" className="flex h-28 items-center justify-center gap-2 text-[12px] text-ink-3">
+              <LoaderCircle aria-hidden="true" className="size-4 animate-spin motion-reduce:animate-none" />
+              Loading conversation…
+            </div>
+          ) : (
+            <>
+              {error && <p role="alert" className="mb-4 text-[12px] text-ink-3">{error.message}</p>}
+              {conversation && (messages.length > 0
+                ? <MessageThread key={conversation.id} interaction={thread.data ?? conversation} messages={messages} initialVisible={4} />
+                : <p className="text-[12px] text-ink-3">Message text is not available yet.</p>)}
+            </>
+          )}
+        </div>
       </div>
       <footer className="shrink-0 px-5 pb-4">
         <Draft record={record} channel={channel} sender={sender.data} error={sender.error?.message} drafting={drafting} />
       </footer>
     </section>
   )
+}
+
+// useStickToBottom keeps a conversation at its latest message, as chat apps
+// do, while its content or the reply box below changes size, until someone
+// scrolls up to read.
+function useStickToBottom() {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const element = ref.current!
+    let pinned = true
+    const follow = () => {
+      if (pinned) {
+        element.scrollTop = element.scrollHeight
+      }
+    }
+    const track = () => {
+      pinned = element.scrollHeight - element.scrollTop - element.clientHeight < 32
+    }
+    const observer = new ResizeObserver(follow)
+    observer.observe(element)
+    observer.observe(element.firstElementChild!)
+    element.addEventListener('scroll', track)
+    return () => {
+      observer.disconnect()
+      element.removeEventListener('scroll', track)
+    }
+  }, [])
+  return ref
 }
 
 // Context is what we know of the person, as its markdown says it.

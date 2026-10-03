@@ -70,7 +70,7 @@ export function MessageThread({ interaction, messages, initialVisible = 6 }: { i
                 </CursorTip>
                 <div className={cn('flex min-w-0 flex-col gap-1', sent ? 'items-end' : 'items-start')}>
                   {run.messages.map((message, j) => (
-                    <div key={j} className={cn('min-w-0 max-w-full rounded-[18px] px-3.5 pb-1.5 pt-2 last:rounded-bl-[6px]', sent ? 'bg-primary-soft' : 'bg-list-hover')}>
+                    <div key={j} className={cn('min-w-0 max-w-full rounded-[20px] px-4 pb-2 pt-2.5 last:rounded-bl-[6px]', sent ? 'bg-primary-soft' : 'bg-list-hover')}>
                       <span className="sr-only">{run.author}: </span>
                       {message.text || message.html ? <Message text={message.text} html={message.html} /> : <p className="text-[13px] text-ink-3">The text arrives with the next sync.</p>}
                       {message.partial && <p className="mt-2 text-[11.5px] text-ink-3">Message excerpt</p>}
