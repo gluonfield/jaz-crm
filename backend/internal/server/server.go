@@ -11,6 +11,7 @@ import (
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/logosapi"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/mcpapi"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/webhooks"
+	"github.com/gluonfield/jaz-tasks/httpx"
 )
 
 // WebDir holds the built web app; empty serves a sign-in page instead.
@@ -39,7 +40,7 @@ func New(authn *authapi.Handler, agents *mcpapi.Handler, connect *connectapi.Han
 	} else {
 		mux.Handle("/", spa(string(web)))
 	}
-	return mux
+	return httpx.Compress(mux)
 }
 
 // cors lets browser clients on other origins call the API: credentials
