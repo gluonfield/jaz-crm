@@ -102,6 +102,10 @@ func (s *Service) Log(ctx context.Context, actor auth.Actor, source string, e En
 		}
 		parts = append(parts, storage.NewPart{Kind: "message", ExternalID: "message-" + strconv.Itoa(n), AuthorName: m.Sender, At: &sent, DateOnly: day, Content: &m.Text, Recipients: m.Recipients, Direction: m.Direction, Partial: m.Partial, Position: int32(n + 1)})
 	}
+	// A conversation lasts until its latest message, as synced threads do.
+	if len(parts) > 1 && e.End == nil {
+		e.End = parts[len(parts)-1].At
+	}
 	if e.End != nil && e.End.Before(at) {
 		return Interaction{}, errs.Invalidf("end precedes at")
 	}

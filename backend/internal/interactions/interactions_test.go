@@ -3,6 +3,7 @@ package interactions_test
 import (
 	"context"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -447,6 +448,9 @@ func TestLogWholeConversation(t *testing.T) {
 	want := []string{"sent Owner 2026-09-19T16:55:00Z", "received Ada 2026-09-20T15:40:00Z", "sent Owner 2026-09-30"}
 	if logged.Channel != "linkedin" || !slices.Equal(got, want) || logged.LastMessage == nil || logged.LastMessage.Text != "Thanks! Here is a demo." {
 		t.Fatalf("logged conversation: %q, channel %q, last %+v", got, logged.Channel, logged.LastMessage)
+	}
+	if activity, err := e.svc.Activities(ctx, e.a, []string{ada.ID}); err != nil || activity[ada.ID].FirstAt != "2026-09-19T16:55:00Z" || !strings.HasPrefix(activity[ada.ID].LastAt, "2026-09-30") {
+		t.Fatalf("the conversation runs from its first to its latest message: %+v %v", activity, err)
 	}
 	thread.Messages = append(thread.Messages, interactions.Said{At: "2026-10-01", Sender: "Ada", Recipients: []string{"Owner"}, Direction: "received", Text: "Looks useful."})
 	again, err := e.svc.Log(ctx, e.a, "manual", thread)
