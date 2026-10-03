@@ -27,3 +27,13 @@ Production: `3682736` is pushed and active on Server and Worker. Health, migrate
 The reported October 19 item was Open and waiting on Us. The former Needs attention deadline condition excluded it, while both Them presets correctly excluded it by direction.
 
 Validation: full backend build/vet/PostgreSQL tests and frontend checks pass. Real web/embedded filter selection passes in light/dark and at narrow width, including persistence across reload. Reverting either preset membership or ordering makes the API regression fail. Migration checks cover unchanged, edited, renamed and unrelated presets. Strict review keeps ordering in the record service, reuses schema order, and changes the filter contract without adding date exceptions to the UI.
+
+## Thermo-nuclear review, 2026-10-03
+
+- [x] Audit the filter correction, its ownership, ordering and migrations.
+- [x] Close the reproduced gap where an optional, unset Waiting on field excludes open work from every preset; preserve unset ownership and custom filters.
+- [x] Verify the corrected contract through API, migration and real-screen checks.
+
+Finding: the new predicate assumed every open action had a waiting side. Creation permits omission, and the earlier migration test was changed to supply Us, masking the regression. Needs attention now uses Open + Waiting on is not Them, which includes unset values through the existing filter engine. Built-in ordering already has one owner and reuses schema order; no additional ordering abstraction is warranted.
+
+Verification: the original predicate fails the real API reproduction. Full backend build/vet/PostgreSQL tests and frontend checks pass after correction. Real website and embedded views pass for dated and undated unassigned actions in both themes and at narrow width; preset order, Them queues and reload persistence remain correct. Migration coverage includes both prior default shapes and edited/custom selections.

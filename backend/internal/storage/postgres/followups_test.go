@@ -195,7 +195,7 @@ JOIN objects ON objects.id = records.object_id WHERE objects.slug = 'companies';
 	if err != nil || len(followUpFilters) != 3 {
 		t.Fatalf("existing workspace did not get follow-up filters: %v %v", followUpFilters, err)
 	}
-	followUp, _, err := svc.Upsert(ctx, actor, records.SourceUser, records.Write{Object: records.FollowUps, Set: map[string][]string{"name": {"Send the quote"}, "deal": {found[0].ID}, "waiting_on": {"Us"}, "action_date": {"2000-01-01"}}})
+	followUp, _, err := svc.Upsert(ctx, actor, records.SourceUser, records.Write{Object: records.FollowUps, Set: map[string][]string{"name": {"Send the quote"}, "deal": {found[0].ID}, "action_date": {"2000-01-01"}}})
 	if err != nil {
 		t.Fatalf("migrated follow-ups unusable: %v", err)
 	}

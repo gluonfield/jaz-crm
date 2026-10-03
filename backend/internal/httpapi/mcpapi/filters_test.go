@@ -166,13 +166,18 @@ func TestFollowUpQueues(t *testing.T) {
 		{"Our overdue action", "Us", "2000-01-01", "Open"},
 		{"Our future action", "Us", "2099-10-19", "Open"},
 		{"Our undated action", "Us", "", "Open"},
+		{"Unassigned overdue action", "", "2000-01-01", "Open"},
+		{"Unassigned undated action", "", "", "Open"},
 		{"Their overdue action", "Them", "2000-01-01", "Open"},
 		{"Their future action", "Them", "2099-10-19", "Open"},
 		{"Their undated action", "Them", "", "Open"},
 		{"Our completed action", "Us", "", "Done"},
 		{"Their dismissed action", "Them", "", "Dismissed"},
 	} {
-		values := map[string]any{"name": fixture.name, "waiting_on": fixture.waiting, "status": fixture.status}
+		values := map[string]any{"name": fixture.name, "status": fixture.status}
+		if fixture.waiting != "" {
+			values["waiting_on"] = fixture.waiting
+		}
 		if fixture.date != "" {
 			values["action_date"] = fixture.date
 			values["action_date_basis"] = "Stated"
@@ -181,7 +186,7 @@ func TestFollowUpQueues(t *testing.T) {
 		mustCall(t, a, "upsert_record", map[string]any{"object": "follow_ups", "values": values})
 	}
 	for i, want := range [][]string{
-		{"Our future action", "Our overdue action", "Our undated action"},
+		{"Our future action", "Our overdue action", "Our undated action", "Unassigned overdue action", "Unassigned undated action"},
 		{"Their overdue action"},
 		{"Their future action", "Their overdue action", "Their undated action"},
 	} {

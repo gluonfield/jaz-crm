@@ -101,7 +101,8 @@ func TestNeedsAttentionMigration(t *testing.T) {
 	db, dsn := legacy(t, 33)
 	old := `[{"attribute":"status","operator":"is","value":"Open"},{"attribute":"action_date","operator":"on_or_before","value":"today"}]`
 	custom := `[{"attribute":"status","operator":"is","value":"Open"}]`
-	updated := `[{"attribute":"status","operator":"is","value":"Open"},{"attribute":"waiting_on","operator":"is","value":"Us"}]`
+	assigned := `[{"attribute":"status","operator":"is","value":"Open"},{"attribute":"waiting_on","operator":"is","value":"Us"}]`
+	updated := `[{"attribute":"status","operator":"is","value":"Open"},{"attribute":"waiting_on","operator":"is_not","value":"Them"}]`
 	type fixture struct {
 		name, slug, query, saved, active, wantSaved, wantActive string
 		workspace, object, id                                   string
@@ -113,6 +114,9 @@ func TestNeedsAttentionMigration(t *testing.T) {
 		{name: "Needs attention", slug: "follow_ups", query: "Customer", saved: old, active: old, wantSaved: old, wantActive: old},
 		{name: "My deadlines", slug: "follow_ups", saved: old, active: old, wantSaved: old, wantActive: old},
 		{name: "Needs attention", slug: "deals", saved: old, active: old, wantSaved: old, wantActive: old},
+		{name: "Needs attention", slug: "follow_ups", saved: assigned, active: assigned, wantSaved: updated, wantActive: updated},
+		{name: "Needs attention", slug: "follow_ups", saved: assigned, active: custom, wantSaved: updated, wantActive: custom},
+		{name: "Needs attention", slug: "follow_ups", query: "Customer", saved: assigned, active: assigned, wantSaved: assigned, wantActive: assigned},
 	}
 	for i := range fixtures {
 		f := &fixtures[i]
