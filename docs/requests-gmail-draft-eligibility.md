@@ -4,7 +4,7 @@
 - [x] Keep Gmail drafts without authored message text or an external recipient out of Follow-ups, including signature-only drafts.
 - [x] Repair the reported entry without altering its Gmail original or losing CRM history.
 - [x] Verify unfinished-to-ready transitions, existing Gmail draft lifecycle, full checks and strict code-quality review.
-- [ ] Commit, push and verify production.
+- [x] Commit, push and verify production.
 
 The reported record was created at 16:10 UTC by Gmail draft import. Its subject is empty, its body contains only Ujjwal's Gmail signature, and its sole recipient is Augustinas's workspace address. The importer only checked for any recipient and imposed no content requirement.
 
@@ -13,3 +13,5 @@ Imported drafts retain their provider snapshots while incomplete. A ready draft 
 Verification: full Go 1.26 tests/build/vet and frontend tests/typecheck/lint/both builds pass. PostgreSQL-backed Gmail API integration cases cover empty, unaddressed, plain/HTML signature-only, quoted-only, internal-only, new external contacts, mixed internal/external recipients, and authored text before/after a signature. The existing attachment/Bcc/send/edit/delete lifecycle suite passes. Original-importer and original-send negative controls reproduce the failures. Strict review found no material issues; policy stays in the importer, content detection stays in the Google adapter, and no dependencies or UI changes were added.
 
 Production repair set the reported record to Dismissed through the normal CRM API. The draft text, recipients and history remain; Gmail still reports the original draft ID and unchanged message revision. No mail was sent.
+
+Fix `ba4a57d` is live: Server `77de425f-67b2-43e5-95dc-fa245e103cf3` and Worker `a8442da5-6a84-4279-b889-0b727403ac70` both reached SUCCESS on the exact commit; production health passes. The real Needs attention view/query excludes the repaired record. A read-only audit of the three active provider snapshots confirms this was the only one without authored content; both remaining drafts address external recipients.
