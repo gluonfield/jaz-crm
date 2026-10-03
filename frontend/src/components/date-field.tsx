@@ -29,9 +29,9 @@ export function DateField({ record, slug = 'action_date', label = 'Action date',
   const [open, setOpen] = useState(false)
   return <Popover open={open} onOpenChange={setOpen}>
     <PopoverTrigger asChild>
-      <Button variant="ghost" size={prefix ? 'default' : 'sm'} aria-label={label} onClick={(e) => e.stopPropagation()} className={cn('max-w-full text-ink-2', prefix && 'bg-list-hover hover:bg-list-active')}>
+      <Button variant="ghost" size={prefix ? 'default' : 'sm'} aria-label={label} onClick={(e) => e.stopPropagation()} className="max-w-full text-ink-2">
         {!value && <CalendarDays />}
-        {value && prefix && <span className="text-ink-3">{prefix}</span>}
+        {value && prefix && (isOverdue(value, zone) ? <span className="text-danger">Overdue</span> : <span className="text-ink-3">{prefix}</span>)}
         {value ? <DateLabel value={value} suggested={basis === 'Suggested'} /> : label}
       </Button>
     </PopoverTrigger>

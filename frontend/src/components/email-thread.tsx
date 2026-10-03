@@ -54,9 +54,14 @@ function items(messages: CrmMessage[], events: ThreadEvent[]) {
   return out
 }
 
-// Divider centres a label, such as a day, on a hairline across the thread.
+// Divider centres a label, such as a day, between messages, as chat apps do.
 export function Divider({ children }: { children: ReactNode }) {
-  return <div className="flex items-center gap-3 text-[12px] text-ink-3 before:h-px before:flex-1 before:bg-border after:h-px after:flex-1 after:bg-border"><span>{children}</span></div>
+  return <p className="text-center text-[11.5px] font-medium text-ink-3">{children}</p>
+}
+
+// Happening is something that happened in a conversation besides a message.
+export function Happening({ children }: { children: ReactNode }) {
+  return <p className="flex items-center gap-2.5 pl-9 text-[12.5px] text-ink-3"><span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-primary" />{children}</p>
 }
 
 export function MessageThread({ interaction, messages, events = [], initialVisible = 6 }: { interaction: Interaction; messages: CrmMessage[]; events?: ThreadEvent[]; initialVisible?: number }) {
@@ -79,7 +84,7 @@ export function MessageThread({ interaction, messages, events = [], initialVisib
             return (
               <li key={i} className="flex min-w-0 flex-col gap-3.5">
                 {day}
-                <p className="flex items-center gap-2.5 pl-9 text-[12.5px] text-ink-3"><span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-primary" />{item.event}</p>
+                <Happening>{item.event}</Happening>
               </li>
             )
           }

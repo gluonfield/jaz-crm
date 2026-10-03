@@ -4,14 +4,14 @@ import { Link } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@jaz/ui/button'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
-import { isOverdue } from '@/lib/dates'
-import { useTool, useWorkspace, useWrite } from '@/lib/queries'
+import { formatDate } from '@/lib/format'
+import { useTool, useWrite } from '@/lib/queries'
 import { readItem, writeItem } from '@/lib/storage'
 import type { CrmRecord, DraftSender, Interaction, Ref } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { RecordChip } from './controls'
-import { DateField, DateLabel } from './date-field'
-import { Divider, MessageThread } from './email-thread'
+import { DateField } from './date-field'
+import { Divider, Happening, MessageThread } from './email-thread'
 import { MarkdownView } from './editor'
 import { ChannelTag, RecordIcon } from './icons'
 import { ContextEditor } from './person-context'
@@ -69,10 +69,9 @@ export function Conversation({ record, onClose }: { record: CrmRecord; onClose: 
   const loading = !conversations.isFetched || (!!conversation && !thread.isFetched)
   const messages = thread.data?.messages ?? (conversation?.last_message ? [conversation.last_message] : [])
   const error = conversations.error ?? thread.error
-  const due = text(record, 'action_date')
-  const zone = useWorkspace()?.timezone ?? 'UTC'
   // Whether context shows is one choice for every follow-up.
   const [showContext, setShowContext] = useState(() => readItem(contextHidden) !== 'true')
+  const created = <>Follow-up created · {recordName(record)}</>
   const body = useStickToBottom()
   return (
     <section data-conversation aria-label={recordName(record)} className="flex min-w-0 flex-1 flex-col">
@@ -90,6 +89,12 @@ export function Conversation({ record, onClose }: { record: CrmRecord; onClose: 
               <span aria-hidden="true" className="text-ink-3">·</span>
               <RecordChip object="companies" value={company} />
             </>}
+            {person && <Button variant="ghost" size="icon-sm" aria-label="Context" title={showContext ? 'Hide context' : 'Show context'} aria-pressed={showContext} className={cn('shrink-0', showContext && 'bg-list-active text-ink hover:bg-list-active')} onClick={() => {
+              writeItem(contextHidden, String(showContext))
+              setShowContext(!showContext)
+            }}>
+              <NotebookText />
+            </Button>}
           </div>
           {(channel || conversation) && <p className="flex min-w-0 items-center gap-1.5 text-[12px] text-ink-3">
             {channel && <ChannelTag channel={channel.toLowerCase()} />}
@@ -97,13 +102,6 @@ export function Conversation({ record, onClose }: { record: CrmRecord; onClose: 
           </p>}
         </div>
         <div className="ml-auto flex shrink-0 items-center gap-1.5">
-          {person && <Button variant="ghost" aria-pressed={showContext} className={cn(showContext && 'bg-list-active text-ink hover:bg-list-active')} onClick={() => {
-            writeItem(contextHidden, String(showContext))
-            setShowContext(!showContext)
-          }}>
-            <NotebookText />
-            Context
-          </Button>}
           <DateField record={record} prefix="Action" />
           <Done record={record} labelled className="bg-list-hover hover:bg-list-active" />
         </div>
@@ -119,10 +117,13 @@ export function Conversation({ record, onClose }: { record: CrmRecord; onClose: 
           ) : (
             <>
               {error && <p role="alert" className="text-[12px] text-ink-3">{error.message}</p>}
-              {conversation && (messages.length > 0
-                ? <MessageThread key={conversation.id} interaction={thread.data ?? conversation} messages={messages} events={[{ at: record.created_at, label: <>Follow-up created · {recordName(record)}</> }]} initialVisible={4} />
-                : <p className="text-[12px] text-ink-3">Message text is not available yet.</p>)}
-              {due && <Divider>{isOverdue(due, zone) ? <span className="text-danger">Overdue</span> : 'Next'} · <DateLabel value={due} /></Divider>}
+              {conversation && messages.length > 0
+                ? <MessageThread key={conversation.id} interaction={thread.data ?? conversation} messages={messages} events={[{ at: record.created_at, label: created }]} initialVisible={4} />
+                : <>
+                  {conversation && <p className="text-[12px] text-ink-3">Message text is not available yet.</p>}
+                  <Divider>{formatDate(record.created_at)}</Divider>
+                  <Happening>{created}</Happening>
+                </>}
             </>
           )}
         </div>
