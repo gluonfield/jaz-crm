@@ -10,3 +10,9 @@
 Browser verification covered light/dark themes, a real 390px viewport, imported-draft revision advancement, local/remote edits during rewriting, recipient changes, Undo, errors, duplicate clicks and unmount cancellation. Native keyboard injection was unavailable; keyboard submission was not verified.
 
 Related question: four Kojaddnd entries are four distinct completed sends in one conversation. Each row repeats the latest conversation preview. One current open action waits on them. Proposed presentation is one conversation row with completed actions inside history; no records or messages were deleted or merged. Conversation grouping is separate from these drafting controls.
+
+## Email signature correction
+
+- [x] Replace the initial drafting prompt's instruction to append a sign-off and sender name: generated email ends after its substantive text, with the configured signature added when sending. Quick edits already prohibit adding a sign-off, name or signature and preserve existing user/provider text.
+- [x] Real model replies, new emails and quick edits omit closings/names. Restoring the old prompt reproduces “Best, Augustinas”. Full Go build/vet/tests, frontend tests/typecheck/lint and strict review pass; no mail sent.
+- [ ] Verify production rollout.
