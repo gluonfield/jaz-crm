@@ -1,6 +1,6 @@
-import { Check, LoaderCircle, X } from 'lucide-react'
-import { type UseQueryResult, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Fragment, type ReactNode, useEffect, useRef, useState } from 'react'
+import { Check, ChevronDown, ChevronsRight, LoaderCircle, X } from 'lucide-react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { Button } from '@jaz/ui/button'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
 import { formatDay } from '@/lib/format'
@@ -20,136 +20,200 @@ const today = () => new Date().toLocaleDateString('en-CA')
 const list = (record: CrmRecord, slug: string) => valuesOf(record, slug).map(valueText)
 
 // FollowUpQueue lists follow-ups as a review queue: what is owed, to whom and
-// by when. The focused follow-up opens to its draft, with what we know of the
-// person beside the queue, or inside the card when the queue is narrow.
+// by when. Choosing one opens its conversation and draft beside the list, or
+// in its place when the queue is narrow.
 export function FollowUpQueue({ records, focus, onFocus }: { records: CrmRecord[]; focus: number; onFocus: (index: number) => void }) {
-  const preparing = useConnections(3000)?.connections.some((c) => c.status === 'active' && c.step === 'FollowUps')
-  const person = records[focus] && valuesOf(records[focus], 'person')[0] as Ref | undefined
-  const context = useTool<CrmRecord>('get_record', { record_id: person?.id ?? '' }, { enabled: !!person })
+  const preparing = useConnections()?.connections.some((c) => c.status === 'active' && c.step === 'FollowUps')
+  const selected = records[focus]
   return (
-    <div className="scrollbar-quiet @container min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto grid max-w-[1200px] items-start gap-x-8 px-4 py-3 @3xl:grid-cols-[minmax(0,1fr)_272px]">
-        <div className="min-w-0">
-          {preparing && <div role="status" className="flex items-center gap-2 pb-3 text-[12px] text-ink-2">
-            <LoaderCircle aria-hidden="true" className="size-3.5 animate-spin motion-reduce:animate-none" />
-            Preparing replies…
-          </div>}
-          <ul>
-            {records.map((r, index) => (
-              <FollowUp key={r.id} record={r} open={focus === index} index={index} context={focus === index && person ? context : undefined} onToggle={() => onFocus(focus === index ? -1 : index)} />
-            ))}
-          </ul>
-        </div>
-        {person && <aside aria-label="Person context" className="scrollbar-quiet sticky top-0 hidden max-h-[calc(100dvh-4rem)] overflow-y-auto py-3 @3xl:block">
-          <Context context={context} />
-        </aside>}
+    <div className="@container flex min-h-0 flex-1">
+      <div className={cn('relative flex min-h-0 flex-col', selected ? 'hidden w-[320px] shrink-0 border-r border-border @4xl:flex @6xl:w-[380px]' : 'flex-1')}>
+        <ul className={cn('scrollbar-quiet min-h-0 w-full flex-1 overflow-y-auto px-4 py-3', !selected && 'mx-auto max-w-[880px]')}>
+          {records.map((r, index) => (
+            <FollowUp key={r.id} record={r} index={index} selected={focus === index} onSelect={() => onFocus(index)} />
+          ))}
+        </ul>
+        {preparing && <div role="status" className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full bg-raised px-3 py-1.5 text-[12px] text-ink-2 shadow-md">
+          <LoaderCircle aria-hidden="true" className="size-3.5 animate-spin motion-reduce:animate-none" />
+          Preparing replies…
+        </div>}
       </div>
+      {selected && <Conversation key={selected.id} record={selected} onClose={() => onFocus(-1)} />}
     </div>
   )
 }
 
-// editDraft starts editing the draft of the follow-up at index, once open.
-export const editDraft = (index: number) => document.querySelector<HTMLElement>(`[data-row="${index}"] textarea`)?.focus()
+// editDraft starts editing the open follow-up's draft.
+export const editDraft = () => document.querySelector<HTMLElement>('[data-conversation] textarea')?.focus()
 
 const subjects = { person: 'people', company: 'companies', deal: 'deals' }
 const channels: Record<string, string> = { email: 'Email', linkedin: 'LinkedIn' }
 
-function FollowUp({ record, open, index, context, onToggle }: { record: CrmRecord; open: boolean; index: number; context?: UseQueryResult<CrmRecord>; onToggle: () => void }) {
-  const write = useWrite(record)
-  const review = text(record, 'review_on')
-  const due = review !== '' && review <= today()
-  const waiting = { Us: 'Our move', Them: 'Waiting on them' }[text(record, 'waiting_on')]
+function FollowUp({ record, index, selected, onSelect }: { record: CrmRecord; index: number; selected: boolean; onSelect: () => void }) {
   const draft = text(record, 'draft')
-  const conversations = useTool<{ interactions: Interaction[] }>('list_interactions', { record_id: record.id, kinds: ['message'], limit: 1 }, { enabled: open, refetchInterval: open ? 3000 : false })
+  const review = text(record, 'review_on')
+  const who = Object.keys(subjects).flatMap((slug) => (valuesOf(record, slug) as Ref[]).map((v) => v.name))
+  const waiting = { Us: 'Our move', Them: 'Waiting on them' }[text(record, 'waiting_on')]
+  return (
+    <li
+      data-row={index}
+      aria-current={selected || undefined}
+      onClick={onSelect}
+      className={cn(
+        'group relative -mx-2 flex cursor-default flex-col gap-0.5 rounded-[var(--radius-card)] px-2 py-2.5 text-[12px] text-ink-3 hover:bg-list-hover',
+        'before:absolute before:inset-x-2 before:top-0 before:h-px before:bg-border first:before:hidden hover:before:opacity-0 [&:hover+li]:before:opacity-0',
+        selected && 'bg-list-hover before:opacity-0 [&+li]:before:opacity-0',
+      )}
+    >
+      <div className="flex min-w-0 items-baseline gap-2">
+        <span className="truncate text-[13px] font-medium text-ink">{recordName(record)}</span>
+        {review && <span className={cn('ml-auto shrink-0 tabular-nums transition-opacity duration-150 group-focus-within:opacity-0 group-hover:opacity-0', review <= today() && 'text-ink')}>{formatDay(review)}</span>}
+      </div>
+      <p className="truncate">{[...who, waiting].filter(Boolean).join(' · ')}</p>
+      {draft && <p className="truncate">
+        <span className="mr-1.5 text-ink-2">{text(record, 'draft_status') || 'Draft'}</span>
+        {draft.replace(/\s+/g, ' ')}
+      </p>}
+      <Actions record={record} className="absolute right-1 top-1.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100" />
+    </li>
+  )
+}
+
+// Summary is the open follow-up's title and due date over whom it concerns and
+// whose move it is.
+function Summary({ record }: { record: CrmRecord }) {
+  const review = text(record, 'review_on')
+  const waiting = { Us: 'Our move', Them: 'Waiting on them' }[text(record, 'waiting_on')]
+  return (
+    <>
+      <div className="flex min-w-0 items-baseline gap-2">
+        <h2 className="min-w-0 text-[15px] font-medium leading-snug text-ink">{recordName(record)}</h2>
+        {review && <span className={cn('ml-auto shrink-0 text-[12px] tabular-nums', review <= today() ? 'text-ink' : 'text-ink-3')}>{formatDay(review)}</span>}
+      </div>
+      <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[12px] text-ink-3">
+        {Object.entries(subjects).flatMap(([slug, object]) => (valuesOf(record, slug) as Ref[]).map((v) => <RecordChip key={v.id} object={object} value={v} />))}
+        {waiting && <span className="ml-0.5 shrink-0">{waiting}</span>}
+      </div>
+    </>
+  )
+}
+
+function Actions({ record, className }: { record: CrmRecord; className?: string }) {
+  const write = useWrite(record)
+  return (
+    <div className={cn('flex shrink-0 items-start gap-0.5', className)}>
+      <Button variant="ghost" size="icon-sm" aria-label="Done" title="Done" onClick={(e) => {
+        e.stopPropagation()
+        write.set('status', 'Done')
+      }}>
+        <Check />
+      </Button>
+      <Button variant="ghost" size="icon-sm" aria-label="Dismiss" title="Dismiss" onClick={(e) => {
+        e.stopPropagation()
+        write.set('status', 'Dismissed')
+      }}>
+        <X />
+      </Button>
+    </div>
+  )
+}
+
+// Conversation is the open follow-up: what we know of the person, the
+// conversation it answers and its draft reply.
+function Conversation({ record, onClose }: { record: CrmRecord; onClose: () => void }) {
+  const person = valuesOf(record, 'person')[0] as Ref | undefined
+  const context = useTool<CrmRecord>('get_record', { record_id: person?.id ?? '' }, { enabled: !!person })
+  const conversations = useTool<{ interactions: Interaction[] }>('list_interactions', { record_id: record.id, kinds: ['message'], limit: 1 }, {
+    refetchInterval: (query) => (query.state.data?.interactions[0]?.drafting?.state === 'drafting' ? 3000 : false),
+  })
   const conversation = conversations.data?.interactions[0]
   const drafting = conversation?.drafting
   const draftingState = drafting?.state
   const draftingStartedAt = drafting?.started_at
   const client = useQueryClient()
   useEffect(() => {
-    if (open && draftingState && draftingState !== 'drafting') {
+    if (draftingState && draftingState !== 'drafting') {
       void client.invalidateQueries({ queryKey: ['search_records'] })
     }
-  }, [open, draftingState, draftingStartedAt, client])
-  const thread = useTool<Interaction>('get_interaction', { interaction_id: conversation?.id ?? '' }, { enabled: open && !!conversation })
+  }, [draftingState, draftingStartedAt, client])
+  const thread = useTool<Interaction>('get_interaction', { interaction_id: conversation?.id ?? '' }, { enabled: !!conversation })
   const channel = text(record, 'channel') || channels[conversation?.channel ?? ''] || ''
-  const email = channel === 'Email'
-  const sender = useTool<DraftSender>('get_draft_sender', { record_id: record.id }, { enabled: open && email })
-  const loading = conversations.isLoading || thread.isLoading || sender.isLoading
+  const sender = useTool<DraftSender>('get_draft_sender', { record_id: record.id }, { enabled: channel === 'Email' })
+  // A query without data reads as pending again on every refetch, even after
+  // it failed, so loading means not yet answered.
+  const loading = !conversations.isFetched || (!!conversation && !thread.isFetched)
   const messages = thread.data?.messages ?? (conversation?.last_message ? [conversation.last_message] : [])
+  const body = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!loading && body.current) {
+      body.current.scrollTop = body.current.scrollHeight
+    }
+  }, [loading])
   return (
-    <li
-      data-row={index}
-      aria-expanded={open}
-      onClick={onToggle}
-      className={cn(
-        'group relative -mx-2 grid cursor-default grid-cols-[minmax(0,1fr)_auto] gap-x-3 rounded-[var(--radius-card)] px-2 py-3 hover:bg-list-hover',
-        'before:absolute before:inset-x-2 before:top-0 before:h-px before:bg-border first:before:hidden hover:before:opacity-0 [&:hover+li]:before:opacity-0',
-        open && 'bg-list-hover before:opacity-0 [&+li]:before:opacity-0',
-      )}
-    >
-      <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex min-w-0 items-baseline gap-2 text-[13px]">
-          <span className="truncate font-medium text-ink">{recordName(record)}</span>
-          {review && <span className={cn('ml-auto shrink-0 text-[12px] tabular-nums', due ? 'text-ink' : 'text-ink-3')}>{formatDay(review)}</span>}
+    <section data-conversation aria-label={recordName(record)} className="flex min-w-0 flex-1 flex-col">
+      <header className="shrink-0 border-b border-border px-5 pb-4 pt-2">
+        <div className="-mx-2 mb-1 flex items-center">
+          <Button variant="ghost" size="icon-sm" aria-label="Close" title="Close" onClick={onClose}>
+            <ChevronsRight />
+          </Button>
+          <Actions record={record} className="ml-auto" />
         </div>
-        <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[12px] text-ink-3">
-          {Object.entries(subjects).flatMap(([slug, object]) => (valuesOf(record, slug) as Ref[]).map((v) => <RecordChip key={v.id} object={object} value={v} />))}
-          {waiting && <span className="ml-0.5 shrink-0">{waiting}</span>}
-        </div>
-        <Reveal open={!open && draft !== ''}>
-          <p className="truncate pt-1 text-[12px] text-ink-3">
-            <span className="mr-1.5 text-ink-2">{text(record, 'draft_status') || 'Draft'}</span>
-            {draft.replace(/\s+/g, ' ')}
-          </p>
-        </Reveal>
-      </div>
-      <div className={cn('flex items-start gap-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100', open && 'opacity-100')}>
-        <Button variant="ghost" size="icon-sm" aria-label="Done" title="Done" onClick={(e) => {
-          e.stopPropagation()
-          write.set('status', 'Done')
-        }}>
-          <Check />
-        </Button>
-        <Button variant="ghost" size="icon-sm" aria-label="Dismiss" title="Dismiss" onClick={(e) => {
-          e.stopPropagation()
-          write.set('status', 'Dismissed')
-        }}>
-          <X />
-        </Button>
-      </div>
-      <div className="col-span-2 min-w-0">
-        <Reveal open={open && loading}>
+        <Summary record={record} />
+        {context.data && <Context record={context.data} />}
+      </header>
+      <div ref={body} className="scrollbar-quiet min-h-0 flex-1 overflow-y-auto px-5 py-4">
+        {loading ? (
           <div role="status" className="flex h-28 items-center justify-center gap-2 text-[12px] text-ink-3">
             <LoaderCircle aria-hidden="true" className="size-4 animate-spin motion-reduce:animate-none" />
             Loading conversation…
           </div>
-        </Reveal>
-        <Reveal open={open && !loading}>
-          <div id={`follow-up-${record.id}`} className="flex cursor-auto flex-col gap-4 pt-4" onClick={(e) => e.stopPropagation()}>
-            {context && <Context context={context} className="rounded-[var(--radius-control)] bg-list-hover px-3 py-2.5 @3xl:hidden" />}
+        ) : (
+          <div className="flex flex-col gap-4">
             {(conversations.error || thread.error) && <p role="alert" className="text-[12px] text-ink-3">{(conversations.error || thread.error)?.message}</p>}
             {conversation && (messages.length > 0
-              ? <MessageThread key={conversation.id} interaction={thread.data ?? conversation} messages={messages} initialVisible={1} />
+              ? <MessageThread key={conversation.id} interaction={thread.data ?? conversation} messages={messages} initialVisible={4} />
               : <p className="text-[12px] text-ink-3">Message text is not available yet.</p>)}
             <Draft key={text(record, 'draft_status') === 'Sent' ? 'sent' : 'draft'} record={record} channel={channel} sender={sender.data} error={sender.error?.message} drafting={drafting} />
           </div>
-        </Reveal>
+        )}
       </div>
-    </li>
+    </section>
   )
 }
 
-// Reveal grows its content open and shut, keeping it out of reach while shut.
-function Reveal({ open, children }: { open: boolean; children: ReactNode }) {
+// Context is what we know of the person: who they are, with the dated
+// history one step away.
+function Context({ record }: { record: CrmRecord }) {
+  const [open, setOpen] = useState(false)
+  const lines = text(record, 'context').split('\n').map((line) => line.replace(/^\s*[-*•]\s*/, '').trim()).filter(Boolean)
+  const events = lines.flatMap((line) => {
+    const [, day, event] = line.match(/^(\d{4}-\d{2}-\d{2}):\s*(.*)$/) ?? []
+    return day ? [{ day, event }] : []
+  })
+  const about = lines.filter((line) => !/^\d{4}-\d{2}-\d{2}:/.test(line))
+  if (lines.length === 0) {
+    return null
+  }
   return (
-    <div
-      inert={!open}
-      aria-hidden={!open}
-      className={cn('grid transition-[grid-template-rows,opacity] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none', open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0')}
-    >
-      <div className="min-h-0 overflow-hidden">{children}</div>
-    </div>
+    <section aria-label={`${recordName(record)} context`} className="mt-3 rounded-[var(--radius-control)] bg-list-hover px-3 py-2 text-[12px] leading-[18px] text-ink-2">
+      {about.map((line, i) => <p key={i}>{line}</p>)}
+      {events.length > 0 && (
+        <>
+          <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="-mx-1 mt-1 inline-flex items-center gap-1 rounded-[var(--radius-control)] px-1 text-ink-3 outline-none hover:text-ink-2 focus-visible:ring-2 focus-visible:ring-primary">
+            History <span className="tabular-nums">{events.length}</span>
+            <ChevronDown aria-hidden="true" className={cn('size-3.5 transition-transform duration-150 motion-reduce:transition-none', open && 'rotate-180')} />
+          </button>
+          {open && <div className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5">
+            {events.map((e, i) => (
+              <Fragment key={i}>
+                <span className="whitespace-nowrap tabular-nums text-ink-3">{formatDay(e.day)}</span>
+                <span>{e.event}</span>
+              </Fragment>
+            ))}
+          </div>}
+        </>
+      )}
+    </section>
   )
 }
 
@@ -159,34 +223,6 @@ function Address({ label, value }: { label: string; value?: string }) {
       {label} <span className="text-ink-2">{value}</span>
     </span>
   ) : null
-}
-
-function Context({ context, className }: { context: UseQueryResult<CrmRecord>; className?: string }) {
-  if (context.error) {
-    return <p role="alert" className={cn('text-[12px] text-ink-3', className)}>{context.error.message}</p>
-  }
-  const lines = context.data ? text(context.data, 'context').split('\n').map((line) => line.replace(/^\s*[-*•]\s*/, '').trim()).filter(Boolean) : []
-  if (!context.data || lines.length === 0) {
-    return null
-  }
-  return (
-    <section className={cn('flex flex-col gap-2', className)}>
-      <h3 className="text-[12px] font-medium text-ink-3"><span className="text-ink">{recordName(context.data)}</span> context</h3>
-      <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-[12px] leading-[18px] text-ink-2">
-        {lines.map((line, i) => {
-          const [, day, event] = line.match(/^(\d{4}-\d{2}-\d{2}):\s*(.*)$/) ?? []
-          return day ? (
-            <Fragment key={i}>
-              <span className="whitespace-nowrap tabular-nums text-ink-3">{formatDay(day)}</span>
-              <span>{event}</span>
-            </Fragment>
-          ) : (
-            <span key={i} className="col-span-2 mb-1">{line}</span>
-          )
-        })}
-      </div>
-    </section>
-  )
 }
 
 function Draft({ record, channel, sender, error, drafting }: { record: CrmRecord; channel: string; sender?: DraftSender; error?: string; drafting?: Interaction['drafting'] }) {
