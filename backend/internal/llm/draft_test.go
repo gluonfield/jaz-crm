@@ -14,6 +14,7 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/gluonfield/jaz-crm/backend/internal/followups"
 	"github.com/gluonfield/jaz-crm/backend/internal/llm"
+	"github.com/google/jsonschema-go/jsonschema"
 )
 
 func TestDraftLoopStopsWithoutPartialPlan(t *testing.T) {
@@ -63,7 +64,7 @@ func TestDraftLoopStopsWithoutPartialPlan(t *testing.T) {
 			}))
 			t.Cleanup(api.Close)
 			client := llm.New(llm.Config{BaseURL: api.URL, APIKey: "test", Model: "gpt-6-luna", Effort: "medium"}, log.New(io.Discard))
-			tools := followups.ReadTools{WorkspaceID: "test", Tools: []followups.ReadTool{{Name: "get_record", Parameters: map[string]any{"type": "object", "properties": map[string]any{}, "required": []string{}, "additionalProperties": false}, Run: func(ctx context.Context, _ json.RawMessage) (any, error) {
+			tools := followups.ReadTools{WorkspaceID: "test", Tools: []followups.ReadTool{{Name: "get_record", Parameters: &jsonschema.Schema{Type: "object", Properties: map[string]*jsonschema.Schema{}, AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}}}, Run: func(ctx context.Context, _ json.RawMessage) (any, error) {
 				reads++
 				switch test.kind {
 				case "storage":

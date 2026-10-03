@@ -5,11 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"slices"
-	"strings"
 	"time"
 
-	"github.com/gluonfield/jaz-crm/backend/internal/errs"
 	"github.com/gluonfield/jaz-crm/backend/internal/followups"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/packages/param"
@@ -40,10 +37,13 @@ func (c *Client) draft(ctx context.Context, conv followups.Conversation, reads f
 		}},
 	}
 	for _, tool := range reads.Tools {
-		request.Tools = append(request.Tools, responses.ToolUnionParam{OfFunction: &responses.FunctionToolParam{
-			Name: tool.Name, Description: openai.String(tool.Description), Parameters: tool.Parameters,
+		function := responses.FunctionToolParam{
+			Name: tool.Name, Description: openai.String(tool.Description),
 			Strict: openai.Bool(true), AllowedCallers: []string{"direct"},
-		}})
+		}
+		// The SDK's map-only field cannot hold the typed schema unchanged.
+		function.SetExtraFields(map[string]any{"parameters": tool.Parameters})
+		request.Tools = append(request.Tools, responses.ToolUnionParam{OfFunction: &function})
 	}
 	called := map[string]bool{}
 	for turn := range 12 {
@@ -78,7 +78,7 @@ func (c *Client) draft(ctx context.Context, conv followups.Conversation, reads f
 			if err := json.Unmarshal([]byte(res.OutputText()), &candidate); err != nil {
 				return fmt.Errorf("draft answer is not the requested JSON: %w", err)
 			}
-			if strings.TrimSpace(candidate.SkipReason) != "" || slices.ContainsFunc(candidate.FollowUps, func(change followups.Change) bool { return strings.TrimSpace(change.Reply) != "" }) {
+			if candidate.HasOutcome() {
 				*out = candidate
 				return nil
 			}
@@ -88,7 +88,7 @@ func (c *Client) draft(ctx context.Context, conv followups.Conversation, reads f
 			return errors.New("draft retrieval limit reached without a final answer")
 		}
 		for _, call := range calls {
-			result, err := executeRead(ctx, reads.Tools, call.Name, call.Arguments)
+			result, err := reads.Call(ctx, call.Name, call.Arguments)
 			if err != nil {
 				return fmt.Errorf("draft tool %s: %w", call.Name, err)
 			}
@@ -98,27 +98,4 @@ func (c *Client) draft(ctx context.Context, conv followups.Conversation, reads f
 		}
 	}
 	panic("unreachable")
-}
-
-func executeRead(ctx context.Context, tools []followups.ReadTool, name, arguments string) (string, error) {
-	if err := ctx.Err(); err != nil {
-		return "", err
-	}
-	index := slices.IndexFunc(tools, func(tool followups.ReadTool) bool { return tool.Name == name })
-	var result any
-	var err error
-	if index < 0 {
-		err = errs.Invalidf("tool %q is unavailable; use only the advertised read-only tools", name)
-	} else {
-		result, err = tools[index].Run(ctx, json.RawMessage(arguments))
-	}
-	if err != nil {
-		var invalid errs.Invalid
-		if !errors.As(err, &invalid) {
-			return "", err
-		}
-		result = map[string]string{"error": invalid.Error()}
-	}
-	data, err := json.Marshal(result)
-	return string(data), err
 }

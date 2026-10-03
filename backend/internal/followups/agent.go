@@ -95,12 +95,19 @@ type Open struct {
 	Draft     string `json:"draft,omitempty"`
 }
 
-// Plan is the follow-ups to create or change and the contexts to rewrite;
-// an empty one changes nothing.
+// Plan contains follow-up changes and context updates, with a reply or skip reason.
 type Plan struct {
 	FollowUps  []Change  `json:"follow_ups"`
 	Contexts   []Context `json:"contexts"`
 	SkipReason string    `json:"skip_reason"`
+}
+
+func (p Plan) HasReply() bool {
+	return slices.ContainsFunc(p.FollowUps, func(c Change) bool { return strings.TrimSpace(c.Reply) != "" })
+}
+
+func (p Plan) HasOutcome() bool {
+	return p.HasReply() || strings.TrimSpace(p.SkipReason) != ""
 }
 
 // Change creates a follow-up, or with an id changes an open one. Empty
@@ -177,12 +184,18 @@ func (a *Agent) Run(ctx context.Context, workspaceID string) (int, error) {
 			a.logger.Warn("conversation not followed up", "interaction", c.ID, "error", err)
 			state, at = "failed", c.FollowedUpAt
 		}
-		finished, finishErr := a.store.FinishFollowUp(ctx, c.ID, *started, at, state, reason)
+		// Release the claim even when the drafting request was cancelled.
+		finishCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		finished, finishErr := a.store.FinishFollowUp(finishCtx, c.ID, *started, at, state, reason)
+		cancel()
 		if finishErr != nil {
 			return read, finishErr
 		}
 		if finished && err == nil {
 			read++
+		}
+		if err := ctx.Err(); err != nil {
+			return read, err
 		}
 	}
 	if err := a.backfill(ctx, workspaceID); err != nil {
@@ -320,8 +333,7 @@ func (a *Agent) follow(ctx context.Context, workspaceID, id string) (string, str
 		}
 		return "", reason, err
 	}
-	attempted := slices.ContainsFunc(plan.FollowUps, func(c Change) bool { return strings.TrimSpace(c.Reply) != "" })
-	if !attempted && strings.TrimSpace(plan.SkipReason) == "" {
+	if !plan.HasOutcome() {
 		return "", "The drafting model returned no reply or explanation. The system will retry.", errors.New("drafting model returned neither a reply nor a skip reason")
 	}
 	drafted := false
@@ -345,7 +357,7 @@ func (a *Agent) follow(ctx context.Context, workspaceID, id string) (string, str
 		return "completed", "", nil
 	}
 	reason := plain(strings.TrimSpace(plan.SkipReason))
-	if attempted {
+	if plan.HasReply() {
 		reason = "The generated reply could not replace the existing draft or did not match this follow-up."
 	}
 	return "skipped", reason, nil

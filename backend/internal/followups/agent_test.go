@@ -54,6 +54,49 @@ func (p *planner) Plan(_ context.Context, c followups.Conversation, _ followups.
 	return plan, nil
 }
 
+func TestCancelledDraftReleasesItsClaim(t *testing.T) {
+	ctx := t.Context()
+	store := postgrestest.New(t)
+	owner, err := workspaces.NewService(store, workspaces.Config{}).Provision(ctx, "writer@company.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	actor := auth.Actor{UserID: owner.ID, WorkspaceID: owner.WorkspaceID}
+	crm := records.NewService(store)
+	person, _, err := crm.Upsert(ctx, actor, records.SourceUser, records.Write{Object: "people", Set: map[string][]string{"name": {"Jane"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	at := time.Now().Add(-time.Minute)
+	thread, err := store.UpsertEmailThread(ctx, storage.EmailThread{WorkspaceID: actor.WorkspaceID, ExternalID: "cancelled", UserID: &owner.ID, Title: "Quote", At: at})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.UpsertPart(ctx, storage.NewPart{InteractionID: thread, Kind: "message", ExternalID: "latest", At: &at, Content: new("Please send the price.")}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.AddLink(ctx, thread, person.ID, "user"); err != nil {
+		t.Fatal(err)
+	}
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	brain := &planner{fail: true, onPlan: cancel}
+	convs := interactions.NewService(interactions.Params{Store: store, Connections: store, Workspaces: store, Records: crm})
+	agent := followups.NewAgent(followups.AgentParams{Service: followups.NewService(crm, store, nil, store), Workspaces: store, Interactions: convs, Logger: log.New(io.Discard), Planner: brain})
+	if count, err := agent.Run(runCtx, actor.WorkspaceID); count != 0 || !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled run: count=%d err=%v", count, err)
+	}
+	rows, err := store.Interactions(ctx, actor.WorkspaceID, []string{thread})
+	if err != nil || len(rows) != 1 || rows[0].DraftingState != "failed" || rows[0].FollowedUpAt != nil {
+		t.Fatalf("cancelled draft must release its claim and remain unread: %+v (%v)", rows, err)
+	}
+	brain.fail, brain.onPlan = false, nil
+	brain.plans = []followups.Plan{{SkipReason: "The price needs confirmation."}}
+	if count, err := agent.Run(ctx, actor.WorkspaceID); err != nil || count != 1 {
+		t.Fatalf("cancelled draft must be immediately retryable: count=%d err=%v", count, err)
+	}
+}
+
 func TestAgentKeepsFollowUpsCurrent(t *testing.T) {
 	store := postgrestest.New(t)
 	owner, err := workspaces.NewService(store, workspaces.Config{}).Provision(ctx, "owner@cas.dev")

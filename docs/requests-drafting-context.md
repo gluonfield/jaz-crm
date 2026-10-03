@@ -43,3 +43,14 @@ Live verification used only synthetic records in disposable local databases with
 Review: retrieval policy and projections stay in followups; the SDK loop owns protocol replay and caching. Existing record and interaction services retain authorization, filtering and original-text ownership. No new dependency, MCP transport loopback, persistence layer or frontend controls are added.
 
 Final verification: Go 1.26 `go build ./...`, `go vet ./...`, and the full backend `go test ./...` passed with PostgreSQL. All disposable test databases were removed. The strict maintainability review found no remaining blocker.
+
+## Requested maintainability review (2026-10-03)
+
+- [x] Review the delivered agent, its tool boundary and lifecycle handling.
+- [x] Fix cancellation leaving a conversation claimed, with a regression reproducing the failure before the fix.
+- [x] Consolidate final-outcome validation and read-tool policy; preserve the complete generated argument schema.
+- [x] Run the full backend checks and review the final diff. Publication and rollout evidence are recorded in the session ledger.
+
+Findings fixed: cancellation used the cancelled request context to finish a claim, leaving the conversation visibly drafting until the stale-claim timeout; record offsets could overflow the database's 32-bit offset and return an earlier page; final-outcome validation and tool authorization were split across the domain and provider layers. Claim completion now has a bounded independent cleanup context. `Plan` owns outcome validation, `ReadTools` owns dispatch/error policy, and the same complete typed schema is advertised and enforced, including shared page-size and offset bounds.
+
+Review verification: full Go 1.26 build, vet and backend tests pass. The cancellation regression failed on the original code and now proves immediate retry. A temporary overlay removing the offset bound made the real retrieval test fail because an offset of 2^32 returned the first page. A live `gpt-6-luna` probe accepted the revised schemas, made five successful reads and drafted the retrieved GBP 42 price. No new dependencies, persistence schema changes or UI changes were needed.

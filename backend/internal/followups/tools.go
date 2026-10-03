@@ -3,6 +3,10 @@ package followups
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"math"
+	"reflect"
+	"slices"
 
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"github.com/gluonfield/jaz-crm/backend/internal/errs"
@@ -19,16 +23,19 @@ type ReadTools struct {
 type ReadTool struct {
 	Name        string
 	Description string
-	Parameters  map[string]any
+	Parameters  *jsonschema.Schema
 	Run         func(context.Context, json.RawMessage) (any, error)
 }
+
+type pageSize int
+type recordOffset int32
 
 type recordQuery struct {
 	Object string        `json:"object" jsonschema:"Object slug from list_objects, such as people, companies, deals or pages"`
 	Query  string        `json:"query" jsonschema:"Search text; empty lists all matches"`
 	Where  []recordMatch `json:"where" jsonschema:"Equality filters; reference values are record IDs, e.g. parent for child pages or company for colleagues; empty means no filters"`
-	Offset int           `json:"offset" jsonschema:"Number of records to skip, starting at zero"`
-	Limit  int           `json:"limit" jsonschema:"Page size, 1 to 100"`
+	Offset recordOffset  `json:"offset" jsonschema:"Number of records to skip, starting at zero"`
+	Limit  pageSize      `json:"limit" jsonschema:"Page size"`
 }
 
 type recordMatch struct {
@@ -45,14 +52,14 @@ type interactionID struct {
 }
 
 type interactionQuery struct {
-	Query string `json:"query" jsonschema:"Search conversation titles and content; empty lists recent conversations"`
-	Limit int    `json:"limit" jsonschema:"Maximum matches, 1 to 100; narrow the query if the limit is reached"`
+	Query string   `json:"query" jsonschema:"Search conversation titles and content; empty lists recent conversations"`
+	Limit pageSize `json:"limit" jsonschema:"Maximum matches; narrow the query if the limit is reached"`
 }
 
 type timelineQuery struct {
-	RecordID string `json:"record_id"`
-	Cursor   string `json:"cursor" jsonschema:"Empty for the first page, then the last interaction ID from the preceding page"`
-	Limit    int    `json:"limit" jsonschema:"Page size, 1 to 100; continue until an empty page"`
+	RecordID string   `json:"record_id"`
+	Cursor   string   `json:"cursor" jsonschema:"Empty for the first page, then the last interaction ID from the preceding page"`
+	Limit    pageSize `json:"limit" jsonschema:"Page size; continue until an empty page"`
 }
 
 // The same services back MCP reads. Bind the workspace here; model arguments
@@ -63,14 +70,11 @@ func NewReadTools(crm *records.Service, convs *interactions.Service, actor auth.
 			return crm.Objects(ctx, actor)
 		}),
 		readTool("search_records", "Find records and pages anywhere in this workspace, regardless of the configured company knowledge root. Results omit document bodies: use get_record to read them. Use total and offset to page through all matches.", func(ctx context.Context, in recordQuery) (any, error) {
-			if in.Offset < 0 || in.Limit < 1 || in.Limit > 100 {
-				return nil, errs.Invalidf("offset must be nonnegative and limit must be 1 to 100")
-			}
 			filters := make([]records.Filter, 0, len(in.Where))
 			for _, match := range in.Where {
 				filters = append(filters, records.Filter{Attribute: match.Attribute, Operator: "is", Value: match.Value})
 			}
-			found, total, err := crm.Search(ctx, actor, records.Search{Object: in.Object, Query: in.Query, Filters: filters, Offset: in.Offset, Limit: in.Limit})
+			found, total, err := crm.Search(ctx, actor, records.Search{Object: in.Object, Query: in.Query, Filters: filters, Offset: int(in.Offset), Limit: int(in.Limit)})
 			out := struct {
 				Records []Record `json:"records"`
 				Total   int      `json:"total"`
@@ -85,16 +89,10 @@ func NewReadTools(crm *records.Service, convs *interactions.Service, actor auth.
 			return recordInput(r), err
 		}),
 		readTool("list_interactions", "List a person's, company's or deal's past conversations and notes, newest first, with previews. Page with cursor; use get_interaction for complete stored content.", func(ctx context.Context, in timelineQuery) (any, error) {
-			if in.Limit < 1 || in.Limit > 100 {
-				return nil, errs.Invalidf("limit must be 1 to 100")
-			}
-			return convs.Timeline(ctx, actor, in.RecordID, nil, in.Cursor, false, in.Limit)
+			return convs.Timeline(ctx, actor, in.RecordID, nil, in.Cursor, false, int(in.Limit))
 		}),
 		readTool("search_interactions", "Find relevant conversations and notes across this workspace by title or content. Results are previews, not full history; use get_interaction to read each relevant match.", func(ctx context.Context, in interactionQuery) (any, error) {
-			if in.Limit < 1 || in.Limit > 100 {
-				return nil, errs.Invalidf("limit must be 1 to 100")
-			}
-			return convs.Search(ctx, actor, in.Query, in.Limit)
+			return convs.Search(ctx, actor, in.Query, int(in.Limit))
 		}),
 		readTool("get_interaction", "Read an entire stored conversation, transcript or note, including original message text and quoted history.", func(ctx context.Context, in interactionID) (any, error) {
 			return convs.Source(ctx, actor, in.ID)
@@ -103,7 +101,10 @@ func NewReadTools(crm *records.Service, convs *interactions.Service, actor auth.
 }
 
 func readTool[In any](name, description string, run func(context.Context, In) (any, error)) ReadTool {
-	schema, err := jsonschema.For[In](nil)
+	schema, err := jsonschema.For[In](&jsonschema.ForOptions{TypeSchemas: map[reflect.Type]*jsonschema.Schema{
+		reflect.TypeFor[pageSize]():     {Type: "integer", Minimum: new(1.0), Maximum: new(100.0)},
+		reflect.TypeFor[recordOffset](): {Type: "integer", Minimum: new(0.0), Maximum: new(float64(math.MaxInt32))},
+	}})
 	if err != nil {
 		panic(err)
 	}
@@ -114,9 +115,7 @@ func readTool[In any](name, description string, run func(context.Context, In) (a
 	if err != nil {
 		panic(err)
 	}
-	return ReadTool{Name: name, Description: description, Parameters: map[string]any{
-		"type": "object", "properties": schema.Properties, "required": append([]string{}, schema.Required...), "additionalProperties": false,
-	}, Run: func(ctx context.Context, raw json.RawMessage) (any, error) {
+	return ReadTool{Name: name, Description: description, Parameters: schema, Run: func(ctx context.Context, raw json.RawMessage) (any, error) {
 		var value any
 		if err := json.Unmarshal(raw, &value); err != nil {
 			return nil, errs.Invalidf("invalid JSON arguments: %v", err)
@@ -130,4 +129,27 @@ func readTool[In any](name, description string, run func(context.Context, In) (a
 		}
 		return run(ctx, in)
 	}}
+}
+
+func (r ReadTools) Call(ctx context.Context, name, arguments string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	index := slices.IndexFunc(r.Tools, func(tool ReadTool) bool { return tool.Name == name })
+	var result any
+	var err error
+	if index < 0 {
+		err = errs.Invalidf("tool %q is unavailable; use only the advertised read-only tools", name)
+	} else {
+		result, err = r.Tools[index].Run(ctx, json.RawMessage(arguments))
+	}
+	if err != nil {
+		var invalid errs.Invalid
+		if !errors.As(err, &invalid) {
+			return "", err
+		}
+		result = map[string]string{"error": invalid.Error()}
+	}
+	data, err := json.Marshal(result)
+	return string(data), err
 }

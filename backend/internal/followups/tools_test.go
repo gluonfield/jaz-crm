@@ -218,9 +218,13 @@ func TestDraftAgentRetrievesContextWithReadOnlyTools(t *testing.T) {
 				call("workspace", "get_record", map[string]any{"record_id": root.ID, "workspace": foreign.WorkspaceID}),
 				call("missing", "get_record", map[string]any{}),
 				call("invalid", "search_records", map[string]any{"object": "pages", "query": "", "where": []any{}, "offset": 0, "limit": -1}),
+				call("overflow", "search_records", search(1<<32)),
+				call("negative-offset", "search_records", search(-1)),
+				call("timeline-limit", "list_interactions", map[string]any{"record_id": person.ID, "cursor": "", "limit": 101}),
+				call("search-limit", "search_interactions", map[string]any{"query": "", "limit": 0}),
 			}
 		case 4:
-			for _, id := range []string{"write", "send", "foreign", "foreign-thread", "workspace", "missing", "invalid"} {
+			for _, id := range []string{"write", "send", "foreign", "foreign-thread", "workspace", "missing", "invalid", "overflow", "negative-offset", "timeline-limit", "search-limit"} {
 				var result struct{ Error string }
 				decode(json.RawMessage(results[id]), &result)
 				if result.Error == "" {
