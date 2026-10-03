@@ -1,4 +1,4 @@
-import { Check, ChevronsRight, LoaderCircle, X } from 'lucide-react'
+import { Check, ChevronsRight, LoaderCircle } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Button } from '@jaz/ui/button'
@@ -74,7 +74,7 @@ function FollowUp({ record, index, selected, onSelect }: { record: CrmRecord; in
         <span className="mr-1.5 text-ink-2">{text(record, 'draft_status') || 'Draft'}</span>
         {draft.replace(/\s+/g, ' ')}
       </p>}
-      <Actions record={record} className="absolute right-1 top-1.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100" />
+      <Done record={record} className="absolute right-1 top-1.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100" />
     </li>
   )
 }
@@ -98,23 +98,15 @@ function Summary({ record }: { record: CrmRecord }) {
   )
 }
 
-function Actions({ record, className }: { record: CrmRecord; className?: string }) {
+function Done({ record, className }: { record: CrmRecord; className?: string }) {
   const write = useWrite(record)
   return (
-    <div className={cn('flex shrink-0 items-start gap-0.5', className)}>
-      <Button variant="ghost" size="icon-sm" aria-label="Done" title="Done" onClick={(e) => {
-        e.stopPropagation()
-        write.set('status', 'Done')
-      }}>
-        <Check />
-      </Button>
-      <Button variant="ghost" size="icon-sm" aria-label="Dismiss" title="Dismiss" onClick={(e) => {
-        e.stopPropagation()
-        write.set('status', 'Dismissed')
-      }}>
-        <X />
-      </Button>
-    </div>
+    <Button variant="ghost" size="icon-sm" aria-label="Done" title="Done" className={className} onClick={(e) => {
+      e.stopPropagation()
+      write.set('status', 'Done')
+    }}>
+      <Check />
+    </Button>
   )
 }
 
@@ -157,7 +149,7 @@ function Conversation({ record, onClose }: { record: CrmRecord; onClose: () => v
           <Button variant="ghost" size="icon-sm" aria-label="Close" title="Close" onClick={onClose}>
             <ChevronsRight />
           </Button>
-          <Actions record={record} className="ml-auto" />
+          <Done record={record} className="ml-auto" />
         </div>
         <Summary record={record} />
         {context.data && <Context record={context.data} />}
