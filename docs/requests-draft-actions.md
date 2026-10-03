@@ -15,4 +15,4 @@ Related question: four Kojaddnd entries are four distinct completed sends in one
 
 - [x] Replace the initial drafting prompt's instruction to append a sign-off and sender name: generated email ends after its substantive text, with the configured signature added when sending. Quick edits already prohibit adding a sign-off, name or signature and preserve existing user/provider text.
 - [x] Real model replies, new emails and quick edits omit closings/names. Restoring the old prompt reproduces “Best, Augustinas”. Full Go build/vet/tests, frontend tests/typecheck/lint and strict review pass; no mail sent.
-- [ ] Verify production rollout.
+- [x] Production 33b0831 is SUCCESS on Server (e1af066f) and Worker (9f5211a6); health passes. Existing saved drafts are preserved.
