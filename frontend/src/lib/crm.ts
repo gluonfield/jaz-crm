@@ -40,3 +40,5 @@ export function joinURL(interaction: Interaction) {
   }
   return interaction.meet_url ?? interaction.invitation?.match(joinLink)?.[0]
 }
+
+export const channelNames: Record<string, string> = { email: 'Email', linkedin: 'LinkedIn', whatsapp: 'WhatsApp', telegram: 'Telegram' }

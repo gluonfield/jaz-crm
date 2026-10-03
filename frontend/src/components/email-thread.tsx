@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import { formatDate, formatDateTime, formatTime, timeAgo } from '@/lib/format'
 import type { Interaction, CrmMessage } from '@/lib/types'
 import { cn } from '@/lib/utils'
-import { RecordIcon } from './icons'
+import { ChannelIcon, RecordIcon } from './icons'
 import { Message } from './message'
 
 export function MessageState({ message }: { message: CrmMessage }) {
@@ -43,6 +43,7 @@ export function MessageThread({ interaction, messages, initialVisible = 6 }: { i
   const [expanded, setExpanded] = useState(false)
   const start = expanded ? 0 : Math.max(0, messages.length - initialVisible)
   const participant = (address?: string) => interaction.participants.find((p) => p.address === address)
+  const channel = interaction.channel === 'email' ? '' : interaction.channel ?? ''
   return (
     <section aria-label="Messages" className="flex min-w-0 flex-col gap-3">
       {messages.length > initialVisible && (
@@ -73,7 +74,10 @@ export function MessageThread({ interaction, messages, initialVisible = 6 }: { i
                       <span className="sr-only">{run.author}: </span>
                       {message.text || message.html ? <Message text={message.text} html={message.html} /> : <p className="text-[13px] text-ink-3">The text arrives with the next sync.</p>}
                       {message.partial && <p className="mt-2 text-[11.5px] text-ink-3">Message excerpt</p>}
-                      {message.at.length > 10 && <time dateTime={message.at} title={formatDateTime(message.at)} className="mt-0.5 block text-right text-[11px] tabular-nums text-ink-3">{formatTime(message.at)}</time>}
+                      {(channel || message.at.length > 10) && <p className="mt-0.5 flex items-center justify-end gap-1 text-[11px] tabular-nums text-ink-3">
+                        {channel && <ChannelIcon channel={channel} className="size-3" />}
+                        {message.at.length > 10 && <time dateTime={message.at} title={formatDateTime(message.at)}>{formatTime(message.at)}</time>}
+                      </p>}
                     </div>
                   ))}
                 </div>

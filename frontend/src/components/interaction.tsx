@@ -8,7 +8,7 @@ import { KindIcon, RecordIcon } from '@/components/icons'
 import { ExternalLink } from '@/components/external-link'
 import { Message } from '@/components/message'
 import { Picker } from '@/components/picker'
-import { joinURL, recordName } from '@/lib/crm'
+import { channelNames, joinURL, recordName } from '@/lib/crm'
 import { formatDateTime, meetingTime } from '@/lib/format'
 import { useDebounced } from '@/lib/hooks'
 import { useAction, useRecordSearch, useTool } from '@/lib/queries'
@@ -16,7 +16,6 @@ import type { Interaction, Speech } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 const kindNames = { message: 'Message', meeting: 'Meeting', call: 'Call', note: 'Note' }
-const channelNames: Record<string, string> = { email: 'Email', linkedin: 'LinkedIn', whatsapp: 'WhatsApp', telegram: 'Telegram' }
 
 export function InteractionDetails({ interactionId, onClose, onNavigate }: { interactionId: string; onClose: () => void; onNavigate?: () => void }) {
   const query = useTool<Interaction>('get_interaction', { interaction_id: interactionId })
