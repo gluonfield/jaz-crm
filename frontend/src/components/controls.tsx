@@ -9,9 +9,9 @@ import { RecordIcon } from './icons'
 export const inputClass =
   'h-7 min-w-0 rounded-[var(--radius-control)] border border-border bg-bg px-2.5 text-[13px] text-ink outline-none placeholder:text-ink-3 focus:border-primary disabled:opacity-50'
 
-export function Header({ children }: { children?: ReactNode }) {
+export function Header({ children, className }: { children?: ReactNode; className?: string }) {
   return (
-    <header className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-4 text-[13px] font-medium text-ink [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-ink-2">
+    <header className={cn("flex h-11 shrink-0 items-center gap-2 border-b border-border px-4 text-[13px] font-medium text-ink [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-ink-2", className)}>
       {children}
     </header>
   )

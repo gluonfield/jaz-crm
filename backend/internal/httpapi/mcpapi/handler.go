@@ -29,8 +29,11 @@ learned, write values.context with upsert_record as the whole new version, merge
 context and the new information, keeping what is still true; every write replaces it, whoever wrote
 it before. Log dated notes with log_interaction. Companies have founded_year (a whole year) and size
 (an employee range). Follow-ups track what we or they owe next on a person, company or deal, with a
-review date and an optional draft: get_record lists a record's follow-ups, and search_records on
-follow_ups with the Needs attention saved filter is the queue. To send an approved LinkedIn draft,
+action_date (YYYY-MM-DD or RFC3339 with offset) and an optional draft: get_record lists a record's follow-ups, and search_records on
+follow_ups with Needs attention is the queue; Chase shows open, overdue actions waiting on Them.
+An agent setting action_date must also set action_date_basis (Stated or Suggested) and
+action_date_reason with evidence or the scheduling convention. Manual dates and explicit clears
+are preserved by automatic drafting. Waiting on Them never gets an automatic draft. To send an approved LinkedIn draft,
 set its draft_status to Sending, send it, log the sent message with log_interaction (kind message,
 channel linkedin, direction sent), then set Sent. Call list_objects to learn each object's
 attributes and options. Emails, domains and phone numbers identify records: upsert_record with an

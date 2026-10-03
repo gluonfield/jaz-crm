@@ -7,6 +7,8 @@ import (
 	"errors"
 	"slices"
 	"strings"
+	"time"
+	_ "time/tzdata"
 
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"github.com/gluonfield/jaz-crm/backend/internal/errs"
@@ -208,6 +210,12 @@ func validEmail(email string) bool {
 func (s *Service) Update(ctx context.Context, actor auth.Actor, in storage.WorkspaceUpdate) (storage.Workspace, error) {
 	if err := s.requireAdmin(ctx, actor); err != nil {
 		return storage.Workspace{}, err
+	}
+	if in.Timezone != nil {
+		in.Timezone = new(strings.TrimSpace(*in.Timezone))
+		if _, err := time.LoadLocation(*in.Timezone); err != nil || *in.Timezone == "" || *in.Timezone == "Local" {
+			return storage.Workspace{}, errs.Invalidf("choose an IANA time zone, such as Europe/London")
+		}
 	}
 	if in.Name != nil {
 		in.Name = new(strings.TrimSpace(*in.Name))

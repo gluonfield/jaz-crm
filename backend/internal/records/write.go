@@ -135,12 +135,13 @@ func (s *Service) upsert(ctx context.Context, actor auth.Actor, source Source, w
 				return storage.ValueChanges{}, errs.Invalidf("%s changed since it was read", sc.attributeByID(attrID).Slug)
 			}
 		}
-		set, remove, err := guardDraft(sc, object, current, slices.Clone(set), slices.Clone(remove), source)
+		set, remove, blocked, err := guardFollowUp(sc, object, current, slices.Clone(set), slices.Clone(remove), source)
 		if err != nil {
 			return storage.ValueChanges{}, err
 		}
 		var changes storage.ValueChanges
 		changes, skips = plan(current, set, remove, source, actor.UserID)
+		skips = append(skips, blocked...)
 		return changes, nil
 	})
 	if errors.Is(err, storage.ErrNotFound) {

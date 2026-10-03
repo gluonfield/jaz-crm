@@ -108,7 +108,7 @@ func TestDraftLoopRepairsMissingOutcome(t *testing.T) {
 			if len(request.Input) != 3 || request.Input[1].Role != "assistant" || request.Input[2].Role != "developer" || !strings.Contains(string(request.Input[2].Content), "skip_reason") {
 				t.Errorf("missing preserved answer and correction: %+v", request.Input)
 			}
-			answer = `{"contexts":[],"follow_ups":[{"action":"Reply with the catalogue price","id":"","person":"person-1","company":"","deal":"","reply":"The public unit price is GBP 42.","status":"Open","waiting_on":"Us","review_on":"2026-10-03"}],"skip_reason":""}`
+			answer = `{"contexts":[],"follow_ups":[{"action":"Reply with the catalogue price","id":"","person":"person-1","company":"","deal":"","reply":"The public unit price is GBP 42.","status":"Open","waiting_on":"Us","action_date":{"value":"2026-10-03","basis":"Stated","reason":"By October 3"}}],"skip_reason":""}`
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{"id": "resp_final", "status": "completed", "output": []any{map[string]any{"type": "message", "role": "assistant", "content": []any{map[string]any{"type": "output_text", "text": answer}}}}})

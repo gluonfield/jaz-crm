@@ -11,6 +11,7 @@ import { Chip } from './controls'
 import { RecordIcon } from './icons'
 import { Picker } from './picker'
 import { Stage, StageDot } from './stage'
+import { DateField } from './date-field'
 import { SelectField } from './select-field'
 
 const inputType: Partial<Record<Attribute['type'], string>> = { number: 'number', date: 'date', email: 'email', url: 'url', phone: 'tel' }
@@ -21,6 +22,9 @@ export function Field({ record, attribute, limit }: { record: CrmRecord; attribu
   const values = valuesOf(record, attribute.slug)
   const write = useWrite(record)
   const slug = attribute.slug
+  if (attribute.type === 'datetime' && !attribute.multi) {
+    return <DateField record={record} slug={slug} label={attribute.name} />
+  }
   if (attribute.type === 'checkbox') {
     const on = values[0] === 'true'
     return (

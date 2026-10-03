@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Button } from '@jaz/ui/button'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
-import { formatDay } from '@/lib/format'
+import { DateField, DateLabel } from './date-field'
 import { call } from '@/lib/api'
 import { toolQuery, useTool, useWrite } from '@/lib/queries'
 import { useConnections } from '@/lib/sync'
@@ -15,7 +15,6 @@ import { MarkdownView } from './editor'
 import { Release } from './draft-release'
 
 const text = (record: CrmRecord, slug: string) => valuesOf(record, slug).map(valueText).join(', ')
-const today = () => new Date().toLocaleDateString('en-CA')
 
 const list = (record: CrmRecord, slug: string) => valuesOf(record, slug).map(valueText)
 
@@ -53,7 +52,7 @@ const refsOf = (record: CrmRecord) => Object.entries(subjects).flatMap(([object,
 
 function FollowUp({ record, index, selected, onSelect }: { record: CrmRecord; index: number; selected: boolean; onSelect: () => void }) {
   const draft = text(record, 'draft')
-  const review = text(record, 'review_on')
+  const review = text(record, 'action_date')
   return (
     <li
       data-row={index}
@@ -65,9 +64,9 @@ function FollowUp({ record, index, selected, onSelect }: { record: CrmRecord; in
         selected && 'bg-list-hover before:opacity-0 [&+li]:before:opacity-0',
       )}
     >
-      <div className="flex min-w-0 items-baseline gap-2">
+      <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
         <span className="truncate text-[13px] font-medium text-ink">{recordName(record)}</span>
-        {review && <span className={cn('ml-auto shrink-0 tabular-nums transition-opacity duration-150 group-focus-within:opacity-0 group-hover:opacity-0', review <= today() && 'text-ink')}>{formatDay(review)}</span>}
+        {review && <span className={cn('ml-auto shrink-0 tabular-nums transition-opacity duration-150 group-focus-within:opacity-0 group-hover:opacity-0')}><DateLabel value={review} suggested={text(record, 'action_date_basis') === 'Suggested'} /></span>}
       </div>
       <p className="truncate">{[...refsOf(record).map(({ ref }) => ref.name), moves[text(record, 'waiting_on')]].filter(Boolean).join(' · ')}</p>
       {draft && <p className="truncate">
@@ -82,13 +81,12 @@ function FollowUp({ record, index, selected, onSelect }: { record: CrmRecord; in
 // Summary is the open follow-up's title and due date over whom it concerns and
 // whose move it is.
 function Summary({ record }: { record: CrmRecord }) {
-  const review = text(record, 'review_on')
   const move = moves[text(record, 'waiting_on')]
   return (
     <>
-      <div className="flex min-w-0 items-baseline gap-2">
+      <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
         <h2 className="min-w-0 text-[15px] font-medium leading-snug text-ink">{recordName(record)}</h2>
-        {review && <span className={cn('ml-auto shrink-0 text-[12px] tabular-nums', review <= today() ? 'text-ink' : 'text-ink-3')}>{formatDay(review)}</span>}
+        <div className="ml-auto shrink-0"><DateField record={record} /></div>
       </div>
       <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[12px] text-ink-3">
         {refsOf(record).map(({ plural, ref }) => <RecordChip key={ref.id} object={plural} value={ref} />)}

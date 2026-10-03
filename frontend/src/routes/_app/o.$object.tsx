@@ -20,6 +20,7 @@ import { SelectField } from '@/components/select-field'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
 import { formatDay, formatNumber } from '@/lib/format'
 import { useDebounced, useFlip, useInView, useListKeys } from '@/lib/hooks'
+import { DateLabel, dateMetadata } from '@/components/date-field'
 import { useObjects, useRecordPages, useWorkspace } from '@/lib/queries'
 import { useActiveFilter } from '@/lib/active-filter'
 import { useColumnWidths } from '@/lib/use-column-widths'
@@ -67,7 +68,7 @@ function ObjectList({ slug, filter, setFilter, flush }: { slug: string; filter: 
   const { query: q, filters, saved_id: saved } = filter
   const query = useDebounced(q.trim())
   const queue = slug === 'follow_ups' && view !== 'table'
-  const result = useRecordPages(slug, query, filters, slug === 'companies' ? [{ object: 'people', attribute: 'company', limit: 4 }] : undefined, queue ? 'review_on' : sort, limit)
+  const result = useRecordPages(slug, query, filters, slug === 'companies' ? [{ object: 'people', attribute: 'company', limit: 4 }] : undefined, sort ?? (slug === 'follow_ups' ? 'action_date' : undefined), limit)
   const { records, total, hasNextPage, isFetchingNextPage, fetchNextPage } = result
   const { width, resize } = useColumnWidths(slug)
   const status = object && statusOf(object.attributes)
@@ -93,10 +94,10 @@ function ObjectList({ slug, filter, setFilter, flush }: { slug: string; filter: 
   }
   const own = !object.standard
   // The CRM's objects show their choices first; the workspace's own tables keep the order columns were added in.
-  const columns = object.attributes.filter((a) => a.slug !== 'name' && a.type !== 'markdown').sort((a, b) => (own ? 0 : Number(b.type === 'select') - Number(a.type === 'select')))
+  const columns = object.attributes.filter((a) => a.slug !== 'name' && a.type !== 'markdown' && !(slug === 'follow_ups' && dateMetadata(a.slug))).sort((a, b) => (own ? 0 : Number(b.type === 'select') - Number(a.type === 'select')))
   return (
     <>
-      <Header>
+      <Header className="h-auto min-h-11 flex-wrap py-2">
         <ObjectIcon slug={slug} />
         <span className="whitespace-nowrap">{object.name}</span>
         {total !== undefined && <span className="font-normal tabular-nums text-ink-3">{total}</span>}
@@ -110,7 +111,7 @@ function ObjectList({ slug, filter, setFilter, flush }: { slug: string; filter: 
             </ViewButton>
           </div>
         )}
-        <div className="ml-auto flex min-w-0 items-center gap-1 font-normal">
+        <div className="ml-auto flex max-w-full flex-wrap items-center gap-1 font-normal">
           <RecordFilters key={slug} object={object} filters={filters} query={q} selected={saved}
             onChange={(filters) => setFilter({ ...filter, filters })}
             onApply={(saved) => setFilter({ filters: saved?.filters ?? [], query: saved?.query ?? '', saved_id: saved?.id })}
@@ -119,15 +120,15 @@ function ObjectList({ slug, filter, setFilter, flush }: { slug: string; filter: 
             trigger={
               <Button variant="ghost" aria-label="Sort records">
                 <ArrowDownAZ />
-                <span className="hidden xl:inline">{sort === 'name' ? 'Name' : queue ? 'Review date' : 'Recently added'}</span>
+                <span className="hidden xl:inline">{sort === 'name' ? 'Name' : slug === 'follow_ups' ? 'Action date' : 'Recently added'}</span>
               </Button>
             }
             placeholder="Sort by…"
-            options={[{ value: '', label: queue ? 'Review date' : 'Recently added' }, { value: 'name', label: 'Name' }]}
+            options={[{ value: '', label: slug === 'follow_ups' ? 'Action date' : 'Recently added' }, { value: 'name', label: 'Name' }]}
             selected={[sort ?? '']}
             onSelect={(value) => void navigate({ to: '.', search: { ...search, sort: value === 'name' ? 'name' : undefined }, replace: true })}
           />
-          <label className="group flex h-7 min-w-0 items-center gap-1.5 rounded-[var(--radius-control)] px-2 text-ink-3 transition-colors focus-within:bg-list-hover hover:bg-list-hover">
+          <label className="group flex h-7 shrink-0 items-center gap-1.5 rounded-[var(--radius-control)] px-2 text-ink-3 transition-colors focus-within:bg-list-hover hover:bg-list-hover">
             <Search className="size-3.5 shrink-0" />
             <input
               type="search"
@@ -263,6 +264,9 @@ function cell(record: CrmRecord, attribute: Attribute) {
   }
   if (attribute.type === 'domain' || attribute.type === 'url') {
     return <div className="flex flex-col gap-1">{values.map((value) => <ExternalLink key={value} href={attribute.type === 'domain' ? `https://${value}` : value} className="block truncate">{value}</ExternalLink>)}</div>
+  }
+  if (attribute.type === 'datetime') {
+    return values.map((value) => <DateLabel key={value} value={value} suggested={attribute.slug === 'action_date' && record.values.action_date_basis === 'Suggested'} />)
   }
   if (attribute.type === 'date') {
     return values.map(formatDay).join(', ')

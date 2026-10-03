@@ -48,7 +48,7 @@ func TestStandardSchemaUpgradeAndDeletedDefault(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	old, err := goose.NewProvider(goose.DialectPostgres, db, os.DirFS("migrations"), goose.WithDisableGlobalRegistry(true), goose.WithExcludeNames([]string{"0015_deal_followups.go", "0019_follow_ups.go"}))
+	old, err := goose.NewProvider(goose.DialectPostgres, db, os.DirFS("migrations"), goose.WithDisableGlobalRegistry(true), goose.WithExcludeNames([]string{"0015_deal_followups.go", "0019_follow_ups.go", "0033_chase_filter.go"}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,14 +192,14 @@ JOIN objects ON objects.id = records.object_id WHERE objects.slug = 'companies';
 		t.Fatalf("migrated follow-up fields/filter unusable: %v %v", due, err)
 	}
 	followUpFilters, err := svc.SavedFilters(ctx, actor, records.FollowUps)
-	if err != nil || len(followUpFilters) != 2 {
+	if err != nil || len(followUpFilters) != 3 {
 		t.Fatalf("existing workspace did not get follow-up filters: %v %v", followUpFilters, err)
 	}
-	followUp, _, err := svc.Upsert(ctx, actor, records.SourceUser, records.Write{Object: records.FollowUps, Set: map[string][]string{"name": {"Send the quote"}, "deal": {found[0].ID}, "review_on": {"2000-01-01"}}})
+	followUp, _, err := svc.Upsert(ctx, actor, records.SourceUser, records.Write{Object: records.FollowUps, Set: map[string][]string{"name": {"Send the quote"}, "deal": {found[0].ID}, "action_date": {"2000-01-01"}}})
 	if err != nil {
 		t.Fatalf("migrated follow-ups unusable: %v", err)
 	}
-	if due, _, err := svc.Search(ctx, actor, records.Search{Object: records.FollowUps, Filters: followUpFilters[0].Filters}); err != nil || len(due) != 1 || due[0].ID != followUp.ID {
+	if due, _, err := svc.Search(ctx, actor, records.Search{Object: records.FollowUps, Filters: followUpFilters[1].Filters}); err != nil || len(due) != 1 || due[0].ID != followUp.ID {
 		t.Fatalf("migrated Needs attention filter does not find a due follow-up: %v %v", due, err)
 	}
 	if err := svc.DeleteFilter(ctx, actor, filters[0].ID); err != nil {

@@ -125,7 +125,7 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) er
 }
 
 const createWorkspace = `-- name: CreateWorkspace :one
-INSERT INTO workspaces (name) VALUES ($1) RETURNING id, name, created_at, description, auto_keep_email, auto_keep_meetings, auto_keep_records, auto_keep_ai, company_page_id, drafting_web_access
+INSERT INTO workspaces (name) VALUES ($1) RETURNING id, name, created_at, description, auto_keep_email, auto_keep_meetings, auto_keep_records, auto_keep_ai, company_page_id, drafting_web_access, timezone
 `
 
 func (q *Queries) CreateWorkspace(ctx context.Context, name string) (Workspace, error) {
@@ -142,6 +142,7 @@ func (q *Queries) CreateWorkspace(ctx context.Context, name string) (Workspace, 
 		&i.AutoKeepAi,
 		&i.CompanyPageID,
 		&i.DraftingWebAccess,
+		&i.Timezone,
 	)
 	return i, err
 }
@@ -252,7 +253,7 @@ func (q *Queries) GetUser(ctx context.Context, id string) (User, error) {
 const getWorkspace = `-- name: GetWorkspace :one
 SELECT id, name, created_at, description, auto_keep_email, auto_keep_meetings,
   auto_keep_records, auto_keep_ai, drafting_web_access,
-  ARRAY(SELECT page_id FROM workspace_knowledge_pages WHERE workspace_id = workspaces.id ORDER BY position)::uuid[] AS company_page_ids
+  ARRAY(SELECT page_id FROM workspace_knowledge_pages WHERE workspace_id = workspaces.id ORDER BY position)::uuid[] AS company_page_ids, timezone
 FROM workspaces WHERE id = $1
 `
 
@@ -267,6 +268,7 @@ type GetWorkspaceRow struct {
 	AutoKeepAi        bool
 	DraftingWebAccess bool
 	CompanyPageIDs    []string
+	Timezone          string
 }
 
 func (q *Queries) GetWorkspace(ctx context.Context, id string) (GetWorkspaceRow, error) {
@@ -283,6 +285,7 @@ func (q *Queries) GetWorkspace(ctx context.Context, id string) (GetWorkspaceRow,
 		&i.AutoKeepAi,
 		&i.DraftingWebAccess,
 		&i.CompanyPageIDs,
+		&i.Timezone,
 	)
 	return i, err
 }
@@ -650,10 +653,11 @@ func (q *Queries) UpdateTriageSettings(ctx context.Context, arg UpdateTriageSett
 const updateWorkspace = `-- name: UpdateWorkspace :execrows
 UPDATE workspaces SET name = COALESCE($1, name), description = COALESCE($2, description),
   company_page_id = CASE WHEN $3::uuid[] IS NULL THEN company_page_id ELSE ($3::uuid[])[1] END,
-  drafting_web_access = COALESCE($4, drafting_web_access)
-WHERE workspaces.id = $5 AND NOT EXISTS (
+  drafting_web_access = COALESCE($4, drafting_web_access),
+  timezone = COALESCE($5, timezone)
+WHERE workspaces.id = $6 AND NOT EXISTS (
   SELECT 1 FROM unnest($3::uuid[]) AS selected(id)
-  LEFT JOIN records ON records.id = selected.id AND records.workspace_id = $5
+  LEFT JOIN records ON records.id = selected.id AND records.workspace_id = $6
   LEFT JOIN objects ON objects.id = records.object_id AND objects.slug = 'pages'
   WHERE objects.id IS NULL
 )
@@ -664,6 +668,7 @@ type UpdateWorkspaceParams struct {
 	Description       *string
 	CompanyPageIDs    []string
 	DraftingWebAccess *bool
+	Timezone          *string
 	ID                string
 }
 
@@ -674,6 +679,7 @@ func (q *Queries) UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams
 		arg.Description,
 		arg.CompanyPageIDs,
 		arg.DraftingWebAccess,
+		arg.Timezone,
 		arg.ID,
 	)
 	if err != nil {

@@ -2,7 +2,7 @@
 
 // attributeTypes are the types a new attribute can take; markdown is the
 // content of pages and table records.
-export const attributeTypes = ['text', 'number', 'date', 'checkbox', 'url', 'select', 'status', 'member', 'email', 'domain', 'phone', 'reference'] as const
+export const attributeTypes = ['text', 'number', 'date', 'datetime', 'checkbox', 'url', 'select', 'status', 'member', 'email', 'domain', 'phone', 'reference'] as const
 export type AttributeType = (typeof attributeTypes)[number] | 'markdown'
 
 export type Attribute = {
@@ -96,7 +96,7 @@ export type Contact = {
 
 export type Member = { name: string; email: string; addresses?: string[]; admin?: boolean; is_me?: boolean; photo?: string }
 
-export type Workspace = { id: string; name: string; description: string; company_page_ids: string[]; drafting_web_access: boolean; members?: Member[]; invited?: string[] }
+export type Workspace = { id: string; name: string; description: string; company_page_ids: string[]; drafting_web_access: boolean; timezone: string; members?: Member[]; invited?: string[] }
 
 export type Connection = {
   id: string

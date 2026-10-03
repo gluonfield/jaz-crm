@@ -5,7 +5,7 @@ import { call } from './api'
 import type { CrmObject, CrmRecord, Interaction, RecordFilter, Relation, Workspace } from './types'
 
 // recordWrites change only records and their schema, which recordReads show.
-const recordWrites = new Set(['upsert_record', 'save_draft', 'add_attribute_option', 'edit_pipeline_stage', 'create_object', 'create_attribute', 'edit_object', 'edit_attribute'])
+const recordWrites = new Set(['upsert_record', 'save_action_date', 'save_draft', 'add_attribute_option', 'edit_pipeline_stage', 'create_object', 'create_attribute', 'edit_object', 'edit_attribute'])
 const recordReads = new Set(['search_records', 'get_record', 'get_draft_sender', 'list_objects', 'record_history', 'list_saved_filters', 'get_active_filter'])
 
 // Every query is a tool call keyed by [tool, args]. A successful change
@@ -69,6 +69,7 @@ export function useRecordPages(object: string, query: string, filters: RecordFil
     queryKey: ['search_records', 'pages', args],
     queryFn: ({ pageParam }) => call<{ records: CrmRecord[]; total: number }>('search_records', { ...args, offset: pageParam }),
     initialPageParam: 0,
+    refetchInterval: object === 'follow_ups' ? 60_000 : false,
     getNextPageParam: (last, pages) => {
       const loaded = pages.reduce((sum, page) => sum + page.records.length, 0)
       return last.records.length > 0 && loaded < last.total ? loaded : undefined

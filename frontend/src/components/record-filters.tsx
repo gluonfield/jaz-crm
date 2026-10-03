@@ -27,9 +27,9 @@ export function RecordFilters({ object, filters, query, selected, onChange, onAp
     onApply(filter)
   } })
   return (
-    <div className="flex min-w-0 items-center gap-1">
+    <div className="flex shrink-0 items-center gap-1">
       <Picker
-        trigger={<Button variant="ghost" className="min-w-0 max-w-40 shrink"><Bookmark className="shrink-0" /><span className="truncate">{active ? `${active.name}${changed ? ' · Edited' : ''}` : filters.length || query.trim() ? 'Custom filter' : `All ${object.name.toLowerCase()}`}</span><ChevronDown className="shrink-0" /></Button>}
+        trigger={<Button variant="ghost" className="max-w-40 shrink-0"><Bookmark className="shrink-0" /><span className="truncate">{active ? `${active.name}${changed ? ' · Edited' : ''}` : filters.length || query.trim() ? 'Custom filter' : `All ${object.name.toLowerCase()}`}</span><ChevronDown className="shrink-0" /></Button>}
         placeholder="Find saved filters…"
         options={[{ value: '', label: `All ${object.name.toLowerCase()}` }, ...saved.map((f) => ({ value: f.id, label: f.name }))]}
         selected={active ? [active.id] : filters.length || query.trim() ? [] : ['']}

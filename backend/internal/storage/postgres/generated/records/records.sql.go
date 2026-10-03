@@ -846,6 +846,7 @@ func (q *Queries) ReviseValue(ctx context.Context, arg ReviseValueParams) error 
 
 const searchRecords = `-- name: SearchRecords :many
 SELECT records.id, records.workspace_id, records.object_id, records.created_at, count(*) OVER () AS total FROM records
+JOIN workspaces ON workspaces.id = records.workspace_id
 WHERE records.workspace_id = $1 AND records.object_id = $2
   AND ($3::text IS NULL OR EXISTS (
     SELECT 1 FROM record_values
@@ -855,7 +856,7 @@ WHERE records.workspace_id = $1 AND records.object_id = $2
   AND NOT EXISTS (
     SELECT 1 FROM generate_subscripts($4::uuid[], 1) AS i
     WHERE EXISTS (
-      SELECT 1 FROM record_values
+      SELECT 1 FROM record_values JOIN attributes ON attributes.id = record_values.attribute_id
       WHERE record_values.record_id = records.id AND record_values.active_until IS NULL
         AND record_values.attribute_id = ($4::uuid[])[i]
         AND CASE ($5::text[])[i]
@@ -863,17 +864,32 @@ WHERE records.workspace_id = $1 AND records.object_id = $2
           WHEN 'is_not_empty' THEN true
           WHEN 'contains' THEN record_values.text ILIKE '%' || ($6::text[])[i] || '%'
           WHEN 'not_contains' THEN record_values.text ILIKE '%' || ($6::text[])[i] || '%'
-          WHEN 'before' THEN record_values.text < ($6::text[])[i]
-          WHEN 'on_or_before' THEN record_values.text <= ($6::text[])[i]
-          WHEN 'after' THEN record_values.text > ($6::text[])[i]
-          WHEN 'on_or_after' THEN record_values.text >= ($6::text[])[i]
+          WHEN 'before' THEN CASE WHEN attributes.type = 'datetime'
+            THEN record_instant(record_values.text, workspaces.timezone) < record_instant(($6::text[])[i], workspaces.timezone)
+            ELSE record_values.text < ($6::text[])[i] END
+          WHEN 'on_or_before' THEN CASE WHEN attributes.type = 'datetime'
+            THEN record_instant(record_values.text, workspaces.timezone) <= record_instant(($6::text[])[i], workspaces.timezone)
+            ELSE record_values.text <= ($6::text[])[i] END
+          WHEN 'after' THEN CASE WHEN attributes.type = 'datetime'
+            THEN record_instant(record_values.text, workspaces.timezone) > record_instant(($6::text[])[i], workspaces.timezone)
+            ELSE record_values.text > ($6::text[])[i] END
+          WHEN 'on_or_after' THEN CASE WHEN attributes.type = 'datetime'
+            THEN record_instant(record_values.text, workspaces.timezone) >= record_instant(($6::text[])[i], workspaces.timezone)
+            ELSE record_values.text >= ($6::text[])[i] END
+          ELSE CASE WHEN attributes.type = 'datetime' AND ($6::text[])[i] = 'today' THEN
+            CASE WHEN length(record_values.text) = 10 THEN record_values.text::date
+              ELSE (record_values.text::timestamptz AT TIME ZONE workspaces.timezone)::date END = (CURRENT_TIMESTAMP AT TIME ZONE workspaces.timezone)::date
+          WHEN attributes.type = 'datetime' AND ($6::text[])[i] = 'now' THEN
+            record_instant(record_values.text, workspaces.timezone) = CURRENT_TIMESTAMP
           ELSE lower(record_values.text) = ($6::text[])[i] OR record_values.unique_key = ($6::text[])[i]
-            OR record_values.ref_record_id::text = ($6::text[])[i]
+            OR record_values.ref_record_id::text = ($6::text[])[i] END
         END
     ) = (($5::text[])[i] IN ('is_not', 'not_contains', 'is_empty'))
   )
 ORDER BY (
-    SELECT min(record_values.text) FROM record_values
+    SELECT min(CASE WHEN attributes.type = 'datetime'
+      THEN to_char(record_instant(record_values.text, workspaces.timezone) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US')
+      ELSE record_values.text END) FROM record_values JOIN attributes ON attributes.id = record_values.attribute_id
     WHERE record_values.record_id = records.id AND record_values.active_until IS NULL
       AND record_values.attribute_id = $7::uuid
   ) NULLS LAST, records.created_at DESC, records.id

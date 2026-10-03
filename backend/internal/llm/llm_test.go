@@ -92,7 +92,7 @@ func respond(t *testing.T, schema string, answer any) http.HandlerFunc {
 }
 
 func TestPlanAndClassify(t *testing.T) {
-	want := followups.Plan{FollowUps: []followups.Change{{Action: "Send revised quote", WaitingOn: "Us", ReviewOn: "2026-10-02", Status: "Open", Person: "p1", Reply: "Hi Jane"}}, Contexts: []followups.Context{{Person: "p1", Context: "- Head of purchasing at Acme"}}}
+	want := followups.Plan{FollowUps: []followups.Change{{Action: "Send revised quote", WaitingOn: "Us", ActionDate: &followups.ActionDate{Value: "2026-10-02", Basis: "Stated", Reason: "By October 2"}, Status: "Open", Person: "p1", Reply: "Hi Jane"}}, Contexts: []followups.Context{{Person: "p1", Context: "- Head of purchasing at Acme"}}}
 	judged := []interactions.Judgement{{Address: "jane@acme.com", Verdict: "keep", Reason: "customer"}}
 	routes := http.NewServeMux()
 	srv := httptest.NewServer(routes)

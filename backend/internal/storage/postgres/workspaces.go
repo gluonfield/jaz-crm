@@ -43,7 +43,7 @@ func (s *Store) CreateOwnedWorkspace(ctx context.Context, name string, owner sto
 
 func (s *Store) UpdateWorkspace(ctx context.Context, workspaceID string, update storage.WorkspaceUpdate) error {
 	return s.tx(ctx, func(a *authdb.Queries, _ *recdb.Queries) error {
-		if err := affected(a.UpdateWorkspace(ctx, authdb.UpdateWorkspaceParams{ID: workspaceID, Name: update.Name, Description: update.Description, CompanyPageIDs: update.CompanyPageIDs, DraftingWebAccess: update.DraftingWebAccess})); err != nil {
+		if err := affected(a.UpdateWorkspace(ctx, authdb.UpdateWorkspaceParams{ID: workspaceID, Name: update.Name, Description: update.Description, CompanyPageIDs: update.CompanyPageIDs, DraftingWebAccess: update.DraftingWebAccess, Timezone: update.Timezone})); err != nil {
 			return err
 		}
 		if update.CompanyPageIDs == nil {

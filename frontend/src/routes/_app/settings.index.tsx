@@ -13,21 +13,28 @@ function GeneralPage() {
   const admin = workspace?.members?.find((m) => m.is_me)?.admin
   return workspace && (
     <>
-      <WorkspaceName key={workspace.id + workspace.name} name={workspace.name} admin={!!admin} />
+      <GeneralSettings key={workspace.id + workspace.name + workspace.timezone} name={workspace.name} timezone={workspace.timezone} admin={!!admin} />
       {admin && <DeleteWorkspace key={workspace.id + workspace.name} workspace={workspace} />}
     </>
   )
 }
 
-function WorkspaceName({ name, admin }: { name: string; admin: boolean }) {
+function GeneralSettings({ name, timezone, admin }: { name: string; timezone: string; admin: boolean }) {
   const [draft, setDraft] = useState(name)
-  const update = useAction<{ name: string }>('update_workspace')
+  const [zone, setZone] = useState(timezone)
+  const update = useAction<{ name?: string; timezone?: string }>('update_workspace')
   return (
     <Section title="General">
       <Row>
         <label htmlFor="workspace-name" className="w-20 shrink-0 text-ink-2">Name</label>
         <input id="workspace-name" value={draft} disabled={!admin || update.isPending} onChange={(e) => setDraft(e.target.value)} className={cn(inputClass, 'flex-1')} />
         {admin && draft !== name && <Button disabled={!draft.trim() || update.isPending} onClick={() => update.mutate({ name: draft })}>Save</Button>}
+      </Row>
+      <Row>
+        <label htmlFor="workspace-timezone" className="w-20 shrink-0 text-ink-2">Timezone</label>
+        <input id="workspace-timezone" list="timezones" value={zone} disabled={!admin || update.isPending} onChange={(e) => setZone(e.target.value)} className={cn(inputClass, 'flex-1')} />
+        <datalist id="timezones">{['UTC', ...Intl.supportedValuesOf('timeZone')].map((value) => <option key={value} value={value} />)}</datalist>
+        {admin && zone !== timezone && <Button disabled={!zone.trim() || update.isPending} onClick={() => update.mutate({ timezone: zone })}>Save</Button>}
       </Row>
     </Section>
   )

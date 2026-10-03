@@ -48,7 +48,10 @@ type Thread struct {
 // Conversation is what a planner reads: the complete stored conversation,
 // who we are, the records it concerns and their open follow-ups.
 type Conversation struct {
-	Today        string                     `json:"today"`
+	Now          string                     `json:"now"`
+	Timezone     string                     `json:"timezone"`
+	StartedAt    string                     `json:"started_at"`
+	EndedAt      *time.Time                 `json:"ended_at,omitempty"`
 	Purpose      string                     `json:"crm_purpose"`
 	Us           []Person                   `json:"us"`
 	Kind         string                     `json:"kind"`
@@ -90,11 +93,13 @@ type Line struct {
 
 // Open is an open follow-up as a planner sees it.
 type Open struct {
-	ID        string `json:"id"`
-	Action    string `json:"action"`
-	WaitingOn string `json:"waiting_on,omitempty"`
-	ReviewOn  string `json:"review_on,omitempty"`
-	Draft     string `json:"draft,omitempty"`
+	ID         string `json:"id"`
+	Action     string `json:"action"`
+	WaitingOn  string `json:"waiting_on,omitempty"`
+	ActionDate string `json:"action_date,omitempty"`
+	DateBasis  string `json:"action_date_basis,omitempty"`
+	DateReason string `json:"action_date_reason,omitempty"`
+	Draft      string `json:"draft,omitempty"`
 }
 
 // Plan contains follow-up changes and context updates, with a reply or skip reason.
@@ -112,18 +117,24 @@ func (p Plan) HasOutcome() bool {
 	return p.HasReply() || strings.TrimSpace(p.SkipReason) != ""
 }
 
-// Change creates a follow-up, or with an id changes an open one. Empty
-// fields leave a value as it is; Reply is a draft of our next message.
+// Change creates or updates a follow-up. Empty strings keep existing values;
+// a nil ActionDate keeps the date, while an empty ActionDate.Value clears it.
 type Change struct {
-	ID        string `json:"id"`
-	Action    string `json:"action"`
-	WaitingOn string `json:"waiting_on"`
-	ReviewOn  string `json:"review_on"`
-	Status    string `json:"status"`
-	Person    string `json:"person"`
-	Company   string `json:"company"`
-	Deal      string `json:"deal"`
-	Reply     string `json:"reply"`
+	ID         string      `json:"id"`
+	Action     string      `json:"action"`
+	WaitingOn  string      `json:"waiting_on"`
+	ActionDate *ActionDate `json:"action_date"`
+	Status     string      `json:"status"`
+	Person     string      `json:"person"`
+	Company    string      `json:"company"`
+	Deal       string      `json:"deal"`
+	Reply      string      `json:"reply"`
+}
+
+type ActionDate struct {
+	Value  string `json:"value"`
+	Basis  string `json:"basis"`
+	Reason string `json:"reason"`
 }
 
 // Agent keeps follow-ups current as conversations move.
@@ -383,8 +394,20 @@ func (a *Agent) apply(ctx context.Context, actor auth.Actor, conv interactions.I
 	put("name", plain(c.Action))
 	put("waiting_on", c.WaitingOn)
 	put("status", c.Status)
-	if _, err := time.Parse(time.DateOnly, c.ReviewOn); err == nil {
-		put("review_on", c.ReviewOn)
+	remove := map[string][]string{}
+	if c.ActionDate != nil {
+		if strings.TrimSpace(c.ActionDate.Value) == "" {
+			remove["action_date"] = nil
+		} else {
+			date, err := actionDate(c.ActionDate.Value, in.Timezone)
+			if err != nil {
+				return false, err
+			}
+			put("action_date", date)
+			put("action_date_basis", c.ActionDate.Basis)
+			put("action_date_reason", c.ActionDate.Reason)
+			put("action_date_source", conv.ID)
+		}
 	}
 	for object, attribute := range subjects {
 		id := map[string]string{"person": c.Person, "company": c.Company, "deal": c.Deal}[attribute]
@@ -392,8 +415,7 @@ func (a *Agent) apply(ctx context.Context, actor auth.Actor, conv interactions.I
 			put(attribute, id)
 		}
 	}
-	remove := map[string][]string{}
-	if strings.TrimSpace(c.Reply) != "" && (conv.Channel == "email" || conv.Channel == "linkedin") {
+	if c.WaitingOn != "Them" && c.Status != "Done" && c.Status != "Dismissed" && strings.TrimSpace(c.Reply) != "" && (conv.Channel == "email" || conv.Channel == "linkedin") {
 		if err := a.draft(ctx, actor, conv, c.Reply, set); err != nil {
 			return false, err
 		}
@@ -410,16 +432,14 @@ func (a *Agent) apply(ctx context.Context, actor auth.Actor, conv interactions.I
 			}
 		}
 	}
-	if c.ID == "" && set["name"] == nil || len(set) == 0 {
+	if c.ID == "" && set["name"] == nil || len(set) == 0 && len(remove) == 0 {
 		return false, nil
 	}
-	f, skipped, err := a.crm.Upsert(ctx, actor, records.SourceAgent, records.Write{Object: records.FollowUps, RecordID: c.ID, Set: set, Remove: remove})
+	f, _, err := a.crm.Upsert(ctx, actor, records.SourceAgent, records.Write{Object: records.FollowUps, RecordID: c.ID, Set: set, Remove: remove})
 	if err != nil {
 		return false, err
 	}
-	drafted := len(set["draft"]) > 0 && !slices.ContainsFunc(skipped, func(s records.Skip) bool {
-		return s.Attribute == "draft"
-	})
+	drafted := len(set["draft"]) > 0 && value(f, "waiting_on") != "Them" && value(f, "status") == "Open" && value(f, "draft") == set["draft"][0]
 	return drafted, a.store.AddLink(ctx, conv.ID, f.ID, interactions.ByAgent)
 }
 

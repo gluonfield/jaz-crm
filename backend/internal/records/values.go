@@ -19,6 +19,7 @@ const (
 	Text      = "text"
 	Number    = "number"
 	Date      = "date"
+	DateTime  = "datetime"
 	Checkbox  = "checkbox"
 	URL       = "url"
 	Select    = "select"
@@ -87,7 +88,10 @@ var StandardObjects = []storage.NewObject{
 		{Slug: titleAttribute, Name: "Action", Type: Text},
 		{Slug: "status", Name: "Status", Type: Status, Options: []string{"Open", "Done", "Dismissed"}},
 		{Slug: "waiting_on", Name: "Waiting on", Type: Select, Options: []string{"Us", "Them"}},
-		{Slug: "review_on", Name: "Review on", Type: Date},
+		{Slug: "action_date", Name: "Action date", Type: DateTime},
+		{Slug: "action_date_basis", Name: "Date basis", Type: Select, Options: []string{"Stated", "Suggested", "Manual"}},
+		{Slug: "action_date_reason", Name: "Date reason", Type: Text},
+		{Slug: "action_date_source", Name: "Date source", Type: Text},
 		{Slug: "owner", Name: "Owner", Type: Member},
 		{Slug: "person", Name: "Person", Type: Reference, Target: "people"},
 		{Slug: "company", Name: "Company", Type: Reference, Target: "companies"},
@@ -100,7 +104,12 @@ var StandardObjects = []storage.NewObject{
 	}, Filters: []storage.SavedFilter{
 		{Name: "Needs attention", Filters: []storage.RecordFilter{
 			{Attribute: "status", Operator: "is", Value: "Open"},
-			{Attribute: "review_on", Operator: "on_or_before", Value: "today"},
+			{Attribute: "action_date", Operator: "on_or_before", Value: "today"},
+		}},
+		{Name: "Chase", Filters: []storage.RecordFilter{
+			{Attribute: "status", Operator: "is", Value: "Open"},
+			{Attribute: "waiting_on", Operator: "is", Value: "Them"},
+			{Attribute: "action_date", Operator: "on_or_before", Value: "now"},
 		}},
 		{Name: "Waiting on them", Filters: []storage.RecordFilter{
 			{Attribute: "status", Operator: "is", Value: "Open"},
@@ -186,6 +195,12 @@ func canonical(attr storage.Attribute, raw string) (string, bool) {
 			return "", false
 		}
 		return strconv.FormatFloat(n, 'f', -1, 64), err == nil
+	case DateTime:
+		if d, err := time.Parse(time.DateOnly, raw); err == nil {
+			return d.Format(time.DateOnly), d.Year() > 0
+		}
+		d, err := time.Parse(time.RFC3339Nano, raw)
+		return d.UTC().Truncate(time.Microsecond).Format(time.RFC3339Nano), err == nil && d.Year() > 0
 	case Date:
 		for _, layout := range []string{time.DateOnly, time.RFC3339} {
 			if d, err := time.Parse(layout, raw); err == nil {

@@ -49,7 +49,7 @@ func (a *Agent) conversation(ctx context.Context, actor auth.Actor, conv interac
 	if err != nil {
 		return Conversation{}, err
 	}
-	in := Conversation{Today: time.Now().UTC().Format(time.DateOnly), Purpose: ws.Description, Kind: conv.Kind, Channel: conv.Channel, Title: conv.Title, Description: conv.Invitation, Messages: conversationLines(conv), Records: []Record{}, FollowUps: []Open{}, WebAccess: ws.DraftingWebAccess}
+	in := Conversation{Now: time.Now().UTC().Format(time.RFC3339), Timezone: ws.Timezone, StartedAt: conv.StartedAt, EndedAt: conv.EndedAt, Purpose: ws.Description, Kind: conv.Kind, Channel: conv.Channel, Title: conv.Title, Description: conv.Invitation, Messages: conversationLines(conv), Records: []Record{}, FollowUps: []Open{}, WebAccess: ws.DraftingWebAccess}
 	for _, u := range users {
 		person := Person{Name: u.Name, Address: u.Email}
 		in.Us = append(in.Us, person)
@@ -95,7 +95,7 @@ func (a *Agent) conversation(ctx context.Context, actor auth.Actor, conv interac
 			}
 			for _, f := range open {
 				if !slices.ContainsFunc(in.FollowUps, func(o Open) bool { return o.ID == f.ID }) {
-					in.FollowUps = append(in.FollowUps, Open{ID: f.ID, Action: value(f, "name"), WaitingOn: value(f, "waiting_on"), ReviewOn: value(f, "review_on"), Draft: value(f, "draft")})
+					in.FollowUps = append(in.FollowUps, Open{ID: f.ID, Action: value(f, "name"), WaitingOn: value(f, "waiting_on"), ActionDate: value(f, "action_date"), DateBasis: value(f, "action_date_basis"), DateReason: value(f, "action_date_reason"), Draft: value(f, "draft")})
 				}
 			}
 		}

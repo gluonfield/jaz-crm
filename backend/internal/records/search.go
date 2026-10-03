@@ -56,7 +56,7 @@ func (s *Service) Search(ctx context.Context, actor auth.Actor, q Search) ([]Rec
 		if err != nil {
 			return nil, 0, err
 		}
-		if attr.Type != Date && attr.Type != Text {
+		if attr.Type != Date && attr.Type != DateTime && attr.Type != Text {
 			return nil, 0, errs.Invalidf("sort takes a date or text attribute; %s is %s", attr.Slug, attr.Type)
 		}
 		query.SortAttributeID = &attr.ID
@@ -101,8 +101,12 @@ func (s *Service) filterQuery(ctx context.Context, actor auth.Actor, sc schema, 
 		switch f.Operator {
 		case "is_empty", "is_not_empty":
 		case "before", "on_or_before", "after", "on_or_after":
-			if attr.Type != Date {
+			if attr.Type != Date && attr.Type != DateTime {
 				return query, errs.Invalidf("%s does not support %s", attr.Slug, f.Operator)
+			}
+			if attr.Type == DateTime && (f.Value == "today" || f.Value == "now") {
+				match = f.Value
+				break
 			}
 			e, err := normalize(attr, f.Value)
 			if err != nil {
@@ -110,7 +114,7 @@ func (s *Service) filterQuery(ctx context.Context, actor auth.Actor, sc schema, 
 			}
 			match = e.match()
 		case "contains", "not_contains":
-			if attr.Type == Reference || attr.Type == Number || attr.Type == Date || attr.Type == Checkbox {
+			if attr.Type == Reference || attr.Type == Number || attr.Type == Date || attr.Type == DateTime || attr.Type == Checkbox {
 				return query, errs.Invalidf("%s does not support %s", attr.Slug, f.Operator)
 			}
 			if match = strings.TrimSpace(f.Value); match == "" {
@@ -118,6 +122,10 @@ func (s *Service) filterQuery(ctx context.Context, actor auth.Actor, sc schema, 
 			}
 			match = literalPattern(match)
 		case "is", "is_not":
+			if attr.Type == DateTime && (f.Value == "today" || f.Value == "now") {
+				match = f.Value
+				break
+			}
 			e, err := s.entry(ctx, actor.WorkspaceID, sc, attr, f.Value)
 			var unknown errs.Invalid
 			if attr.Type == Reference && errors.As(err, &unknown) {

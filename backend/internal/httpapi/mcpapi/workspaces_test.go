@@ -253,15 +253,20 @@ func TestDraftingSettings(t *testing.T) {
 	if got := mustCall(t, owner, "get_workspace", nil); got["drafting_web_access"] != false || len(got["company_page_ids"].([]any)) != 0 {
 		t.Fatalf("new drafting settings must be empty and offline: %v", got)
 	}
-	mustCall(t, owner, "update_workspace", map[string]any{"company_page_ids": []any{first, second, first}, "drafting_web_access": true})
+	mustCall(t, owner, "update_workspace", map[string]any{"company_page_ids": []any{first, second, first}, "drafting_web_access": true, "timezone": "Europe/London"})
 	mustCall(t, owner, "update_workspace", map[string]any{"name": "Supplier"})
 	for _, invalid := range []any{foreign, person, "not-a-page-id"} {
 		if _, failure := call(t, owner, "update_workspace", map[string]any{"name": "Rejected", "company_page_ids": []any{first, invalid}, "drafting_web_access": false}); failure == "" {
 			t.Fatalf("accepted invalid drafting knowledge: %v", invalid)
 		}
 	}
+	for _, zone := range []string{"", "Local", "Not/A_Zone"} {
+		if _, failure := call(t, owner, "update_workspace", map[string]any{"timezone": zone}); failure == "" {
+			t.Fatalf("accepted invalid workspace timezone %q", zone)
+		}
+	}
 	got := mustCall(t, owner, "get_workspace", nil)
-	if got["name"] != "Supplier" || got["drafting_web_access"] != true || !slices.Equal(got["company_page_ids"].([]any), []any{first, second}) {
+	if got["name"] != "Supplier" || got["timezone"] != "Europe/London" || got["drafting_web_access"] != true || !slices.Equal(got["company_page_ids"].([]any), []any{first, second}) {
 		t.Fatalf("settings lost on omitted fields, deduplication or rejected update: %v", got)
 	}
 	mustCall(t, owner, "invite_member", map[string]any{"email": "draft-member@example.com"})

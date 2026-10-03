@@ -13,6 +13,7 @@ import (
 
 func registerRecords(r *registry, crm *records.Service, conversations *interactions.Service, pics pictures) {
 	registerFilters(r, crm)
+	registerDates(r, crm)
 	add(r, &mcp.Tool{Name: "edit_pipeline_stage", Title: "Edit pipeline stage",
 		Description: "Rename, move or delete a status stage. Move places it before another stage, or last when before is omitted. Delete requires a replacement when records use the stage, and moves them there. At least one stage remains; history is preserved."},
 		func(ctx context.Context, actor auth.Actor, in stageInput) (empty, error) {
@@ -118,7 +119,7 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 			return empty{}, crm.EditObject(ctx, actor, in.Object, in.Action, in.Name)
 		})
 	add(r, &mcp.Tool{Annotations: &mcp.ToolAnnotations{DestructiveHint: new(false)}, Name: "create_attribute", Title: "Create attribute",
-		Description: "Add an attribute to an object, such as a table's column. Types: text, number, date, checkbox, url, select (with options), status (with its stages in order as options; a new record starts in the first), member (a workspace member by email; a new record names its creator), email, domain, phone, reference (with target, such as people, companies or pages)."},
+		Description: "Add an attribute to an object, such as a table's column. Types: text, number, date, datetime (date with optional time), checkbox, url, select (with options), status (with its stages in order as options; a new record starts in the first), member (a workspace member by email; a new record names its creator), email, domain, phone, reference (with target, such as people, companies or pages)."},
 		func(ctx context.Context, actor auth.Actor, in attributeInput) (objectView, error) {
 			object, err := crm.CreateAttribute(ctx, actor, in.Object, records.Attribute{
 				Slug: in.Slug, Name: in.Name, Type: in.Type, Multi: in.Multi, Unique: in.Unique, Target: in.Target, Options: in.Options,
@@ -249,7 +250,7 @@ type searchInput struct {
 	Query   string             `json:"query,omitempty" jsonschema:"text that any value contains, case-insensitively"`
 	Where   map[string]string  `json:"where,omitempty" jsonschema:"attribute slug to a value the record must hold; a reference takes a record id or a unique value such as a domain"`
 	Filters []records.Filter   `json:"filters,omitempty" jsonschema:"multiple attribute conditions; every condition must match, including repeated attributes"`
-	Sort    string             `json:"sort,omitempty" jsonschema:"a date or text attribute to order by, earliest or first alphabetically and empty last, such as review_on or name; omit for newest first"`
+	Sort    string             `json:"sort,omitempty" jsonschema:"a date or text attribute to order by, earliest or first alphabetically and empty last, such as action_date or name; omit for newest first"`
 	Offset  int                `json:"offset,omitempty" jsonschema:"matching records to skip, for the next page"`
 	Limit   int                `json:"limit,omitempty" jsonschema:"at most 500, default 20"`
 	Include []records.Relation `json:"include,omitempty" jsonschema:"at most 8 reverse relationships to include as compact references, keyed by object.attribute in each record's related field"`

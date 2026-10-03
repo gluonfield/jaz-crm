@@ -16,6 +16,7 @@ type Workspace struct {
 	AutoKeepAi        bool
 	DraftingWebAccess bool
 	CompanyPageIDs    []string
+	Timezone          string
 }
 
 // User is a person's membership of one workspace.
@@ -169,6 +170,7 @@ type TriageSettings struct {
 }
 
 type WorkspaceUpdate struct {
+	Timezone          *string
 	Name              *string
 	Description       *string
 	CompanyPageIDs    []string

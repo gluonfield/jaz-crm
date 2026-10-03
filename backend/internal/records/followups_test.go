@@ -14,7 +14,7 @@ func TestFollowUpDraftLifecycle(t *testing.T) {
 	agent.Agent = true
 	jane, _ := upsert(t, svc, a, records.SourceSync, records.Write{Object: "people", Set: set("name", "Jane", "email_addresses", "jane@acme.test")})
 	followUp, _ := upsert(t, svc, agent, records.SourceAgent, records.Write{Object: records.FollowUps, Set: set(
-		"name", "Send the revised quote", "waiting_on", "Us", "review_on", "2026-10-02", "person", jane.ID,
+		"name", "Send the revised quote", "waiting_on", "Us", "action_date", "2026-10-02", "action_date_basis", "Stated", "action_date_reason", "By October 2", "person", jane.ID,
 		"draft", "Hi Jane, the revised quote is attached.", "channel", "Email", "to", "jane@acme.test",
 	)})
 	status := func(r records.Record) string {
@@ -97,12 +97,12 @@ func TestFollowUpsAreReferencedAndSortedByReviewDate(t *testing.T) {
 	for _, review := range []string{"2026-10-05", "", "2026-10-02"} {
 		pairs := []string{"name", "Follow up " + review, "person", jane.ID}
 		if review != "" {
-			pairs = append(pairs, "review_on", review)
+			pairs = append(pairs, "action_date", review)
 		}
 		f, _ := upsert(t, svc, a, records.SourceUser, records.Write{Object: records.FollowUps, Set: set(pairs...)})
 		ids = append(ids, f.ID)
 	}
-	sorted, _, err := svc.Search(ctx, a, records.Search{Object: records.FollowUps, Sort: "review_on"})
+	sorted, _, err := svc.Search(ctx, a, records.Search{Object: records.FollowUps, Sort: "action_date"})
 	if err != nil {
 		t.Fatal(err)
 	}

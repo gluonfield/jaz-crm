@@ -1,3 +1,4 @@
+import { DateField, dateMetadata } from './date-field'
 import { Button } from '@jaz/ui/button'
 import { useNavigate } from '@tanstack/react-router'
 import { X } from 'lucide-react'
@@ -68,7 +69,7 @@ function Form({ object, initial = {}, record, openCreated, close }: { object: Cr
   const members = useWorkspace()?.members ?? []
   const me = members.find((m) => m.is_me)
   const identity = object.attributes.find((a) => a.unique)
-  const properties = object.attributes.filter((a) => a.slug !== 'name' && a !== identity && a.type !== 'checkbox' && a.type !== 'markdown')
+  const properties = object.attributes.filter((a) => !(object.slug === 'follow_ups' && (dateMetadata(a.slug) || a.slug === 'action_date')) && a.slug !== 'name' && a !== identity && a.type !== 'checkbox' && a.type !== 'markdown')
   const held = (slug: string) => (record ? valuesOf(record, slug).map(valueKey) : [])
   const [name, setName] = useState(held('name')[0] ?? '')
   const [key, setKey] = useState(identity ? held(identity.slug).join(', ') : '')
@@ -182,6 +183,7 @@ function Form({ object, initial = {}, record, openCreated, close }: { object: Cr
         )}
       </div>
       <div className="flex flex-wrap items-center gap-1.5 px-4 pb-4 pt-4">
+        {record?.object === 'follow_ups' && <DateField record={record} />}
         {properties.map((a) => (
           <Property key={a.slug} attribute={a} values={draft[a.slug] ?? []} labels={labels} members={members} onChange={(values) => set(a.slug, values)} onLabel={(id, label) => setLabels((l) => ({ ...l, [id]: label }))} />
         ))}

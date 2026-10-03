@@ -105,6 +105,10 @@ func TestAgentKeepsFollowUpsCurrent(t *testing.T) {
 	}
 	actor := auth.Actor{UserID: owner.ID, WorkspaceID: owner.WorkspaceID}
 	workspaceService := workspaces.NewService(store, workspaces.Config{})
+	zone := "Europe/London"
+	if _, err := workspaceService.Update(ctx, actor, storage.WorkspaceUpdate{Timezone: &zone}); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := workspaceService.Invite(ctx, actor, "bob@acme.com"); err != nil {
 		t.Fatal(err)
 	}
@@ -194,7 +198,7 @@ func TestAgentKeepsFollowUpsCurrent(t *testing.T) {
 	message("m1", "Could you send a revised quote for 500 brackets by Friday?", time.Now().Add(-time.Minute))
 	merged := "- Head of purchasing at Acme\n- 2026-10-01: asked for a revised quote for 500–600 brackets by Friday"
 	brain.plans = []followups.Plan{{FollowUps: []followups.Change{
-		{Action: "Send revised quote for 500 brackets", WaitingOn: "Us", ReviewOn: "2026-10-02", Status: "Open", Person: jane.ID, Company: "made-up", Reply: "Hi Jane, here is the revised quote."},
+		{Action: "Send revised quote for 500 brackets", WaitingOn: "Us", ActionDate: &followups.ActionDate{Value: "2026-10-25T10:00", Basis: "Stated", Reason: "October 25 at 10 local time"}, Status: "Open", Person: jane.ID, Company: "made-up", Reply: "Hi Jane, here is the revised quote."},
 		{ID: "invented", Status: "Done"},
 	}, Contexts: []followups.Context{{Person: jane.ID, Context: merged}, {Person: deal.ID, Context: "- not a person in this conversation"}}}}
 	if run() != 1 {
@@ -211,7 +215,7 @@ func TestAgentKeepsFollowUpsCurrent(t *testing.T) {
 	}) {
 		t.Fatalf("the merged context must replace the one a person wrote, keeping its bullets and hyphenating ranges: %+v %v", person.Fields, err)
 	}
-	if got := brain.read[0]; got.Channel != "email" || len(got.Messages) != 2 || got.Messages[1].Text != "Could you send a revised quote for 500 brackets by Friday?" {
+	if got := brain.read[0]; got.Timezone != "Europe/London" || got.Now == "" || got.StartedAt == "" || got.Channel != "email" || len(got.Messages) != 2 || got.Messages[1].Text != "Could you send a revised quote for 500 brackets by Friday?" {
 		t.Fatalf("planner read %+v", got)
 	}
 	if !slices.ContainsFunc(brain.read[0].Records, func(r followups.Record) bool { return r.ID == deal.ID && r.Object == "deals" }) {
@@ -229,8 +233,9 @@ func TestAgentKeepsFollowUpsCurrent(t *testing.T) {
 		}
 	}
 	want := map[string][]string{
-		"name": {"Send revised quote for 500 brackets"}, "status": {"Open"}, "waiting_on": {"Us"}, "review_on": {"2026-10-02"},
+		"name": {"Send revised quote for 500 brackets"}, "status": {"Open"}, "waiting_on": {"Us"}, "action_date": {"2026-10-25T10:00:00Z"},
 		"owner": {"owner@cas.dev"}, "person": {"Jane" + jane.ID}, "draft": {"Hi Jane, here is the revised quote."},
+		"action_date_basis": {"Stated"}, "action_date_reason": {"October 25 at 10 local time"}, "action_date_source": {thread},
 		"channel": {"Email"}, "to": {"jane@acme.com", "sam@acme.com"}, "cc": {"bob@acme.com"}, "draft_status": {records.DraftWritten},
 	}
 	for attr, w := range want {
@@ -259,7 +264,7 @@ func TestAgentKeepsFollowUpsCurrent(t *testing.T) {
 	if run() != 1 {
 		t.Fatal("a conversation the model could not plan must be read again")
 	}
-	state("completed", "")
+	state("skipped", "generated reply could not")
 	if seen := brain.read[len(brain.read)-1].FollowUps; len(seen) != 1 || seen[0].ID != f.ID {
 		t.Fatalf("the planner must see the open follow-up: %+v", seen)
 	}
@@ -273,11 +278,11 @@ func TestAgentKeepsFollowUpsCurrent(t *testing.T) {
 			after[field.Attribute] = append(after[field.Attribute], v.Text)
 		}
 	}
-	if !slices.Equal(after["status"], []string{"Done"}) || !slices.Equal(after["to"], []string{"jane@acme.com"}) || !slices.Equal(after["cc"], []string{"bob@acme.com"}) {
-		t.Fatalf("the follow-up must be closed, and a new draft must replace its recipients, dropping Sam: %v", after)
+	if !slices.Equal(after["status"], []string{"Done"}) || len(after["action_date"]) != 0 || len(after["draft"]) != 0 {
+		t.Fatalf("a closed follow-up retains an active date or AI draft: %v", after)
 	}
-	if want := []string{"Thanks Jane, speak next week. Delivery is October 7-8, see you then.\n\nAugustinas"}; !slices.Equal(after["draft"], want) || !slices.Equal(after["name"], []string{"Confirm the order, next week"}) {
-		t.Fatalf("drafts and actions must be written without dashes: %q %q", after["draft"], after["name"])
+	if !slices.Equal(after["name"], []string{"Confirm the order, next week"}) {
+		t.Fatalf("actions must be written without dashes: %q", after["name"])
 	}
 	message("m3", "Does this work with CNC?", time.Now().Add(time.Millisecond))
 	brain.plans = []followups.Plan{{}}

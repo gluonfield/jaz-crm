@@ -81,6 +81,7 @@ type Workspace struct {
 	AutoKeepAi        bool
 	CompanyPageID     *string
 	DraftingWebAccess bool
+	Timezone          string
 }
 
 type WorkspaceInvite struct {

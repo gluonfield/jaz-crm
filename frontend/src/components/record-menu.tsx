@@ -1,3 +1,4 @@
+import { dateMetadata } from './date-field'
 import { useNavigate } from '@tanstack/react-router'
 import { ArrowUpRight, Contrast, Pencil, Tags, Trash2, UserRound } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
@@ -20,7 +21,7 @@ export function RecordMenu({ object, record, children }: { object: CrmObject; re
   const remove = useAction<{ record_id: string }>('delete_record', 150)
   const [editing, setEditing] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const properties = object.attributes.filter((a) => propertyIcons[a.type])
+  const properties = object.attributes.filter((a) => !(object.slug === 'follow_ups' && dateMetadata(a.slug)) && propertyIcons[a.type])
   return (
     <>
       <ContextMenu>

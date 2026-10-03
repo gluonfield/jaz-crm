@@ -19,9 +19,9 @@ export function FilterCondition({ object, filter, onChange, onRemove }: { object
   const attribute = object.attributes.find((a) => a.slug === filter.attribute)
   const operators = filterOperators.filter((op) => {
     if (['before', 'on_or_before', 'after', 'on_or_after'].includes(op)) {
-      return attribute?.type === 'date'
+      return ['date', 'datetime'].includes(attribute?.type ?? '')
     }
-    return !['contains', 'not_contains'].includes(op) || !['reference', 'number', 'date', 'checkbox'].includes(attribute?.type ?? '')
+    return !['contains', 'not_contains'].includes(op) || !['reference', 'number', 'date', 'datetime', 'checkbox'].includes(attribute?.type ?? '')
   })
   return (
     <div className="flex flex-wrap items-center gap-1.5 rounded-[var(--radius-control)] bg-list-hover p-1.5">
@@ -57,11 +57,12 @@ function FilterValue({ attribute, filter, onChange }: { attribute: Attribute; fi
   const member = attribute.type === 'member'
   const members = useWorkspace()?.members ?? []
   const choice = ['select', 'status', 'checkbox'].includes(attribute.type) || reference || member
-  if (attribute.type === 'date') {
+  if (attribute.type === 'date' || attribute.type === 'datetime') {
     return (
       <div className="flex min-w-0 flex-1 items-center gap-1">
         <Button variant="ghost" aria-pressed={filter.value === 'today'} onClick={() => onChange(filter.value === 'today' ? '' : 'today')} className={filter.value === 'today' ? 'bg-list-active' : undefined}>Today</Button>
-        {filter.value !== 'today' && <input aria-label={`${attribute.name} value`} value={filter.value ?? ''} onChange={(e) => onChange(e.target.value)} type="date" className={`${inputClass} min-w-0 flex-1`} />}
+        {attribute.type === 'datetime' && <Button variant="ghost" aria-pressed={filter.value === 'now'} onClick={() => onChange(filter.value === 'now' ? '' : 'now')} className={filter.value === 'now' ? 'bg-list-active' : undefined}>Now</Button>}
+        {!['today', 'now'].includes(filter.value ?? '') && <input aria-label={`${attribute.name} value`} value={filter.value ?? ''} onChange={(e) => onChange(e.target.value)} type="date" className={`${inputClass} min-w-0 flex-1`} />}
       </div>
     )
   }

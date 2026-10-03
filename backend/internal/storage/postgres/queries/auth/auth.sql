@@ -45,7 +45,7 @@ INSERT INTO workspaces (name) VALUES ($1) RETURNING *;
 -- name: GetWorkspace :one
 SELECT id, name, created_at, description, auto_keep_email, auto_keep_meetings,
   auto_keep_records, auto_keep_ai, drafting_web_access,
-  ARRAY(SELECT page_id FROM workspace_knowledge_pages WHERE workspace_id = workspaces.id ORDER BY position)::uuid[] AS company_page_ids
+  ARRAY(SELECT page_id FROM workspace_knowledge_pages WHERE workspace_id = workspaces.id ORDER BY position)::uuid[] AS company_page_ids, timezone
 FROM workspaces WHERE id = $1;
 
 -- name: LockWorkspace :one
@@ -58,7 +58,8 @@ UPDATE users SET addresses = @addresses::text[] WHERE id = @id AND workspace_id 
 -- Keep the legacy root readable while older workers finish a rolling deployment.
 UPDATE workspaces SET name = COALESCE(sqlc.narg(name), name), description = COALESCE(sqlc.narg(description), description),
   company_page_id = CASE WHEN @company_page_ids::uuid[] IS NULL THEN company_page_id ELSE (@company_page_ids::uuid[])[1] END,
-  drafting_web_access = COALESCE(sqlc.narg(drafting_web_access), drafting_web_access)
+  drafting_web_access = COALESCE(sqlc.narg(drafting_web_access), drafting_web_access),
+  timezone = COALESCE(sqlc.narg(timezone), timezone)
 WHERE workspaces.id = @id AND NOT EXISTS (
   SELECT 1 FROM unnest(@company_page_ids::uuid[]) AS selected(id)
   LEFT JOIN records ON records.id = selected.id AND records.workspace_id = @id

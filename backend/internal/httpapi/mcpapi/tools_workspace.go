@@ -77,7 +77,7 @@ func registerWorkspace(r *registry, members *workspaces.Service, keys *auth.Serv
 			return memberOf(user, actor), err
 		})
 	add(r, &mcp.Tool{Name: "update_workspace", Title: "Update workspace",
-		Description: "Change this workspace's name, triage description, drafting knowledge pages or web access. Knowledge accepts pages only and includes descendants. Omitted settings are preserved. Admins only."},
+		Description: "Change this workspace's name, triage description, drafting knowledge pages, web access or timezone. Knowledge accepts pages only and includes descendants. Omitted settings are preserved. Admins only."},
 		func(ctx context.Context, actor auth.Actor, in updateWorkspaceInput) (workspaceView, error) {
 			if in.CompanyPageID != nil {
 				if in.CompanyPageIDs != nil {
@@ -88,7 +88,7 @@ func registerWorkspace(r *registry, members *workspaces.Service, keys *auth.Serv
 					in.CompanyPageIDs = []string{*in.CompanyPageID}
 				}
 			}
-			workspace, err := members.Update(ctx, actor, storage.WorkspaceUpdate{Name: in.Name, Description: in.Description, CompanyPageIDs: in.CompanyPageIDs, DraftingWebAccess: in.DraftingWebAccess})
+			workspace, err := members.Update(ctx, actor, storage.WorkspaceUpdate{Name: in.Name, Description: in.Description, CompanyPageIDs: in.CompanyPageIDs, DraftingWebAccess: in.DraftingWebAccess, Timezone: in.Timezone})
 			return workspaceOf(workspace), err
 		})
 	add(r, &mcp.Tool{Name: "delete_workspace", Title: "Delete workspace", Annotations: &mcp.ToolAnnotations{DestructiveHint: new(true)},
@@ -121,7 +121,7 @@ type updateMemberInput struct {
 }
 
 func workspaceOf(w storage.Workspace) workspaceView {
-	out := workspaceView{ID: w.ID, Name: w.Name, Description: w.Description, CompanyPageIDs: w.CompanyPageIDs, DraftingWebAccess: w.DraftingWebAccess}
+	out := workspaceView{ID: w.ID, Name: w.Name, Description: w.Description, CompanyPageIDs: w.CompanyPageIDs, DraftingWebAccess: w.DraftingWebAccess, Timezone: w.Timezone}
 	if len(w.CompanyPageIDs) > 0 {
 		out.CompanyPageID = &w.CompanyPageIDs[0]
 	}
@@ -129,6 +129,7 @@ func workspaceOf(w storage.Workspace) workspaceView {
 }
 
 type workspaceView struct {
+	Timezone          string       `json:"timezone"`
 	ID                string       `json:"id"`
 	Name              string       `json:"name"`
 	Description       string       `json:"description"`
@@ -148,6 +149,7 @@ type inviteOutput struct {
 }
 
 type updateWorkspaceInput struct {
+	Timezone          *string  `json:"timezone,omitempty" jsonschema:"IANA time zone used for action dates, such as Europe/London"`
 	CompanyPageIDs    []string `json:"company_page_ids,omitempty" jsonschema:"knowledge page IDs; includes their descendants; empty removes all; omission preserves the selection; only pages in this workspace are accepted"`
 	DraftingWebAccess *bool    `json:"drafting_web_access,omitempty" jsonschema:"allow the drafting agent to search and read the public web; disabled by default"`
 	Name              *string  `json:"name,omitempty"`
