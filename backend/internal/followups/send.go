@@ -32,7 +32,7 @@ func NewService(crm *records.Service, store storage.InteractionStore, conns *con
 
 // SaveDraft records an edit in the CRM composer with the same source on
 // both transports, so a browser edit remains editable inside an MCP app.
-func (s *Service) SaveDraft(ctx context.Context, actor auth.Actor, id, draft, channel string, to, cc []string) (records.Record, error) {
+func (s *Service) SaveDraft(ctx context.Context, actor auth.Actor, id, draft, subject, channel string, to, cc []string) (records.Record, error) {
 	current, err := s.crm.Get(ctx, actor, id)
 	if err != nil {
 		return records.Record{}, err
@@ -42,7 +42,7 @@ func (s *Service) SaveDraft(ctx context.Context, actor auth.Actor, id, draft, ch
 	}
 	set := map[string][]string{}
 	remove := map[string][]string{}
-	for attribute, next := range map[string][]string{"draft": {draft}, "channel": {channel}, "to": to, "cc": cc} {
+	for attribute, next := range map[string][]string{"draft": {draft}, "subject": {subject}, "channel": {channel}, "to": to, "cc": cc} {
 		if len(next) == 1 && strings.TrimSpace(next[0]) == "" {
 			next = nil
 		}
@@ -66,12 +66,13 @@ func (s *Service) SaveDraft(ctx context.Context, actor auth.Actor, id, draft, ch
 type Seen struct {
 	Confirmed bool
 	Draft     string
+	Subject   string
 	From      string
 	To, Cc    []string
 }
 
 // Release is a person letting a follow-up's draft go. An email draft is sent
-// now as a reply in its newest linked conversation; any other draft is
+// now, replying in its newest linked email conversation when present; any other draft is
 // approved for whoever sends it. Confirmation and the reviewed draft are
 // required on both browser and connected-app transports.
 func (s *Service) Release(ctx context.Context, actor auth.Actor, id string, seen Seen) (records.Record, error) {
@@ -94,9 +95,27 @@ func (s *Service) Release(ctx context.Context, actor auth.Actor, id string, seen
 		}
 		return s.set(ctx, actor, id, "draft_status", records.DraftApproved)
 	}
-	reply, err := s.reply(ctx, actor, f)
+	reply, err := s.compose(ctx, actor, f)
 	if err != nil {
 		return records.Record{}, err
+	}
+	if reply.message.Body == "" || len(reply.message.To)+len(reply.message.Cc) == 0 {
+		return records.Record{}, errs.Invalidf("an email draft needs text and a recipient")
+	}
+	if reply.message.Subject == "" {
+		return records.Record{}, errs.Invalidf("add a subject before sending")
+	}
+	if reply.message.Subject != seen.Subject {
+		return records.Record{}, errs.Invalidf("the subject changed since you saw it; review it again")
+	}
+	if reply.latest != nil {
+		written, err := s.draftedAt(ctx, actor, f.ID)
+		if err != nil {
+			return records.Record{}, err
+		}
+		if reply.latest.After(written) {
+			return records.Record{}, errs.Invalidf("a message arrived after this draft was written; review the draft first")
+		}
 	}
 	if reply.account != seen.From {
 		return records.Record{}, errs.Invalidf("this reply now goes from %s; review it again", reply.account)
@@ -163,6 +182,7 @@ type outgoing struct {
 	mailbox *google.Client
 	account string
 	message google.Outgoing
+	latest  *time.Time
 }
 
 // sender finds the newest message of the email conversations a follow-up is
@@ -183,72 +203,12 @@ func (s *Service) sender(ctx context.Context, actor auth.Actor, f records.Record
 	}
 	parts = slices.DeleteFunc(parts, func(p storage.Part) bool { return p.Kind != "message" || p.ConnectionID == nil || p.ProviderID == nil })
 	if len(parts) == 0 {
-		return storage.Part{}, storage.Connection{}, errs.Invalidf("link the email conversation this follow-up replies in")
+		sender, err := s.conns.Mailbox(ctx, actor, "")
+		return storage.Part{}, sender, err
 	}
 	last := slices.MaxFunc(parts, func(a, b storage.Part) int { return a.At.Compare(*b.At) })
 	sender, err := s.conns.Mailbox(ctx, actor, *last.ConnectionID)
 	return last, sender, err
-}
-
-// reply addresses a follow-up's draft as a reply to the newest message of
-// the email conversations it is linked to, from its sender.
-func (s *Service) reply(ctx context.Context, actor auth.Actor, f records.Record) (outgoing, error) {
-	body := value(f, "draft")
-	if strings.TrimSpace(body) == "" {
-		return outgoing{}, errs.Invalidf("an email draft needs text and a recipient")
-	}
-	last, sender, err := s.sender(ctx, actor, f)
-	if err != nil {
-		return outgoing{}, err
-	}
-	written, err := s.draftedAt(ctx, actor, f.ID)
-	if err != nil {
-		return outgoing{}, err
-	}
-	if last.At.After(written) {
-		return outgoing{}, errs.Invalidf("a message arrived after this draft was written; review the draft first")
-	}
-	original, holder, err := s.original(ctx, last)
-	if err != nil {
-		return outgoing{}, err
-	}
-	to, cc, err := s.recipients(ctx, f, original, sender, holder)
-	if err != nil {
-		return outgoing{}, err
-	}
-	if len(to)+len(cc) == 0 {
-		return outgoing{}, errs.Invalidf("an email draft needs a recipient")
-	}
-	mailbox, err := s.conns.Google(ctx, sender)
-	if err != nil {
-		return outgoing{}, err
-	}
-	identity, err := mailbox.Identity(ctx, sender.Account)
-	if err != nil {
-		return outgoing{}, err
-	}
-	thread := original.ThreadID
-	if sender.ID != holder.ID && original.MessageID != "" {
-		thread, err = mailbox.ThreadOf(ctx, original.MessageID)
-		if errors.Is(err, google.ErrNotFound) {
-			thread, err = "", nil
-		}
-		if err != nil {
-			return outgoing{}, err
-		}
-	}
-	subject := original.Subject
-	if !strings.HasPrefix(strings.ToLower(subject), "re:") {
-		subject = "Re: " + subject
-	}
-	references := original.References
-	if original.MessageID != "" {
-		references = append(slices.Clone(references), original.MessageID)
-	}
-	return outgoing{mailbox: mailbox, account: sender.Account, message: google.Outgoing{
-		From: google.Address{Name: identity.Name, Email: sender.Account}, To: to, Cc: cc, Subject: subject, Body: body, Signature: identity.Signature,
-		ThreadID: thread, InReplyTo: original.MessageID, References: references,
-	}}, nil
 }
 
 // original reads a message's headers from the mailbox that holds it.

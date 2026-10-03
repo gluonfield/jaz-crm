@@ -2,14 +2,14 @@ import { Button } from '@jaz/ui/button'
 import { useRef, useState } from 'react'
 import { valueText, valuesOf } from '@/lib/crm'
 import { useAction, useWorkspace } from '@/lib/queries'
-import type { CrmRecord, DraftSender } from '@/lib/types'
+import type { CrmRecord, DraftMessage, DraftSender } from '@/lib/types'
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from './ui/dialog'
 import { HTMLContent } from './html-content'
 
 const list = (record: CrmRecord, slug: string) => valuesOf(record, slug).map(valueText)
 const text = (record: CrmRecord, slug: string) => list(record, slug).join(', ')
 
-export function Release({ record, draft, channel, sender, beforeSend, disabled }: { record: CrmRecord; draft: string; channel: string; sender?: DraftSender; beforeSend: (draft: string) => Promise<unknown>; disabled?: boolean }) {
+export function Release({ record, draft, channel, sender, beforeSend, disabled }: { record: CrmRecord; draft: string; channel: string; sender?: DraftSender; beforeSend: (draft: DraftMessage) => Promise<unknown>; disabled?: boolean }) {
   const [open, setOpen] = useState(false)
   const workspace = useWorkspace()
   const state = text(record, 'draft_status')
@@ -17,7 +17,7 @@ export function Release({ record, draft, channel, sender, beforeSend, disabled }
   if (state === 'Sending' || (!email && state === 'Approved')) {
     return <span className="shrink-0 py-1.5 pr-1.5 text-[12px] text-ink-3">{state === 'Sending' ? 'Sending…' : 'Approved · waiting for the sender'}</span>
   }
-  const unavailable = disabled || !draft.trim() || !channel || (email && !sender)
+  const unavailable = disabled || !draft.trim() || !channel || (email && (!sender || !sender.subject.trim() || sender.to.length + sender.cc.length === 0))
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild><Button variant="primary" size="sm" disabled={unavailable}>{email ? 'Send' : 'Approve'}</Button></DialogTrigger>
@@ -26,13 +26,15 @@ export function Release({ record, draft, channel, sender, beforeSend, disabled }
   )
 }
 
-function DraftConfirmation({ record, draft, sender, channel, workspace, beforeSend, onClose, onSent }: { record: CrmRecord; draft: string; sender?: DraftSender; channel: string; workspace?: string; beforeSend: (draft: string) => Promise<unknown>; onClose: () => void; onSent: () => void }) {
+function DraftConfirmation({ record, draft, sender, channel, workspace, beforeSend, onClose, onSent }: { record: CrmRecord; draft: string; sender?: DraftSender; channel: string; workspace?: string; beforeSend: (draft: DraftMessage) => Promise<unknown>; onClose: () => void; onSent: () => void }) {
   const email = channel === 'Email'
+  const [prepare] = useState(() => beforeSend)
   // Keep the reviewed text and recipients fixed while background queries refresh.
   const [seen] = useState(() => ({
     record_id: record.id,
     workspace,
     draft: draft.trim(),
+    subject: sender?.subject ?? '',
     from: sender?.from,
     to: email ? sender?.to ?? [] : list(record, 'to'),
     cc: email ? sender?.cc ?? [] : list(record, 'cc'),
@@ -56,9 +58,9 @@ function DraftConfirmation({ record, draft, sender, channel, workspace, beforeSe
       className="max-h-[calc(100dvh-2rem)] overflow-y-auto border-border bg-raised p-4 text-ink"
     >
       <DialogTitle className="text-[14px]">{email ? 'Send email?' : 'Approve reply?'}</DialogTitle>
-      <p id="send-description" className="text-[13px] text-ink-2">{email ? 'Send this reply now?' : 'Approve this reply for sending?'}</p>
+      <p id="send-description" className="text-[13px] text-ink-2">{email ? 'Send this email now?' : 'Approve this reply for sending?'}</p>
       <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-[12px] text-ink-2">
-        {[['From', seen.from], ['To', seen.to.join(', ')], ['Cc', seen.cc.join(', ')]].filter(([, value]) => value).map(([label, value]) => (
+        {[['From', seen.from], ['To', seen.to.join(', ')], ['Cc', seen.cc.join(', ')], ['Subject', seen.subject]].filter(([, value]) => value).map(([label, value]) => (
           <div key={label} className="contents"><dt className="text-ink-3">{label}</dt><dd className="min-w-0 [overflow-wrap:anywhere]">{value}</dd></div>
         ))}
       </dl>
@@ -78,7 +80,7 @@ function DraftConfirmation({ record, draft, sender, channel, workspace, beforeSe
           setSaving(true)
           setSaveError('')
           try {
-            await beforeSend(seen.draft)
+            await prepare({ draft: seen.draft, subject: seen.subject, to: seen.to, cc: seen.cc })
           } catch (error) {
             setSaveError(error instanceof Error ? error.message : 'Could not save the reply. Try again.')
             sending.current = false

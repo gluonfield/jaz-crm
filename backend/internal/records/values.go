@@ -96,6 +96,7 @@ var StandardObjects = []storage.NewObject{
 		{Slug: "person", Name: "Person", Type: Reference, Target: "people"},
 		{Slug: "company", Name: "Company", Type: Reference, Target: "companies"},
 		{Slug: "deal", Name: "Deal", Type: Reference, Target: "deals"},
+		{Slug: "subject", Name: "Subject", Type: Text},
 		{Slug: draftAttribute, Name: "Draft", Type: Text},
 		{Slug: "channel", Name: "Channel", Type: Select, Options: []string{"Email", "LinkedIn"}},
 		{Slug: "to", Name: "To", Type: Email, Multi: true},

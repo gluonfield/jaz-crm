@@ -100,6 +100,7 @@ type Open struct {
 	DateBasis  string `json:"action_date_basis,omitempty"`
 	DateReason string `json:"action_date_reason,omitempty"`
 	Draft      string `json:"draft,omitempty"`
+	Subject    string `json:"subject,omitempty"`
 }
 
 // Plan contains follow-up changes and context updates, with a reply or skip reason.
@@ -129,6 +130,8 @@ type Change struct {
 	Company    string      `json:"company"`
 	Deal       string      `json:"deal"`
 	Reply      string      `json:"reply"`
+	Subject    string      `json:"subject"`
+	Channel    string      `json:"channel"`
 }
 
 type ActionDate struct {
@@ -415,8 +418,8 @@ func (a *Agent) apply(ctx context.Context, actor auth.Actor, conv interactions.I
 			put(attribute, id)
 		}
 	}
-	if c.WaitingOn != "Them" && c.Status != "Done" && c.Status != "Dismissed" && strings.TrimSpace(c.Reply) != "" && (conv.Channel == "email" || conv.Channel == "linkedin") {
-		if err := a.draft(ctx, actor, conv, c.Reply, set); err != nil {
+	if c.WaitingOn != "Them" && c.Status != "Done" && c.Status != "Dismissed" && strings.TrimSpace(c.Reply) != "" {
+		if err := a.draft(ctx, actor, conv, c, set); err != nil {
 			return false, err
 		}
 		if c.ID != "" && set["to"] != nil {
@@ -445,13 +448,25 @@ func (a *Agent) apply(ctx context.Context, actor auth.Actor, conv interactions.I
 
 // draft sets a reply's text and channel; an email reply goes to everyone on
 // the latest message, except the sending mailbox and its aliases.
-func (a *Agent) draft(ctx context.Context, actor auth.Actor, conv interactions.Interaction, reply string, set map[string][]string) error {
-	set["draft"] = []string{plain(reply)}
-	if conv.Channel != "email" {
-		set["channel"] = []string{"LinkedIn"}
+func (a *Agent) draft(ctx context.Context, actor auth.Actor, conv interactions.Interaction, c Change, set map[string][]string) error {
+	channel := c.Channel
+	if channel == "" {
+		channel = map[string]string{"email": "Email", "linkedin": "LinkedIn"}[conv.Channel]
+	}
+	if channel != "Email" && channel != "LinkedIn" {
 		return nil
 	}
-	set["channel"] = []string{"Email"}
+	set["draft"] = []string{plain(c.Reply)}
+	set["channel"] = []string{channel}
+	if channel != "Email" {
+		return nil
+	}
+	if c.Subject != "" {
+		set["subject"] = []string{plain(c.Subject)}
+	}
+	if conv.Channel != "email" {
+		return nil
+	}
 	parts, err := a.store.Parts(ctx, []string{conv.ID})
 	if err != nil {
 		return err

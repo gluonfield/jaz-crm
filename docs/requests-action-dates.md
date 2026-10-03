@@ -37,3 +37,15 @@ Validation: full backend build/vet/PostgreSQL tests and frontend checks pass. Re
 Finding: the new predicate assumed every open action had a waiting side. Creation permits omission, and the earlier migration test was changed to supply Us, masking the regression. Needs attention now uses Open + Waiting on is not Them, which includes unset values through the existing filter engine. Built-in ordering already has one owner and reuses schema order; no additional ordering abstraction is warranted.
 
 Verification: the original predicate fails the real API reproduction. Full backend build/vet/PostgreSQL tests and frontend checks pass after correction. Real website and embedded views pass for dated and undated unassigned actions in both themes and at narrow width; preset order, Them queues and reload persistence remain correct. Migration coverage includes both prior default shapes and edited/custom selections.
+
+## New email drafts, 2026-10-03
+
+- [x] Send a draft with no previous email as a new email; retain reply threading for existing conversations.
+- [x] Allow agents to propose a separate subject, including after calls/notes; separate legacy leading Subject lines from existing draft bodies.
+- [x] Show editable subject and recipients in the composer and subject in confirmation; reject stale subject confirmations and protect approval on edits.
+- [x] Verify both transports, new-email and reply delivery, agent persistence, migration, real screens, full checks and strict review.
+- [ ] Commit/push and verify production.
+
+Verification: full backend build/vet/PostgreSQL suite and frontend checks pass. Real website/embedded app checks pass in light/dark and narrow layouts: subject/To/Cc/body editing, reload persistence, confirmation, stale-subject rejection, and sending through the real API with Gmail isolated at its HTTP boundary. A live gpt-6-luna probe proposes a distinct subject after a call and inherits the subject for an existing reply. Migration tests preserve explicit subjects, other channels, in-flight sends, original text/source and draft timestamps.
+
+Review: preview and sending now share one message composer with optional reply metadata. Subject uses the existing record schema, approval guard and atomic sent-draft cleanup. Editor state and saves move together into one composer component. No dependencies added. Legacy subject extraction preserves the original writing time so a migration cannot make stale text look freshly reviewed. Confirmation retains the reviewed message and save callback; background changes are not silently saved over before sending. Gmail thread IDs are used only with matching subjects, following https://developers.google.com/workspace/gmail/api/guides/threads.

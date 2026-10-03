@@ -204,7 +204,7 @@ func releaseSendsEmailRepliesAndApprovesOthers(t *testing.T, transport string) {
 		return pick("draft_status"), pick("status")
 	}
 
-	seen := followups.Seen{Confirmed: true, Draft: "Hi Jane, the revised quote is attached.", From: "owner@cas.dev", To: []string{"jane@acme.com"}, Cc: []string{"bob@acme.com"}}
+	seen := followups.Seen{Confirmed: true, Draft: "Hi Jane, the revised quote is attached.", Subject: "Re: Quote for 500 brackets", From: "owner@cas.dev", To: []string{"jane@acme.com"}, Cc: []string{"bob@acme.com"}}
 	reply := followUp("Email")
 	agent := ownerActor
 	agent.Agent = true
@@ -242,7 +242,7 @@ func releaseSendsEmailRepliesAndApprovesOthers(t *testing.T, transport string) {
 	if sender, err := svc.Sender(ctx, mateActor, reply); err != nil || sender.From != seen.From || sender.Signature != "<div>Owner Name<br>CAS</div>" || !slices.Equal(sender.To, seen.To) || !slices.Equal(sender.Cc, seen.Cc) {
 		t.Fatalf("a teammate's reply must carry its mailbox, signature and reply-all recipients: %+v %v", sender, err)
 	}
-	if _, err := svc.Release(ctx, mateActor, reply, followups.Seen{Confirmed: true, Draft: seen.Draft, From: "mate@cas.dev", To: seen.To, Cc: seen.Cc}); err == nil || len(g.sent) != 0 {
+	if _, err := svc.Release(ctx, mateActor, reply, followups.Seen{Confirmed: true, Draft: seen.Draft, Subject: seen.Subject, From: "mate@cas.dev", To: seen.To, Cc: seen.Cc}); err == nil || len(g.sent) != 0 {
 		t.Fatalf("a draft was sent from a mailbox other than the one the person saw: %v", err)
 	}
 	g.fail = true

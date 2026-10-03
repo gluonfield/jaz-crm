@@ -29,7 +29,7 @@ const (
 
 // draftParts are the attributes that make up a draft; changing one withdraws
 // its approval.
-var draftParts = []string{draftAttribute, "channel", "to", "cc"}
+var draftParts = []string{draftAttribute, "subject", "channel", "to", "cc"}
 
 // guardDraft applies a follow-up's draft rules to a write against the
 // record's current values. Draft status moves by these rules rather than by
@@ -74,7 +74,10 @@ func guardDraft(sc schema, object storage.Object, current []storage.RecordValue,
 			return nil, nil, err
 		}
 		if to == DraftSent {
-			remove = append(remove, change{attr: draft, force: true})
+			for _, slug := range []string{draftAttribute, "subject"} {
+				attr, _ := sc.attribute(object, slug)
+				remove = append(remove, change{attr: attr, force: true})
+			}
 		}
 		return set, remove, nil
 	}

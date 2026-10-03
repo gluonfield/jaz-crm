@@ -35,7 +35,7 @@ func releaseThroughHTTP(t *testing.T, keys *auth.Service, services mcpapi.Servic
 	if err != nil {
 		t.Fatal(err)
 	}
-	input := map[string]any{"confirmed": false, "record_id": id, "draft": seen.Draft, "from": seen.From, "to": seen.To, "cc": seen.Cc}
+	input := map[string]any{"confirmed": false, "record_id": id, "draft": seen.Draft, "subject": seen.Subject, "from": seen.From, "to": seen.To, "cc": seen.Cc}
 	client := mcp.NewClient(&mcp.Implementation{Name: "embedded-app", Version: "1"}, nil)
 	session, err := client.Connect(ctx, &mcp.StreamableClientTransport{Endpoint: server.URL + "/mcp", HTTPClient: &http.Client{Transport: sendBearer(key)}}, nil)
 	if err != nil {
@@ -75,7 +75,7 @@ func releaseThroughHTTP(t *testing.T, keys *auth.Service, services mcpapi.Servic
 	if status, body := post(true); status != http.StatusBadRequest || !strings.Contains(body, "confirm the reply") {
 		t.Fatalf("browser must require confirmation: %d %s", status, body)
 	}
-	save := map[string]any{"record_id": id, "draft": seen.Draft + " Edited in the browser.", "channel": "Email", "to": []string{"old@example.com"}, "cc": []string{"old-copy@example.com"}}
+	save := map[string]any{"record_id": id, "draft": seen.Draft + " Edited in the browser.", "channel": "Email", "subject": seen.Subject, "to": []string{"old@example.com"}, "cc": []string{"old-copy@example.com"}}
 	body, _ := json.Marshal(save)
 	request, _ := http.NewRequest(http.MethodPost, server.URL+"/api/tools/save_draft", strings.NewReader(string(body)))
 	request.Header.Set("Content-Type", "application/json")
@@ -110,7 +110,7 @@ func releaseThroughHTTP(t *testing.T, keys *auth.Service, services mcpapi.Servic
 		}
 	}
 	cleared, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "save_draft", Arguments: map[string]any{
-		"record_id": id, "draft": "", "channel": "Email", "to": []string{}, "cc": []string{},
+		"record_id": id, "draft": "", "channel": "Email", "subject": seen.Subject, "to": []string{}, "cc": []string{},
 	}})
 	if err != nil || cleared.IsError {
 		t.Fatalf("clear draft: %v %v", cleared, err)
@@ -146,6 +146,11 @@ func releaseThroughHTTP(t *testing.T, keys *auth.Service, services mcpapi.Servic
 		t.Fatalf("a changed draft was sent: %v %s", success, body)
 	}
 	input["draft"] = seen.Draft
+	input["subject"] = "An unreviewed subject"
+	if success, body := release(); success || !strings.Contains(body, "subject changed") {
+		t.Fatalf("a changed subject was sent: %v %s", success, body)
+	}
+	input["subject"] = seen.Subject
 	if success, body := release(); !success || !strings.Contains(body, `"draft_status":"Sent"`) {
 		t.Fatalf("the confirmation could not send: %v %s", success, body)
 	}

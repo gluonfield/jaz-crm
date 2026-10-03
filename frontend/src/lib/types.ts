@@ -114,7 +114,8 @@ export type Connection = {
 
 export type Connections = { connections: Connection[]; connect_url?: string; since: string }
 
-export type DraftSender = { from: string; signature?: string; to: string[]; cc: string[] }
+export type DraftMessage = { draft: string; subject: string; to: string[]; cc: string[] }
+export type DraftSender = Omit<DraftMessage, 'draft'> & { from: string; signature?: string; reply: boolean }
 
 export type TriageSettings = {
   auto_keep_email: boolean

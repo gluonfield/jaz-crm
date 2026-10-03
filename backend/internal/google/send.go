@@ -91,7 +91,10 @@ func (c *Client) Send(ctx context.Context, m Outgoing) (string, error) {
 	raw.WriteString("\r\n")
 	raw.Write(body.Bytes())
 	var out struct{ ID string }
-	err := c.post(ctx, c.gmail("messages/send"), map[string]string{"raw": base64.URLEncoding.EncodeToString(raw.Bytes()), "threadId": m.ThreadID}, &out)
+	err := c.post(ctx, c.gmail("messages/send"), struct {
+		Raw      string `json:"raw"`
+		ThreadID string `json:"threadId,omitempty"`
+	}{base64.URLEncoding.EncodeToString(raw.Bytes()), m.ThreadID}, &out)
 	return out.ID, err
 }
 

@@ -46,6 +46,13 @@ func TestFollowUpDraftLifecycle(t *testing.T) {
 	if _, err := write(records.SourceUser, "draft_status", records.DraftApproved); err != nil {
 		t.Fatal(err)
 	}
+	subjectEdit, err := write(records.SourceUser, "subject", "Revised quote")
+	if err != nil || status(subjectEdit) != records.DraftWritten {
+		t.Fatalf("subject editing must withdraw approval: %v %v", subjectEdit, err)
+	}
+	if _, err := write(records.SourceUser, "draft_status", records.DraftApproved); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := write(records.SourceAgent, "draft", "Unapproved text", "draft_status", records.DraftSending); err == nil {
 		t.Fatal("an agent rewrote an approved draft and claimed it in one write")
 	}
@@ -71,6 +78,9 @@ func TestFollowUpDraftLifecycle(t *testing.T) {
 	if _, err := write(records.SourceUser, "draft", "A late edit"); err == nil {
 		t.Fatal("a draft being sent was edited")
 	}
+	if _, err := write(records.SourceUser, "subject", "Late subject"); err == nil {
+		t.Fatal("the subject changed while sending")
+	}
 	if _, _, err := svc.Upsert(ctx, a, records.SourceUser, records.Write{Object: records.FollowUps, RecordID: followUp.ID, Remove: map[string][]string{"draft_status": {}}}); err == nil {
 		t.Fatal("a draft being sent lost its claim")
 	}
@@ -78,7 +88,7 @@ func TestFollowUpDraftLifecycle(t *testing.T) {
 	if err != nil || status(sent) != records.DraftSent {
 		t.Fatalf("the claimer could not mark the draft sent: %q %v", status(sent), err)
 	}
-	if len(values(sent, "draft")) != 0 {
+	if len(values(sent, "draft"))+len(values(sent, "subject")) != 0 {
 		t.Fatal("sent text must leave the draft field")
 	}
 	if _, err := write(records.SourceAgent, "draft_status", records.DraftSent); err == nil {

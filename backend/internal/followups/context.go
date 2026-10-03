@@ -95,7 +95,7 @@ func (a *Agent) conversation(ctx context.Context, actor auth.Actor, conv interac
 			}
 			for _, f := range open {
 				if !slices.ContainsFunc(in.FollowUps, func(o Open) bool { return o.ID == f.ID }) {
-					in.FollowUps = append(in.FollowUps, Open{ID: f.ID, Action: value(f, "name"), WaitingOn: value(f, "waiting_on"), ActionDate: value(f, "action_date"), DateBasis: value(f, "action_date_basis"), DateReason: value(f, "action_date_reason"), Draft: value(f, "draft")})
+					in.FollowUps = append(in.FollowUps, Open{ID: f.ID, Action: value(f, "name"), WaitingOn: value(f, "waiting_on"), ActionDate: value(f, "action_date"), DateBasis: value(f, "action_date_basis"), DateReason: value(f, "action_date_reason"), Draft: value(f, "draft"), Subject: value(f, "subject")})
 				}
 			}
 		}

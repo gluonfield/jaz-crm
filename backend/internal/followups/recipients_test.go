@@ -108,7 +108,7 @@ func TestReplyAllRecipientsThroughPreviewAndSend(t *testing.T) {
 			if err != nil || preview.From != from || !slices.Equal(preview.To, tc.to) || !slices.Equal(preview.Cc, tc.cc) {
 				t.Fatalf("preview: %+v, error: %v; want from %s, to %v, cc %v", preview, err, from, tc.to, tc.cc)
 			}
-			seen := followups.Seen{Confirmed: true, Draft: "Thanks, I will check.", From: preview.From, To: preview.To, Cc: []string{"unreviewed@acme.com"}}
+			seen := followups.Seen{Confirmed: true, Draft: "Thanks, I will check.", Subject: preview.Subject, From: preview.From, To: preview.To, Cc: []string{"unreviewed@acme.com"}}
 			if _, err := svc.Release(ctx, sending, f.ID, seen); err == nil || len(g.sent) != 0 {
 				t.Fatalf("sent recipients that do not match the preview: %v", err)
 			}

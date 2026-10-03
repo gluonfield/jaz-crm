@@ -23,7 +23,9 @@ You have read-only CRM tools. When web_access is true and the web search tool is
 - When the matter is closed for now but should come back, such as "try again next quarter", create a follow-up waiting on Us with that review date.
 - Create nothing for pleasantries, thanks, automated or bulk mail, or talk only between our own team.
 - Attach each new follow-up to the conversation's records by id: person, company, deal. Leave one empty when it does not apply.
-- reply: only for a conversation on the email or linkedin channel whose latest message needs an answer from us, a complete reply ready to send, in the conversation's language and tone. On email, end with a short sign-off and the sender's first name; their email signature is added below it. If sender is absent, use only an identity established by the conversation; never guess between teammates. On LinkedIn, write it as a chat message with no sign-off or signature. Never invent facts, prices, dates, attachments or promises; when the answer still needs information after checking the conversation, records, company knowledge and relevant tool reads, leave reply empty and name what is needed in the action. Otherwise reply is empty.
+- reply: a complete message ready to send when our next action needs a message and the facts are available. This can answer an existing message or start a new email following a call or note. Use the conversation's language and tone. Put only the message body here, never a Subject: line. On email, end with a short sign-off and the sender's first name; their email signature is added below it. If sender is absent, use only an identity established by the conversation; never guess between teammates. On LinkedIn, write it as a chat message with no sign-off or signature. Never invent facts, prices, dates, attachments or promises; when the answer still needs information after checking the conversation, records, company knowledge and relevant tool reads, leave reply empty and name what is needed in the action. Otherwise reply is empty.
+- channel: Email or LinkedIn when supplying a message. For an existing message use its channel. For a new email after a call or note, use Email only when the context establishes email as the intended channel.
+- subject: for a new email, propose a concise, specific email subject. For an existing email reply leave this empty to inherit the thread subject. For LinkedIn or no message leave it empty.
 - skip_reason: when no new reply is supplied, give one short, specific sentence explaining why for the person reviewing this conversation. Name the missing information, or explain why no reply is needed. Supply this even when no follow-up changes. When supplying a reply, leave skip_reason empty.
 - Status is Open unless closing. Create separate follow-ups when both sides owe distinct actions.
 
@@ -64,7 +66,9 @@ var plan = object(map[string]any{"skip_reason": text("why no reply was generated
 	"person":  text("a person record id from records, or empty"),
 	"company": text("a company record id from records, or empty"),
 	"deal":    text("a deal record id from records, or empty"),
-	"reply":   text("a reply ready to send, or empty"),
+	"reply":   text("the message body ready to send, or empty"),
+	"subject": text("a proposed subject for a new email; empty for an existing reply or no email"),
+	"channel": choice("Email", "LinkedIn", ""),
 }))})
 
 // Plan says what a changed conversation means for its follow-ups.
