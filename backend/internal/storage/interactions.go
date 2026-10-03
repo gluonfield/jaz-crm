@@ -189,6 +189,21 @@ type Activity struct {
 	LastDateOnly  bool
 }
 
+// LastMessage is a record's latest message, its conversation's channel and
+// its sender's address.
+type LastMessage struct {
+	RecordID      string
+	Channel       string
+	At            time.Time
+	DateOnly      bool
+	AuthorName    string
+	Content       string
+	Direction     string
+	SenderAddress string
+	SenderName    string
+	PersonID      *string
+}
+
 // FollowUpCandidate is a conversation with content newer than what the
 // follow-up agent last read.
 type FollowUpCandidate struct {
@@ -266,6 +281,7 @@ type InteractionStore interface {
 	Parts(ctx context.Context, interactionIDs []string) ([]Part, error)
 	Links(ctx context.Context, interactionIDs []string) ([]Link, error)
 	RecordActivity(ctx context.Context, workspaceID string, recordIDs []string) ([]Activity, error)
+	RecordLastMessages(ctx context.Context, workspaceID string, recordIDs []string) ([]LastMessage, error)
 	FollowUpCandidates(ctx context.Context, workspaceID string, since time.Time, limit int32) ([]FollowUpCandidate, error)
 	// ClaimFollowUp moves what the agent has read from previous to at,
 	// returning the attempt's start time, or nil when another worker owns it.

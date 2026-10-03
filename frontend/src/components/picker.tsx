@@ -4,11 +4,12 @@ import { type ReactNode, useState } from 'react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 
-export type PickerOption = { value: string; label: string; icon?: ReactNode }
+export type PickerOption = { value: string; label: string; icon?: ReactNode; hint?: ReactNode }
 
 // Picker is Linear's property menu: a filter field over a keyboard-driven
 // list. Number keys pick the first nine options when the filter is empty.
 // With onSearch the caller filters, for options searched on the server.
+// Actions follow the options, apart from them.
 export function Picker({
   trigger,
   placeholder,
@@ -17,6 +18,8 @@ export function Picker({
   onSelect,
   onSearch,
   onCreate,
+  onOpenChange,
+  actions = [],
   disabled = false,
   multiple = false,
   align = 'start',
@@ -28,6 +31,8 @@ export function Picker({
   onSelect: (value: string) => void
   onSearch?: (search: string) => void
   onCreate?: (value: string) => void
+  onOpenChange?: (open: boolean) => void
+  actions?: { label: string; onSelect: () => void }[]
   disabled?: boolean
   multiple?: boolean
   align?: 'start' | 'end'
@@ -49,6 +54,7 @@ export function Picker({
         setOpen(next)
         setSearch('')
         onSearch?.('')
+        onOpenChange?.(next)
       }}
     >
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
@@ -98,7 +104,7 @@ export function Picker({
                   {option.icon}
                   <span className="min-w-0 flex-1 truncate">{option.label}</span>
                   {!multiple && active && <Check className="size-4 shrink-0 text-ink" />}
-                  {!onCreate && index < 9 && <span className="w-3 text-right text-[12px] tabular-nums text-ink-3">{index + 1}</span>}
+                  {option.hint !== undefined ? <span className="text-[12px] tabular-nums text-ink-3">{option.hint}</span> : !onCreate && index < 9 && <span className="w-3 text-right text-[12px] tabular-nums text-ink-3">{index + 1}</span>}
                 </CommandPrimitive.Item>
               )
             })}
@@ -119,6 +125,22 @@ export function Picker({
                 <span className="truncate">Create “{newValue}”</span>
               </CommandPrimitive.Item>
             )}
+            {actions.length > 0 && <CommandPrimitive.Group className="-mx-1.5 mt-1.5 border-t border-border px-1.5 pt-1.5">
+              {actions.map((action) => (
+                <CommandPrimitive.Item
+                  key={action.label}
+                  value={action.label}
+                  onSelect={() => {
+                    setOpen(false)
+                    onOpenChange?.(false)
+                    action.onSelect()
+                  }}
+                  className="flex h-8 cursor-default items-center rounded-[var(--radius-control)] px-2 text-[12.5px] text-ink-2 outline-none data-[selected=true]:bg-list-active data-[selected=true]:text-ink"
+                >
+                  {action.label}
+                </CommandPrimitive.Item>
+              ))}
+            </CommandPrimitive.Group>}
           </CommandPrimitive.List>
         </CommandPrimitive>
       </PopoverContent>

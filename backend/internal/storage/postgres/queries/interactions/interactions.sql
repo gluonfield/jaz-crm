@@ -278,6 +278,20 @@ JOIN interactions ON interactions.id = links.interaction_id AND NOT interactions
 WHERE interactions.workspace_id = @workspace_id AND links.record_id = ANY(@record_ids::uuid[]) AND interactions.started_at <= now() AND interactions.kind <> 'note'
 GROUP BY links.record_id;
 
+-- name: RecordLastMessages :many
+-- RecordLastMessages finds each record's latest message by now, with its
+-- conversation's channel and its sender's address.
+SELECT DISTINCT ON (links.record_id) links.record_id,
+  (CASE WHEN interactions.kind = 'email' THEN 'email' ELSE interactions.channel END)::text AS channel,
+  parts.at::timestamptz AS at, parts.date_only, parts.author_name, coalesce(parts.content, '')::text AS content, parts.direction,
+  coalesce(handles.value, '')::text AS sender_address, coalesce(handles.name, '')::text AS sender_name, handles.person_id
+FROM links
+JOIN interactions ON interactions.id = links.interaction_id AND NOT interactions.skipped
+JOIN parts ON parts.interaction_id = interactions.id AND parts.kind = 'message'
+LEFT JOIN handles ON handles.id = parts.author_handle_id
+WHERE interactions.workspace_id = @workspace_id AND links.record_id = ANY(@record_ids::uuid[]) AND parts.at <= now()
+ORDER BY links.record_id, parts.at DESC, parts.position DESC, parts.id DESC;
+
 -- name: DeleteLinks :exec
 DELETE FROM links WHERE interaction_id = ANY(@ids::uuid[]);
 

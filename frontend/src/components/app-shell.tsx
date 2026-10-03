@@ -36,7 +36,13 @@ export function AppShell({ children }: { children: ReactNode }) {
         window.setTimeout(() => (pendingG = false), 1200)
       } else if (e.key === '/') {
         e.preventDefault()
-        setUI({ paletteOpen: true })
+        // A page's own search takes /, as on most sites; elsewhere / searches everything.
+        const search = document.querySelector<HTMLInputElement>('[data-page-search]')
+        if (search) {
+          search.focus()
+        } else {
+          setUI({ paletteOpen: true })
+        }
       }
     }
     window.addEventListener('keydown', onKey)

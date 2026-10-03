@@ -40,7 +40,7 @@ export type CrmRecord = {
   created_at: string
   values: Record<string, Value | Value[] | null>
   related?: Record<string, Ref[]>
-  activity?: { interactions: number; first_at?: string; last_at?: string }
+  activity?: { interactions: number; first_at?: string; last_at?: string; channel?: string; last_message?: CrmMessage }
   photo?: string
 }
 

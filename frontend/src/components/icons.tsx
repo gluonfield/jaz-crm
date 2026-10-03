@@ -80,3 +80,12 @@ export function ChannelIcon({ channel, className }: { channel: string; className
     </span>
   )
 }
+
+// ChannelTag names the channel a conversation is on, LinkedIn in its blue.
+export function ChannelTag({ channel }: { channel: string }) {
+  return (
+    <span className={cn('shrink-0 rounded-[4px] px-[5px] text-[11px] leading-4', channel === 'linkedin' ? 'bg-[#0a66c2]/12 text-[#0a66c2] dark:bg-[#0a66c2]/25 dark:text-[#8fb4e8]' : 'bg-list-active text-ink-2')}>
+      {channelNames[channel] ?? channel}
+    </span>
+  )
+}

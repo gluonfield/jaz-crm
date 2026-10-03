@@ -17,6 +17,9 @@ func toInteraction(r intdb.Interaction) storage.Interaction { return storage.Int
 func toPart(r intdb.InteractionPartsRow) storage.Part       { return storage.Part(r) }
 func toLink(r intdb.InteractionLinksRow) storage.Link       { return storage.Link(r) }
 func toActivity(r intdb.RecordActivityRow) storage.Activity { return storage.Activity(r) }
+func toLastMessage(r intdb.RecordLastMessagesRow) storage.LastMessage {
+	return storage.LastMessage(r)
+}
 func toHandleRecord(r intdb.HandlesOnRecordsRow) storage.HandleRecord {
 	return storage.HandleRecord(r)
 }
@@ -236,6 +239,10 @@ func (s *Store) Links(ctx context.Context, interactionIDs []string) ([]storage.L
 
 func (s *Store) RecordActivity(ctx context.Context, workspaceID string, recordIDs []string) ([]storage.Activity, error) {
 	return many(toActivity)(s.in.RecordActivity(ctx, intdb.RecordActivityParams{WorkspaceID: workspaceID, RecordIDs: recordIDs}))
+}
+
+func (s *Store) RecordLastMessages(ctx context.Context, workspaceID string, recordIDs []string) ([]storage.LastMessage, error) {
+	return many(toLastMessage)(s.in.RecordLastMessages(ctx, intdb.RecordLastMessagesParams{WorkspaceID: workspaceID, RecordIDs: recordIDs}))
 }
 
 func (s *Store) SetDomainRule(ctx context.Context, workspaceID, domain, triage, reason string) error {

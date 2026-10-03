@@ -1063,6 +1063,70 @@ func (q *Queries) RecordActivity(ctx context.Context, arg RecordActivityParams) 
 	return items, nil
 }
 
+const recordLastMessages = `-- name: RecordLastMessages :many
+SELECT DISTINCT ON (links.record_id) links.record_id,
+  (CASE WHEN interactions.kind = 'email' THEN 'email' ELSE interactions.channel END)::text AS channel,
+  parts.at::timestamptz AS at, parts.date_only, parts.author_name, coalesce(parts.content, '')::text AS content, parts.direction,
+  coalesce(handles.value, '')::text AS sender_address, coalesce(handles.name, '')::text AS sender_name, handles.person_id
+FROM links
+JOIN interactions ON interactions.id = links.interaction_id AND NOT interactions.skipped
+JOIN parts ON parts.interaction_id = interactions.id AND parts.kind = 'message'
+LEFT JOIN handles ON handles.id = parts.author_handle_id
+WHERE interactions.workspace_id = $1 AND links.record_id = ANY($2::uuid[]) AND parts.at <= now()
+ORDER BY links.record_id, parts.at DESC, parts.position DESC, parts.id DESC
+`
+
+type RecordLastMessagesParams struct {
+	WorkspaceID string
+	RecordIDs   []string
+}
+
+type RecordLastMessagesRow struct {
+	RecordID      string
+	Channel       string
+	At            time.Time
+	DateOnly      bool
+	AuthorName    string
+	Content       string
+	Direction     string
+	SenderAddress string
+	SenderName    string
+	PersonID      *string
+}
+
+// RecordLastMessages finds each record's latest message by now, with its
+// conversation's channel and its sender's address.
+func (q *Queries) RecordLastMessages(ctx context.Context, arg RecordLastMessagesParams) ([]RecordLastMessagesRow, error) {
+	rows, err := q.db.Query(ctx, recordLastMessages, arg.WorkspaceID, arg.RecordIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []RecordLastMessagesRow{}
+	for rows.Next() {
+		var i RecordLastMessagesRow
+		if err := rows.Scan(
+			&i.RecordID,
+			&i.Channel,
+			&i.At,
+			&i.DateOnly,
+			&i.AuthorName,
+			&i.Content,
+			&i.Direction,
+			&i.SenderAddress,
+			&i.SenderName,
+			&i.PersonID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const searchInteractions = `-- name: SearchInteractions :many
 SELECT interactions.id, interactions.workspace_id, interactions.kind, interactions.source, interactions.external_id, interactions.connection_id, interactions.user_id, interactions.title, interactions.started_at, interactions.ended_at, interactions.meet_code, interactions.transcript_checked_at, interactions.skipped, interactions.created_at, interactions.channel, interactions.provenance, interactions.date_only, interactions.followed_up_at, interactions.drafting_state, interactions.drafting_reason, interactions.drafting_started_at FROM interactions
 WHERE interactions.workspace_id = $1 AND NOT interactions.skipped

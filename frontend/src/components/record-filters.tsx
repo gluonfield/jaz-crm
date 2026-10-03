@@ -1,6 +1,7 @@
 import { Bookmark, ChevronDown, ListFilter, Plus, Save, Trash2 } from 'lucide-react'
+import { useQueries } from '@tanstack/react-query'
 import { useState } from 'react'
-import { useAction, useTool } from '@/lib/queries'
+import { toolQuery, useAction, useTool } from '@/lib/queries'
 import type { CrmObject, RecordFilter, SavedFilter } from '@/lib/types'
 import { Button } from '@jaz/ui/button'
 import { inputClass } from './controls'
@@ -9,9 +10,17 @@ import { Picker } from './picker'
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
 
-export function RecordFilters({ object, filters, query, selected, onChange, onApply }: { object: CrmObject; filters: RecordFilter[]; query: string; selected?: string; onChange: (filters: RecordFilter[]) => void; onApply: (filter?: SavedFilter) => void }) {
+// RecordFilters picks a saved filter and edits the conditions. As a list's
+// title it is instead the view's name and count over a menu of views with
+// theirs, where search narrows the view without editing it.
+export function RecordFilters({ object, filters, query, selected, title = false, total, onChange, onApply }: { object: CrmObject; filters: RecordFilter[]; query: string; selected?: string; title?: boolean; total?: number; onChange: (filters: RecordFilter[]) => void; onApply: (filter?: SavedFilter) => void }) {
   const saved = useTool<{ filters: SavedFilter[] }>('list_saved_filters', { object: object.slug }, { refetchInterval: 5000 }).data?.filters ?? []
   const active = saved.find((f) => f.id === selected)
+  const [menu, setMenu] = useState(false)
+  const counts = useQueries({
+    queries: [{ query: '', filters: [] }, ...saved].map((view) => ({ ...toolQuery<{ total: number }>('search_records', { object: object.slug, query: view.query ?? '', filters: view.filters, limit: 1 }), enabled: title && menu })),
+    combine: (results) => results.map((r) => r.data?.total),
+  })
   const save = useAction<{ object: string; id?: string; name: string; query: string; filters: RecordFilter[] }, SavedFilter>('save_filter')
   const remove = useAction<{ id: string }>('delete_saved_filter')
   const [open, setOpen] = useState(false)
@@ -26,16 +35,31 @@ export function RecordFilters({ object, filters, query, selected, onChange, onAp
     setSaving(false)
     onApply(filter)
   } })
+  const custom = filters.length > 0 || (!title && !!query.trim())
+  const edited = title ? active && JSON.stringify(active.filters) !== JSON.stringify(filters) : changed
+  const label = active ? `${active.name}${edited ? ' · Edited' : ''}` : custom ? 'Custom filter' : `All ${object.name.toLowerCase()}`
   return (
-    <div className="flex shrink-0 items-center gap-1">
+    <div className="flex min-w-0 shrink-0 items-center gap-1">
       <Picker
-        trigger={<Button variant="ghost" className="max-w-40 shrink-0"><Bookmark className="shrink-0" /><span className="truncate">{active ? `${active.name}${changed ? ' · Edited' : ''}` : filters.length || query.trim() ? 'Custom filter' : `All ${object.name.toLowerCase()}`}</span><ChevronDown className="shrink-0" /></Button>}
+        trigger={title
+          ? <button type="button" className="flex min-w-0 items-center gap-2 rounded-[var(--radius-control)] px-2 py-1 text-left outline-none hover:bg-list-hover focus-visible:ring-2 focus-visible:ring-ring">
+            <span className="truncate text-[15px] font-semibold text-ink">{label}</span>
+            <span className="text-[14px] tabular-nums text-ink-3">{total}</span>
+            <ChevronDown className="size-3.5 shrink-0 text-ink-3" />
+          </button>
+          : <Button variant="ghost" className="max-w-40 shrink-0"><Bookmark className="shrink-0" /><span className="truncate">{label}</span><ChevronDown className="shrink-0" /></Button>}
         placeholder="Find saved filters…"
-        options={[{ value: '', label: `All ${object.name.toLowerCase()}` }, ...saved.map((f) => ({ value: f.id, label: f.name }))]}
-        selected={active ? [active.id] : filters.length || query.trim() ? [] : ['']}
+        options={[{ value: '', label: `All ${object.name.toLowerCase()}` }, ...saved.map((f) => ({ value: f.id, label: f.name }))].map((option, i) => title ? { ...option, hint: counts[i] ?? '' } : option)}
+        selected={active ? [active.id] : custom ? [] : ['']}
         onSelect={(id) => onApply(saved.find((f) => f.id === id))}
+        onOpenChange={setMenu}
+        actions={title && (filters.length > 0 || query.trim()) && (!active || changed) ? [{ label: 'Save current filters as view…', onSelect: () => {
+          setDraft(filters)
+          setName('')
+          setSaving(true)
+        } }] : []}
       />
-      <Popover open={open} onOpenChange={(next) => {
+      {!title && <Popover open={open} onOpenChange={(next) => {
         if (next) {
           setDraft(filters)
         }
@@ -74,7 +98,7 @@ export function RecordFilters({ object, filters, query, selected, onChange, onAp
             {changed && <Button variant="ghost" disabled={incomplete || save.isPending} onClick={() => persist(active.name, active.id)}><Save />Save changes</Button>}
           </div>}
         </PopoverContent>
-      </Popover>
+      </Popover>}
       <Dialog open={saving} onOpenChange={setSaving}>
         <DialogContent className="bg-raised text-ink sm:max-w-sm" aria-describedby={undefined}>
           <DialogTitle className="text-[14px]">Save filter</DialogTitle>

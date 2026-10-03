@@ -1,9 +1,11 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
-import { ArrowDownAZ, Kanban, ListChecks, Plus, Search, Table2 } from 'lucide-react'
+import { ArrowDownAZ, ArrowUp, Kanban, ListChecks, Plus, Search, Table2 } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { Board } from '@/components/board'
 import { CompanyPeople } from '@/components/company-people'
-import { editDraft, FollowUpQueue } from '@/components/follow-ups'
+import { editDraft } from '@/components/follow-up'
+import { byUrgency, FollowUpQueue } from '@/components/follow-ups'
+import { Kbd } from '@/components/kbd'
 import { Stage } from '@/components/stage'
 import { Button } from '@jaz/ui/button'
 import { Header } from '@/components/controls'
@@ -21,7 +23,7 @@ import { recordName, valueText, valuesOf } from '@/lib/crm'
 import { formatDay, formatNumber } from '@/lib/format'
 import { useDebounced, useFlip, useInView, useListKeys } from '@/lib/hooks'
 import { DateLabel, dateMetadata } from '@/components/date-field'
-import { useObjects, useRecordPages, useWorkspace } from '@/lib/queries'
+import { useObjects, useRecordPages, useTool, useWorkspace } from '@/lib/queries'
 import { useActiveFilter } from '@/lib/active-filter'
 import { useColumnWidths } from '@/lib/use-column-widths'
 import { validateRecordSearch } from '@/lib/record-search'
@@ -69,7 +71,12 @@ function ObjectList({ slug, filter, setFilter, flush }: { slug: string; filter: 
   const query = useDebounced(q.trim())
   const queue = slug === 'follow_ups' && view !== 'table'
   const result = useRecordPages(slug, query, filters, slug === 'companies' ? [{ object: 'people', attribute: 'company', limit: 4 }] : undefined, sort ?? (slug === 'follow_ups' ? 'action_date' : undefined), limit)
-  const { records, total, hasNextPage, isFetchingNextPage, fetchNextPage } = result
+  const { total, hasNextPage, isFetchingNextPage, fetchNextPage } = result
+  const zone = useWorkspace()?.timezone ?? 'UTC'
+  // A queue reads in the order it shows, most urgent first.
+  const records = useMemo(() => queue && result.records ? byUrgency(result.records, zone).map((item) => item.record) : result.records, [queue, result.records, zone])
+  // Searching narrows a view, so the queue says how much of it shows.
+  const unsearched = useTool<{ total: number }>('search_records', { object: slug, query: '', filters, limit: 1 }, { enabled: queue && !!query }).data?.total
   const { width, resize } = useColumnWidths(slug)
   const status = object && statusOf(object.attributes)
   // The workspace's own tables open as tables, the CRM's pipelines as boards.
@@ -95,12 +102,72 @@ function ObjectList({ slug, filter, setFilter, flush }: { slug: string; filter: 
   const own = !object.standard
   // The CRM's objects show their choices first; the workspace's own tables keep the order columns were added in.
   const columns = object.attributes.filter((a) => a.slug !== 'name' && a.type !== 'markdown' && !(slug === 'follow_ups' && dateMetadata(a.slug))).sort((a, b) => (own ? 0 : Number(b.type === 'select') - Number(a.type === 'select')))
+  const recordFilters = (title = false) => (
+    <RecordFilters key={slug} object={object} filters={filters} query={q} selected={saved} title={title} total={total}
+      onChange={(filters) => setFilter({ ...filter, filters })}
+      onApply={(saved) => setFilter({ filters: saved?.filters ?? [], query: saved?.query ?? '', saved_id: saved?.id })}
+    />
+  )
+  const sortName = sort === 'name' ? 'Name' : slug === 'follow_ups' ? 'Action date' : 'Recently added'
+  const sorter = (trigger: ReactNode) => (
+    <Picker
+      trigger={trigger}
+      placeholder="Sort by…"
+      options={[{ value: '', label: slug === 'follow_ups' ? 'Action date' : 'Recently added' }, { value: 'name', label: 'Name' }]}
+      selected={[sort ?? '']}
+      onSelect={(value) => void navigate({ to: '.', search: { ...search, sort: value === 'name' ? 'name' : undefined }, replace: true })}
+      align={queue ? 'end' : 'start'}
+    />
+  )
+  const searching = {
+    type: 'search',
+    autoComplete: 'off',
+    value: q,
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => setFilter({ ...filter, query: e.target.value }, true),
+    onBlur: flush,
+    'aria-label': `Search ${object.name.toLowerCase()}`,
+    'data-page-search': true,
+  }
+  // The queue's own column holds what chooses its records: the view as its
+  // title, the order and a search that narrows the view.
+  const controls = (
+    <>
+      <div className="flex min-w-0 items-center justify-between gap-2">
+        <div className="-ml-2 min-w-0">{recordFilters(true)}</div>
+        {sorter(
+          <Button variant="ghost" aria-label="Sort records" className="bg-list-hover hover:bg-list-active">
+            {sortName}
+            <ArrowUp className="text-ink-3" />
+          </Button>,
+        )}
+      </div>
+      <label className="flex h-[34px] items-center gap-2 rounded-[8px] bg-list-hover px-2.5 text-ink-3 transition-colors focus-within:bg-list-active">
+        <Search className="size-3.5 shrink-0" />
+        <input
+          {...searching}
+          onKeyDown={(e) => {
+            e.stopPropagation()
+            if (e.key === 'Escape') {
+              e.currentTarget.blur()
+            }
+          }}
+          placeholder="Search people, companies, emails"
+          className="min-w-0 flex-1 bg-transparent text-[13px] text-ink outline-none placeholder:text-ink-3 [&::-webkit-search-cancel-button]:hidden"
+        />
+        {!q && <Kbd className="ml-0">/</Kbd>}
+      </label>
+      {query && <p className="flex items-center justify-between px-1 text-[12px] text-ink-3">
+        <span className="tabular-nums">Showing {total ?? 0} of {unsearched ?? '…'}</span>
+        <button type="button" className="text-primary outline-none hover:underline focus-visible:underline" onClick={() => setFilter({ ...filter, query: '' })}>Clear</button>
+      </p>}
+    </>
+  )
   return (
     <>
       <Header className="h-auto min-h-11 flex-wrap py-2">
         <ObjectIcon slug={slug} />
         <span className="whitespace-nowrap">{object.name}</span>
-        {total !== undefined && <span className="font-normal tabular-nums text-ink-3">{total}</span>}
+        {total !== undefined && !queue && <span className="font-normal tabular-nums text-ink-3">{total}</span>}
         {status && (
           <div role="group" aria-label="View" className="ml-2 flex h-7 items-center rounded-full bg-list-hover p-0.5">
             <ViewButton active={!!board || queue} label={slug === 'follow_ups' ? 'Queue' : 'Board'} onClick={() => void navigate({ to: '.', search: { ...search, view: own ? 'board' : undefined }, replace: true })}>
@@ -112,36 +179,19 @@ function ObjectList({ slug, filter, setFilter, flush }: { slug: string; filter: 
           </div>
         )}
         <div className="ml-auto flex max-w-full flex-wrap items-center gap-1 font-normal">
-          <RecordFilters key={slug} object={object} filters={filters} query={q} selected={saved}
-            onChange={(filters) => setFilter({ ...filter, filters })}
-            onApply={(saved) => setFilter({ filters: saved?.filters ?? [], query: saved?.query ?? '', saved_id: saved?.id })}
-          />
-          <Picker
-            trigger={
+          {!queue && <>
+            {recordFilters()}
+            {sorter(
               <Button variant="ghost" aria-label="Sort records">
                 <ArrowDownAZ />
-                <span className="hidden xl:inline">{sort === 'name' ? 'Name' : slug === 'follow_ups' ? 'Action date' : 'Recently added'}</span>
-              </Button>
-            }
-            placeholder="Sort by…"
-            options={[{ value: '', label: slug === 'follow_ups' ? 'Action date' : 'Recently added' }, { value: 'name', label: 'Name' }]}
-            selected={[sort ?? '']}
-            onSelect={(value) => void navigate({ to: '.', search: { ...search, sort: value === 'name' ? 'name' : undefined }, replace: true })}
-          />
-          <label className="group flex h-7 shrink-0 items-center gap-1.5 rounded-[var(--radius-control)] px-2 text-ink-3 transition-colors focus-within:bg-list-hover hover:bg-list-hover">
-            <Search className="size-3.5 shrink-0" />
-            <input
-              type="search"
-              autoComplete="off"
-              value={q}
-              onChange={(e) => setFilter({ ...filter, query: e.target.value }, true)}
-              onBlur={flush}
-              onKeyDown={(e) => e.stopPropagation()}
-              placeholder="Search"
-              aria-label={`Search ${object.name.toLowerCase()}`}
-              className="w-20 min-w-0 bg-transparent text-[12.5px] text-ink outline-none transition-[width] duration-150 placeholder:text-ink-3 focus:w-40"
-            />
-          </label>
+                <span className="hidden xl:inline">{sortName}</span>
+              </Button>,
+            )}
+            <label className="group flex h-7 shrink-0 items-center gap-1.5 rounded-[var(--radius-control)] px-2 text-ink-3 transition-colors focus-within:bg-list-hover hover:bg-list-hover">
+              <Search className="size-3.5 shrink-0" />
+              <input {...searching} onKeyDown={(e) => e.stopPropagation()} placeholder="Search" className="w-20 min-w-0 bg-transparent text-[12.5px] text-ink outline-none transition-[width] duration-150 placeholder:text-ink-3 focus:w-40" />
+            </label>
+          </>}
           <Button className="ml-1" onClick={() => setCreating(true)}>
             <Plus /> New
           </Button>
@@ -150,10 +200,10 @@ function ObjectList({ slug, filter, setFilter, flush }: { slug: string; filter: 
       <CreateRecord object={object} open={creating} onOpenChange={setCreating} openCreated />
       {result.isError ? <EmptyState title={result.error.message} icon={<Search />} /> : board ? (
         records && <Board object={object} status={board} records={records} />
+      ) : queue ? (
+        <FollowUpQueue records={records ?? []} focus={focus} onFocus={setFocus} controls={controls} empty={records?.length === 0 && <Empty object={object} query={query} filtered={filters.length > 0} />} />
       ) : records?.length === 0 && (!own || query || filters.length > 0) ? (
         <Empty object={object} query={query} filtered={filters.length > 0} />
-      ) : queue ? (
-        records && <FollowUpQueue records={records} focus={focus} onFocus={setFocus} />
       ) : (
         <div className="scrollbar-quiet min-h-0 flex-1 overflow-auto">
           <table className="w-full table-fixed border-collapse text-[13px]">

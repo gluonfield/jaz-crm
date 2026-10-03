@@ -22,11 +22,25 @@ export function MessageState({ message }: { message: CrmMessage }) {
 
 const authorOf = (message: CrmMessage) => message.sender || message.sender_address || 'Unknown sender'
 
-// runs groups consecutive messages from one sender on one day, as a chat
-// shows them.
-function runs(messages: CrmMessage[]) {
-  const out: { day: string; author: string; messages: CrmMessage[] }[] = []
+// An event is something that happened in a conversation besides a message,
+// such as a follow-up being created.
+export type ThreadEvent = { at: string; label: ReactNode }
+
+type Item = { day: string; author?: string; messages: CrmMessage[]; event?: ReactNode }
+
+// items groups consecutive messages from one sender on one day, as a chat
+// shows them, with events in their place between the messages.
+function items(messages: CrmMessage[], events: ThreadEvent[]) {
+  const out: Item[] = []
+  const pending = [...events].sort((a, b) => Date.parse(a.at) - Date.parse(b.at))
+  const happen = (before = Infinity) => {
+    while (pending.length > 0 && Date.parse(pending[0].at) < before) {
+      const event = pending.shift()!
+      out.push({ day: formatDate(event.at), messages: [], event: event.label })
+    }
+  }
   for (const message of messages) {
+    happen(Date.parse(message.at))
     const day = formatDate(message.at)
     const author = authorOf(message)
     const run = out.at(-1)
@@ -36,48 +50,66 @@ function runs(messages: CrmMessage[]) {
       out.push({ day, author, messages: [message] })
     }
   }
+  happen()
   return out
 }
 
-export function MessageThread({ interaction, messages, initialVisible = 6 }: { interaction: Interaction; messages: CrmMessage[]; initialVisible?: number }) {
+// Divider centres a label, such as a day, on a hairline across the thread.
+export function Divider({ children }: { children: ReactNode }) {
+  return <div className="flex items-center gap-3 text-[12px] text-ink-3 before:h-px before:flex-1 before:bg-border after:h-px after:flex-1 after:bg-border"><span>{children}</span></div>
+}
+
+export function MessageThread({ interaction, messages, events = [], initialVisible = 6 }: { interaction: Interaction; messages: CrmMessage[]; events?: ThreadEvent[]; initialVisible?: number }) {
   const [expanded, setExpanded] = useState(false)
   const start = expanded ? 0 : Math.max(0, messages.length - initialVisible)
   const participant = (address?: string) => interaction.participants.find((p) => p.address === address)
   const channel = interaction.channel === 'email' ? '' : interaction.channel ?? ''
   return (
-    <section aria-label="Messages" className="flex min-w-0 flex-col gap-3">
+    <section aria-label="Messages" className="flex min-w-0 flex-col gap-3.5">
       {messages.length > initialVisible && (
         <Button onClick={() => setExpanded(!expanded)} variant="ghost" size="sm" aria-expanded={expanded} className="self-center">
           {expanded ? 'Hide earlier messages' : <>Show thread<span className="tabular-nums text-ink-3">· {messages.length - initialVisible} earlier</span></>}
           <ChevronDown aria-hidden="true" className={cn('transition-transform duration-150 motion-reduce:transition-none', expanded && 'rotate-180')} />
         </Button>
       )}
-      <ol className="flex min-w-0 flex-col gap-4">
-        {runs(messages.slice(start)).map((run, i, all) => {
-          const latest = run.messages[run.messages.length - 1]
+      <ol className="flex min-w-0 flex-col gap-3.5">
+        {items(messages.slice(start), events).map((item, i, all) => {
+          const day = item.day !== all[i - 1]?.day && <Divider><time dateTime={item.messages[0]?.at}>{item.day}</time></Divider>
+          if (item.event) {
+            return (
+              <li key={i} className="flex min-w-0 flex-col gap-3.5">
+                {day}
+                <p className="flex items-center gap-2.5 pl-9 text-[12.5px] text-ink-3"><span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-primary" />{item.event}</p>
+              </li>
+            )
+          }
+          const author = item.author!
+          const first = item.messages[0]
+          const latest = item.messages[item.messages.length - 1]
           const sent = latest.direction === 'sent'
-          const recipients = [...new Set(latest.recipients?.map((address) => participant(address)?.name || address))].filter((name) => name !== run.author)
+          const recipients = [...new Set(latest.recipients?.map((address) => participant(address)?.name || address))].filter((name) => name !== author)
           return (
-            <li key={i} className="flex min-w-0 flex-col gap-4">
-              {run.day !== all[i - 1]?.day && <time dateTime={run.messages[0].at} className="self-center text-[11.5px] text-ink-3">{run.day}</time>}
-              <div className={cn('flex max-w-[88%] items-end gap-2 sm:max-w-[76%]', sent ? 'self-end' : 'self-start')}>
+            <li key={i} className="flex min-w-0 flex-col gap-3.5">
+              {day}
+              <div className={cn('flex max-w-[88%] items-start gap-2.5 sm:max-w-[min(76%,620px)]', sent ? 'self-end' : 'self-start')}>
                 <CursorTip content={<>
-                  <span className="font-medium">{run.author}</span>
-                  {latest.sender_address !== run.author && <span>{latest.sender_address}</span>}
+                  <span className="font-medium">{author}</span>
+                  {latest.sender_address !== author && <span>{latest.sender_address}</span>}
                   {recipients.length > 0 && <span>to {recipients.join(', ')}</span>}
                 </>}>
-                  <RecordIcon object="people" name={run.author} photo={participant(latest.sender_address)?.photo} size={24} />
+                  <RecordIcon object="people" name={author} photo={participant(latest.sender_address)?.photo} size={26} />
                 </CursorTip>
                 <div className={cn('flex min-w-0 flex-col gap-1', sent ? 'items-end' : 'items-start')}>
-                  {run.messages.map((message, j) => (
-                    <div key={j} className={cn('min-w-0 max-w-full rounded-[20px] px-4 pb-2 pt-2.5 last:rounded-bl-[6px]', sent ? 'bg-primary-soft' : 'bg-list-hover')}>
-                      <span className="sr-only">{run.author}: </span>
+                  <p className="flex min-w-0 max-w-full items-center gap-1.5 text-[12px] text-ink-3">
+                    <span className="truncate">{author}</span>
+                    {first.at.length > 10 && <time dateTime={first.at} title={formatDateTime(first.at)} className="shrink-0 tabular-nums">· {formatTime(first.at)}</time>}
+                    {channel && <ChannelIcon channel={channel} className="size-3" />}
+                  </p>
+                  {item.messages.map((message, j) => (
+                    <div key={j} title={message.at.length > 10 ? formatDateTime(message.at) : undefined} className={cn('min-w-0 max-w-full rounded-[12px] px-3.5 py-2.5 first-of-type:rounded-tl-[4px]', sent ? 'bg-primary-soft' : 'bg-list-hover')}>
+                      <span className="sr-only">{author}: </span>
                       {message.text || message.html ? <Message text={message.text} html={message.html} /> : <p className="text-[13px] text-ink-3">The text arrives with the next sync.</p>}
                       {message.partial && <p className="mt-2 text-[11.5px] text-ink-3">Message excerpt</p>}
-                      {(channel || message.at.length > 10) && <p className="mt-0.5 flex items-center justify-end gap-1 text-[11px] tabular-nums text-ink-3">
-                        {channel && <ChannelIcon channel={channel} className="size-3" />}
-                        {message.at.length > 10 && <time dateTime={message.at} title={formatDateTime(message.at)}>{formatTime(message.at)}</time>}
-                      </p>}
                     </div>
                   ))}
                 </div>

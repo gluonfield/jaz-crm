@@ -137,21 +137,66 @@ func (s *Service) find(ctx context.Context, workspaceID, id string) ([]storage.I
 }
 
 // Activity is how often a record was in touch up to now, since when, and
-// when last.
+// when last, with the start of its latest message and that message's channel.
 type Activity struct {
-	Interactions int    `json:"interactions"`
-	FirstAt      string `json:"first_at,omitempty"`
-	LastAt       string `json:"last_at,omitempty"`
+	Interactions int          `json:"interactions"`
+	FirstAt      string       `json:"first_at,omitempty"`
+	LastAt       string       `json:"last_at,omitempty"`
+	Channel      string       `json:"channel,omitempty"`
+	LastMessage  *MessageView `json:"last_message,omitempty"`
 }
 
 // Activities maps records to their activity; upcoming meetings do not count.
 func (s *Service) Activities(ctx context.Context, actor auth.Actor, recordIDs []string) (map[string]Activity, error) {
 	rows, err := s.store.RecordActivity(ctx, actor.WorkspaceID, recordIDs)
+	if err != nil {
+		return nil, err
+	}
+	latest, err := s.store.RecordLastMessages(ctx, actor.WorkspaceID, recordIDs)
+	if err != nil {
+		return nil, err
+	}
+	own, err := s.conns.InternalAddresses(ctx, actor.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	people := []string{}
+	for _, m := range latest {
+		if m.PersonID != nil {
+			people = append(people, *m.PersonID)
+		}
+	}
+	labels, err := s.records.Labels(ctx, actor.WorkspaceID, people)
+	if err != nil {
+		return nil, err
+	}
 	out := map[string]Activity{}
 	for _, r := range rows {
 		out[r.RecordID] = Activity{Interactions: int(r.Interactions), FirstAt: formatAt(r.FirstAt, r.FirstDateOnly), LastAt: formatAt(r.LastAt, r.LastDateOnly)}
 	}
-	return out, err
+	for _, m := range latest {
+		a := out[m.RecordID]
+		text := m.Content
+		if m.Channel == "email" {
+			text = readable("message", text)
+		}
+		a.Channel = m.Channel
+		a.LastMessage = &MessageView{At: formatAt(m.At, m.DateOnly), Sender: cmp.Or(m.AuthorName, labels[deref(m.PersonID)].Name, m.SenderName, m.SenderAddress), SenderAddress: m.SenderAddress, Direction: direction(m.Channel, m.Direction, m.SenderAddress, own), Text: preview(text)}
+		out[m.RecordID] = a
+	}
+	return out, nil
+}
+
+// direction tells our email by its sender's address; other channels keep the
+// direction they were logged with.
+func direction(channel, logged, sender string, own []string) string {
+	if channel != "email" || sender == "" {
+		return logged
+	}
+	if slices.Contains(own, sender) {
+		return "sent"
+	}
+	return "received"
 }
 
 type viewMode int
@@ -248,13 +293,7 @@ func (s *Service) views(ctx context.Context, workspaceID string, list []storage.
 		}
 		switch p.Kind {
 		case "message":
-			message := MessageView{At: formatAt(*p.At, p.DateOnly), Sender: author, SenderAddress: sender.Address, Recipients: p.Recipients, Direction: p.Direction, Text: text, Partial: p.Partial}
-			if v.Channel == "email" && sender.Address != "" {
-				message.Direction = "received"
-				if slices.Contains(own, sender.Address) {
-					message.Direction = "sent"
-				}
-			}
+			message := MessageView{At: formatAt(*p.At, p.DateOnly), Sender: author, SenderAddress: sender.Address, Recipients: p.Recipients, Direction: direction(v.Channel, p.Direction, sender.Address, own), Text: text, Partial: p.Partial}
 			latest := message
 			latest.Text = preview(text)
 			v.LastMessage, v.Preview = &latest, latest.Text

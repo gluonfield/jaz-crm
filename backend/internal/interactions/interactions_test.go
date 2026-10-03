@@ -2,6 +2,7 @@ package interactions_test
 
 import (
 	"context"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -209,6 +210,20 @@ func TestTriageKeepsPeopleYouWriteTo(t *testing.T) {
 	slices.Sort(ids)
 	if !slices.Equal(ids, []string{"o1", "r1"}) {
 		t.Fatalf("content is fetched for linked threads only: %v", ids)
+	}
+	for _, p := range due {
+		content := "Here is the quote."
+		if p.ProviderID == "r1" {
+			content = "Thanks, that works.\n\nOn Tue, 1 Sep 2026 at 09:00, Owner <owner@cas.dev> wrote:\n> Here is the quote."
+		}
+		if err := e.svc.SetContent(ctx, p.ID, content, ""); err != nil {
+			t.Fatal(err)
+		}
+	}
+	activity, err := e.svc.Activities(ctx, e.a, []string{ada.PersonID})
+	want := interactions.MessageView{At: start.Add(time.Hour).Format(time.RFC3339Nano), Sender: "Ada Lovelace", SenderAddress: "ada@customer.io", Direction: "received", Text: "Thanks, that works."}
+	if a := activity[ada.PersonID]; err != nil || a.Channel != "email" || !reflect.DeepEqual(a.LastMessage, &want) {
+		t.Fatalf("latest message: %+v %+v %v", a, a.LastMessage, err)
 	}
 }
 
@@ -449,8 +464,9 @@ func TestLogWholeConversation(t *testing.T) {
 	if logged.Channel != "linkedin" || !slices.Equal(got, want) || logged.LastMessage == nil || logged.LastMessage.Text != "Thanks! Here is a demo." {
 		t.Fatalf("logged conversation: %q, channel %q, last %+v", got, logged.Channel, logged.LastMessage)
 	}
-	if activity, err := e.svc.Activities(ctx, e.a, []string{ada.ID}); err != nil || activity[ada.ID].FirstAt != "2026-09-19T16:55:00Z" || !strings.HasPrefix(activity[ada.ID].LastAt, "2026-09-30") {
-		t.Fatalf("the conversation runs from its first to its latest message: %+v %v", activity, err)
+	activity, err := e.svc.Activities(ctx, e.a, []string{ada.ID})
+	if a := activity[ada.ID]; err != nil || a.FirstAt != "2026-09-19T16:55:00Z" || !strings.HasPrefix(a.LastAt, "2026-09-30") || a.Channel != "linkedin" || a.LastMessage == nil || a.LastMessage.Direction != "sent" || a.LastMessage.Text != "Thanks! Here is a demo." {
+		t.Fatalf("the conversation runs from its first to its latest message: %+v %+v %v", a, a.LastMessage, err)
 	}
 	thread.Messages = append(thread.Messages, interactions.Said{At: "2026-10-01", Sender: "Ada", Recipients: []string{"Owner"}, Direction: "received", Text: "Looks useful."})
 	again, err := e.svc.Log(ctx, e.a, "manual", thread)
