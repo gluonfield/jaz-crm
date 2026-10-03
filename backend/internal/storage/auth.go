@@ -6,15 +6,16 @@ import (
 )
 
 type Workspace struct {
-	ID               string
-	Name             string
-	CreatedAt        time.Time
-	Description      string
-	AutoKeepEmail    bool
-	AutoKeepMeetings bool
-	AutoKeepRecords  bool
-	AutoKeepAi       bool
-	CompanyPageID    *string
+	ID                string
+	Name              string
+	CreatedAt         time.Time
+	Description       string
+	AutoKeepEmail     bool
+	AutoKeepMeetings  bool
+	AutoKeepRecords   bool
+	AutoKeepAi        bool
+	DraftingWebAccess bool
+	CompanyPageIDs    []string
 }
 
 // User is a person's membership of one workspace.
@@ -167,6 +168,13 @@ type TriageSettings struct {
 	AutoKeepAi       bool `json:"auto_keep_ai"`
 }
 
+type WorkspaceUpdate struct {
+	Name              *string
+	Description       *string
+	CompanyPageIDs    []string
+	DraftingWebAccess *bool
+}
+
 type WorkspaceStore interface {
 	Workspace(ctx context.Context, id string) (Workspace, error)
 	UserByID(ctx context.Context, id string) (User, error)
@@ -181,7 +189,7 @@ type WorkspaceStore interface {
 	// CreateOwnedWorkspace creates a workspace, its owner linked to the
 	// identity, and its objects, atomically.
 	CreateOwnedWorkspace(ctx context.Context, name string, owner NewUser, identity Identity, objects []NewObject) (User, error)
-	UpdateWorkspace(ctx context.Context, workspace Workspace) error
+	UpdateWorkspace(ctx context.Context, workspaceID string, update WorkspaceUpdate) error
 	SetUserAddresses(ctx context.Context, workspaceID, userID string, addresses []string) error
 	TriageSettings(ctx context.Context, workspaceID string) (TriageSettings, error)
 	UpdateTriageSettings(ctx context.Context, workspaceID string, settings TriageSettings) error

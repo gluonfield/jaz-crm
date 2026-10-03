@@ -49,7 +49,7 @@ func (a *Agent) conversation(ctx context.Context, actor auth.Actor, conv interac
 	if err != nil {
 		return Conversation{}, err
 	}
-	in := Conversation{Today: time.Now().UTC().Format(time.DateOnly), Purpose: ws.Description, Kind: conv.Kind, Channel: conv.Channel, Title: conv.Title, Description: conv.Invitation, Messages: conversationLines(conv), Records: []Record{}, FollowUps: []Open{}}
+	in := Conversation{Today: time.Now().UTC().Format(time.DateOnly), Purpose: ws.Description, Kind: conv.Kind, Channel: conv.Channel, Title: conv.Title, Description: conv.Invitation, Messages: conversationLines(conv), Records: []Record{}, FollowUps: []Open{}, WebAccess: ws.DraftingWebAccess}
 	for _, u := range users {
 		person := Person{Name: u.Name, Address: u.Email}
 		in.Us = append(in.Us, person)
@@ -100,36 +100,75 @@ func (a *Agent) conversation(ctx context.Context, actor auth.Actor, conv interac
 			}
 		}
 	}
-	in.Company, err = a.companyKnowledge(ctx, actor, ws.CompanyPageID)
+	in.History, err = a.contactHistory(ctx, actor, conv.ID, in.Records)
+	if err != nil {
+		return Conversation{}, err
+	}
+	in.Company, err = a.companyKnowledge(ctx, actor, ws.CompanyPageIDs)
 	return in, err
 }
 
-func (a *Agent) companyKnowledge(ctx context.Context, actor auth.Actor, root *string) ([]Record, error) {
+func (a *Agent) companyKnowledge(ctx context.Context, actor auth.Actor, roots []string) ([]Record, error) {
 	out := []Record{}
-	if root == nil {
-		return out, nil
-	}
-	pages := []string{*root}
-	paths := map[string]string{*root: ""}
-	for i := 0; i < len(pages); i++ {
-		id := pages[i]
-		page, err := a.crm.Get(ctx, actor, id)
-		if err != nil {
-			return nil, err
+	paths := map[string]string{}
+	for _, root := range roots {
+		if _, found := paths[root]; found {
+			continue
 		}
-		doc := recordInput(page)
-		doc.Path = paths[id] + doc.Name
-		out = append(out, doc)
-		children, err := a.searchRecords(ctx, actor, records.Search{Object: records.Pages, Where: map[string]string{"parent": id}})
-		if err != nil {
-			return nil, err
-		}
-		for _, child := range children {
-			if _, found := paths[child.ID]; found {
-				continue
+		pages := []string{root}
+		paths[root] = ""
+		for i := 0; i < len(pages); i++ {
+			id := pages[i]
+			page, err := a.crm.Get(ctx, actor, id)
+			if err != nil {
+				return nil, err
 			}
-			pages = append(pages, child.ID)
-			paths[child.ID] = doc.Path + " / "
+			doc := recordInput(page)
+			doc.Path = paths[id] + doc.Name
+			out = append(out, doc)
+			children, err := a.searchRecords(ctx, actor, records.Search{Object: records.Pages, Where: map[string]string{"parent": id}})
+			if err != nil {
+				return nil, err
+			}
+			for _, child := range children {
+				if _, found := paths[child.ID]; found {
+					continue
+				}
+				pages = append(pages, child.ID)
+				paths[child.ID] = doc.Path + " / "
+			}
+		}
+	}
+	return out, nil
+}
+
+func (a *Agent) contactHistory(ctx context.Context, actor auth.Actor, currentID string, contacts []Record) ([]interactions.Interaction, error) {
+	out := []interactions.Interaction{}
+	seen := map[string]bool{currentID: true}
+	for _, contact := range contacts {
+		if contact.Object != "people" {
+			continue
+		}
+		for cursor := ""; ; {
+			page, err := a.convs.Timeline(ctx, actor, contact.ID, nil, cursor, false, 100)
+			if err != nil {
+				return nil, err
+			}
+			for _, item := range page {
+				if seen[item.ID] {
+					continue
+				}
+				seen[item.ID] = true
+				full, err := a.convs.Source(ctx, actor, item.ID)
+				if err != nil {
+					return nil, err
+				}
+				out = append(out, full)
+			}
+			if len(page) < 100 {
+				break
+			}
+			cursor = page[len(page)-1].ID
 		}
 	}
 	return out, nil

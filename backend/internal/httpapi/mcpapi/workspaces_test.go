@@ -3,6 +3,7 @@ package mcpapi_test
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres"
 	"github.com/gluonfield/jaz-tasks/auth"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func TestWorkspaceDeletion(t *testing.T) {
@@ -233,5 +235,56 @@ func TestCompanyKnowledgeSettings(t *testing.T) {
 	mustCall(t, owner, "delete_record", map[string]any{"record_id": page})
 	if got := mustCall(t, owner, "get_workspace", nil); got["company_page_id"] != nil {
 		t.Fatalf("deleting a root must clear its reference: %v", got)
+	}
+}
+
+func TestDraftingSettings(t *testing.T) {
+	e := serve(t)
+	owner := e.session(t, e.apiKey(t, "draft-owner@example.com"))
+	other := e.session(t, e.apiKey(t, "other@example.com"))
+	page := func(session *mcp.ClientSession, object, name string) any {
+		t.Helper()
+		return mustCall(t, session, "upsert_record", map[string]any{"object": object, "values": map[string]any{"name": name}})["record"].(map[string]any)["id"]
+	}
+	first := page(owner, "pages", "Capabilities")
+	second := page(owner, "pages", "Pricing")
+	foreign := page(other, "pages", "Private")
+	person := page(owner, "people", "Jane")
+	if got := mustCall(t, owner, "get_workspace", nil); got["drafting_web_access"] != false || len(got["company_page_ids"].([]any)) != 0 {
+		t.Fatalf("new drafting settings must be empty and offline: %v", got)
+	}
+	mustCall(t, owner, "update_workspace", map[string]any{"company_page_ids": []any{first, second, first}, "drafting_web_access": true})
+	mustCall(t, owner, "update_workspace", map[string]any{"name": "Supplier"})
+	for _, invalid := range []any{foreign, person, "not-a-page-id"} {
+		if _, failure := call(t, owner, "update_workspace", map[string]any{"name": "Rejected", "company_page_ids": []any{first, invalid}, "drafting_web_access": false}); failure == "" {
+			t.Fatalf("accepted invalid drafting knowledge: %v", invalid)
+		}
+	}
+	got := mustCall(t, owner, "get_workspace", nil)
+	if got["name"] != "Supplier" || got["drafting_web_access"] != true || !slices.Equal(got["company_page_ids"].([]any), []any{first, second}) {
+		t.Fatalf("settings lost on omitted fields, deduplication or rejected update: %v", got)
+	}
+	mustCall(t, owner, "invite_member", map[string]any{"email": "draft-member@example.com"})
+	member, err := e.people.SignIn(t.Context(), signin.Identity{Issuer: "https://idp.test", Subject: "draft-member", Email: "draft-member@example.com", EmailVerified: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	key, _, err := e.keys.CreateKey(t.Context(), member.ID, "member", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, failure := call(t, e.session(t, key), "update_workspace", map[string]any{"company_page_ids": []any{}, "drafting_web_access": false}); failure == "" {
+		t.Fatal("member changed drafting policy")
+	}
+	if got := mustCall(t, other, "get_workspace", nil); got["drafting_web_access"] != false || len(got["company_page_ids"].([]any)) != 0 {
+		t.Fatalf("drafting settings leaked across workspaces: %v", got)
+	}
+	mustCall(t, owner, "delete_record", map[string]any{"record_id": second})
+	if got := mustCall(t, owner, "get_workspace", nil); !slices.Equal(got["company_page_ids"].([]any), []any{first}) {
+		t.Fatalf("deleted knowledge page was retained: %v", got)
+	}
+	mustCall(t, owner, "update_workspace", map[string]any{"company_page_ids": []any{}, "drafting_web_access": false})
+	if got := mustCall(t, owner, "get_workspace", nil); got["drafting_web_access"] != false || len(got["company_page_ids"].([]any)) != 0 {
+		t.Fatalf("explicit clearing did not persist: %v", got)
 	}
 }

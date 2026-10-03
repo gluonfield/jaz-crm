@@ -48,7 +48,7 @@ func setupManual(t *testing.T, classifier interactions.Classifier) env {
 		}
 		actors = append(actors, auth.Actor{UserID: u.ID, WorkspaceID: u.WorkspaceID})
 	}
-	if err := store.UpdateWorkspace(ctx, storage.Workspace{ID: actors[0].WorkspaceID, Name: "CAS", Description: "Manufacturing customers and partners"}); err != nil {
+	if err := store.UpdateWorkspace(ctx, actors[0].WorkspaceID, storage.WorkspaceUpdate{Name: new("CAS"), Description: new("Manufacturing customers and partners")}); err != nil {
 		t.Fatal(err)
 	}
 	conn, err := store.SaveConnection(ctx, storage.NewConnection{WorkspaceID: actors[0].WorkspaceID, UserID: actors[0].UserID, Provider: "google", Account: "owner@cas.dev", RefreshToken: []byte("sealed")})

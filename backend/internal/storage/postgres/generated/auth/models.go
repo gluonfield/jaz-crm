@@ -71,15 +71,16 @@ type User struct {
 }
 
 type Workspace struct {
-	ID               string
-	Name             string
-	CreatedAt        time.Time
-	Description      string
-	AutoKeepEmail    bool
-	AutoKeepMeetings bool
-	AutoKeepRecords  bool
-	AutoKeepAi       bool
-	CompanyPageID    *string
+	ID                string
+	Name              string
+	CreatedAt         time.Time
+	Description       string
+	AutoKeepEmail     bool
+	AutoKeepMeetings  bool
+	AutoKeepRecords   bool
+	AutoKeepAi        bool
+	CompanyPageID     *string
+	DraftingWebAccess bool
 }
 
 type WorkspaceInvite struct {

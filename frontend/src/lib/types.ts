@@ -96,7 +96,7 @@ export type Contact = {
 
 export type Member = { name: string; email: string; addresses?: string[]; admin?: boolean; is_me?: boolean; photo?: string }
 
-export type Workspace = { id: string; name: string; description: string; members?: Member[]; invited?: string[] }
+export type Workspace = { id: string; name: string; description: string; company_page_ids: string[]; drafting_web_access: boolean; members?: Member[]; invited?: string[] }
 
 export type Connection = {
   id: string

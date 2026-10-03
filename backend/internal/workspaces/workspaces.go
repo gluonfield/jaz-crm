@@ -205,39 +205,38 @@ func validEmail(email string) bool {
 	return ok && local != "" && strings.Contains(domain, ".")
 }
 
-// Update lets an admin change the workspace's name, triage description and
-// company knowledge root.
-func (s *Service) Update(ctx context.Context, actor auth.Actor, name, description, companyPageID *string) (storage.Workspace, error) {
+func (s *Service) Update(ctx context.Context, actor auth.Actor, in storage.WorkspaceUpdate) (storage.Workspace, error) {
 	if err := s.requireAdmin(ctx, actor); err != nil {
 		return storage.Workspace{}, err
 	}
-	workspace, err := s.store.Workspace(ctx, actor.WorkspaceID)
-	if err != nil {
-		return workspace, err
-	}
-	if name != nil {
-		workspace.Name = strings.TrimSpace(*name)
-	}
-	if description != nil {
-		workspace.Description = strings.TrimSpace(*description)
-	}
-	if companyPageID != nil {
-		workspace.CompanyPageID = companyPageID
-		if *companyPageID == "" {
-			workspace.CompanyPageID = nil
+	if in.Name != nil {
+		in.Name = new(strings.TrimSpace(*in.Name))
+		if *in.Name == "" || len([]rune(*in.Name)) > 80 {
+			return storage.Workspace{}, ErrInvalidName
 		}
 	}
-	if workspace.Name == "" || len([]rune(workspace.Name)) > 80 {
-		return workspace, ErrInvalidName
+	if in.Description != nil {
+		in.Description = new(strings.TrimSpace(*in.Description))
+		if len([]rune(*in.Description)) > 2000 {
+			return storage.Workspace{}, errs.Invalidf("a workspace description is at most 2000 characters")
+		}
 	}
-	if len([]rune(workspace.Description)) > 2000 {
-		return workspace, errs.Invalidf("a workspace description is at most 2000 characters")
+	if in.CompanyPageIDs != nil {
+		pages := []string{}
+		for _, id := range in.CompanyPageIDs {
+			if !slices.Contains(pages, id) {
+				pages = append(pages, id)
+			}
+		}
+		in.CompanyPageIDs = pages
 	}
-	err = s.store.UpdateWorkspace(ctx, workspace)
-	if errors.Is(err, storage.ErrNotFound) {
-		err = errs.Invalidf("choose a Company knowledge page in this workspace")
+	if err := s.store.UpdateWorkspace(ctx, actor.WorkspaceID, in); err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			err = errs.Invalidf("choose knowledge pages in this workspace")
+		}
+		return storage.Workspace{}, err
 	}
-	return workspace, err
+	return s.store.Workspace(ctx, actor.WorkspaceID)
 }
 
 // Memberships lists the workspaces the actor's person belongs to.

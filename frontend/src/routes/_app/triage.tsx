@@ -65,7 +65,7 @@ function TriagePage() {
           <Search className="pointer-events-none absolute left-2 size-3.5 text-ink-3" />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search" aria-label="Search addresses" className={cn(inputClass, 'w-56 pl-7')} />
         </label>
-        <Link to="/settings" hash="triage" className="flex items-center gap-1.5 px-2 text-ink-2 hover:text-ink"><Settings className="size-3.5" />Settings</Link>
+        <Link to="/settings/triage" className="flex items-center gap-1.5 px-2 text-ink-2 hover:text-ink"><Settings className="size-3.5" />Settings</Link>
       </Header>
       {listed?.length === 0 ? (
         <Empty status={status} query={query} />

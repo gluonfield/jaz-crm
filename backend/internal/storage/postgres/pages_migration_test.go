@@ -119,8 +119,8 @@ func TestCompanyKnowledgeMigration(t *testing.T) {
 			t.Fatal(err)
 		}
 		got := ""
-		if ws.CompanyPageID != nil {
-			got = *ws.CompanyPageID
+		if len(ws.CompanyPageIDs) > 0 {
+			got = ws.CompanyPageIDs[0]
 		}
 		if got != want {
 			t.Fatalf("migrate only an unambiguous top-level Company page: got %q want %q", got, want)

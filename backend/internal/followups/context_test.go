@@ -43,7 +43,7 @@ func TestDraftRequestIncludesFullConversationAndCompanyKnowledge(t *testing.T) {
 	}
 	companyText := "Our company capabilities:\n" + strings.Repeat("We machine aluminium components. λ\n", 1000) + "END CAPABILITIES"
 	company := write(actor, records.Pages, map[string][]string{"name": {"Company"}, "content": {companyText}})
-	if _, err := ws.Update(ctx, actor, nil, nil, &company.ID); err != nil {
+	if _, err := ws.Update(ctx, actor, storage.WorkspaceUpdate{CompanyPageIDs: []string{company.ID}}); err != nil {
 		t.Fatal(err)
 	}
 	wantDocuments := map[string]string{company.ID: companyText}
@@ -57,6 +57,12 @@ func TestDraftRequestIncludesFullConversationAndCompanyKnowledge(t *testing.T) {
 		wantDocuments[page.ID] = text
 		wantPaths[page.ID] = fmt.Sprintf("Company / Strategy / Product %d", i)
 	}
+	quality := write(actor, records.Pages, map[string][]string{"name": {"Quality"}, "content": {"Public quality policy."}})
+	wantDocuments[quality.ID] = "Public quality policy."
+	wantPaths[quality.ID] = "Quality"
+	if _, err := ws.Update(ctx, actor, storage.WorkspaceUpdate{CompanyPageIDs: []string{company.ID, quality.ID, strategy.ID}}); err != nil {
+		t.Fatal(err)
+	}
 	write(actor, records.Pages, map[string][]string{"name": {"Unrelated notes"}, "content": {"Unrelated document."}})
 	write(actor, records.Pages, map[string][]string{"name": {"Company"}, "content": {"Unselected same-name page."}})
 	other, err := ws.Provision(ctx, "other@another-workspace.test")
@@ -67,7 +73,7 @@ func TestDraftRequestIncludesFullConversationAndCompanyKnowledge(t *testing.T) {
 	customer := write(actor, "companies", map[string][]string{"name": {"Customer Ltd"}, "description": {"Builds scientific instruments."}, "size": {"11-50"}})
 	person := write(actor, "people", map[string][]string{"name": {"Jane"}, "job_title": {"Purchasing lead"}, "company": {customer.ID}, "context": {"- Asked us about precision brackets."}})
 	colleague := write(actor, "people", map[string][]string{"name": {"Alex"}, "company": {customer.ID}, "context": {"- Approves the technical specification."}})
-	write(actor, "people", map[string][]string{"name": {"Unrelated employee"}, "company": {customer.ID}, "context": {"- Not involved in this conversation."}})
+	unrelated := write(actor, "people", map[string][]string{"name": {"Unrelated employee"}, "company": {customer.ID}, "context": {"- Not involved in this conversation."}})
 	deal := write(actor, "deals", map[string][]string{"name": {"Bracket order"}, "company": {customer.ID}, "value": {"15000"}})
 	followUp := write(actor, records.FollowUps, map[string][]string{"name": {"Answer Jane's question"}, "person": {person.ID}, "company": {customer.ID}, "deal": {deal.ID}})
 	thread, err := store.UpsertEmailThread(ctx, storage.EmailThread{WorkspaceID: actor.WorkspaceID, ExternalID: "complete-thread", UserID: &owner.ID, Title: "Capabilities", At: time.Now().Add(-30 * 24 * time.Hour)})
@@ -99,6 +105,30 @@ func TestDraftRequestIncludesFullConversationAndCompanyKnowledge(t *testing.T) {
 	newText := "BEGIN SPECIFICATION\n" + strings.Repeat("Tolerance ±0.01 mm.\n", 2000) + "END SPECIFICATION"
 	message("old", oldText, time.Now().Add(-30*24*time.Hour))
 	message("new", newText, time.Now().Add(-time.Minute))
+	wantHistory := map[string]string{}
+	for i := range 102 {
+		at := time.Now().Add(-time.Duration(60+i) * 24 * time.Hour)
+		id, err := store.UpsertEmailThread(ctx, storage.EmailThread{WorkspaceID: actor.WorkspaceID, ExternalID: fmt.Sprintf("history-%d", i), UserID: &owner.ID, Title: "Previous conversation", At: at})
+		if err != nil {
+			t.Fatal(err)
+		}
+		body := fmt.Sprintf("Previous requirements %d.\n\nOn Monday, Jane wrote:\n> %s", i, strings.Repeat("Keep this original history. ", 1000))
+		if err := store.UpsertPart(ctx, storage.NewPart{InteractionID: id, Kind: "message", ExternalID: "body", At: &at, Content: &body}); err != nil {
+			t.Fatal(err)
+		}
+		contact := person.ID
+		if i == 101 {
+			contact = unrelated.ID
+		} else {
+			wantHistory[id] = body
+			if err := store.AddLink(ctx, id, colleague.ID, "user"); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := store.AddLink(ctx, id, contact, "user"); err != nil {
+			t.Fatal(err)
+		}
+	}
 	requests := make(chan followups.Conversation, 3)
 	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
@@ -116,8 +146,12 @@ func TestDraftRequestIncludesFullConversationAndCompanyKnowledge(t *testing.T) {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		if len(req.Tools) != 6 {
-			t.Error("drafting must advertise the six read-only tools")
+		wantTools := 6
+		if input.WebAccess {
+			wantTools++
+		}
+		if len(req.Tools) != wantTools {
+			t.Error("drafting must advertise CRM reads and only enable web access when configured")
 		}
 		var fields map[string]json.RawMessage
 		if err := json.Unmarshal([]byte(req.Input[0].Content), &fields); err != nil {
@@ -141,6 +175,15 @@ func TestDraftRequestIncludesFullConversationAndCompanyKnowledge(t *testing.T) {
 		return <-requests
 	}
 	in := run()
+	if len(in.History) != len(wantHistory) {
+		t.Fatalf("all contact history must be included once, across query pages: got %d want %d", len(in.History), len(wantHistory))
+	}
+	for _, old := range in.History {
+		if body, ok := wantHistory[old.ID]; !ok || len(old.Messages) != 1 || old.Messages[0].Text != body {
+			t.Fatalf("history was cut, duplicated or included an unrelated contact: %s", old.ID)
+		}
+		delete(wantHistory, old.ID)
+	}
 	if len(in.Messages) != 2 || in.Messages[0].Text != oldText || in.Messages[1].Text != newText || in.Messages[1].Author != "Jane" || in.Messages[1].Direction != "received" || !slices.Equal(in.Messages[1].Recipients, []string{owner.Email}) {
 		t.Fatal("the model did not receive every original message, in order and without cutting content or headers")
 	}
@@ -187,7 +230,13 @@ func TestDraftRequestIncludesFullConversationAndCompanyKnowledge(t *testing.T) {
 		t.Fatal(err)
 	}
 	message("latest", "What can you offer now?", time.Now())
+	if _, err := ws.Update(ctx, actor, storage.WorkspaceUpdate{DraftingWebAccess: new(true)}); err != nil {
+		t.Fatal(err)
+	}
 	in = run()
+	if !in.WebAccess {
+		t.Fatal("saved web-access permission did not reach the drafting request")
+	}
 	i := slices.IndexFunc(in.Company, func(r followups.Record) bool { return r.ID == company.ID })
 	if i < 0 || in.Company[i].Path != "Our business" || !slices.Equal(in.Company[i].Values["content"], []string{"Updated capabilities."}) || len(in.Messages) != 3 || len(in.Company) != len(wantDocuments) {
 		t.Fatal("a later draft must read current company knowledge and the complete updated thread")
@@ -197,7 +246,7 @@ func TestDraftRequestIncludesFullConversationAndCompanyKnowledge(t *testing.T) {
 			t.Fatalf("renaming the selected root must update every descendant path: %s", doc.Path)
 		}
 	}
-	if _, err := ws.Update(ctx, actor, nil, nil, new("")); err != nil {
+	if _, err := ws.Update(ctx, actor, storage.WorkspaceUpdate{CompanyPageIDs: []string{}}); err != nil {
 		t.Fatal(err)
 	}
 	message("cleared", "Any further information?", time.Now())

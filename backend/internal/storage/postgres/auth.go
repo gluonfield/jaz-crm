@@ -10,12 +10,12 @@ import (
 	recdb "github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/generated/records"
 )
 
-func toUser(r authdb.User) storage.User                 { return storage.User(r) }
-func toWorkspace(r authdb.Workspace) storage.Workspace  { return storage.Workspace(r) }
-func toAPIKey(r authdb.APIKey) storage.APIKey           { return storage.APIKey(r) }
-func toClient(r authdb.OAuthClient) storage.OAuthClient { return storage.OAuthClient(r) }
-func toCode(r authdb.OAuthCode) storage.OAuthCode       { return storage.OAuthCode(r) }
-func toGrant(r authdb.OAuthGrant) storage.OAuthGrant    { return storage.OAuthGrant(r) }
+func toUser(r authdb.User) storage.User                      { return storage.User(r) }
+func toWorkspace(r authdb.GetWorkspaceRow) storage.Workspace { return storage.Workspace(r) }
+func toAPIKey(r authdb.APIKey) storage.APIKey                { return storage.APIKey(r) }
+func toClient(r authdb.OAuthClient) storage.OAuthClient      { return storage.OAuthClient(r) }
+func toCode(r authdb.OAuthCode) storage.OAuthCode            { return storage.OAuthCode(r) }
+func toGrant(r authdb.OAuthGrant) storage.OAuthGrant         { return storage.OAuthGrant(r) }
 func toGrantSummary(r authdb.ListOAuthGrantsRow) storage.OAuthGrantSummary {
 	return storage.OAuthGrantSummary(r)
 }

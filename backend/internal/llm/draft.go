@@ -45,8 +45,19 @@ func (c *Client) draft(ctx context.Context, conv followups.Conversation, reads f
 		function.SetExtraFields(map[string]any{"parameters": tool.Parameters})
 		request.Tools = append(request.Tools, responses.ToolUnionParam{OfFunction: &function})
 	}
+	if conv.WebAccess {
+		request.Tools = append(request.Tools, responses.ToolParamOfWebSearch(responses.WebSearchToolTypeWebSearch))
+	}
 	called := map[string]bool{}
+	webCalls := 0
 	for turn := range 12 {
+		if conv.WebAccess {
+			remaining := 48 - len(called) - webCalls
+			request.MaxToolCalls = openai.Int(int64(max(1, remaining)))
+			if remaining == 0 {
+				request.ToolChoice.OfToolChoiceMode = openai.Opt(responses.ToolChoiceOptionsNone)
+			}
+		}
 		res, err := c.api.Responses.New(ctx, request)
 		if err != nil {
 			return fmt.Errorf("draft response: %w", err)
@@ -65,6 +76,11 @@ func (c *Client) draft(ctx context.Context, conv followups.Conversation, reads f
 				}
 				called[call.CallID] = true
 				calls = append(calls, call)
+			case "web_search_call":
+				if !conv.WebAccess {
+					return errors.New("draft response used web search while web access is disabled")
+				}
+				webCalls++
 			case "message", "reasoning":
 			default:
 				return fmt.Errorf("unsupported draft output type %q", item.Type)
@@ -72,6 +88,9 @@ func (c *Client) draft(ctx context.Context, conv followups.Conversation, reads f
 			// Preserve provider-owned fields, especially encrypted reasoning. Appending
 			// to the unchanged input also preserves prefixes for automatic KV caching.
 			request.Input.OfInputItemList = append(request.Input.OfInputItemList, param.Override[responses.ResponseInputItemUnionParam](json.RawMessage(item.RawJSON())))
+		}
+		if len(called)+webCalls > 48 {
+			return errors.New("draft retrieval limit reached without a final answer")
 		}
 		if len(calls) == 0 {
 			var candidate followups.Plan
@@ -84,7 +103,7 @@ func (c *Client) draft(ctx context.Context, conv followups.Conversation, reads f
 			}
 			request.Input.OfInputItemList = append(request.Input.OfInputItemList, responses.ResponseInputItemParamOfMessage("The final plan has neither a reply nor a skip_reason. Finish the task: include the ready-to-send reply in a follow_ups entry when the incoming message needs an answer and the facts are available; otherwise give a specific, nonempty skip_reason. Return the complete corrected plan.", "developer"))
 		}
-		if turn == 11 || len(called) > 48 {
+		if turn == 11 {
 			return errors.New("draft retrieval limit reached without a final answer")
 		}
 		for _, call := range calls {

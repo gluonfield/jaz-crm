@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
+	"github.com/gluonfield/jaz-crm/backend/internal/errs"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 	"github.com/gluonfield/jaz-crm/backend/internal/workspaces"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -53,7 +54,8 @@ func registerWorkspace(r *registry, members *workspaces.Service, keys *auth.Serv
 				return workspaceView{}, err
 			}
 			users, invites, err := members.Members(ctx, actor)
-			out := workspaceView{ID: workspace.ID, Name: workspace.Name, Description: workspace.Description, CompanyPageID: workspace.CompanyPageID, Members: []memberView{}, Invited: []string{}}
+			out := workspaceOf(workspace)
+			out.Members, out.Invited = []memberView{}, []string{}
 			for _, u := range users {
 				out.Members = append(out.Members, memberOf(u, actor))
 			}
@@ -75,10 +77,19 @@ func registerWorkspace(r *registry, members *workspaces.Service, keys *auth.Serv
 			return memberOf(user, actor), err
 		})
 	add(r, &mcp.Tool{Name: "update_workspace", Title: "Update workspace",
-		Description: "Change this workspace's name, description or Company knowledge root page. Drafting reads that page and all descendants, including after renames. The description tells triage which contacts belong in the CRM. Admins only."},
+		Description: "Change this workspace's name, triage description, drafting knowledge pages or web access. Knowledge accepts pages only and includes descendants. Omitted settings are preserved. Admins only."},
 		func(ctx context.Context, actor auth.Actor, in updateWorkspaceInput) (workspaceView, error) {
-			workspace, err := members.Update(ctx, actor, in.Name, in.Description, in.CompanyPageID)
-			return workspaceView{ID: workspace.ID, Name: workspace.Name, Description: workspace.Description, CompanyPageID: workspace.CompanyPageID}, err
+			if in.CompanyPageID != nil {
+				if in.CompanyPageIDs != nil {
+					return workspaceView{}, errs.Invalidf("use company_page_ids or company_page_id, not both")
+				}
+				in.CompanyPageIDs = []string{}
+				if *in.CompanyPageID != "" {
+					in.CompanyPageIDs = []string{*in.CompanyPageID}
+				}
+			}
+			workspace, err := members.Update(ctx, actor, storage.WorkspaceUpdate{Name: in.Name, Description: in.Description, CompanyPageIDs: in.CompanyPageIDs, DraftingWebAccess: in.DraftingWebAccess})
+			return workspaceOf(workspace), err
 		})
 	add(r, &mcp.Tool{Name: "delete_workspace", Title: "Delete workspace", Annotations: &mcp.ToolAnnotations{DestructiveHint: new(true)},
 		Description: "Permanently delete the workspace this call acts in and all its CRM data, memberships, connections and credentials. Admins only. Confirm with its ID and current name from get_workspace. Every connection to it loses access; other workspaces are preserved."},
@@ -109,13 +120,23 @@ type updateMemberInput struct {
 	Addresses []string `json:"addresses" jsonschema:"every other address they send from; an empty list removes them all"`
 }
 
+func workspaceOf(w storage.Workspace) workspaceView {
+	out := workspaceView{ID: w.ID, Name: w.Name, Description: w.Description, CompanyPageIDs: w.CompanyPageIDs, DraftingWebAccess: w.DraftingWebAccess}
+	if len(w.CompanyPageIDs) > 0 {
+		out.CompanyPageID = &w.CompanyPageIDs[0]
+	}
+	return out
+}
+
 type workspaceView struct {
-	ID            string       `json:"id"`
-	Name          string       `json:"name"`
-	Description   string       `json:"description"`
-	CompanyPageID *string      `json:"company_page_id,omitempty"`
-	Members       []memberView `json:"members,omitempty"`
-	Invited       []string     `json:"invited,omitempty"`
+	ID                string       `json:"id"`
+	Name              string       `json:"name"`
+	Description       string       `json:"description"`
+	CompanyPageID     *string      `json:"company_page_id,omitempty"`
+	CompanyPageIDs    []string     `json:"company_page_ids"`
+	DraftingWebAccess bool         `json:"drafting_web_access"`
+	Members           []memberView `json:"members,omitempty"`
+	Invited           []string     `json:"invited,omitempty"`
 }
 
 type inviteInput struct {
@@ -127,9 +148,11 @@ type inviteOutput struct {
 }
 
 type updateWorkspaceInput struct {
-	Name          *string `json:"name,omitempty"`
-	Description   *string `json:"description,omitempty" jsonschema:"who this workspace's CRM is for, such as: manufacturing customers, suppliers and partners"`
-	CompanyPageID *string `json:"company_page_id,omitempty" jsonschema:"page ID whose full subtree supplies our company knowledge for drafting; empty clears it; omission preserves it"`
+	CompanyPageIDs    []string `json:"company_page_ids,omitempty" jsonschema:"knowledge page IDs; includes their descendants; empty removes all; omission preserves the selection; only pages in this workspace are accepted"`
+	DraftingWebAccess *bool    `json:"drafting_web_access,omitempty" jsonschema:"allow the drafting agent to search and read the public web; disabled by default"`
+	Name              *string  `json:"name,omitempty"`
+	Description       *string  `json:"description,omitempty" jsonschema:"who this workspace's CRM is for, such as: manufacturing customers, suppliers and partners"`
+	CompanyPageID     *string  `json:"company_page_id,omitempty" jsonschema:"page ID whose full subtree supplies our company knowledge for drafting; empty clears it; omission preserves it"`
 }
 
 type workspaceRef struct {

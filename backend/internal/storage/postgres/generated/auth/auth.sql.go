@@ -10,6 +10,15 @@ import (
 	"time"
 )
 
+const clearKnowledgePages = `-- name: ClearKnowledgePages :exec
+DELETE FROM workspace_knowledge_pages WHERE workspace_id = $1
+`
+
+func (q *Queries) ClearKnowledgePages(ctx context.Context, workspaceID string) error {
+	_, err := q.db.Exec(ctx, clearKnowledgePages, workspaceID)
+	return err
+}
+
 const createAPIKey = `-- name: CreateAPIKey :one
 INSERT INTO api_keys (user_id, label, hint, key_hash) VALUES ($1, $2, $3, $4) RETURNING id, user_id, label, hint, key_hash, created_at
 `
@@ -116,7 +125,7 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) er
 }
 
 const createWorkspace = `-- name: CreateWorkspace :one
-INSERT INTO workspaces (name) VALUES ($1) RETURNING id, name, created_at, description, auto_keep_email, auto_keep_meetings, auto_keep_records, auto_keep_ai, company_page_id
+INSERT INTO workspaces (name) VALUES ($1) RETURNING id, name, created_at, description, auto_keep_email, auto_keep_meetings, auto_keep_records, auto_keep_ai, company_page_id, drafting_web_access
 `
 
 func (q *Queries) CreateWorkspace(ctx context.Context, name string) (Workspace, error) {
@@ -132,6 +141,7 @@ func (q *Queries) CreateWorkspace(ctx context.Context, name string) (Workspace, 
 		&i.AutoKeepRecords,
 		&i.AutoKeepAi,
 		&i.CompanyPageID,
+		&i.DraftingWebAccess,
 	)
 	return i, err
 }
@@ -240,12 +250,28 @@ func (q *Queries) GetUser(ctx context.Context, id string) (User, error) {
 }
 
 const getWorkspace = `-- name: GetWorkspace :one
-SELECT id, name, created_at, description, auto_keep_email, auto_keep_meetings, auto_keep_records, auto_keep_ai, company_page_id FROM workspaces WHERE id = $1
+SELECT id, name, created_at, description, auto_keep_email, auto_keep_meetings,
+  auto_keep_records, auto_keep_ai, drafting_web_access,
+  ARRAY(SELECT page_id FROM workspace_knowledge_pages WHERE workspace_id = workspaces.id ORDER BY position)::uuid[] AS company_page_ids
+FROM workspaces WHERE id = $1
 `
 
-func (q *Queries) GetWorkspace(ctx context.Context, id string) (Workspace, error) {
+type GetWorkspaceRow struct {
+	ID                string
+	Name              string
+	CreatedAt         time.Time
+	Description       string
+	AutoKeepEmail     bool
+	AutoKeepMeetings  bool
+	AutoKeepRecords   bool
+	AutoKeepAi        bool
+	DraftingWebAccess bool
+	CompanyPageIDs    []string
+}
+
+func (q *Queries) GetWorkspace(ctx context.Context, id string) (GetWorkspaceRow, error) {
 	row := q.db.QueryRow(ctx, getWorkspace, id)
-	var i Workspace
+	var i GetWorkspaceRow
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
@@ -255,7 +281,8 @@ func (q *Queries) GetWorkspace(ctx context.Context, id string) (Workspace, error
 		&i.AutoKeepMeetings,
 		&i.AutoKeepRecords,
 		&i.AutoKeepAi,
-		&i.CompanyPageID,
+		&i.DraftingWebAccess,
+		&i.CompanyPageIDs,
 	)
 	return i, err
 }
@@ -489,6 +516,21 @@ func (q *Queries) ReplaceAPIKey(ctx context.Context, arg ReplaceAPIKeyParams) (A
 	return i, err
 }
 
+const setKnowledgePages = `-- name: SetKnowledgePages :exec
+INSERT INTO workspace_knowledge_pages (workspace_id, page_id, position)
+SELECT $1, page_id, position FROM unnest($2::uuid[]) WITH ORDINALITY AS selected(page_id, position)
+`
+
+type SetKnowledgePagesParams struct {
+	WorkspaceID    string
+	CompanyPageIDs []string
+}
+
+func (q *Queries) SetKnowledgePages(ctx context.Context, arg SetKnowledgePagesParams) error {
+	_, err := q.db.Exec(ctx, setKnowledgePages, arg.WorkspaceID, arg.CompanyPageIDs)
+	return err
+}
+
 const setUserAddresses = `-- name: SetUserAddresses :execrows
 UPDATE users SET addresses = $1::text[] WHERE id = $2 AND workspace_id = $3
 `
@@ -606,25 +648,32 @@ func (q *Queries) UpdateTriageSettings(ctx context.Context, arg UpdateTriageSett
 }
 
 const updateWorkspace = `-- name: UpdateWorkspace :execrows
-UPDATE workspaces SET name = $1, description = $2, company_page_id = $3
-WHERE workspaces.id = $4 AND ($3::uuid IS NULL OR EXISTS (
-  SELECT 1 FROM records JOIN objects ON objects.id = records.object_id
-  WHERE records.id = $3 AND records.workspace_id = $4 AND objects.slug = 'pages'
-))
+UPDATE workspaces SET name = COALESCE($1, name), description = COALESCE($2, description),
+  company_page_id = CASE WHEN $3::uuid[] IS NULL THEN company_page_id ELSE ($3::uuid[])[1] END,
+  drafting_web_access = COALESCE($4, drafting_web_access)
+WHERE workspaces.id = $5 AND NOT EXISTS (
+  SELECT 1 FROM unnest($3::uuid[]) AS selected(id)
+  LEFT JOIN records ON records.id = selected.id AND records.workspace_id = $5
+  LEFT JOIN objects ON objects.id = records.object_id AND objects.slug = 'pages'
+  WHERE objects.id IS NULL
+)
 `
 
 type UpdateWorkspaceParams struct {
-	Name          string
-	Description   string
-	CompanyPageID *string
-	ID            string
+	Name              *string
+	Description       *string
+	CompanyPageIDs    []string
+	DraftingWebAccess *bool
+	ID                string
 }
 
+// Keep the legacy root readable while older workers finish a rolling deployment.
 func (q *Queries) UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams) (int64, error) {
 	result, err := q.db.Exec(ctx, updateWorkspace,
 		arg.Name,
 		arg.Description,
-		arg.CompanyPageID,
+		arg.CompanyPageIDs,
+		arg.DraftingWebAccess,
 		arg.ID,
 	)
 	if err != nil {

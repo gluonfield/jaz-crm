@@ -12,6 +12,7 @@ overrides:
       author_handle_id: AuthorHandleID
       person_id: PersonID
       company_page_id: CompanyPageID
+      company_page_ids: CompanyPageIDs
       meet_code: MeetCode
       attribute_ids: AttributeIDs
       ref_record_id: RefRecordID

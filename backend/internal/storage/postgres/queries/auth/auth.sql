@@ -43,7 +43,10 @@ SELECT users.* FROM users JOIN linked ON linked.user_id = users.id ORDER BY user
 INSERT INTO workspaces (name) VALUES ($1) RETURNING *;
 
 -- name: GetWorkspace :one
-SELECT * FROM workspaces WHERE id = $1;
+SELECT id, name, created_at, description, auto_keep_email, auto_keep_meetings,
+  auto_keep_records, auto_keep_ai, drafting_web_access,
+  ARRAY(SELECT page_id FROM workspace_knowledge_pages WHERE workspace_id = workspaces.id ORDER BY position)::uuid[] AS company_page_ids
+FROM workspaces WHERE id = $1;
 
 -- name: LockWorkspace :one
 SELECT id FROM workspaces WHERE id = $1 FOR NO KEY UPDATE;
@@ -52,11 +55,23 @@ SELECT id FROM workspaces WHERE id = $1 FOR NO KEY UPDATE;
 UPDATE users SET addresses = @addresses::text[] WHERE id = @id AND workspace_id = @workspace_id;
 
 -- name: UpdateWorkspace :execrows
-UPDATE workspaces SET name = @name, description = @description, company_page_id = sqlc.narg(company_page_id)
-WHERE workspaces.id = @id AND (sqlc.narg(company_page_id)::uuid IS NULL OR EXISTS (
-  SELECT 1 FROM records JOIN objects ON objects.id = records.object_id
-  WHERE records.id = sqlc.narg(company_page_id) AND records.workspace_id = @id AND objects.slug = 'pages'
-));
+-- Keep the legacy root readable while older workers finish a rolling deployment.
+UPDATE workspaces SET name = COALESCE(sqlc.narg(name), name), description = COALESCE(sqlc.narg(description), description),
+  company_page_id = CASE WHEN @company_page_ids::uuid[] IS NULL THEN company_page_id ELSE (@company_page_ids::uuid[])[1] END,
+  drafting_web_access = COALESCE(sqlc.narg(drafting_web_access), drafting_web_access)
+WHERE workspaces.id = @id AND NOT EXISTS (
+  SELECT 1 FROM unnest(@company_page_ids::uuid[]) AS selected(id)
+  LEFT JOIN records ON records.id = selected.id AND records.workspace_id = @id
+  LEFT JOIN objects ON objects.id = records.object_id AND objects.slug = 'pages'
+  WHERE objects.id IS NULL
+);
+
+-- name: ClearKnowledgePages :exec
+DELETE FROM workspace_knowledge_pages WHERE workspace_id = $1;
+
+-- name: SetKnowledgePages :exec
+INSERT INTO workspace_knowledge_pages (workspace_id, page_id, position)
+SELECT @workspace_id, page_id, position FROM unnest(@company_page_ids::uuid[]) WITH ORDINALITY AS selected(page_id, position);
 
 -- name: DeleteWorkspace :execrows
 DELETE FROM workspaces WHERE id = $1 AND name = $2;

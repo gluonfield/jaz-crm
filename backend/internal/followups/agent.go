@@ -48,19 +48,21 @@ type Thread struct {
 // Conversation is what a planner reads: the complete stored conversation,
 // who we are, the records it concerns and their open follow-ups.
 type Conversation struct {
-	Today        string   `json:"today"`
-	Purpose      string   `json:"crm_purpose"`
-	Us           []Person `json:"us"`
-	Kind         string   `json:"kind"`
-	Channel      string   `json:"channel,omitempty"`
-	Title        string   `json:"title"`
-	Participants []Person `json:"participants"`
-	Messages     []Line   `json:"messages"`
-	Records      []Record `json:"records"`
-	FollowUps    []Open   `json:"open_follow_ups"`
-	Sender       *Person  `json:"sender,omitempty"`
-	Company      []Record `json:"company_knowledge"`
-	Description  string   `json:"description,omitempty"`
+	Today        string                     `json:"today"`
+	Purpose      string                     `json:"crm_purpose"`
+	Us           []Person                   `json:"us"`
+	Kind         string                     `json:"kind"`
+	Channel      string                     `json:"channel,omitempty"`
+	Title        string                     `json:"title"`
+	Participants []Person                   `json:"participants"`
+	Messages     []Line                     `json:"messages"`
+	Records      []Record                   `json:"records"`
+	FollowUps    []Open                     `json:"open_follow_ups"`
+	Sender       *Person                    `json:"sender,omitempty"`
+	Company      []Record                   `json:"company_knowledge"`
+	Description  string                     `json:"description,omitempty"`
+	History      []interactions.Interaction `json:"contact_history"`
+	WebAccess    bool                       `json:"web_access"`
 }
 
 // Context is a person's updated relationship summary returned by the planner.

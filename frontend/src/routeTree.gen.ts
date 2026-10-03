@@ -18,6 +18,12 @@ import { Route as AppTriageRouteImport } from './routes/_app/triage'
 import { Route as AppIInteractionIdRouteImport } from './routes/_app/i.$interactionId'
 import { Route as AppOObjectRouteImport } from './routes/_app/o.$object'
 import { Route as AppRRecordIdRouteImport } from './routes/_app/r.$recordId'
+import { Route as AppSettingsIndexRouteImport } from './routes/_app/settings.index'
+import { Route as AppSettingsAccessRouteImport } from './routes/_app/settings.access'
+import { Route as AppSettingsDraftingRouteImport } from './routes/_app/settings.drafting'
+import { Route as AppSettingsSchemaRouteImport } from './routes/_app/settings.schema'
+import { Route as AppSettingsTeamRouteImport } from './routes/_app/settings.team'
+import { Route as AppSettingsTriageRouteImport } from './routes/_app/settings.triage'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -63,38 +69,85 @@ const AppRRecordIdRoute = AppRRecordIdRouteImport.update({
   path: '/r/$recordId',
   getParentRoute: () => AppRoute,
 } as any)
+const AppSettingsIndexRoute = AppSettingsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsAccessRoute = AppSettingsAccessRouteImport.update({
+  id: '/access',
+  path: '/access',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsDraftingRoute = AppSettingsDraftingRouteImport.update({
+  id: '/drafting',
+  path: '/drafting',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsSchemaRoute = AppSettingsSchemaRouteImport.update({
+  id: '/schema',
+  path: '/schema',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsTeamRoute = AppSettingsTeamRouteImport.update({
+  id: '/team',
+  path: '/team',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsTriageRoute = AppSettingsTriageRouteImport.update({
+  id: '/triage',
+  path: '/triage',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/workspace-deleted': typeof WorkspaceDeletedRoute
   '/connections': typeof AppConnectionsRoute
-  '/settings': typeof AppSettingsRoute
+  '/settings': typeof AppSettingsRouteWithChildren
   '/triage': typeof AppTriageRoute
   '/i/$interactionId': typeof AppIInteractionIdRoute
   '/o/$object': typeof AppOObjectRoute
   '/r/$recordId': typeof AppRRecordIdRoute
+  '/settings/access': typeof AppSettingsAccessRoute
+  '/settings/drafting': typeof AppSettingsDraftingRoute
+  '/settings/schema': typeof AppSettingsSchemaRoute
+  '/settings/team': typeof AppSettingsTeamRoute
+  '/settings/triage': typeof AppSettingsTriageRoute
+  '/settings/': typeof AppSettingsIndexRoute
 }
 export interface FileRoutesByTo {
   '/workspace-deleted': typeof WorkspaceDeletedRoute
   '/connections': typeof AppConnectionsRoute
-  '/settings': typeof AppSettingsRoute
   '/triage': typeof AppTriageRoute
   '/': typeof AppIndexRoute
   '/i/$interactionId': typeof AppIInteractionIdRoute
   '/o/$object': typeof AppOObjectRoute
   '/r/$recordId': typeof AppRRecordIdRoute
+  '/settings/access': typeof AppSettingsAccessRoute
+  '/settings/drafting': typeof AppSettingsDraftingRoute
+  '/settings/schema': typeof AppSettingsSchemaRoute
+  '/settings/team': typeof AppSettingsTeamRoute
+  '/settings/triage': typeof AppSettingsTriageRoute
+  '/settings': typeof AppSettingsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
   '/workspace-deleted': typeof WorkspaceDeletedRoute
   '/_app/connections': typeof AppConnectionsRoute
-  '/_app/settings': typeof AppSettingsRoute
+  '/_app/settings': typeof AppSettingsRouteWithChildren
   '/_app/triage': typeof AppTriageRoute
   '/_app/': typeof AppIndexRoute
   '/_app/i/$interactionId': typeof AppIInteractionIdRoute
   '/_app/o/$object': typeof AppOObjectRoute
   '/_app/r/$recordId': typeof AppRRecordIdRoute
+  '/_app/settings/access': typeof AppSettingsAccessRoute
+  '/_app/settings/drafting': typeof AppSettingsDraftingRoute
+  '/_app/settings/schema': typeof AppSettingsSchemaRoute
+  '/_app/settings/team': typeof AppSettingsTeamRoute
+  '/_app/settings/triage': typeof AppSettingsTriageRoute
+  '/_app/settings/': typeof AppSettingsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -107,16 +160,27 @@ export interface FileRouteTypes {
     | '/i/$interactionId'
     | '/o/$object'
     | '/r/$recordId'
+    | '/settings/access'
+    | '/settings/drafting'
+    | '/settings/schema'
+    | '/settings/team'
+    | '/settings/triage'
+    | '/settings/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/workspace-deleted'
     | '/connections'
-    | '/settings'
     | '/triage'
     | '/'
     | '/i/$interactionId'
     | '/o/$object'
     | '/r/$recordId'
+    | '/settings/access'
+    | '/settings/drafting'
+    | '/settings/schema'
+    | '/settings/team'
+    | '/settings/triage'
+    | '/settings'
   id:
     | '__root__'
     | '/_app'
@@ -128,6 +192,12 @@ export interface FileRouteTypes {
     | '/_app/i/$interactionId'
     | '/_app/o/$object'
     | '/_app/r/$recordId'
+    | '/_app/settings/access'
+    | '/_app/settings/drafting'
+    | '/_app/settings/schema'
+    | '/_app/settings/team'
+    | '/_app/settings/triage'
+    | '/_app/settings/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -200,12 +270,76 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppRRecordIdRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/settings/': {
+      id: '/_app/settings/'
+      path: '/'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof AppSettingsIndexRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/access': {
+      id: '/_app/settings/access'
+      path: '/access'
+      fullPath: '/settings/access'
+      preLoaderRoute: typeof AppSettingsAccessRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/drafting': {
+      id: '/_app/settings/drafting'
+      path: '/drafting'
+      fullPath: '/settings/drafting'
+      preLoaderRoute: typeof AppSettingsDraftingRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/schema': {
+      id: '/_app/settings/schema'
+      path: '/schema'
+      fullPath: '/settings/schema'
+      preLoaderRoute: typeof AppSettingsSchemaRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/team': {
+      id: '/_app/settings/team'
+      path: '/team'
+      fullPath: '/settings/team'
+      preLoaderRoute: typeof AppSettingsTeamRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/triage': {
+      id: '/_app/settings/triage'
+      path: '/triage'
+      fullPath: '/settings/triage'
+      preLoaderRoute: typeof AppSettingsTriageRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
   }
 }
 
+interface AppSettingsRouteChildren {
+  AppSettingsAccessRoute: typeof AppSettingsAccessRoute
+  AppSettingsDraftingRoute: typeof AppSettingsDraftingRoute
+  AppSettingsSchemaRoute: typeof AppSettingsSchemaRoute
+  AppSettingsTeamRoute: typeof AppSettingsTeamRoute
+  AppSettingsTriageRoute: typeof AppSettingsTriageRoute
+  AppSettingsIndexRoute: typeof AppSettingsIndexRoute
+}
+
+const AppSettingsRouteChildren: AppSettingsRouteChildren = {
+  AppSettingsAccessRoute: AppSettingsAccessRoute,
+  AppSettingsDraftingRoute: AppSettingsDraftingRoute,
+  AppSettingsSchemaRoute: AppSettingsSchemaRoute,
+  AppSettingsTeamRoute: AppSettingsTeamRoute,
+  AppSettingsTriageRoute: AppSettingsTriageRoute,
+  AppSettingsIndexRoute: AppSettingsIndexRoute,
+}
+
+const AppSettingsRouteWithChildren = AppSettingsRoute._addFileChildren(
+  AppSettingsRouteChildren,
+)
+
 interface AppRouteChildren {
   AppConnectionsRoute: typeof AppConnectionsRoute
-  AppSettingsRoute: typeof AppSettingsRoute
+  AppSettingsRoute: typeof AppSettingsRouteWithChildren
   AppTriageRoute: typeof AppTriageRoute
   AppIndexRoute: typeof AppIndexRoute
   AppIInteractionIdRoute: typeof AppIInteractionIdRoute
@@ -215,7 +349,7 @@ interface AppRouteChildren {
 
 const AppRouteChildren: AppRouteChildren = {
   AppConnectionsRoute: AppConnectionsRoute,
-  AppSettingsRoute: AppSettingsRoute,
+  AppSettingsRoute: AppSettingsRouteWithChildren,
   AppTriageRoute: AppTriageRoute,
   AppIndexRoute: AppIndexRoute,
   AppIInteractionIdRoute: AppIInteractionIdRoute,

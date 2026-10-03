@@ -41,8 +41,19 @@ func (s *Store) CreateOwnedWorkspace(ctx context.Context, name string, owner sto
 	return one(toUser)(user, err)
 }
 
-func (s *Store) UpdateWorkspace(ctx context.Context, workspace storage.Workspace) error {
-	return affected(s.auth.UpdateWorkspace(ctx, authdb.UpdateWorkspaceParams{ID: workspace.ID, Name: workspace.Name, Description: workspace.Description, CompanyPageID: workspace.CompanyPageID}))
+func (s *Store) UpdateWorkspace(ctx context.Context, workspaceID string, update storage.WorkspaceUpdate) error {
+	return s.tx(ctx, func(a *authdb.Queries, _ *recdb.Queries) error {
+		if err := affected(a.UpdateWorkspace(ctx, authdb.UpdateWorkspaceParams{ID: workspaceID, Name: update.Name, Description: update.Description, CompanyPageIDs: update.CompanyPageIDs, DraftingWebAccess: update.DraftingWebAccess})); err != nil {
+			return err
+		}
+		if update.CompanyPageIDs == nil {
+			return nil
+		}
+		if err := a.ClearKnowledgePages(ctx, workspaceID); err != nil {
+			return err
+		}
+		return a.SetKnowledgePages(ctx, authdb.SetKnowledgePagesParams{WorkspaceID: workspaceID, CompanyPageIDs: update.CompanyPageIDs})
+	})
 }
 
 func (s *Store) SetUserAddresses(ctx context.Context, workspaceID, userID string, addresses []string) error {
