@@ -149,6 +149,7 @@ type Agent struct {
 	convs      *interactions.Service
 	planner    Planner
 	summarizer Summarizer
+	rewriter   Rewriter
 	logger     *log.Logger
 }
 
@@ -162,10 +163,11 @@ type AgentParams struct {
 	// agent idles.
 	Planner    Planner    `optional:"true"`
 	Summarizer Summarizer `optional:"true"`
+	Rewriter   Rewriter   `optional:"true"`
 }
 
 func NewAgent(p AgentParams) *Agent {
-	return &Agent{Service: p.Service, workspaces: p.Workspaces, convs: p.Interactions, planner: p.Planner, summarizer: p.Summarizer, logger: p.Logger.WithPrefix("follow-ups")}
+	return &Agent{Service: p.Service, workspaces: p.Workspaces, convs: p.Interactions, planner: p.Planner, summarizer: p.Summarizer, rewriter: p.Rewriter, logger: p.Logger.WithPrefix("follow-ups")}
 }
 
 const (

@@ -60,7 +60,7 @@ func (a *Agent) conversation(ctx context.Context, actor auth.Actor, conv interac
 	for _, u := range users {
 		person := Person{Name: u.Name, Address: u.Email}
 		in.Us = append(in.Us, person)
-		if len(stored) == 1 && stored[0].UserID != nil && *stored[0].UserID == u.ID {
+		if len(stored) == 1 && stored[0].UserID != nil && *stored[0].UserID == u.ID || len(stored) == 0 && u.ID == actor.UserID {
 			in.Sender = &person
 		}
 	}
@@ -154,7 +154,7 @@ func (a *Agent) contactHistory(ctx context.Context, actor auth.Actor, currentID 
 	out := []interactions.Interaction{}
 	seen := map[string]bool{currentID: true}
 	for _, contact := range contacts {
-		if contact.Object != "people" {
+		if contact.Object != "people" && contact.Object != records.FollowUps {
 			continue
 		}
 		for cursor := ""; ; {

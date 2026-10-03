@@ -57,6 +57,7 @@ type Services struct {
 	Connections  *connections.Service
 	Logos        *logos.Service
 	FollowUps    *followups.Service
+	Drafting     *followups.Agent
 }
 
 func NewHandler(svc Services, keys *auth.Service, logger *log.Logger) *Handler {
@@ -71,7 +72,7 @@ func NewHandler(svc Services, keys *auth.Service, logger *log.Logger) *Handler {
 	registerWorkspace(r, svc.Workspaces, keys)
 	registerInteractions(r, svc.Interactions)
 	registerConnections(r, svc.Connections, keys.Issuer())
-	registerFollowUps(r, svc.FollowUps)
+	registerFollowUps(r, svc.FollowUps, svc.Drafting)
 	registerApp(r, keys.Issuer())
 	registerProfile(r, keys)
 	verify := func(ctx context.Context, token string, _ *http.Request) (*mcpauth.TokenInfo, error) {

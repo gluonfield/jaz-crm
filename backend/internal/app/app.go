@@ -48,12 +48,13 @@ func shared(cfg Config) fx.Option {
 			interactions.NewService,
 			connections.NewService,
 			followups.NewService,
+			followups.NewAgent,
 			worker.NewClient,
 			fx.Annotate(worker.NewStarter, fx.As(fx.Self()), fx.As(new(connections.Syncer))),
 		),
 	}
 	if cfg.LLM.APIKey != "" {
-		options = append(options, fx.Supply(cfg.LLM), fx.Provide(fx.Annotate(llm.New, fx.As(new(interactions.Classifier)), fx.As(new(followups.Planner)), fx.As(new(followups.Summarizer)))))
+		options = append(options, fx.Supply(cfg.LLM), fx.Provide(fx.Annotate(llm.New, fx.As(new(interactions.Classifier)), fx.As(new(followups.Planner)), fx.As(new(followups.Summarizer)), fx.As(new(followups.Rewriter)))))
 	}
 	return fx.Options(options...)
 }
@@ -78,7 +79,7 @@ func Server(cfg Config) fx.Option {
 func Worker(cfg Config) fx.Option {
 	return fx.Options(
 		shared(cfg),
-		fx.Provide(followups.NewAgent, worker.NewActivities, worker.NewWorker),
+		fx.Provide(worker.NewActivities, worker.NewWorker),
 		fx.Invoke(worker.Run),
 	)
 }

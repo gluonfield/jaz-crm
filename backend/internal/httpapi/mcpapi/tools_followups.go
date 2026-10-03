@@ -8,7 +8,12 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-func registerFollowUps(r *registry, svc *followups.Service) {
+func registerFollowUps(r *registry, svc *followups.Service, drafting *followups.Agent) {
+	add(r, &mcp.Tool{Name: "rewrite_draft", Title: "Edit draft with AI", Annotations: readOnly, Meta: mcp.Meta{"ui": map[string]any{"visibility": []string{"app"}}},
+		Description: "Propose an edit to the current draft in one model call using stored conversation and CRM context. Does not save or send."},
+		func(ctx context.Context, actor auth.Actor, in rewriteInput) (followups.RewriteResult, error) {
+			return drafting.Rewrite(ctx, actor, in.RecordID, followups.RewriteInput{Draft: in.Draft, Subject: in.Subject, From: in.From, To: in.To, Cc: in.Cc, Action: in.Action, Instruction: in.Instruction})
+		})
 	add(r, &mcp.Tool{Name: "save_draft", Title: "Save draft", Meta: mcp.Meta{"ui": map[string]any{"visibility": []string{"app"}}},
 		Description: "Save the reply edited in the CRM composer. Replaces draft text, subject, channel and recipients; editing withdraws prior approval."},
 		func(ctx context.Context, actor auth.Actor, in saveDraftInput) (saveDraftOutput, error) {
@@ -26,6 +31,17 @@ func registerFollowUps(r *registry, svc *followups.Service) {
 		func(ctx context.Context, actor auth.Actor, in recordInput) (followups.Sender, error) {
 			return svc.Sender(ctx, actor, in.RecordID)
 		})
+}
+
+type rewriteInput struct {
+	RecordID    string   `json:"record_id"`
+	Draft       string   `json:"draft"`
+	Subject     string   `json:"subject"`
+	From        string   `json:"from,omitempty"`
+	To          []string `json:"to,omitempty"`
+	Cc          []string `json:"cc,omitempty"`
+	Action      string   `json:"action"`
+	Instruction string   `json:"instruction,omitempty"`
 }
 
 type saveDraftOutput struct {
