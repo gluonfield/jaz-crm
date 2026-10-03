@@ -6,7 +6,7 @@
 - [x] Search historical action text/recipients without hiding the current action. Apply filters and pagination with conversation counts.
 - [x] Verify real database/API behavior, full Go and frontend suites/builds, and strict review. Removing grouping reproduces the five-row bug in the regression test.
 - [ ] Visual and action-switch browser acceptance: blocked by side-browser CDP timeouts despite connected status.
-- [ ] Commit, push and verify the deployed screenshot case.
+- [x] Commit and push `9206e09`; Server `1764df36` and Worker `c993c076` are SUCCESS on that revision. Health and the production-data query pass; visual screenshot acceptance remains blocked as above.
 
 The queue is a projection. No production records, drafts or messages are deleted or merged. The table remains a record-level view.
 
