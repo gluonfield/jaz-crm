@@ -243,7 +243,7 @@ function Draft({ record, channel, sender, error, drafting }: { record: CrmRecord
   // draft it wrote; addresses show while a reply is being written.
   const status = drafting && (drafting.state !== 'completed' || current) ? drafting : undefined
   return (
-    <div className="group rounded-[var(--radius-card)] border border-border bg-bg transition-colors duration-150 focus-within:border-primary">
+    <div className="group rounded-[var(--radius-card)] bg-list-hover transition-colors duration-150 focus-within:bg-list-active">
       {status && <p role="status" aria-live="polite" className="flex items-start gap-1.5 px-3 pt-2 text-[12px] leading-[18px] text-ink-3">
         {status.state === 'drafting' && <LoaderCircle aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 animate-spin motion-reduce:animate-none" />}
         <span>
