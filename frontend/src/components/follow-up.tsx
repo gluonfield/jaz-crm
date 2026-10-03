@@ -1,4 +1,4 @@
-import { ArrowLeft, Check, LoaderCircle } from 'lucide-react'
+import { ArrowLeft, Check, LoaderCircle, NotebookText } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
@@ -71,6 +71,8 @@ export function Conversation({ record, onClose }: { record: CrmRecord; onClose: 
   const error = conversations.error ?? thread.error
   const due = text(record, 'action_date')
   const zone = useWorkspace()?.timezone ?? 'UTC'
+  // Whether context shows is one choice for every follow-up.
+  const [showContext, setShowContext] = useState(() => readItem(contextHidden) !== 'true')
   const body = useStickToBottom()
   return (
     <section data-conversation aria-label={recordName(record)} className="flex min-w-0 flex-1 flex-col">
@@ -95,11 +97,18 @@ export function Conversation({ record, onClose }: { record: CrmRecord; onClose: 
           </p>}
         </div>
         <div className="ml-auto flex shrink-0 items-center gap-1.5">
+          {person && <Button variant="ghost" aria-pressed={showContext} className={cn(showContext && 'bg-list-active text-ink hover:bg-list-active')} onClick={() => {
+            writeItem(contextHidden, String(showContext))
+            setShowContext(!showContext)
+          }}>
+            <NotebookText />
+            Context
+          </Button>}
           <DateField record={record} prefix="Action" />
           <Done record={record} labelled className="bg-list-hover hover:bg-list-active" />
         </div>
       </header>
-      {context.data && <Context record={context.data} />}
+      {showContext && context.data && <Context record={context.data} />}
       <div ref={body} className="scrollbar-quiet min-h-0 flex-1 overflow-y-auto px-6 py-5 @4xl:px-8">
         <div className="flex flex-col gap-3.5">
           {loading ? (
@@ -156,25 +165,18 @@ function useStickToBottom() {
 const contextHidden = 'follow-ups:context-hidden'
 
 // Context is what we know of the person, as its markdown says it, to edit in
-// place or fold away for every follow-up.
+// place; without any it is a field to write it in.
 function Context({ record }: { record: CrmRecord }) {
   const context = text(record, 'context')
-  const [hidden, setHidden] = useState(() => readItem(contextHidden) === 'true')
   const [editing, setEditing] = useState(false)
-  const action = 'text-[12px] text-ink-3 outline-none hover:text-ink focus-visible:text-ink'
   return (
-    <section aria-label={`${recordName(record)} context`} className="shrink-0 border-b border-border bg-surface px-6 py-3">
-      <div className="flex items-center gap-3">
-        <h3 className="text-[11.5px] font-semibold uppercase tracking-[0.04em] text-ink-3">Context</h3>
-        {!editing && <button type="button" className={cn(action, 'ml-auto')} onClick={() => setEditing(true)}>{context ? 'Edit' : 'Add'}</button>}
-        {context && !editing && <button type="button" aria-expanded={!hidden} className={action} onClick={() => {
-          writeItem(contextHidden, String(!hidden))
-          setHidden(!hidden)
-        }}>{hidden ? 'Show' : 'Hide'}</button>}
-      </div>
-      {editing
-        ? <ContextEditor record={record} autoFocus onDone={() => setEditing(false)} className="mt-1.5 min-h-16" />
-        : context && !hidden && <div className="scrollbar-quiet mt-1.5 max-h-40 overflow-y-auto"><MarkdownView text={context} /></div>}
+    <section aria-label={`${recordName(record)} context`} className="flex shrink-0 items-start gap-3 border-b border-border bg-surface px-6 py-3">
+      {editing || !context
+        ? <ContextEditor record={record} autoFocus={editing} onDone={() => setEditing(false)} className="min-h-12 flex-1 resize-none" />
+        : <>
+          <div className="scrollbar-quiet max-h-40 min-w-0 flex-1 overflow-y-auto"><MarkdownView text={context} /></div>
+          <button type="button" className="shrink-0 text-[12px] text-ink-3 outline-none hover:text-ink focus-visible:text-ink" onClick={() => setEditing(true)}>Edit</button>
+        </>}
     </section>
   )
 }
