@@ -57,15 +57,20 @@ export function Conversation({ record: initialRecord, onClose }: { record: CrmRe
   })
   const conversation = thread.data ?? conversations.data?.interactions[0]
   const actions = useRecordPages({ object: 'follow_ups', conversation_id: initialRecord.conversation_id, limit: 100 }, { enabled: !!initialRecord.conversation_id, all: true })
-  const [selectedAction, setSelectedAction] = useState(initialRecord.id)
-  const record = actions.records?.find((action) => action.id === selectedAction) ?? initialRecord
+  const [selectedAction, setSelectedAction] = useState(initialRecord)
+  const record = initialRecord.conversation_id
+    ? actions.records?.find((action) => action.id === selectedAction.id) ?? selectedAction
+    : initialRecord
+  if (record !== selectedAction) {
+    setSelectedAction(record)
+  }
   const [switching, setSwitching] = useState(false)
   const draft = useRef<DraftHandle>(null)
-  const selectAction = async (id: string) => {
+  const selectAction = async (action: CrmRecord) => {
     setSwitching(true)
     try {
       if (await draft.current?.save()) {
-        setSelectedAction(id)
+        setSelectedAction(action)
       }
     } catch {
       // The current editor retains its text and displays the save error.
@@ -130,7 +135,7 @@ export function Conversation({ record: initialRecord, onClose }: { record: CrmRe
           <Done record={record} labelled className="bg-list-hover hover:bg-list-active" />
         </div>
       </header>
-      {initialRecord.conversation_id && actions.records && actions.records.length > 1 && <ConversationActions records={actions.records} selected={record} pending={switching} onSelect={(id) => void selectAction(id)} />}
+      {initialRecord.conversation_id && actions.records && actions.records.length > 1 && <ConversationActions records={actions.records} selected={record} pending={switching} onSelect={(action) => void selectAction(action)} />}
       {showContext && context.data && <Context record={context.data} />}
       <div ref={body} className="scrollbar-quiet min-h-0 flex-1 overflow-y-auto px-6 py-5 @4xl:px-8">
         <div className="flex flex-col gap-3.5">
@@ -160,7 +165,7 @@ export function Conversation({ record: initialRecord, onClose }: { record: CrmRe
   )
 }
 
-function ConversationActions({ records, selected, pending, onSelect }: { records: CrmRecord[]; selected: CrmRecord; pending: boolean; onSelect: (id: string) => void }) {
+function ConversationActions({ records, selected, pending, onSelect }: { records: CrmRecord[]; selected: CrmRecord; pending: boolean; onSelect: (record: CrmRecord) => void }) {
   const status = (record: CrmRecord) => text(record, 'status') || 'Open'
   const open = records.filter((record) => status(record) === 'Open')
   const ordered = [...open, ...records.filter((record) => status(record) !== 'Open')]
@@ -175,7 +180,7 @@ function ConversationActions({ records, selected, pending, onSelect }: { records
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-[min(420px,calc(100vw-32px))]">
-          {ordered.map((record) => <DropdownMenuItem key={record.id} onSelect={() => onSelect(record.id)} className="h-auto min-h-10 py-2">
+          {ordered.map((record) => <DropdownMenuItem key={record.id} onSelect={() => onSelect(record)} className="h-auto min-h-10 py-2">
             <div className="min-w-0 flex-1">
               <p className="text-pretty [overflow-wrap:anywhere]">{recordName(record)}</p>
               <p className="mt-0.5 text-[12px] text-ink-3">{status(record)}{status(record) === 'Open' && (text(record, 'waiting_on') === 'Them' ? ' · Waiting on them' : ' · Needs attention')}</p>

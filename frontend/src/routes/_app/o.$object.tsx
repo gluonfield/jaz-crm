@@ -1,5 +1,5 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
-import { ArrowDownAZ, ArrowUp, Kanban, ListChecks, Plus, Search, Table2 } from 'lucide-react'
+import { ArrowDownAZ, ArrowUp, Kanban, ListChecks, Plus, Search, Table2, X } from 'lucide-react'
 import { type ReactNode, useMemo, useRef, useState } from 'react'
 import { Board } from '@/components/board'
 import { CompanyPeople } from '@/components/company-people'
@@ -53,26 +53,27 @@ function ObjectList({ slug }: { slug: string }) {
   const objects = useObjects()
   const object = objects?.find((o) => o.slug === slug)
   const search = Route.useSearch()
-  const { sort, view, q = '', filters = slug === 'follow_ups' ? [{ attribute: 'status', operator: 'is', value: 'Open' }] : [], saved, limit = 100 } = search
+  const { sort, view, q = '', filters = slug === 'follow_ups' ? [{ attribute: 'status', operator: 'is', value: 'Open' }] : [], saved, limit = 100, conversation_id } = search
   const query = useDebounced(q.trim())
-  const queue = slug === 'follow_ups' && view !== 'table'
+  const queue = slug === 'follow_ups' && (view ? view !== 'table' : search.group_by_conversation !== false)
+  const scope = { group_by_conversation: slug === 'follow_ups' ? queue : undefined, conversation_id }
   const status = object && statusOf(object.attributes)
   // The workspace's own tables open as tables, the CRM's pipelines as boards.
   const board = slug !== 'follow_ups' && (view ?? (object?.standard ? 'board' : 'table')) === 'board' ? status : undefined
   const everything = !!board || queue
-  const result = useRecordPages({ object: slug, query, filters, include: slug === 'companies' ? [{ object: 'people', attribute: 'company', limit: 4 }] : undefined, sort: sort ?? (slug === 'follow_ups' ? 'action_date' : undefined), limit, group_by_conversation: queue || undefined }, { all: everything })
+  const result = useRecordPages({ object: slug, ...scope, query, filters, include: slug === 'companies' ? [{ object: 'people', attribute: 'company', limit: 4 }] : undefined, sort: sort ?? (slug === 'follow_ups' ? 'action_date' : undefined), limit }, { all: everything })
   const { total, hasNextPage, isFetchingNextPage, fetchNextPage } = result
   const zone = useWorkspace()?.timezone ?? 'UTC'
   // A queue reads in the order it shows, most urgent first.
   const records = useMemo(() => queue && result.records ? byUrgency(result.records, zone).map((item) => item.record) : result.records, [queue, result.records, zone])
   // Searching narrows a view, so the queue says how much of it shows.
-  const unsearched = useTool<{ total: number }>('search_records', { object: slug, query: '', filters, limit: 1, group_by_conversation: true }, { enabled: queue && !!query }).data?.total
+  const unsearched = useTool<{ total: number }>('search_records', { object: slug, ...scope, query: '', filters, limit: 1 }, { enabled: queue && !!query }).data?.total
   const { width, resize } = useColumnWidths(slug)
   const end = useRef<HTMLDivElement>(null)
   useInView(end, !everything && !!hasNextPage && !isFetchingNextPage, fetchNextPage)
   const navigate = useNavigate()
   const openRecord = (index: number) => records && navigate({ to: '/r/$recordId', params: { recordId: records[index].id } })
-  const [focus, setFocus] = useListKeys(records?.map((r) => r.conversation_id ?? r.id) ?? [], queue ? { Enter: editDraft, Escape: () => setFocus(-1) } : { Enter: openRecord, o: openRecord })
+  const [focus, setFocus] = useListKeys(records?.map((r) => queue ? r.conversation_id ?? r.id : r.id) ?? [], queue ? { Enter: editDraft, Escape: () => setFocus(-1) } : { Enter: openRecord, o: openRecord })
   const [creating, setCreating] = useState(false)
   const rows = useRef<HTMLTableSectionElement>(null)
   useFlip(rows)
@@ -83,11 +84,12 @@ function ObjectList({ slug }: { slug: string }) {
   // The CRM's objects show their choices first; the workspace's own tables keep the order columns were added in.
   const columns = object.attributes.filter((a) => a.slug !== 'name' && a.type !== 'markdown' && !(slug === 'follow_ups' && dateMetadata(a.slug))).sort((a, b) => (own ? 0 : Number(b.type === 'select') - Number(a.type === 'select')))
   const recordFilters = (title = false) => (
-    <RecordFilters key={slug} object={object} filters={filters} query={q} selected={saved} title={title} total={total}
+    <RecordFilters key={slug} object={object} filters={filters} query={q} scope={scope} selected={saved} title={title} total={total}
       onChange={(filters) => void navigate({ to: '.', search: (previous) => ({ ...previous, filters }), replace: true })}
       onApply={(saved) => void navigate({ to: '.', search: (previous) => ({ ...previous, filters: saved?.filters ?? [], q: saved?.query, saved: saved?.id }), replace: true })}
     />
   )
+  const conversationFilter = conversation_id && <Button variant="ghost" aria-label="Clear conversation filter" title="Show all conversations" onClick={() => void navigate({ to: '.', search: (previous) => ({ ...previous, conversation_id: undefined }), replace: true })}>This conversation<X /></Button>
   const sortName = sort === 'name' ? 'Name' : slug === 'follow_ups' ? 'Action date' : 'Recently added'
   const sorter = (trigger: ReactNode) => (
     <Picker
@@ -124,6 +126,7 @@ function ObjectList({ slug }: { slug: string }) {
           </Button>,
         )}
       </div>
+      {conversationFilter && <div>{conversationFilter}</div>}
       <label className="flex h-8 items-center gap-2 rounded-[8px] bg-list-hover px-2.5 text-ink-3 transition-colors focus-within:bg-list-active">
         <Search className="size-3.5 shrink-0" />
         <input
@@ -151,12 +154,13 @@ function ObjectList({ slug }: { slug: string }) {
         <ObjectIcon slug={slug} />
         <span className="whitespace-nowrap">{object.name}</span>
         {total !== undefined && <span className="font-normal tabular-nums text-ink-3">{total}</span>}
+        {conversationFilter}
         {status && (
           <div role="group" aria-label="View" className="ml-2 flex h-7 items-center rounded-full bg-list-hover p-0.5">
-            <ViewButton active={!!board} label={slug === 'follow_ups' ? 'Queue' : 'Board'} onClick={() => void navigate({ to: '.', search: { ...search, view: own ? 'board' : undefined }, replace: true })}>
+            <ViewButton active={!!board} label={slug === 'follow_ups' ? 'Queue' : 'Board'} onClick={() => void navigate({ to: '.', search: { ...search, view: own ? 'board' : undefined, group_by_conversation: slug === 'follow_ups' ? true : undefined }, replace: true })}>
               {slug === 'follow_ups' ? <ListChecks /> : <Kanban />}
             </ViewButton>
-            <ViewButton active={!board} label="Table" onClick={() => void navigate({ to: '.', search: { ...search, view: own ? undefined : 'table' }, replace: true })}>
+            <ViewButton active={!board} label="Table" onClick={() => void navigate({ to: '.', search: { ...search, view: own ? undefined : 'table', group_by_conversation: slug === 'follow_ups' ? false : undefined }, replace: true })}>
               <Table2 />
             </ViewButton>
           </div>

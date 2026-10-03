@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
+	"github.com/gluonfield/jaz-crm/backend/internal/records"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -67,8 +68,8 @@ func registerApp(r *registry, publicURL string) {
 	}
 	r.server.AddResource(&mcp.Resource{URI: appURI, Name: "jaz-crm", Title: "Jaz CRM", MIMEType: appMIME}, readApp)
 	r.server.AddResourceTemplate(&mcp.ResourceTemplate{
-		URITemplate: "ui://jaz-crm/o/{object}{?q,filters,where,limit,view}", Name: "crm-records", Title: "CRM records", MIMEType: appMIME,
-		Description: `Render an object's records with URL filters. q is text; filters is a JSON array of attribute/operator/value conditions, all of which must match; where maps attribute slugs to exact values. limit is at most 100; view=table selects a table. URL-encode query values.`,
+		URITemplate: "ui://jaz-crm/o/{object}{?q,filters,where,limit,view,group_by_conversation,conversation_id}", Name: "crm-records", Title: "CRM records", MIMEType: appMIME,
+		Description: `Render an object's records with URL filters. q is text; filters is a JSON array of attribute/operator/value conditions, all of which must match; where maps attribute slugs to exact values. limit is at most 100; view=table selects a table. For follow_ups, group_by_conversation selects one row per conversation and conversation_id limits actions to that conversation. URL-encode query values.`,
 	}, readApp)
 	r.server.AddResourceTemplate(&mcp.ResourceTemplate{
 		URITemplate: "ui://jaz-crm/r/{record_id}", Name: "crm-record", Title: "CRM record", MIMEType: appMIME,
@@ -110,6 +111,18 @@ func recordSearchURI(in searchInput) string {
 	if len(in.Filters) > 0 {
 		filters, _ := json.Marshal(in.Filters)
 		params.Set("filters", string(filters))
+	}
+	if in.Object == records.FollowUps {
+		params.Set("group_by_conversation", strconv.FormatBool(in.GroupByConversation))
+		if !in.GroupByConversation {
+			params.Set("view", "table")
+		}
+		if len(in.Filters) == 0 {
+			params.Set("filters", "[]")
+		}
+	}
+	if in.ConversationID != "" {
+		params.Set("conversation_id", in.ConversationID)
 	}
 	if in.Limit > 0 {
 		params.Set("limit", strconv.Itoa(min(in.Limit, 100)))

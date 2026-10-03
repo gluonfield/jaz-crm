@@ -13,3 +13,15 @@ The queue is a projection. No production records, drafts or messages are deleted
 Only actions with a single eligible conversation are grouped. Actions spanning multiple conversations remain separate. The action selector preserves edits during delayed or failed saves; grouped pages use conversation identity to avoid duplicate rows when the representative changes between pages.
 
 Read-only production-data check: the exact generated grouped SQL with query `statukai` returns one row, the current Open/Them booking action, for conversation `e01c5237-f67b-4033-a91f-21589b0708c8`. The same nine follow-up records remain stored.
+
+## Strict review
+
+- [x] Preserve the selected action and its latest record while history loads or a refresh changes the queue representative. Real React probes reproduce the original lost edit and stale saved-body fallback, then pass with the fix.
+- [x] Preserve grouping and conversation scope through MCP resource links, the decoder, inline refetch and the full route. Raw history opens as an unfiltered table; scope is visible and clearable. API replay and normal frontend tests cover the contract.
+- [x] Make saved-view counts use the queue's grouping and scope. A rendered component probe shows one conversation; restoring the old request reproduces five actions.
+- [x] Keep record identity for keyboard navigation in the raw history table, where multiple actions share a conversation ID.
+- [x] Exercise delayed saves, continued typing, failed saves and successful retries through the real composer and action menu in a temporary React DOM harness. No emails sent.
+- [x] Final full Go build/vet/tests and frontend tests/typecheck/lint/web and embedded builds.
+- [ ] Production rollout of the review fixes.
+
+Native browser visual acceptance remains blocked by Jaz CDP timeouts. React DOM checks establish state and interaction behavior, not layout or native pointer behavior.

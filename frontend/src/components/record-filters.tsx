@@ -2,6 +2,7 @@ import { Bookmark, ChevronDown, ListFilter, Plus, Save, Trash2 } from 'lucide-re
 import { useQueries } from '@tanstack/react-query'
 import { useState } from 'react'
 import { toolQuery, useAction, useTool } from '@/lib/queries'
+import type { RecordSearchScope } from '@/lib/record-search'
 import type { CrmObject, RecordFilter, SavedFilter } from '@/lib/types'
 import { Button } from '@jaz/ui/button'
 import { inputClass } from './controls'
@@ -13,12 +14,12 @@ import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
 // RecordFilters picks a saved filter and edits the conditions. As a list's
 // title it is instead the view's name and count over a menu of views with
 // theirs, where search narrows the view without editing it.
-export function RecordFilters({ object, filters, query, selected, title = false, total, onChange, onApply }: { object: CrmObject; filters: RecordFilter[]; query: string; selected?: string; title?: boolean; total?: number; onChange: (filters: RecordFilter[]) => void; onApply: (filter?: SavedFilter) => void }) {
+export function RecordFilters({ object, filters, query, scope, selected, title = false, total, onChange, onApply }: { object: CrmObject; filters: RecordFilter[]; query: string; scope: RecordSearchScope; selected?: string; title?: boolean; total?: number; onChange: (filters: RecordFilter[]) => void; onApply: (filter?: SavedFilter) => void }) {
   const saved = useTool<{ filters: SavedFilter[] }>('list_saved_filters', { object: object.slug }, { refetchInterval: 5000 }).data?.filters ?? []
   const active = saved.find((f) => f.id === selected)
   const [menu, setMenu] = useState(false)
   const counts = useQueries({
-    queries: [{ query: '', filters: [] }, ...saved].map((view) => ({ ...toolQuery<{ total: number }>('search_records', { object: object.slug, query: view.query ?? '', filters: view.filters, limit: 1 }), enabled: title && menu })),
+    queries: [{ query: '', filters: [] }, ...saved].map((view) => ({ ...toolQuery<{ total: number }>('search_records', { object: object.slug, ...scope, query: view.query ?? '', filters: view.filters, limit: 1 }), enabled: title && menu })),
     combine: (results) => results.map((r) => r.data?.total),
   })
   const save = useAction<{ object: string; id?: string; name: string; query: string; filters: RecordFilter[] }, SavedFilter>('save_filter')
