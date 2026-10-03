@@ -40,7 +40,7 @@ func registerInteractions(r *registry, svc *interactions.Service) {
 			return interactionsOutput{Interactions: list}, err
 		})
 	add(r, &mcp.Tool{Annotations: &mcp.ToolAnnotations{DestructiveHint: new(false)}, Name: "log_interaction", Title: "Log interaction",
-		Description: "Save a note, an original message, or a call/meeting with attributed speaker turns. Put readable content in text and source/audit information in provenance. Messages require their channel, sender, recipients and original date; date-only values preserve unknown time. external_id makes repeated imports update the same entry."},
+		Description: "Save a note, an original message, or a call/meeting with attributed speaker turns. Put readable content in text and source/audit information in provenance. Messages require their channel, sender, recipients and original date; date-only values preserve unknown time. Log a whole conversation, such as a LinkedIn thread, as one message entry with messages oldest first. external_id makes repeated imports update the same entry."},
 		func(ctx context.Context, actor auth.Actor, in interactions.Entry) (interactions.Interaction, error) {
 			i, err := svc.Log(ctx, actor, "manual", in)
 			return i, err

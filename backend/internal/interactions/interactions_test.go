@@ -425,6 +425,48 @@ func TestLogLinkAndSkip(t *testing.T) {
 	}
 }
 
+func TestLogWholeConversation(t *testing.T) {
+	e := setup(t, nil)
+	ada, _, err := e.crm.Upsert(ctx, e.a, records.SourceUser, records.Write{Object: "people", Set: map[string][]string{"name": {"Ada"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	thread := interactions.Entry{Kind: interactions.Message, Channel: "LinkedIn", ExternalID: "linkedin:t1", Records: []string{ada.ID}, Messages: []interactions.Said{
+		{At: "2026-09-19T16:55:00Z", Sender: "Owner", Recipients: []string{"Ada"}, Direction: "sent", Text: "Hi Ada, thanks for connecting."},
+		{At: "2026-09-20T15:40:00Z", Sender: "Ada", Recipients: []string{"Owner"}, Direction: "received", Text: "Connected equipment is the hard part."},
+		{At: "2026-09-30", Sender: "Owner", Recipients: []string{"Ada"}, Direction: "sent", Text: "Thanks! Here is a demo."},
+	}}
+	logged, err := e.svc.Log(ctx, e.a, "manual", thread)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := []string{}
+	for _, m := range logged.Messages {
+		got = append(got, m.Direction+" "+m.Sender+" "+m.At)
+	}
+	want := []string{"sent Owner 2026-09-19T16:55:00Z", "received Ada 2026-09-20T15:40:00Z", "sent Owner 2026-09-30"}
+	if logged.Channel != "linkedin" || !slices.Equal(got, want) || logged.LastMessage == nil || logged.LastMessage.Text != "Thanks! Here is a demo." {
+		t.Fatalf("logged conversation: %q, channel %q, last %+v", got, logged.Channel, logged.LastMessage)
+	}
+	thread.Messages = append(thread.Messages, interactions.Said{At: "2026-10-01", Sender: "Ada", Recipients: []string{"Owner"}, Direction: "received", Text: "Looks useful."})
+	again, err := e.svc.Log(ctx, e.a, "manual", thread)
+	if err != nil || again.ID != logged.ID || len(again.Messages) != 4 || len(e.timeline(t, ada.ID)) != 1 {
+		t.Fatalf("a repeated import updates the one conversation: %+v %v", again, err)
+	}
+	mixed := thread
+	mixed.Text = "one message too"
+	if _, err := e.svc.Log(ctx, e.a, "manual", mixed); err == nil {
+		t.Error("accepted messages beside one message's fields")
+	}
+	broken := interactions.Entry{Kind: interactions.Message, Channel: "linkedin", Records: []string{ada.ID}, Messages: []interactions.Said{
+		{At: "2026-09-19", Sender: "Owner", Recipients: []string{"Ada"}, Text: "Hello"},
+		{At: "2026-09-20", Sender: "Ada", Text: "No recipients"},
+	}}
+	if _, err := e.svc.Log(ctx, e.a, "manual", broken); err == nil || len(e.timeline(t, ada.ID)) != 1 {
+		t.Fatalf("a rejected conversation must leave nothing behind: %v", err)
+	}
+}
+
 type fakeClassifier struct {
 	calls  int
 	before func()

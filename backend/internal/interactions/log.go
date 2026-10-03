@@ -29,8 +29,19 @@ type Entry struct {
 	Recipients []string   `json:"recipients,omitempty" jsonschema:"message recipients' names or addresses"`
 	Direction  string     `json:"direction,omitempty" jsonschema:"sent or received, relative to the workspace"`
 	Partial    bool       `json:"partial,omitempty" jsonschema:"true when only a message preview or excerpt is available"`
+	Messages   []Said     `json:"messages,omitempty" jsonschema:"a whole message conversation, oldest first, in place of one message's text, at, sender, recipients, direction and partial"`
 	Provenance string     `json:"provenance,omitempty" jsonschema:"source links, capture details or import audit; kept separate from text"`
 	ExternalID string     `json:"external_id,omitempty" jsonschema:"stable import ID; repeating it updates the same entry"`
+}
+
+// Said is one message of a logged conversation.
+type Said struct {
+	At         string   `json:"at" jsonschema:"original date as YYYY-MM-DD or RFC3339 timestamp"`
+	Sender     string   `json:"sender"`
+	Recipients []string `json:"recipients"`
+	Direction  string   `json:"direction,omitempty" jsonschema:"sent or received, relative to the workspace"`
+	Text       string   `json:"text"`
+	Partial    bool     `json:"partial,omitempty" jsonschema:"true when only a preview or excerpt is available"`
 }
 
 func (s *Service) Log(ctx context.Context, actor auth.Actor, source string, e Entry) (Interaction, error) {
@@ -44,48 +55,66 @@ func (s *Service) Log(ctx context.Context, actor auth.Actor, source string, e En
 	e.Provenance = strings.TrimSpace(e.Provenance)
 	e.At = strings.TrimSpace(e.At)
 	e.ExternalID = strings.TrimSpace(e.ExternalID)
-	if e.Text == "" && len(e.Transcript) == 0 {
+	single := e.Text != "" || e.At != "" || e.Sender != "" || len(e.Recipients) > 0 || e.Direction != "" || e.Partial
+	if len(e.Messages) > 0 && (e.Kind != Message || single) {
+		return Interaction{}, errs.Invalidf("messages hold a whole message conversation, in place of one message's fields")
+	}
+	if e.Kind == Message && len(e.Messages) == 0 {
+		e.Messages = []Said{{At: e.At, Sender: e.Sender, Recipients: e.Recipients, Direction: e.Direction, Text: e.Text, Partial: e.Partial}}
+	}
+	if e.Kind != Message && e.Text == "" && len(e.Transcript) == 0 {
 		return Interaction{}, errs.Invalidf("an entry needs text or a transcript")
 	}
 	if len(e.Transcript) > 0 && e.Kind != Call && e.Kind != Meeting {
 		return Interaction{}, errs.Invalidf("transcripts belong to calls or meetings")
 	}
-	if e.Kind == Message && (e.Channel == "" || e.Sender == "" || len(e.Recipients) == 0 || e.Text == "" || e.At == "") {
-		return Interaction{}, errs.Invalidf("a message needs channel, sender, recipients, text and original at")
+	if e.Kind == Message && e.Channel == "" {
+		return Interaction{}, errs.Invalidf("a message needs a channel")
 	}
 	if e.Kind != Message && (e.Channel != "" || e.Sender != "" || len(e.Recipients) > 0 || e.Direction != "" || e.Partial) {
 		return Interaction{}, errs.Invalidf("channel, sender, recipients, direction and partial belong to messages")
-	}
-	if e.Direction != "" && e.Direction != "sent" && e.Direction != "received" {
-		return Interaction{}, errs.Invalidf("direction is sent or received")
-	}
-	for n, recipient := range e.Recipients {
-		e.Recipients[n] = strings.TrimSpace(recipient)
-		if e.Recipients[n] == "" {
-			return Interaction{}, errs.Invalidf("a recipient cannot be empty")
-		}
 	}
 	at, dateOnly, err := parseAt(e.At)
 	if err != nil {
 		return Interaction{}, err
 	}
+	parts := []storage.NewPart{}
+	for n, m := range e.Messages {
+		m.At, m.Sender, m.Text = strings.TrimSpace(m.At), strings.TrimSpace(m.Sender), strings.TrimSpace(m.Text)
+		if m.Sender == "" || len(m.Recipients) == 0 || m.Text == "" || m.At == "" {
+			return Interaction{}, errs.Invalidf("a message needs sender, recipients, text and original at")
+		}
+		if m.Direction != "" && m.Direction != "sent" && m.Direction != "received" {
+			return Interaction{}, errs.Invalidf("direction is sent or received")
+		}
+		for k, recipient := range m.Recipients {
+			m.Recipients[k] = strings.TrimSpace(recipient)
+			if m.Recipients[k] == "" {
+				return Interaction{}, errs.Invalidf("a recipient cannot be empty")
+			}
+		}
+		sent, day, err := parseAt(m.At)
+		if err != nil {
+			return Interaction{}, err
+		}
+		if n == 0 {
+			at, dateOnly = sent, day
+		}
+		parts = append(parts, storage.NewPart{Kind: "message", ExternalID: "message-" + strconv.Itoa(n), AuthorName: m.Sender, At: &sent, DateOnly: day, Content: &m.Text, Recipients: m.Recipients, Direction: m.Direction, Partial: m.Partial, Position: int32(n + 1)})
+	}
 	if e.End != nil && e.End.Before(at) {
 		return Interaction{}, errs.Invalidf("end precedes at")
 	}
-	parts := []storage.NewPart{}
-	if e.Text != "" {
-		author, kind := e.Sender, "message"
-		if e.Kind != Message {
-			author, kind = "Agent", "note"
-			if !actor.Agent {
-				user, err := s.workspaces.UserByID(ctx, actor.UserID)
-				if err != nil {
-					return Interaction{}, err
-				}
-				author = cmp.Or(user.Name, user.Email)
+	if e.Kind != Message && e.Text != "" {
+		author := "Agent"
+		if !actor.Agent {
+			user, err := s.workspaces.UserByID(ctx, actor.UserID)
+			if err != nil {
+				return Interaction{}, err
 			}
+			author = cmp.Or(user.Name, user.Email)
 		}
-		parts = append(parts, storage.NewPart{Kind: kind, ExternalID: "body", AuthorName: author, At: &at, DateOnly: dateOnly, Content: &e.Text, Recipients: e.Recipients, Direction: e.Direction, Partial: e.Partial})
+		parts = append(parts, storage.NewPart{Kind: "note", ExternalID: "body", AuthorName: author, At: &at, DateOnly: dateOnly, Content: &e.Text})
 	}
 	for n, turn := range e.Transcript {
 		turn.Speaker = strings.TrimSpace(turn.Speaker)
