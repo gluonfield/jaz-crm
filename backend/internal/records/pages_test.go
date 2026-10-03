@@ -42,10 +42,10 @@ func TestPages(t *testing.T) {
 // writes it, and a write expecting content it has not seen fails.
 func TestDocumentVersions(t *testing.T) {
 	svc, a, _ := setup(t)
-	page, _ := upsert(t, svc, a, records.SourceUser, records.Write{Object: records.Pages, Set: set("name", "Notes", "content", "one"), Expect: map[string]string{"content": ""}})
-	upsert(t, svc, a, records.SourceUser, records.Write{Object: records.Pages, RecordID: page.ID, Set: set("content", "two"), Expect: map[string]string{"content": "one"}})
+	page, _ := upsert(t, svc, a, records.SourceUser, records.Write{Object: records.Pages, Set: set("name", "Notes", "content", "one"), Expect: map[string][]string{"content": {""}}})
+	upsert(t, svc, a, records.SourceUser, records.Write{Object: records.Pages, RecordID: page.ID, Set: set("content", "two"), Expect: map[string][]string{"content": {"one"}}})
 	upsert(t, svc, a, records.SourceAgent, records.Write{Object: records.Pages, RecordID: page.ID, Set: set("content", "three")})
-	if _, _, err := svc.Upsert(ctx, a, records.SourceUser, records.Write{Object: records.Pages, RecordID: page.ID, Set: set("content", "stale"), Expect: map[string]string{"content": "two"}}); err == nil {
+	if _, _, err := svc.Upsert(ctx, a, records.SourceUser, records.Write{Object: records.Pages, RecordID: page.ID, Set: set("content", "stale"), Expect: map[string][]string{"content": {"two"}}}); err == nil {
 		t.Fatal("a write overwrote content it had not seen")
 	}
 	changes, err := svc.History(ctx, a, page.ID)

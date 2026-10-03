@@ -76,6 +76,8 @@ type Seen struct {
 // approved for whoever sends it. Confirmation and the reviewed draft are
 // required on both browser and connected-app transports.
 func (s *Service) Release(ctx context.Context, actor auth.Actor, id string, seen Seen) (records.Record, error) {
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
 	if !seen.Confirmed {
 		return records.Record{}, errs.Invalidf("confirm the reply before sending")
 	}
@@ -123,43 +125,39 @@ func (s *Service) Release(ctx context.Context, actor auth.Actor, id string, seen
 	if !sameSet(reply.message.To, seen.To) || !sameSet(reply.message.Cc, seen.Cc) {
 		return records.Record{}, errs.Invalidf("the reply recipients changed since you saw them; review them again")
 	}
-	if !sameSet(values(f, "to"), seen.To) || !sameSet(values(f, "cc"), seen.Cc) {
-		remove := map[string][]string{}
-		for attribute, addresses := range map[string][]string{"to": seen.To, "cc": seen.Cc} {
-			if dropped := slices.DeleteFunc(values(f, attribute), func(address string) bool { return slices.Contains(addresses, address) }); len(dropped) > 0 {
-				remove[attribute] = dropped
-			}
-		}
-		f, _, err = s.crm.Upsert(ctx, actor, records.SourceUser, records.Write{Object: records.FollowUps, RecordID: id,
-			Set: map[string][]string{"to": seen.To, "cc": seen.Cc}, Remove: remove,
-		})
-		if err != nil {
-			return records.Record{}, err
+	expect := map[string][]string{}
+	for _, attribute := range []string{"draft", "subject", "channel", "to", "cc", "draft_status"} {
+		expect[attribute] = values(f, attribute)
+	}
+	remove := map[string][]string{}
+	for attribute, addresses := range map[string][]string{"to": seen.To, "cc": seen.Cc} {
+		if dropped := slices.DeleteFunc(values(f, attribute), func(address string) bool { return slices.Contains(addresses, address) }); len(dropped) > 0 {
+			remove[attribute] = dropped
 		}
 	}
-	if value(f, "draft_status") == records.DraftWritten {
-		if _, err := s.set(ctx, actor, id, "draft_status", records.DraftApproved); err != nil {
-			return records.Record{}, err
-		}
-	}
-	if _, err := s.set(ctx, actor, id, "draft_status", records.DraftSending); err != nil {
+	if _, _, err := s.crm.Upsert(ctx, actor, records.SourceUser, records.Write{Object: records.FollowUps, RecordID: id,
+		Set: map[string][]string{"draft_status": {records.DraftSending}, "to": seen.To, "cc": seen.Cc}, Remove: remove, Expect: expect,
+	}); err != nil {
 		return records.Record{}, err
 	}
 	_, err = reply.mailbox.Send(ctx, reply.message)
+	// Once Gmail answers, save its outcome even if the browser disconnected.
+	settle, done := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer done()
 	var api *google.APIError
 	switch {
-	case errors.As(err, &api):
-		if _, undo := s.set(ctx, actor, id, "draft_status", records.DraftApproved); undo != nil {
+	case errors.Is(err, google.ErrRevoked) || errors.As(err, &api) && api.Status >= 400 && api.Status < 500 && api.Status != http.StatusRequestTimeout:
+		if _, undo := s.set(settle, actor, id, "draft_status", records.DraftApproved); undo != nil {
 			return records.Record{}, errors.Join(err, undo)
 		}
-		if api.Status == http.StatusForbidden {
+		if errors.Is(err, google.ErrRevoked) || api.Reason == "insufficientPermissions" {
 			return records.Record{}, errs.Invalidf("%s must reconnect Google to send mail from the CRM", reply.account)
 		}
-		return records.Record{}, err
+		return records.Record{}, errs.Invalidf("Google refused to send the email: %s (%s). Review the error before trying again", api.Message, api.Reason)
 	case err != nil:
 		return records.Record{}, errs.Invalidf("the reply may have gone out from %s: check its Sent mail, then set the draft back to Approved to send it again", reply.account)
 	}
-	return s.set(ctx, actor, id, "draft_status", records.DraftSent, "status", "Done")
+	return s.set(settle, actor, id, "draft_status", records.DraftSent, "status", "Done")
 }
 
 func sameSet(a, b []string) bool {

@@ -49,6 +49,7 @@ func (s *Service) compose(ctx context.Context, actor auth.Actor, f records.Recor
 		return outgoing{}, err
 	}
 	message.From = google.Address{Name: identity.Name, Email: sender.Account}
+	message.ReplyTo = identity.ReplyTo
 	message.Signature = identity.Signature
 	if last.ProviderID != nil {
 		original, holder, err := s.original(ctx, last)

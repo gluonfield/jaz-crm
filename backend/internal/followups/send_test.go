@@ -13,6 +13,7 @@ import (
 	"net/mail"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -39,9 +40,14 @@ func (syncer) Step(context.Context, string) (string, error) { return "", nil }
 // gmail is owner@cas.dev's mailbox: it holds Jane's messages m2 and m3 in
 // thread t9 and records what is sent.
 type gmail struct {
-	// fail answers a send with an error; drop cuts the connection instead,
+	// status answers a send with an error; drop cuts the connection instead,
 	// leaving whether it went out unknown.
-	fail, drop bool
+	status     int
+	drop       bool
+	attempts   int
+	mu         sync.Mutex
+	onIdentity func()
+	onSend     func()
 	sent       []*mail.Message
 	account    string
 	headers    map[string]string
@@ -72,13 +78,23 @@ func (g *gmail) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/gmail/v1/users/me/messages":
 		fmt.Fprint(w, `{"messages":[{"id":"g2","threadId":"t9"}]}`)
 	case "/gmail/v1/users/me/settings/sendAs/owner@cas.dev", "/gmail/v1/users/me/settings/sendAs/mate@cas.dev":
-		fmt.Fprint(w, `{"sendAsEmail":"owner@cas.dev","displayName":"Owner Name","signature":"<div>Owner Name<br>CAS</div>"}`)
+		if g.onIdentity != nil {
+			g.onIdentity()
+		}
+		fmt.Fprint(w, `{"sendAsEmail":"owner@cas.dev","displayName":"Owner Name","replyToAddress":"sales@cas.dev","signature":"<div>Owner Name<br>CAS</div>"}`)
 	case "/gmail/v1/users/me/messages/send":
+		g.mu.Lock()
+		defer g.mu.Unlock()
+		g.attempts++
+		if g.onSend != nil {
+			g.onSend()
+		}
 		if g.drop {
 			panic(http.ErrAbortHandler)
 		}
-		if g.fail {
-			w.WriteHeader(http.StatusServiceUnavailable)
+		if g.status != 0 {
+			w.WriteHeader(g.status)
+			fmt.Fprint(w, `{"error":{"message":"Mail sending quota exceeded","errors":[{"reason":"rateLimitExceeded"}]}}`)
 			return
 		}
 		var body struct{ Raw, ThreadID string }
@@ -239,20 +255,34 @@ func releaseSendsEmailRepliesAndApprovesOthers(t *testing.T, transport string) {
 	if _, err := svc.Release(ctx, mateActor, reply, followups.Seen{Confirmed: true, Draft: "An older text", To: seen.To, Cc: seen.Cc}); err == nil {
 		t.Fatal("a draft was sent that differs from what the person saw")
 	}
-	if sender, err := svc.Sender(ctx, mateActor, reply); err != nil || sender.From != seen.From || sender.Signature != "<div>Owner Name<br>CAS</div>" || !slices.Equal(sender.To, seen.To) || !slices.Equal(sender.Cc, seen.Cc) {
+	if sender, err := svc.Sender(ctx, mateActor, reply); err != nil || sender.From != seen.From || sender.Signature != `<span class="gmail_signature_prefix">-- </span><br><div>Owner Name<br>CAS</div>` || !slices.Equal(sender.To, seen.To) || !slices.Equal(sender.Cc, seen.Cc) {
 		t.Fatalf("a teammate's reply must carry its mailbox, signature and reply-all recipients: %+v %v", sender, err)
 	}
 	if _, err := svc.Release(ctx, mateActor, reply, followups.Seen{Confirmed: true, Draft: seen.Draft, Subject: seen.Subject, From: "mate@cas.dev", To: seen.To, Cc: seen.Cc}); err == nil || len(g.sent) != 0 {
 		t.Fatalf("a draft was sent from a mailbox other than the one the person saw: %v", err)
 	}
-	g.fail = true
-	if _, err := svc.Release(ctx, mateActor, reply, seen); err == nil {
-		t.Fatal("a failed send reported success")
+	g.status = http.StatusForbidden
+	if _, err := svc.Release(ctx, mateActor, reply, seen); err == nil || !strings.Contains(err.Error(), "quota exceeded") || strings.Contains(err.Error(), "reconnect") {
+		t.Fatalf("a quota rejection must preserve Google's reason: %v", err)
 	}
 	if draft, _ := state(reply); draft != records.DraftApproved || len(g.sent) != 0 {
 		t.Fatalf("a refused send must leave the draft approved for another try: %q", draft)
 	}
-	g.fail, g.drop = false, true
+	g.status = http.StatusServiceUnavailable
+	if _, err := svc.Release(ctx, mateActor, reply, seen); err == nil || !strings.Contains(err.Error(), "may have gone out") {
+		t.Fatalf("a server failure has an uncertain send outcome: %v", err)
+	}
+	if draft, _ := state(reply); draft != records.DraftSending {
+		t.Fatalf("a server error must leave the send claimed: %q", draft)
+	}
+	attempts := g.attempts
+	if _, err := svc.Release(ctx, mateActor, reply, seen); err == nil || g.attempts != attempts {
+		t.Fatalf("an uncertain send was retried without review: %v", err)
+	}
+	if _, _, err := crm.Upsert(ctx, mateActor, records.SourceUser, records.Write{Object: records.FollowUps, RecordID: reply, Set: map[string][]string{"draft_status": {records.DraftApproved}}}); err != nil {
+		t.Fatal(err)
+	}
+	g.status, g.drop = 0, true
 	if _, err := svc.Release(ctx, mateActor, reply, seen); err == nil {
 		t.Fatal("a send of unknown outcome reported success")
 	}
@@ -284,12 +314,15 @@ func releaseSendsEmailRepliesAndApprovesOthers(t *testing.T, transport string) {
 		t.Fatalf("sent %d messages", len(g.sent))
 	}
 	h := g.sent[0].Header
+	if h.Get("Reply-To") != "sales@cas.dev" {
+		t.Fatalf("the sending mailbox's Reply-To was lost: %v", h)
+	}
 	got := []string{h.Get("X-Thread"), h.Get("From"), h.Get("To"), h.Get("Cc"), h.Get("Subject"), h.Get("In-Reply-To"), h.Get("References")}
 	want := []string{"t9", `"Owner Name" <owner@cas.dev>`, "jane@acme.com", "bob@acme.com", "Re: Quote for 500 brackets", "<m2@acme.com>", "<m1@acme.com> <m2@acme.com>"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("reply headers %q, want %q", got, want)
 	}
-	if text := plainText(t, g.sent[0]); text != seen.Draft+"\n\nOwner Name\nCAS" {
+	if text := plainText(t, g.sent[0]); text != seen.Draft+"\n\n-- \nOwner Name\nCAS" {
 		t.Fatalf("a reply must carry its sender's Gmail signature below the draft: %q", text)
 	}
 

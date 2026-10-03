@@ -44,9 +44,9 @@ func (e *APIError) Retryable() bool {
 	return transient || e.Status == http.StatusTooManyRequests || e.Status >= 500
 }
 
-// Endpoints are the API base URLs; tests point all three at one httptest server.
+// Endpoints are the API base URLs.
 type Endpoints struct {
-	Gmail, Calendar, Meet, People string
+	Gmail, Calendar, Meet, People, UserInfo string
 }
 
 var Production = Endpoints{
@@ -54,6 +54,7 @@ var Production = Endpoints{
 	Calendar: "https://www.googleapis.com",
 	Meet:     "https://meet.googleapis.com",
 	People:   "https://people.googleapis.com",
+	UserInfo: "https://openidconnect.googleapis.com",
 }
 
 type Client struct {

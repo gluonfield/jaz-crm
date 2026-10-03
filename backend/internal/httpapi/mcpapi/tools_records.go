@@ -92,7 +92,11 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 			if err != nil {
 				return upsertOutput{}, err
 			}
-			record, skips, err := crm.Upsert(ctx, actor, records.SourceOf(actor), records.Write{Object: in.Object, RecordID: in.RecordID, Set: set, Remove: in.Remove, Expect: in.Expect})
+			expect := map[string][]string{}
+			for slug, value := range in.Expect {
+				expect[slug] = []string{value}
+			}
+			record, skips, err := crm.Upsert(ctx, actor, records.SourceOf(actor), records.Write{Object: in.Object, RecordID: in.RecordID, Set: set, Remove: in.Remove, Expect: expect})
 			if err != nil {
 				return upsertOutput{}, err
 			}

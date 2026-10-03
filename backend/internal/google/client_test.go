@@ -26,7 +26,7 @@ func fake(t *testing.T, routes map[string]http.HandlerFunc) *Client {
 		route(w, r)
 	}))
 	t.Cleanup(srv.Close)
-	return NewClient(srv.Client(), Endpoints{Gmail: srv.URL, Calendar: srv.URL, Meet: srv.URL})
+	return NewClient(srv.Client(), Endpoints{Gmail: srv.URL, Calendar: srv.URL, Meet: srv.URL, UserInfo: srv.URL})
 }
 
 func respond(status int, body string) http.HandlerFunc {

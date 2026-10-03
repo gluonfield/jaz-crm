@@ -21,6 +21,7 @@ import (
 // Gmail thread it joins in the sending mailbox and the Message-IDs it answers.
 type Outgoing struct {
 	From       Address
+	ReplyTo    string
 	To, Cc     []string
 	Subject    string
 	Body       string
@@ -40,17 +41,32 @@ type Signature struct {
 // name in its From header and the signature below new mail.
 type Identity struct {
 	Name      string
+	ReplyTo   string
 	Signature Signature
 }
 
 // Identity reads the From name and signature Gmail uses for an address of the
 // mailbox; Gmail exposes no other signature, such as one chosen for replies.
 func (c *Client) Identity(ctx context.Context, address string) (Identity, error) {
-	var raw struct{ DisplayName, Signature string }
+	var raw struct{ DisplayName, ReplyToAddress, Signature string }
 	if err := c.get(ctx, c.gmail("settings/sendAs/"+url.PathEscape(address)), nil, &raw); err != nil {
 		return Identity{}, err
 	}
-	return Identity{Name: raw.DisplayName, Signature: Signature{HTML: raw.Signature, Text: htmlText(raw.Signature)}}, nil
+	if raw.DisplayName == "" {
+		var profile struct{ Name string }
+		if err := c.get(ctx, c.endpoints.UserInfo+"/v1/userinfo", nil, &profile); err != nil {
+			return Identity{}, fmt.Errorf("read Google account sender name (reconnect Google if profile access is missing): %w", err)
+		}
+		raw.DisplayName = profile.Name
+	}
+	identity := Identity{Name: raw.DisplayName, ReplyTo: raw.ReplyToAddress}
+	if raw.Signature != "" {
+		identity.Signature = Signature{
+			HTML: `<span class="gmail_signature_prefix">-- </span><br>` + raw.Signature,
+			Text: "-- \n" + htmlText(raw.Signature),
+		}
+	}
+	return identity, nil
 }
 
 // Send sends a message from the mailbox and returns its Gmail id. It is never
@@ -81,6 +97,7 @@ func (c *Client) Send(ctx context.Context, m Outgoing) (string, error) {
 		return "", err
 	}
 	header("From", (&mail.Address{Name: m.From.Name, Address: m.From.Email}).String())
+	header("Reply-To", m.ReplyTo)
 	header("To", strings.Join(m.To, ", "))
 	header("Cc", strings.Join(m.Cc, ", "))
 	header("Subject", mime.QEncoding.Encode("utf-8", m.Subject))
@@ -95,6 +112,9 @@ func (c *Client) Send(ctx context.Context, m Outgoing) (string, error) {
 		Raw      string `json:"raw"`
 		ThreadID string `json:"threadId,omitempty"`
 	}{base64.URLEncoding.EncodeToString(raw.Bytes()), m.ThreadID}, &out)
+	if err == nil && out.ID == "" {
+		return "", fmt.Errorf("Gmail returned no sent message ID")
+	}
 	return out.ID, err
 }
 

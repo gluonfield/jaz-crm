@@ -39,14 +39,14 @@ func (s Source) rank() int {
 // else the record holding a unique value being set, else a new one. Set adds
 // to multi-valued attributes and replaces single-valued ones; Remove drops
 // the listed values, or every value when the list is empty. Expect names the
-// value single-valued attributes must still hold, empty for none, so an
+// values attributes must still hold, empty for none, so an
 // editor cannot overwrite a change it has not seen.
 type Write struct {
 	Object   string
 	RecordID string
 	Set      map[string][]string
 	Remove   map[string][]string
-	Expect   map[string]string
+	Expect   map[string][]string
 }
 
 // Skip is a change left out because a higher-ranked source holds the value.
@@ -96,13 +96,20 @@ func (s *Service) upsert(ctx context.Context, actor auth.Actor, source Source, w
 			c[i].force = c[i].attr.Type == Markdown || object.Slug == Pages || object.Slug == "people" && c[i].attr.Slug == ContextAttribute
 		}
 	}
-	expect := map[string]string{}
-	for slug, value := range w.Expect {
+	expect := map[string][]string{}
+	for slug, values := range w.Expect {
 		attr, err := sc.attribute(object, slug)
 		if err != nil {
 			return Record{}, nil, err
 		}
-		expect[attr.ID] = strings.TrimSpace(value)
+		expect[attr.ID] = nil
+		for _, value := range values {
+			if value = strings.TrimSpace(value); value != "" {
+				expect[attr.ID] = append(expect[attr.ID], value)
+			}
+		}
+		slices.Sort(expect[attr.ID])
+		expect[attr.ID] = slices.Compact(expect[attr.ID])
 	}
 	id, err := s.target(ctx, actor.WorkspaceID, object, w.RecordID, set)
 	if err != nil {
@@ -126,12 +133,15 @@ func (s *Service) upsert(ctx context.Context, actor auth.Actor, source Source, w
 	}
 	var skips []Skip
 	id, err = s.store.WriteRecord(ctx, actor.WorkspaceID, object.ID, id, func(current []storage.RecordValue) (storage.ValueChanges, error) {
-		for attrID, value := range expect {
-			held := ""
-			if i := slices.IndexFunc(current, func(v storage.RecordValue) bool { return v.AttributeID == attrID }); i >= 0 {
-				held = valueIdentity(current[i])
+		for attrID, values := range expect {
+			var held []string
+			for _, v := range current {
+				if v.AttributeID == attrID {
+					held = append(held, valueIdentity(v))
+				}
 			}
-			if held != value {
+			slices.Sort(held)
+			if !slices.Equal(held, values) {
 				return storage.ValueChanges{}, errs.Invalidf("%s changed since it was read", sc.attributeByID(attrID).Slug)
 			}
 		}

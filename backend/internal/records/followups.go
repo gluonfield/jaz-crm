@@ -66,7 +66,8 @@ func guardDraft(sc schema, object storage.Object, current []storage.RecordValue,
 	i := slices.IndexFunc(set, func(c change) bool { return c.attr.ID == status.ID })
 	if i >= 0 {
 		to := *set[i].entries[0].text
-		if edited && to != DraftWritten {
+		// Confirmation saves reviewed recipients and claims the draft together.
+		if edited && to != DraftWritten && !(to == DraftSending && source == SourceUser) {
 			return nil, nil, errs.Invalidf("change a draft or its status, not both: editing a draft withdraws its approval")
 		}
 		set[i].force = true
@@ -109,7 +110,7 @@ func transition(from, to string, source Source, written bool) error {
 		return errs.Invalidf("only a person approves a draft, in the CRM")
 	case to == DraftApproved && from == DraftSent:
 		return errs.Invalidf("the draft is %s", from)
-	case to == DraftSending && from != DraftApproved:
+	case to == DraftSending && from != DraftApproved && !(from == DraftWritten && source == SourceUser):
 		return errs.Invalidf("the draft is %s, not %s", cmp.Or(from, "unwritten"), DraftApproved)
 	case to == DraftSent && from != DraftSending:
 		return errs.Invalidf("the draft is %s, not %s", cmp.Or(from, "unwritten"), DraftSending)

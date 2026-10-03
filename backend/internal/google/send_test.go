@@ -42,7 +42,8 @@ func TestSendReply(t *testing.T) {
 	sends := 0
 	var bodies map[string]string
 	c := fake(t, map[string]http.HandlerFunc{
-		"/gmail/v1/users/me/settings/sendAs/owner@cas.dev": respond(http.StatusOK, `{"sendAsEmail":"owner@cas.dev","displayName":"Ōwner Name","signature":"<div dir=\"ltr\"><b>Owner Name</b><div>CAS &amp; Co · <a href=\"https://cas.dev\">cas.dev</a></div></div>"}`),
+		"/gmail/v1/users/me/settings/sendAs/owner@cas.dev": respond(http.StatusOK, `{"sendAsEmail":"owner@cas.dev","displayName":"","replyToAddress":"sales@cas.dev","signature":"<div dir=\"ltr\"><b>Owner Name</b><div>CAS &amp; Co · <a href=\"https://cas.dev\">cas.dev</a></div></div>"}`),
+		"/v1/userinfo": respond(http.StatusOK, `{"name":"Ōwner Name"}`),
 		"/gmail/v1/users/me/messages/send": func(w http.ResponseWriter, r *http.Request) {
 			sends++
 			var body struct{ Raw, ThreadID string }
@@ -62,6 +63,9 @@ func TestSendReply(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			if m.Header.Get("Reply-To") != "sales@cas.dev" {
+				t.Errorf("Reply-To: %q", m.Header.Get("Reply-To"))
+			}
 			got := []string{body.ThreadID, from.Name + " <" + from.Address + ">", m.Header.Get("To"), m.Header.Get("Cc"), subject, m.Header.Get("In-Reply-To"), m.Header.Get("References")}
 			want := []string{"t9", "Ōwner Name <owner@cas.dev>", "jane@acme.com, sales@acme.com", "bob@acme.com", "Re: Quote for 500 brackets — revised", "<m2@acme.com>", "<m1@acme.com> <m2@acme.com>"}
 			for i := range want {
@@ -79,13 +83,14 @@ func TestSendReply(t *testing.T) {
 	})
 	identity, err := c.Identity(t.Context(), "owner@cas.dev")
 	signature := identity.Signature
-	if err != nil || identity.Name != "Ōwner Name" || signature.Text != "Owner Name\nCAS & Co · cas.dev https://cas.dev" {
+	if err != nil || identity.Name != "Ōwner Name" || signature.Text != "-- \nOwner Name\nCAS & Co · cas.dev https://cas.dev" {
 		t.Fatalf("identity: %+v %v", identity, err)
 	}
 	draft := strings.Repeat("Thanks Jane. ", 10) + "\n500 < 600 & <b>soon</b>"
 	reply := Outgoing{
 		From: Address{Name: identity.Name, Email: "owner@cas.dev"}, To: []string{"jane@acme.com", "sales@acme.com"}, Cc: []string{"bob@acme.com"},
 		Subject: "Re: Quote for 500 brackets — revised", Body: draft, Signature: signature,
+		ReplyTo:  identity.ReplyTo,
 		ThreadID: "t9", InReplyTo: "m2@acme.com", References: []string{"m1@acme.com", "m2@acme.com"},
 	}
 	if id, err := c.Send(t.Context(), reply); err != nil || id != "s1" {
@@ -94,11 +99,20 @@ func TestSendReply(t *testing.T) {
 	if want := draft + "\n\n" + signature.Text; bodies["text/plain"] != want {
 		t.Errorf("plain text = %q, want %q", bodies["text/plain"], want)
 	}
-	if html := bodies["text/html"]; !strings.Contains(html, "<br>500 &lt; 600 &amp; &lt;b&gt;soon&lt;/b&gt;</div>") || !strings.HasSuffix(html, `class="gmail_signature">`+signature.HTML+"</div>") {
+	if html := bodies["text/html"]; !strings.Contains(html, "<br>500 &lt; 600 &amp; &lt;b&gt;soon&lt;/b&gt;</div>") || !strings.Contains(html, `<span class="gmail_signature_prefix">-- </span><br>`) || !strings.HasSuffix(html, `class="gmail_signature">`+signature.HTML+"</div>") {
 		t.Errorf("HTML must escape the draft and end with the signature: %q", html)
 	}
 	if _, err := c.Send(t.Context(), reply); err == nil || sends != 2 {
 		t.Fatalf("a failed send must be reported once, not retried: %d sends, %v", sends, err)
+	}
+}
+
+func TestSendRequiresGmailMessageID(t *testing.T) {
+	c := fake(t, map[string]http.HandlerFunc{
+		"/gmail/v1/users/me/messages/send": respond(http.StatusOK, `{}`),
+	})
+	if _, err := c.Send(t.Context(), Outgoing{From: Address{Email: "owner@cas.dev"}, To: []string{"jane@acme.com"}, Subject: "Hello", Body: "Hello"}); err == nil {
+		t.Fatal("a response without a message ID cannot confirm sending")
 	}
 }
 

@@ -1,10 +1,15 @@
 package followups_test
 
 import (
+	"context"
 	"io"
+	"net/http"
 	"net/http/httptest"
 	"slices"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
@@ -16,10 +21,11 @@ import (
 	"github.com/gluonfield/jaz-crm/backend/internal/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
 	"github.com/gluonfield/jaz-crm/backend/internal/workspaces"
+	"golang.org/x/oauth2"
 )
 
 func TestNewEmailAfterCall(t *testing.T) {
-	for _, transport := range []string{"browser", "mcp"} {
+	for _, transport := range []string{"browser", "mcp", "cancelled after acknowledgement", "concurrent sends", "edited during preparation"} {
 		t.Run(transport, func(t *testing.T) {
 			store := postgrestest.New(t)
 			people := workspaces.NewService(store, workspaces.Config{})
@@ -78,17 +84,103 @@ func TestNewEmailAfterCall(t *testing.T) {
 			if _, err := svc.SaveDraft(ctx, actor, f.ID, body, seen.Subject, "Email", seen.To, nil); err != nil {
 				t.Fatal(err)
 			}
-			releaseThroughHTTP(t, auth.NewService(store, auth.Config{PublicURL: "http://crm.test"}), mcpapi.Services{Records: crm, Workspaces: people, Connections: conns, FollowUps: svc}, owner.ID, f.ID, seen, transport)
+			switch transport {
+			case "edited during preparation":
+				g.onIdentity = func() {
+					if _, err := svc.SaveDraft(t.Context(), actor, f.ID, body, seen.Subject, "Email", []string{"changed@acme.com"}, nil); err != nil {
+						t.Error(err)
+					}
+				}
+				if _, err := svc.Release(t.Context(), actor, f.ID, seen); err == nil || g.attempts != 0 {
+					t.Fatalf("a concurrent recipient edit must prevent sending: %v", err)
+				}
+				return
+			case "concurrent sends":
+				var preparing atomic.Int32
+				secondReady, sendStarted := make(chan struct{}), make(chan struct{})
+				g.onIdentity = func() {
+					if preparing.Add(1) == 1 {
+						<-secondReady
+					} else {
+						close(secondReady)
+						<-sendStarted
+					}
+				}
+				gate := make(chan struct{})
+				var sending sync.Once
+				g.onSend = func() {
+					sending.Do(func() { close(sendStarted) })
+					<-gate
+				}
+				results := make(chan error, 2)
+				for range 2 {
+					go func() {
+						_, err := svc.Release(t.Context(), actor, f.ID, seen)
+						results <- err
+					}()
+				}
+				remaining := 2
+				select {
+				case err := <-results:
+					remaining--
+					if err == nil {
+						t.Error("second sender must lose the claim")
+					}
+				case <-time.After(5 * time.Second):
+					t.Error("both senders reached Gmail")
+				}
+				close(gate)
+				for range remaining {
+					if err := <-results; err != nil {
+						t.Error(err)
+					}
+				}
+			case "cancelled after acknowledgement":
+				request, cancel := context.WithCancel(t.Context())
+				defer cancel()
+				request = context.WithValue(request, oauth2.HTTPClient, &http.Client{Transport: cancelAfterSend{cancel}})
+				if _, err := svc.Release(request, actor, f.ID, seen); err != nil || request.Err() == nil {
+					t.Fatalf("acknowledged send must finish after caller cancellation: %v, context: %v", err, request.Err())
+				}
+				stored, err := crm.Get(t.Context(), actor, f.ID)
+				status := slices.IndexFunc(stored.Fields, func(f records.Field) bool { return f.Attribute == "draft_status" })
+				if err != nil || status < 0 || len(stored.Fields[status].Values) != 1 || stored.Fields[status].Values[0].Text != records.DraftSent || slices.ContainsFunc(stored.Fields, func(f records.Field) bool { return f.Attribute == "draft" }) {
+					t.Fatalf("acknowledged send was not persisted: %+v %v", stored, err)
+				}
+			default:
+				releaseThroughHTTP(t, auth.NewService(store, auth.Config{PublicURL: "http://crm.test"}), mcpapi.Services{Records: crm, Workspaces: people, Connections: conns, FollowUps: svc}, owner.ID, f.ID, seen, transport)
+			}
 			if len(g.sent) != 1 {
 				t.Fatalf("sent %d messages", len(g.sent))
 			}
 			h := g.sent[0].Header
-			if h.Get("Subject") != seen.Subject || h.Get("To") != "jane@acme.com" || h.Get("X-Thread") != "" || h.Get("In-Reply-To") != "" || h.Get("References") != "" {
+			if h.Get("Subject") != seen.Subject || h.Get("To") != "jane@acme.com" || h.Get("Reply-To") != "sales@cas.dev" || h.Get("X-Thread") != "" || h.Get("In-Reply-To") != "" || h.Get("References") != "" {
 				t.Fatalf("new email headers: %v", h)
 			}
-			if got := plainText(t, g.sent[0]); got != body+"\n\nOwner Name\nCAS" {
+			if got := plainText(t, g.sent[0]); got != body+"\n\n-- \nOwner Name\nCAS" {
 				t.Fatalf("new email body/signature: %q", got)
 			}
 		})
 	}
+}
+
+type cancelAfterSend struct{ cancel context.CancelFunc }
+
+func (c cancelAfterSend) RoundTrip(r *http.Request) (*http.Response, error) {
+	response, err := http.DefaultTransport.RoundTrip(r)
+	if err == nil && r.URL.Path == "/gmail/v1/users/me/messages/send" {
+		response.Body = cancelWhenClosed{response.Body, c.cancel}
+	}
+	return response, err
+}
+
+type cancelWhenClosed struct {
+	io.ReadCloser
+	cancel context.CancelFunc
+}
+
+func (c cancelWhenClosed) Close() error {
+	err := c.ReadCloser.Close()
+	c.cancel()
+	return err
 }
