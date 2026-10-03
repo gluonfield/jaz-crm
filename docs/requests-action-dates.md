@@ -1,5 +1,22 @@
 # Action dates and Chase
 
+## Incoming replies due at 22:00, 2026-10-03
+
+- [x] Keep incoming messages needing answers actionable immediately, with a Suggested deadline at 22:00 on their local receipt day, including weekends.
+- [x] Preserve manual scheduling, concrete reasons to wait and earlier overdue work.
+- [x] Recheck the reported response before changing its date: it is already Sent and Done, so no pending response remains to move.
+- [x] Verify real model scheduling, local timezone conversion, Today/Overdue behavior, full checks and strict review.
+- [ ] Commit/push and verify the production rollout.
+
+This supersedes the arrival-time deadline below. A reply remains visible immediately; its overdue state begins at 22:00 local time on the day received.
+
+Validation: fourteen real model cases pass, including local receipt days across UTC midnight, after-22:00 arrival, London daylight saving, repeat requests and manual/explicit-wait/overdue exceptions. Full Go 1.26 build/vet/PostgreSQL suite and frontend tests pass. Production date helpers keep the deadline out of Overdue through 21:59:59 and mark it overdue at 22:00. Strict review reuses the existing datetime and urgency contracts without new branches or dependencies. The reported response had already been sent and completed when read, so its cleared date was preserved.
+
+## Scheduling links, 2026-10-03
+
+- [x] Diagnose the omitted calendar link: the selected Company page identifies Ujjwal's calendar, while the reply was sent by Augustinas; the prompt has no explicit booking workflow.
+- [ ] Clarify whether that calendar serves CAS customer calls from either teammate, then encode the booking rule and verify real draft behavior.
+
 ## Urgent incoming replies, 2026-10-03
 
 - [x] Treat an incoming response as due at the message's local arrival time, including weekends, so urgency starts immediately.
