@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { type Ref as ReactRef, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { LoaderCircle } from 'lucide-react'
 import { call } from '@/lib/api'
@@ -17,7 +17,9 @@ const messageOf = (fields: Fields): DraftMessage => ({ draft: fields.draft.trim(
 const sameContent = (a: DraftProposal, b: DraftProposal) => a.draft === b.draft && a.subject === b.subject
 const sameFields = (a: Fields, b: Fields) => sameContent(a, b) && a.to === b.to && a.cc === b.cc
 
-export function Draft({ record, channel, sender, error, drafting }: { record: CrmRecord; channel: string; sender?: DraftSender; error?: string; drafting?: Interaction['drafting'] }) {
+export type DraftHandle = { save: () => Promise<boolean> }
+
+export function Draft({ record, channel, sender, error, drafting, ref }: { record: CrmRecord; channel: string; sender?: DraftSender; error?: string; drafting?: Interaction['drafting']; ref?: ReactRef<DraftHandle> }) {
   const current: Fields = { draft: text(record, 'draft'), subject: sender?.subject ?? text(record, 'subject'), to: (sender?.to ?? list(record, 'to')).join(', '), cc: (sender?.cc ?? list(record, 'cc')).join(', '), revision: sender?.revision }
   const [edited, setEdited] = useState<Fields | null>(null)
   if (edited && JSON.stringify(messageOf(edited)) === JSON.stringify(messageOf(current))) {
@@ -74,6 +76,14 @@ export function Draft({ record, channel, sender, error, drafting }: { record: Cr
     saving.current = { key, revision: next.revision, promise, pending: true }
     return promise
   }
+  useImperativeHandle(ref, () => ({ save: async () => {
+    const before = editor.current.fields
+    if (editor.current.sending) {
+      return sameFields(before, editor.current.current)
+    }
+    await commit(messageOf(before))
+    return JSON.stringify({ ...messageOf(editor.current.fields), revision: undefined }) === JSON.stringify({ ...messageOf(before), revision: undefined })
+  } }))
   const rewrite = async (action: DraftRewriteAction, instruction?: string) => {
     if (rewriting.current || editor.current.sending) {
       return

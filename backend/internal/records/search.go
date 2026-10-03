@@ -9,6 +9,7 @@ import (
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"github.com/gluonfield/jaz-crm/backend/internal/errs"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
+	"github.com/google/uuid"
 )
 
 type Filter = storage.RecordFilter
@@ -21,10 +22,12 @@ type Search struct {
 	// Sort names a date or text attribute to order by, earliest or first
 	// alphabetically, empty last; empty lists the newest first. Offset skips
 	// records for the next page.
-	Sort    string
-	Offset  int
-	Limit   int
-	Include []Relation
+	Sort                string
+	Offset              int
+	Limit               int
+	Include             []Relation
+	GroupByConversation bool
+	ConversationID      string
 }
 
 type Relation struct {
@@ -51,6 +54,16 @@ func (s *Service) Search(ctx context.Context, actor auth.Actor, q Search) ([]Rec
 	if err != nil {
 		return nil, 0, err
 	}
+	if (q.GroupByConversation || q.ConversationID != "") && object.Slug != FollowUps {
+		return nil, 0, errs.Invalidf("conversation searches require follow_ups")
+	}
+	query.GroupByConversation = q.GroupByConversation
+	if id := strings.TrimSpace(q.ConversationID); id != "" {
+		if uuid.Validate(id) != nil {
+			return nil, 0, errs.Invalidf("invalid conversation_id")
+		}
+		query.ConversationID = &id
+	}
 	if q.Sort != "" {
 		attr, err := sc.attribute(object, q.Sort)
 		if err != nil {
@@ -74,9 +87,16 @@ func (s *Service) Search(ctx context.Context, actor auth.Actor, q Search) ([]Rec
 	if err != nil {
 		return nil, 0, err
 	}
-	views, err := s.views(ctx, actor.WorkspaceID, sc, found, false)
+	stored := make([]storage.Record, len(found))
+	for i, record := range found {
+		stored[i] = record.Record
+	}
+	views, err := s.views(ctx, actor.WorkspaceID, sc, stored, false)
 	if err != nil {
 		return nil, 0, err
+	}
+	for i := range views {
+		views[i].ConversationID = found[i].ConversationID
 	}
 	if err := s.include(ctx, actor, sc, object, views, q.Include); err != nil {
 		return nil, 0, err

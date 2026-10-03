@@ -42,11 +42,12 @@ type Attribute struct {
 }
 
 type Record struct {
-	ID        string
-	Object    string
-	CreatedAt time.Time
-	Fields    []Field
-	Related   map[string][]Value
+	ID             string
+	ConversationID string
+	Object         string
+	CreatedAt      time.Time
+	Fields         []Field
+	Related        map[string][]Value
 }
 
 // Field is an attribute's current values; a single-valued one has one.

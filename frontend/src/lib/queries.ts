@@ -1,5 +1,5 @@
 import { MutationCache, QueryClient, type UseQueryOptions, useInfiniteQuery, useMutation, useQueries, useQuery } from '@tanstack/react-query'
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { toast } from 'sonner'
 import { call } from './api'
 import type { CrmObject, CrmRecord, Interaction, RecordFilter, Relation, Workspace } from './types'
@@ -63,21 +63,30 @@ export function useWrite(record: CrmRecord) {
 
 // useRecordPages pages through an object's records, each page with the count
 // of every match; pages repeat no record when others were added meanwhile.
-export function useRecordPages(object: string, query: string, filters: RecordFilter[], include: Relation[] | undefined, sort: string | undefined, limit: number) {
-  const args = { object, query, filters, include, sort, limit }
+export function useRecordPages(args: { object: string; query?: string; filters?: RecordFilter[]; include?: Relation[]; sort?: string; limit: number; group_by_conversation?: boolean; conversation_id?: string }, { enabled = true, all = false } = {}) {
   const result = useInfiniteQuery({
     queryKey: ['search_records', 'pages', args],
     queryFn: ({ pageParam }) => call<{ records: CrmRecord[]; total: number }>('search_records', { ...args, offset: pageParam }),
     initialPageParam: 0,
-    refetchInterval: object === 'follow_ups' ? 60_000 : false,
+    enabled,
+    refetchInterval: args.object === 'follow_ups' ? 60_000 : false,
     getNextPageParam: (last, pages) => {
       const loaded = pages.reduce((sum, page) => sum + page.records.length, 0)
       return last.records.length > 0 && loaded < last.total ? loaded : undefined
     },
-    placeholderData: (previous) => previous,
+    placeholderData: (previous, previousQuery) => {
+      const prior = previousQuery?.queryKey[2] as typeof args | undefined
+      return prior?.group_by_conversation === args.group_by_conversation && prior?.conversation_id === args.conversation_id ? previous : undefined
+    },
   })
+  const { hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage } = result
+  useEffect(() => {
+    if (enabled && all && hasNextPage && !isFetchingNextPage && !isFetchNextPageError) {
+      void fetchNextPage()
+    }
+  }, [enabled, all, hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage])
   const pages = result.data?.pages
-  const records = useMemo(() => pages && [...new Map(pages.flatMap((page) => page.records).map((r) => [r.id, r])).values()], [pages])
+  const records = useMemo(() => pages && [...new Map(pages.flatMap((page) => page.records).map((r) => [args.group_by_conversation ? r.conversation_id ?? r.id : r.id, r])).values()], [pages, args.group_by_conversation])
   return { ...result, records, total: pages?.[0]?.total }
 }
 

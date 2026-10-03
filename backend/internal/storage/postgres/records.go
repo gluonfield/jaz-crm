@@ -121,16 +121,32 @@ func (s *Store) Records(ctx context.Context, workspaceID string, ids []string) (
 	return many(toRecord)(s.rec.GetRecords(ctx, recdb.GetRecordsParams{WorkspaceID: workspaceID, IDs: ids}))
 }
 
-func (s *Store) SearchRecords(ctx context.Context, query storage.RecordQuery) ([]storage.Record, int, error) {
-	rows, err := s.rec.SearchRecords(ctx, recdb.SearchRecordsParams(query))
+func (s *Store) SearchRecords(ctx context.Context, query storage.RecordQuery) ([]storage.SearchRecord, int, error) {
+	params := recdb.SearchRecordsParams{
+		WorkspaceID: query.WorkspaceID, ObjectID: query.ObjectID, Query: query.Query,
+		AttributeIDs: query.AttributeIDs, Operators: query.Operators, Matches: query.Matches,
+		SortAttributeID: query.SortAttributeID, Offset: query.Offset, Limit: query.Limit,
+		GroupByConversation: query.GroupByConversation, ConversationID: query.ConversationID,
+	}
+	rows, err := s.rec.SearchRecords(ctx, params)
 	if err != nil {
 		return nil, 0, mapError(err)
 	}
-	out := make([]storage.Record, len(rows))
+	out := make([]storage.SearchRecord, len(rows))
 	total := 0
 	for i, row := range rows {
-		out[i] = toRecord(row.Record)
+		out[i] = storage.SearchRecord{Record: toRecord(row.Record), ConversationID: row.ConversationID}
 		total = int(row.Total)
+	}
+	if len(rows) == 0 && query.Offset > 0 {
+		params.Offset, params.Limit = 0, 1
+		first, err := s.rec.SearchRecords(ctx, params)
+		if err != nil {
+			return nil, 0, mapError(err)
+		}
+		if len(first) > 0 {
+			total = int(first[0].Total)
+		}
 	}
 	return out, total, nil
 }

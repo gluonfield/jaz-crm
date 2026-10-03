@@ -1,11 +1,11 @@
-import { ArrowLeft, Check, LoaderCircle, NotebookText } from 'lucide-react'
+import { ArrowLeft, Check, ChevronDown, LoaderCircle, NotebookText } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@jaz/ui/button'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
 import { formatDate } from '@/lib/format'
-import { useTool, useWrite } from '@/lib/queries'
+import { useRecordPages, useTool, useWrite } from '@/lib/queries'
 import { readItem, writeItem } from '@/lib/storage'
 import type { CrmRecord, DraftSender, Interaction, Ref } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -15,7 +15,8 @@ import { Divider, Happening, MessageThread } from './email-thread'
 import { MarkdownView } from './editor'
 import { ChannelTag, RecordIcon } from './icons'
 import { ContextEditor } from './person-context'
-import { Draft } from './draft'
+import { Draft, type DraftHandle } from './draft'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './ui/dropdown-menu'
 
 export const text = (record: CrmRecord, slug: string) => valuesOf(record, slug).map(valueText).join(', ')
 
@@ -47,15 +48,35 @@ export function Done({ record, labelled = false, className }: { record: CrmRecor
 
 // Conversation is the open follow-up: whom it is with and when it is due,
 // what we know of them, the conversation it answers and its draft reply.
-export function Conversation({ record, onClose }: { record: CrmRecord; onClose: () => void }) {
+export function Conversation({ record: initialRecord, onClose }: { record: CrmRecord; onClose: () => void }) {
+  const conversations = useTool<{ interactions: Interaction[] }>('list_interactions', { record_id: initialRecord.id, kinds: ['message'], limit: 1 }, { enabled: !initialRecord.conversation_id })
+  const conversationID = initialRecord.conversation_id ?? conversations.data?.interactions[0]?.id
+  const thread = useTool<Interaction>('get_interaction', { interaction_id: conversationID ?? '' }, {
+    enabled: !!conversationID,
+    refetchInterval: (query) => (query.state.data?.drafting?.state === 'drafting' ? 3000 : false),
+  })
+  const conversation = thread.data ?? conversations.data?.interactions[0]
+  const actions = useRecordPages({ object: 'follow_ups', conversation_id: initialRecord.conversation_id, limit: 100 }, { enabled: !!initialRecord.conversation_id, all: true })
+  const [selectedAction, setSelectedAction] = useState(initialRecord.id)
+  const record = actions.records?.find((action) => action.id === selectedAction) ?? initialRecord
+  const [switching, setSwitching] = useState(false)
+  const draft = useRef<DraftHandle>(null)
+  const selectAction = async (id: string) => {
+    setSwitching(true)
+    try {
+      if (await draft.current?.save()) {
+        setSelectedAction(id)
+      }
+    } catch {
+      // The current editor retains its text and displays the save error.
+    } finally {
+      setSwitching(false)
+    }
+  }
   const [subject] = refsOf(record)
   const person = valuesOf(record, 'person')[0] as Ref | undefined
   const company = valuesOf(record, 'company')[0] as Ref | undefined
   const context = useTool<CrmRecord>('get_record', { record_id: person?.id ?? '' }, { enabled: !!person })
-  const conversations = useTool<{ interactions: Interaction[] }>('list_interactions', { record_id: record.id, kinds: ['message'], limit: 1 }, {
-    refetchInterval: (query) => (query.state.data?.interactions[0]?.drafting?.state === 'drafting' ? 3000 : false),
-  })
-  const conversation = conversations.data?.interactions[0]
   const drafting = conversation?.drafting
   const draftingState = drafting?.state
   const draftingStartedAt = drafting?.started_at
@@ -65,14 +86,13 @@ export function Conversation({ record, onClose }: { record: CrmRecord; onClose: 
       void client.invalidateQueries({ queryKey: ['search_records'] })
     }
   }, [draftingState, draftingStartedAt, client])
-  const thread = useTool<Interaction>('get_interaction', { interaction_id: conversation?.id ?? '' }, { enabled: !!conversation })
   const channel = text(record, 'channel') || channels[conversation?.channel ?? ''] || (!conversation ? 'Email' : '')
   const sender = useTool<DraftSender>('get_draft_sender', { record_id: record.id }, { enabled: channel === 'Email' })
   // A query without data reads as pending again on every refetch, even after
   // it failed, so loading means not yet answered.
-  const loading = !conversations.isFetched || (!!conversation && !thread.isFetched)
+  const loading = conversationID ? !thread.isFetched : !conversations.isFetched
   const messages = thread.data?.messages ?? (conversation?.last_message ? [conversation.last_message] : [])
-  const error = conversations.error ?? thread.error
+  const error = conversations.error ?? thread.error ?? actions.error
   // Whether context shows is one choice for every follow-up.
   const [showContext, setShowContext] = useState(() => readItem(contextHidden) !== 'true')
   const created = <>Follow-up created · {recordName(record)}</>
@@ -110,6 +130,7 @@ export function Conversation({ record, onClose }: { record: CrmRecord; onClose: 
           <Done record={record} labelled className="bg-list-hover hover:bg-list-active" />
         </div>
       </header>
+      {initialRecord.conversation_id && actions.records && actions.records.length > 1 && <ConversationActions records={actions.records} selected={record} pending={switching} onSelect={(id) => void selectAction(id)} />}
       {showContext && context.data && <Context record={context.data} />}
       <div ref={body} className="scrollbar-quiet min-h-0 flex-1 overflow-y-auto px-6 py-5 @4xl:px-8">
         <div className="flex flex-col gap-3.5">
@@ -133,9 +154,37 @@ export function Conversation({ record, onClose }: { record: CrmRecord; onClose: 
         </div>
       </div>
       <footer className="shrink-0 px-6 pb-5 pt-2">
-        <Draft record={record} channel={channel} sender={sender.data} error={sender.error?.message} drafting={drafting} />
+        <Draft key={record.id} ref={draft} record={record} channel={channel} sender={sender.data} error={sender.error?.message} drafting={drafting} />
       </footer>
     </section>
+  )
+}
+
+function ConversationActions({ records, selected, pending, onSelect }: { records: CrmRecord[]; selected: CrmRecord; pending: boolean; onSelect: (id: string) => void }) {
+  const status = (record: CrmRecord) => text(record, 'status') || 'Open'
+  const open = records.filter((record) => status(record) === 'Open')
+  const ordered = [...open, ...records.filter((record) => status(record) !== 'Open')]
+  return (
+    <div className="flex min-w-0 items-center gap-2 border-b border-border px-6 py-1.5">
+      <p className="min-w-0 flex-1 truncate text-[12px] text-ink-2" title={recordName(selected)}>{recordName(selected)}</p>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" disabled={pending} aria-label="Conversation actions" className="shrink-0 tabular-nums">
+            {open.length ? `${open.length} open ${open.length === 1 ? 'action' : 'actions'}` : `${records.length} actions`}
+            <ChevronDown />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-[min(420px,calc(100vw-32px))]">
+          {ordered.map((record) => <DropdownMenuItem key={record.id} onSelect={() => onSelect(record.id)} className="h-auto min-h-10 py-2">
+            <div className="min-w-0 flex-1">
+              <p className="text-pretty [overflow-wrap:anywhere]">{recordName(record)}</p>
+              <p className="mt-0.5 text-[12px] text-ink-3">{status(record)}{status(record) === 'Open' && (text(record, 'waiting_on') === 'Them' ? ' · Waiting on them' : ' · Needs attention')}</p>
+            </div>
+            {record.id === selected.id && <Check aria-label="Selected" />}
+          </DropdownMenuItem>)}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   )
 }
 

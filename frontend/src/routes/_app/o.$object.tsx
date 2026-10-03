@@ -1,6 +1,6 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { ArrowDownAZ, ArrowUp, Kanban, ListChecks, Plus, Search, Table2 } from 'lucide-react'
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useMemo, useRef, useState } from 'react'
 import { Board } from '@/components/board'
 import { CompanyPeople } from '@/components/company-people'
 import { editDraft } from '@/components/follow-up'
@@ -56,29 +56,23 @@ function ObjectList({ slug }: { slug: string }) {
   const { sort, view, q = '', filters = slug === 'follow_ups' ? [{ attribute: 'status', operator: 'is', value: 'Open' }] : [], saved, limit = 100 } = search
   const query = useDebounced(q.trim())
   const queue = slug === 'follow_ups' && view !== 'table'
-  const result = useRecordPages(slug, query, filters, slug === 'companies' ? [{ object: 'people', attribute: 'company', limit: 4 }] : undefined, sort ?? (slug === 'follow_ups' ? 'action_date' : undefined), limit)
+  const status = object && statusOf(object.attributes)
+  // The workspace's own tables open as tables, the CRM's pipelines as boards.
+  const board = slug !== 'follow_ups' && (view ?? (object?.standard ? 'board' : 'table')) === 'board' ? status : undefined
+  const everything = !!board || queue
+  const result = useRecordPages({ object: slug, query, filters, include: slug === 'companies' ? [{ object: 'people', attribute: 'company', limit: 4 }] : undefined, sort: sort ?? (slug === 'follow_ups' ? 'action_date' : undefined), limit, group_by_conversation: queue || undefined }, { all: everything })
   const { total, hasNextPage, isFetchingNextPage, fetchNextPage } = result
   const zone = useWorkspace()?.timezone ?? 'UTC'
   // A queue reads in the order it shows, most urgent first.
   const records = useMemo(() => queue && result.records ? byUrgency(result.records, zone).map((item) => item.record) : result.records, [queue, result.records, zone])
   // Searching narrows a view, so the queue says how much of it shows.
-  const unsearched = useTool<{ total: number }>('search_records', { object: slug, query: '', filters, limit: 1 }, { enabled: queue && !!query }).data?.total
+  const unsearched = useTool<{ total: number }>('search_records', { object: slug, query: '', filters, limit: 1, group_by_conversation: true }, { enabled: queue && !!query }).data?.total
   const { width, resize } = useColumnWidths(slug)
-  const status = object && statusOf(object.attributes)
-  // The workspace's own tables open as tables, the CRM's pipelines as boards.
-  const board = slug !== 'follow_ups' && (view ?? (object?.standard ? 'board' : 'table')) === 'board' ? status : undefined
-  // A board or queue shows every record; a table loads more as it scrolls.
-  const everything = !!board || queue
-  useEffect(() => {
-    if (everything && hasNextPage && !isFetchingNextPage) {
-      void fetchNextPage()
-    }
-  }, [everything, hasNextPage, isFetchingNextPage, fetchNextPage])
   const end = useRef<HTMLDivElement>(null)
   useInView(end, !everything && !!hasNextPage && !isFetchingNextPage, fetchNextPage)
   const navigate = useNavigate()
   const openRecord = (index: number) => records && navigate({ to: '/r/$recordId', params: { recordId: records[index].id } })
-  const [focus, setFocus] = useListKeys(records?.map((r) => r.id) ?? [], queue ? { Enter: editDraft, Escape: () => setFocus(-1) } : { Enter: openRecord, o: openRecord })
+  const [focus, setFocus] = useListKeys(records?.map((r) => r.conversation_id ?? r.id) ?? [], queue ? { Enter: editDraft, Escape: () => setFocus(-1) } : { Enter: openRecord, o: openRecord })
   const [creating, setCreating] = useState(false)
   const rows = useRef<HTMLTableSectionElement>(null)
   useFlip(rows)

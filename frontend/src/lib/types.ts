@@ -36,6 +36,7 @@ export type Value = string | Ref
 
 export type CrmRecord = {
   id: string
+  conversation_id?: string
   object: string
   created_at: string
   values: Record<string, Value | Value[] | null>

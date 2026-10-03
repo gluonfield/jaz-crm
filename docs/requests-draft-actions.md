@@ -9,7 +9,7 @@
 
 Browser verification covered light/dark themes, a real 390px viewport, imported-draft revision advancement, local/remote edits during rewriting, recipient changes, Undo, errors, duplicate clicks and unmount cancellation. Native keyboard injection was unavailable; keyboard submission was not verified.
 
-Related question: four Kojaddnd entries are four distinct completed sends in one conversation. Each row repeats the latest conversation preview. One current open action waits on them. Proposed presentation is one conversation row with completed actions inside history; no records or messages were deleted or merged. Conversation grouping is separate from these drafting controls.
+Related question: four Kojaddnd entries are four distinct completed sends in one conversation. Each row repeats the latest conversation preview. One current open action waits on them. Conversation grouping is implemented separately; see [conversation queue](requests-conversation-queue.md) for verification and rollout. No records or messages are deleted or merged.
 
 ## Email signature correction
 

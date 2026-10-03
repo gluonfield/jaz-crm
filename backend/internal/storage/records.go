@@ -98,17 +98,24 @@ type NewAttribute struct {
 }
 
 type RecordQuery struct {
-	WorkspaceID  string
-	ObjectID     string
-	Query        *string
-	AttributeIDs []string
-	Operators    []string
-	Matches      []string
+	WorkspaceID         string
+	ObjectID            string
+	Query               *string
+	AttributeIDs        []string
+	Operators           []string
+	Matches             []string
+	GroupByConversation bool
+	ConversationID      *string
 	// SortAttributeID orders records by that attribute's value, earliest or
 	// first alphabetically, empty last; nil keeps the newest first.
 	SortAttributeID *string
 	Offset          int32
 	Limit           int32
+}
+
+type SearchRecord struct {
+	Record
+	ConversationID string
 }
 
 type RelatedRecord struct {
@@ -175,7 +182,7 @@ type RecordStore interface {
 	DeleteRecord(ctx context.Context, workspaceID, id string) error
 	Records(ctx context.Context, workspaceID string, ids []string) ([]Record, error)
 	// SearchRecords returns a page of matching records and how many match.
-	SearchRecords(ctx context.Context, query RecordQuery) ([]Record, int, error)
+	SearchRecords(ctx context.Context, query RecordQuery) ([]SearchRecord, int, error)
 	RelatedRecords(ctx context.Context, workspaceID, attributeID string, ids []string, limit int32) ([]RelatedRecord, error)
 	SavedFilters(ctx context.Context, workspaceID, objectID string) ([]SavedFilter, error)
 	SaveFilter(ctx context.Context, workspaceID string, filter SavedFilter) (SavedFilter, error)

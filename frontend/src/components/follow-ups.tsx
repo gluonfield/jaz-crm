@@ -73,7 +73,7 @@ export function FollowUpQueue({ records, focus, onFocus, controls, empty }: { re
                   <ul className="flex flex-col gap-0.5">
                     {members.map(({ record }) => {
                       const index = records.indexOf(record)
-                      return <FollowUp key={record.id} record={record} zone={zone} index={index} selected={focus === index} onSelect={() => onFocus(index)} />
+                      return <FollowUp key={record.conversation_id ?? record.id} record={record} zone={zone} index={index} selected={focus === index} onSelect={() => onFocus(index)} />
                     })}
                   </ul>
                 </section>
@@ -86,7 +86,7 @@ export function FollowUpQueue({ records, focus, onFocus, controls, empty }: { re
           Preparing replies…
         </div>}
       </div>
-      {selected && <Conversation key={selected.id} record={selected} onClose={() => onFocus(-1)} />}
+      {selected && <Conversation key={selected.conversation_id ?? selected.id} record={selected} onClose={() => onFocus(-1)} />}
     </div>
   )
 }

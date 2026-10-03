@@ -35,7 +35,7 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 		Description: "List an object's records, newest first or by a date, filtered by text and attribute values, with how often and when last each was in touch and the start of its latest message. Returns a filtered resource_uri that renders the matching CRM list or deal pipeline, and opens it automatically. Records, and the records they reference, carry a picture: a person's profile picture when Google has one, else the website logo of a record with a domain. Listed records leave out their markdown content, which query still matches and get_record returns.",
 		Meta:        mcp.Meta{"ui": map[string]any{"resourceUri": appURI}}},
 		func(ctx context.Context, actor auth.Actor, in searchInput) (recordsOutput, error) {
-			found, total, err := crm.Search(ctx, actor, records.Search{Object: in.Object, Query: in.Query, Where: in.Where, Filters: in.Filters, Sort: in.Sort, Offset: in.Offset, Limit: in.Limit, Include: in.Include})
+			found, total, err := crm.Search(ctx, actor, records.Search{Object: in.Object, Query: in.Query, Where: in.Where, Filters: in.Filters, Sort: in.Sort, Offset: in.Offset, Limit: in.Limit, Include: in.Include, GroupByConversation: in.GroupByConversation, ConversationID: in.ConversationID})
 			if err != nil {
 				return recordsOutput{}, err
 			}
@@ -201,12 +201,13 @@ type refView struct {
 }
 
 type recordView struct {
-	ID        string                 `json:"id"`
-	Object    string                 `json:"object"`
-	CreatedAt time.Time              `json:"created_at"`
-	Values    map[string]any         `json:"values"`
-	Related   map[string][]refView   `json:"related,omitempty"`
-	Activity  *interactions.Activity `json:"activity,omitempty"`
+	ID             string                 `json:"id"`
+	ConversationID string                 `json:"conversation_id,omitempty"`
+	Object         string                 `json:"object"`
+	CreatedAt      time.Time              `json:"created_at"`
+	Values         map[string]any         `json:"values"`
+	Related        map[string][]refView   `json:"related,omitempty"`
+	Activity       *interactions.Activity `json:"activity,omitempty"`
 	// Photo is a person's profile picture from one of their addresses.
 	Photo string `json:"photo,omitempty"`
 }
@@ -246,18 +247,20 @@ func recordOf(r records.Record, photos map[string]string) recordView {
 		}
 		related[relation] = list
 	}
-	return recordView{ID: r.ID, Object: r.Object, CreatedAt: r.CreatedAt, Values: values, Related: related, Photo: photos[r.ID]}
+	return recordView{ID: r.ID, ConversationID: r.ConversationID, Object: r.Object, CreatedAt: r.CreatedAt, Values: values, Related: related, Photo: photos[r.ID]}
 }
 
 type searchInput struct {
-	Object  string             `json:"object" jsonschema:"object slug, such as people or companies"`
-	Query   string             `json:"query,omitempty" jsonschema:"text that any value contains, case-insensitively"`
-	Where   map[string]string  `json:"where,omitempty" jsonschema:"attribute slug to a value the record must hold; a reference takes a record id or a unique value such as a domain"`
-	Filters []records.Filter   `json:"filters,omitempty" jsonschema:"multiple attribute conditions; every condition must match, including repeated attributes"`
-	Sort    string             `json:"sort,omitempty" jsonschema:"a date or text attribute to order by, earliest or first alphabetically and empty last, such as action_date or name; omit for newest first"`
-	Offset  int                `json:"offset,omitempty" jsonschema:"matching records to skip, for the next page"`
-	Limit   int                `json:"limit,omitempty" jsonschema:"at most 500, default 20"`
-	Include []records.Relation `json:"include,omitempty" jsonschema:"at most 8 reverse relationships to include as compact references, keyed by object.attribute in each record's related field"`
+	Object              string             `json:"object" jsonschema:"object slug, such as people or companies"`
+	Query               string             `json:"query,omitempty" jsonschema:"text that any value contains, case-insensitively"`
+	Where               map[string]string  `json:"where,omitempty" jsonschema:"attribute slug to a value the record must hold; a reference takes a record id or a unique value such as a domain"`
+	Filters             []records.Filter   `json:"filters,omitempty" jsonschema:"multiple attribute conditions; every condition must match, including repeated attributes"`
+	Sort                string             `json:"sort,omitempty" jsonschema:"a date or text attribute to order by, earliest or first alphabetically and empty last, such as action_date or name; omit for newest first"`
+	Offset              int                `json:"offset,omitempty" jsonschema:"matching records to skip, for the next page"`
+	Limit               int                `json:"limit,omitempty" jsonschema:"at most 500, default 20"`
+	Include             []records.Relation `json:"include,omitempty" jsonschema:"at most 8 reverse relationships to include as compact references, keyed by object.attribute in each record's related field"`
+	GroupByConversation bool               `json:"group_by_conversation,omitempty" jsonschema:"follow_ups only: one matching action per conversation, preferring open actions; query also matches earlier actions in the conversation; total counts conversations"`
+	ConversationID      string             `json:"conversation_id,omitempty" jsonschema:"follow_ups only: actions whose sole email or message conversation is this ID"`
 }
 
 type recordsOutput struct {
