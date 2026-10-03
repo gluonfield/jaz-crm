@@ -18,7 +18,7 @@ func TestMessage(t *testing.T) {
 	c := fake(t, map[string]http.HandlerFunc{
 		"/gmail/v1/users/me/messages/gone": respond(http.StatusNotFound, `{"error":{"code":404,"message":"Not Found"}}`),
 		"/gmail/v1/users/me/messages/m1": func(w http.ResponseWriter, r *http.Request) {
-			wantQuery(t, r.URL, url.Values{"format": {"metadata"}, "metadataHeaders": {"From", "Reply-To", "To", "Cc", "Subject", "Message-ID", "In-Reply-To", "References", "List-Unsubscribe", "Precedence", "Auto-Submitted", "Delivered-To"}})
+			wantQuery(t, r.URL, url.Values{"format": {"metadata"}, "metadataHeaders": {"From", "Reply-To", "To", "Cc", "Bcc", "Subject", "Message-ID", "In-Reply-To", "References", "List-Unsubscribe", "Precedence", "Auto-Submitted", "Delivered-To"}})
 			io.WriteString(w, `{"id":"m1","threadId":"t1","labelIds":["INBOX","UNREAD"],"internalDate":"1760000000123","payload":{"headers":[
 				{"name":"From","value":"\"Doe, Jane\" <Jane@Example.com>"},
 				{"name":"Reply-To","value":"Sales <Sales@Example.com>"},
@@ -98,8 +98,8 @@ func TestHTMLOnlyText(t *testing.T) {
 
 func TestTextIsValidAndCapped(t *testing.T) {
 	for raw, want := range map[string]string{
-		"caf\xe9":                      "caf�",
-		strings.Repeat("é", maxText+1): strings.Repeat("é", maxText),
+		"caf\xe9":                  "caf�",
+		strings.Repeat("é", 20001): strings.Repeat("é", 20001),
 	} {
 		p := part{MimeType: "text/plain", Body: struct{ Data string }{base64.RawURLEncoding.EncodeToString([]byte(raw))}}
 		if got, rich := p.content(); got != want || rich != "" {

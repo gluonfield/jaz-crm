@@ -14,12 +14,18 @@ import (
 )
 
 type Sender struct {
-	From      string   `json:"from"`
-	Subject   string   `json:"subject"`
-	Reply     bool     `json:"reply"`
-	Signature string   `json:"signature,omitempty"`
-	To        []string `json:"to"`
-	Cc        []string `json:"cc"`
+	From          string   `json:"from"`
+	Subject       string   `json:"subject"`
+	Reply         bool     `json:"reply"`
+	Signature     string   `json:"signature,omitempty"`
+	To            []string `json:"to"`
+	Cc            []string `json:"cc"`
+	Draft         string   `json:"draft,omitempty"`
+	ImportedDraft bool     `json:"imported_draft,omitempty"`
+	Revision      string   `json:"revision,omitempty"`
+	Bcc           []string `json:"bcc,omitempty"`
+	Attachments   []string `json:"attachments,omitempty"`
+	HTML          string   `json:"html,omitempty"`
 }
 
 func (s *Service) Sender(ctx context.Context, actor auth.Actor, id string) (Sender, error) {
@@ -31,10 +37,21 @@ func (s *Service) Sender(ctx context.Context, actor auth.Actor, id string) (Send
 		return Sender{}, errs.Invalidf("%s is not a follow-up", id)
 	}
 	out, err := s.compose(ctx, actor, f)
-	return Sender{From: out.account, Subject: out.message.Subject, Reply: out.latest != nil, Signature: out.message.Signature.HTML, To: out.message.To, Cc: out.message.Cc}, err
+	sender := Sender{From: out.account, Subject: out.message.Subject, Reply: out.latest != nil, Signature: out.message.Signature.HTML, To: out.message.To, Cc: out.message.Cc, Bcc: out.bcc, Attachments: out.attachments, HTML: out.html}
+	if out.imported != nil {
+		sender.ImportedDraft = true
+		sender.Draft = out.message.Body
+		sender.Revision = out.imported.MessageID
+	}
+	return sender, err
 }
 
 func (s *Service) compose(ctx context.Context, actor auth.Actor, f records.Record) (outgoing, error) {
+	if draft, err := s.store.GmailDraft(ctx, actor.WorkspaceID, f.ID); err == nil && draft.State == "draft" {
+		return s.composeImported(ctx, actor, f, draft)
+	} else if err != nil && !errors.Is(err, storage.ErrNotFound) {
+		return outgoing{}, err
+	}
 	last, sender, err := s.sender(ctx, actor, f)
 	if err != nil {
 		return outgoing{}, err

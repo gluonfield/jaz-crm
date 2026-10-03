@@ -28,10 +28,11 @@ SELECT * FROM handles WHERE workspace_id = @workspace_id AND value = ANY(@handle
 SELECT * FROM handles WHERE workspace_id = $1 AND kind = 'email' AND split_part(value, '@', 2) = $2;
 
 -- name: ListHandles :many
-SELECT sqlc.embed(handles), count(DISTINCT participants.interaction_id)::int AS interactions, coalesce(max(interactions.started_at), handles.created_at)::timestamptz AS last_seen
+SELECT sqlc.embed(handles), count(DISTINCT interactions.id)::int AS interactions, coalesce(max(interactions.started_at), handles.created_at)::timestamptz AS last_seen
 FROM handles
 LEFT JOIN participants ON participants.handle_id = handles.id
 LEFT JOIN interactions ON interactions.id = participants.interaction_id
+  AND (interactions.kind <> 'email' OR EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
 WHERE handles.workspace_id = @workspace_id AND handles.triage = @triage
   AND (sqlc.narg(query)::text IS NULL OR handles.value ILIKE '%' || sqlc.narg(query)::text || '%' OR handles.name ILIKE '%' || sqlc.narg(query)::text || '%')
 GROUP BY handles.id
@@ -73,7 +74,8 @@ WHERE handles.workspace_id = @workspace_id
   AND EXISTS (
     SELECT 1 FROM participants own
     JOIN handles internal ON internal.id = own.handle_id AND internal.triage = 'internal'
-    WHERE own.interaction_id = interactions.id AND ((@auto_keep_email::boolean AND interactions.kind = 'email' AND own.role = 'from')
+    WHERE own.interaction_id = interactions.id AND ((@auto_keep_email::boolean AND interactions.kind = 'email' AND own.role = 'from'
+      AND EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
       OR (@auto_keep_meetings::boolean AND interactions.kind = 'meeting' AND interactions.ended_at <= now() AND own.role IN ('organizer', 'attendee')))
   );
 
@@ -113,7 +115,9 @@ SELECT * FROM handles WHERE workspace_id = $1 AND triage = 'kept' AND person_id 
 -- of their latest conversations.
 SELECT handles.id, handles.value, handles.name,
   array(SELECT interactions.title FROM participants JOIN interactions ON interactions.id = participants.interaction_id
-    WHERE participants.handle_id = handles.id ORDER BY interactions.started_at DESC LIMIT 3)::text[] AS titles
+    WHERE participants.handle_id = handles.id
+      AND (interactions.kind <> 'email' OR EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
+    ORDER BY interactions.started_at DESC LIMIT 3)::text[] AS titles
 FROM handles
 WHERE handles.workspace_id = $1 AND handles.triage = 'pending' AND handles.decided_by IS NULL
 ORDER BY handles.created_at
@@ -156,10 +160,17 @@ DELETE FROM participants WHERE interaction_id = $1;
 INSERT INTO participants (interaction_id, handle_id, role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING;
 
 -- name: UpsertPart :exec
+-- A sent copy of a retained draft must fetch its content from the sent provider message.
 INSERT INTO parts (interaction_id, kind, external_id, connection_id, provider_id, author_handle_id, author_name, at, content, recipients, direction, date_only, partial, position)
 VALUES (@interaction_id, @kind, @external_id, @connection_id, @provider_id, @author_handle_id, @author_name, @at, @content, coalesce(@recipients::text[], '{}'), @direction, @date_only, @partial, @position)
 ON CONFLICT (interaction_id, external_id) DO UPDATE
-SET content = COALESCE(EXCLUDED.content, parts.content), author_name = EXCLUDED.author_name, at = EXCLUDED.at,
+SET kind = EXCLUDED.kind,
+    content = CASE WHEN parts.kind = 'draft' THEN EXCLUDED.content ELSE COALESCE(EXCLUDED.content, parts.content) END,
+    html = CASE WHEN parts.kind = 'draft' THEN NULL ELSE parts.html END,
+    connection_id = CASE WHEN parts.kind = 'draft' THEN EXCLUDED.connection_id ELSE parts.connection_id END,
+    provider_id = CASE WHEN parts.kind = 'draft' THEN EXCLUDED.provider_id ELSE parts.provider_id END,
+    author_handle_id = CASE WHEN parts.kind = 'draft' THEN EXCLUDED.author_handle_id ELSE parts.author_handle_id END,
+    author_name = EXCLUDED.author_name, at = EXCLUDED.at,
     recipients = EXCLUDED.recipients, direction = EXCLUDED.direction, date_only = EXCLUDED.date_only, partial = EXCLUDED.partial, position = EXCLUDED.position;
 
 -- name: ClearParts :exec
@@ -214,7 +225,7 @@ UPDATE interactions SET skipped = true WHERE workspace_id = $1 AND id = $2;
 -- name: UnfetchedParts :many
 SELECT parts.id, parts.provider_id::text AS provider_id FROM parts
 JOIN interactions ON interactions.id = parts.interaction_id AND NOT interactions.skipped
-WHERE parts.connection_id = $1 AND (parts.content IS NULL OR parts.html IS NULL) AND parts.provider_id IS NOT NULL
+WHERE parts.connection_id = $1 AND parts.kind <> 'draft' AND (parts.content IS NULL OR parts.html IS NULL) AND parts.provider_id IS NOT NULL
   AND EXISTS (SELECT 1 FROM links WHERE links.interaction_id = interactions.id)
 ORDER BY parts.at DESC
 LIMIT $2;
@@ -232,6 +243,7 @@ SELECT interactions.* FROM interactions
 JOIN links ON links.interaction_id = interactions.id AND links.record_id = @record_id
 LEFT JOIN interactions cursor ON cursor.id = nullif(@cursor::text, '')::uuid AND cursor.workspace_id = @workspace_id AND NOT cursor.skipped
 WHERE interactions.workspace_id = @workspace_id AND NOT interactions.skipped
+  AND (interactions.kind <> 'email' OR EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
   AND (cardinality(@kinds::text[]) = 0 OR interactions.kind = ANY(@kinds::text[]))
   AND (@cursor::text = '' OR CASE WHEN @upcoming::bool
     THEN (interactions.started_at, interactions.id) > (cursor.started_at, cursor.id)
@@ -244,6 +256,7 @@ LIMIT @row_limit;
 -- name: SearchInteractions :many
 SELECT interactions.* FROM interactions
 WHERE interactions.workspace_id = @workspace_id AND NOT interactions.skipped
+  AND (interactions.kind <> 'email' OR EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
   AND EXISTS (SELECT 1 FROM links WHERE links.interaction_id = interactions.id)
   AND (@query::text = '' OR interactions.title ILIKE '%' || @query::text || '%' OR EXISTS (
     SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.search @@ websearch_to_tsquery('simple', @query::text)
@@ -276,6 +289,7 @@ SELECT links.record_id, count(*)::int AS interactions, min(interactions.started_
 FROM links
 JOIN interactions ON interactions.id = links.interaction_id AND NOT interactions.skipped
 WHERE interactions.workspace_id = @workspace_id AND links.record_id = ANY(@record_ids::uuid[]) AND interactions.started_at <= now() AND interactions.kind <> 'note'
+  AND (interactions.kind <> 'email' OR EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
 GROUP BY links.record_id;
 
 -- name: RecordLastMessages :many
@@ -337,7 +351,7 @@ WHERE interactions.workspace_id = @workspace_id AND NOT interactions.skipped
     OR interactions.drafting_state = 'failed'
     OR (interactions.drafting_state = 'drafting' AND interactions.drafting_started_at < now() - interval '15 minutes'))
   AND EXISTS (SELECT 1 FROM links WHERE links.interaction_id = interactions.id)
-  AND NOT EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.content IS NULL AND parts.provider_id IS NOT NULL)
+  AND NOT EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind <> 'draft' AND parts.content IS NULL AND parts.provider_id IS NOT NULL)
 ORDER BY latest.at DESC
 LIMIT @row_limit;
 

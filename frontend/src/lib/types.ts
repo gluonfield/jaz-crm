@@ -71,6 +71,7 @@ export type Interaction = {
   meet_url?: string
   transcript?: Speech[]
   messages?: CrmMessage[]
+  drafts?: { follow_up_id: string; subject: string; state: 'draft' | 'missing' | 'sent' }[]
   provenance?: string
   last_message?: CrmMessage
   drafting?: { state: 'drafting' | 'completed' | 'failed' | 'skipped'; reason?: string; started_at?: string }
@@ -114,8 +115,8 @@ export type Connection = {
 
 export type Connections = { connections: Connection[]; connect_url?: string; since: string }
 
-export type DraftMessage = { draft: string; subject: string; to: string[]; cc: string[] }
-export type DraftSender = Omit<DraftMessage, 'draft'> & { from: string; signature?: string; reply: boolean }
+export type DraftMessage = { draft: string; subject: string; to: string[]; cc: string[]; revision?: string }
+export type DraftSender = Omit<DraftMessage, 'draft'> & { from: string; signature?: string; reply: boolean; imported_draft?: boolean; draft?: string; bcc?: string[]; attachments?: string[]; html?: string }
 
 export type TriageSettings = {
   auto_keep_email: boolean

@@ -93,14 +93,16 @@ type Line struct {
 
 // Open is an open follow-up as a planner sees it.
 type Open struct {
-	ID         string `json:"id"`
-	Action     string `json:"action"`
-	WaitingOn  string `json:"waiting_on,omitempty"`
-	ActionDate string `json:"action_date,omitempty"`
-	DateBasis  string `json:"action_date_basis,omitempty"`
-	DateReason string `json:"action_date_reason,omitempty"`
-	Draft      string `json:"draft,omitempty"`
-	Subject    string `json:"subject,omitempty"`
+	ID           string `json:"id"`
+	Action       string `json:"action"`
+	WaitingOn    string `json:"waiting_on,omitempty"`
+	ActionDate   string `json:"action_date,omitempty"`
+	DateBasis    string `json:"action_date_basis,omitempty"`
+	DateReason   string `json:"action_date_reason,omitempty"`
+	Draft        string `json:"draft,omitempty"`
+	Subject      string `json:"subject,omitempty"`
+	Channel      string `json:"channel,omitempty"`
+	Conversation bool   `json:"current_conversation"`
 }
 
 // Plan contains follow-up changes and context updates, with a reply or skip reason.
@@ -352,22 +354,9 @@ func (a *Agent) follow(ctx context.Context, workspaceID, id string) (string, str
 	if !plan.HasOutcome() {
 		return "", "The drafting model returned no reply or explanation. The system will retry.", errors.New("drafting model returned neither a reply nor a skip reason")
 	}
-	drafted := false
-	for _, change := range plan.FollowUps {
-		written, err := a.apply(ctx, actor, conv, in, change)
-		if err != nil {
-			return "", "Could not save the draft or follow-up. The system will retry.", err
-		}
-		drafted = drafted || written
-	}
-	for _, c := range plan.Contexts {
-		i := slices.IndexFunc(in.Records, func(current Record) bool { return current.Object == "people" && current.ID == c.Person })
-		if i < 0 || strings.TrimSpace(c.Context) == "" || slices.Equal([]string{strings.TrimSpace(c.Context)}, in.Records[i].Values[records.ContextAttribute]) {
-			continue
-		}
-		if _, _, err := a.crm.Upsert(ctx, actor, records.SourceAgent, records.Write{Object: "people", RecordID: c.Person, Set: map[string][]string{records.ContextAttribute: {plain(c.Context)}}}); err != nil {
-			return "", "Could not save the updated person context. The system will retry.", err
-		}
+	drafted, err := a.savePlan(ctx, actor, conv, in, plan)
+	if err != nil {
+		return "", "Could not save the draft or follow-up. The system will retry.", err
 	}
 	if drafted {
 		return "completed", "", nil
@@ -377,118 +366,4 @@ func (a *Agent) follow(ctx context.Context, workspaceID, id string) (string, str
 		reason = "The generated reply could not replace the existing draft or did not match this follow-up."
 	}
 	return "skipped", reason, nil
-}
-
-// apply writes one change as the agent and links the conversation to the
-// follow-up. It ignores follow-ups and records the planner was not shown.
-func (a *Agent) apply(ctx context.Context, actor auth.Actor, conv interactions.Interaction, in Conversation, c Change) (bool, error) {
-	if c.ID != "" && !slices.ContainsFunc(in.FollowUps, func(o Open) bool { return o.ID == c.ID }) {
-		return false, nil
-	}
-	set := map[string][]string{}
-	put := func(attribute, value string) {
-		if value = strings.TrimSpace(value); value != "" {
-			set[attribute] = []string{value}
-		}
-	}
-	if c.ID == "" && in.Sender != nil {
-		put("owner", in.Sender.Address)
-	}
-	put("name", plain(c.Action))
-	put("waiting_on", c.WaitingOn)
-	put("status", c.Status)
-	remove := map[string][]string{}
-	if c.ActionDate != nil {
-		if strings.TrimSpace(c.ActionDate.Value) == "" {
-			remove["action_date"] = nil
-		} else {
-			date, err := actionDate(c.ActionDate.Value, in.Timezone)
-			if err != nil {
-				return false, err
-			}
-			put("action_date", date)
-			put("action_date_basis", c.ActionDate.Basis)
-			put("action_date_reason", c.ActionDate.Reason)
-			put("action_date_source", conv.ID)
-		}
-	}
-	for object, attribute := range subjects {
-		id := map[string]string{"person": c.Person, "company": c.Company, "deal": c.Deal}[attribute]
-		if slices.ContainsFunc(in.Records, func(r Record) bool { return r.ID == id && r.Object == object }) {
-			put(attribute, id)
-		}
-	}
-	if c.WaitingOn != "Them" && c.Status != "Done" && c.Status != "Dismissed" && strings.TrimSpace(c.Reply) != "" {
-		if err := a.draft(ctx, actor, conv, c, set); err != nil {
-			return false, err
-		}
-		if c.ID != "" && set["to"] != nil {
-			current, err := a.crm.Get(ctx, actor, c.ID)
-			if err != nil {
-				return false, err
-			}
-			for _, attribute := range []string{"to", "cc"} {
-				remove[attribute] = slices.DeleteFunc(values(current, attribute), func(address string) bool { return slices.Contains(set[attribute], address) })
-				if len(remove[attribute]) == 0 {
-					delete(remove, attribute)
-				}
-			}
-		}
-	}
-	if c.ID == "" && set["name"] == nil || len(set) == 0 && len(remove) == 0 {
-		return false, nil
-	}
-	f, _, err := a.crm.Upsert(ctx, actor, records.SourceAgent, records.Write{Object: records.FollowUps, RecordID: c.ID, Set: set, Remove: remove})
-	if err != nil {
-		return false, err
-	}
-	drafted := len(set["draft"]) > 0 && value(f, "waiting_on") != "Them" && value(f, "status") == "Open" && value(f, "draft") == set["draft"][0]
-	return drafted, a.store.AddLink(ctx, conv.ID, f.ID, interactions.ByAgent)
-}
-
-// draft sets a reply's text and channel; an email reply goes to everyone on
-// the latest message, except the sending mailbox and its aliases.
-func (a *Agent) draft(ctx context.Context, actor auth.Actor, conv interactions.Interaction, c Change, set map[string][]string) error {
-	channel := c.Channel
-	if channel == "" {
-		channel = map[string]string{"email": "Email", "linkedin": "LinkedIn"}[conv.Channel]
-	}
-	if channel != "Email" && channel != "LinkedIn" {
-		return nil
-	}
-	set["draft"] = []string{plain(c.Reply)}
-	set["channel"] = []string{channel}
-	if channel != "Email" {
-		return nil
-	}
-	if c.Subject != "" {
-		set["subject"] = []string{plain(c.Subject)}
-	}
-	if conv.Channel != "email" {
-		return nil
-	}
-	parts, err := a.store.Parts(ctx, []string{conv.ID})
-	if err != nil {
-		return err
-	}
-	parts = slices.DeleteFunc(parts, func(p storage.Part) bool { return p.Kind != "message" || p.ConnectionID == nil || p.ProviderID == nil })
-	if len(parts) == 0 {
-		return nil
-	}
-	last, holder, err := a.original(ctx, parts[len(parts)-1])
-	if err != nil {
-		return err
-	}
-	sender, err := a.conns.Mailbox(ctx, actor, holder.ID)
-	if err != nil {
-		return err
-	}
-	to, cc := replyAll(last, slices.Concat([]string{sender.Account}, sender.Aliases))
-	if len(to) > 0 {
-		set["to"] = to
-	}
-	if len(cc) > 0 {
-		set["cc"] = cc
-	}
-	return nil
 }

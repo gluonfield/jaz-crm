@@ -30,6 +30,10 @@ export const editDraft = () => document.querySelector<HTMLElement>('[data-conver
 
 export function Done({ record, labelled = false, className }: { record: CrmRecord; labelled?: boolean; className?: string }) {
   const write = useWrite(record)
+  const status = text(record, 'status')
+  if (status === 'Done' || status === 'Dismissed') {
+    return labelled ? <span className="text-[12px] text-ink-3">{status}</span> : null
+  }
   return (
     <Button variant="ghost" size={labelled ? 'default' : 'icon-sm'} aria-label="Done" title="Done" className={className} onClick={(e) => {
       e.stopPropagation()
@@ -120,7 +124,7 @@ export function Conversation({ record, onClose }: { record: CrmRecord; onClose: 
               {conversation && messages.length > 0
                 ? <MessageThread key={conversation.id} interaction={thread.data ?? conversation} messages={messages} events={[{ at: record.created_at, label: created }]} initialVisible={4} />
                 : <>
-                  {conversation && <p className="text-[12px] text-ink-3">Message text is not available yet.</p>}
+                  {conversation && !conversation.drafts?.length && <p className="text-[12px] text-ink-3">Message text is not available yet.</p>}
                   <Divider>{formatDate(record.created_at)}</Divider>
                   <Happening>{created}</Happening>
                 </>}

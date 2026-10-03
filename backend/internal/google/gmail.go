@@ -30,14 +30,15 @@ type Message struct {
 	Date         time.Time
 	From         Address
 	// ReplyTo is where the sender asks replies to go instead of From.
-	ReplyTo    []Address
-	To, Cc     []Address
-	Subject    string
-	MessageID  string
-	InReplyTo  string
-	References []string
-	Bulk       bool
-	Text, HTML string
+	ReplyTo     []Address
+	To, Cc, Bcc []Address
+	Subject     string
+	MessageID   string
+	InReplyTo   string
+	References  []string
+	Bulk        bool
+	Text, HTML  string
+	Attachments []string
 	// DeliveredTo lists the mailboxes that received the message on its way
 	// here, including those that forwarded it.
 	DeliveredTo []string
@@ -48,7 +49,7 @@ type HistoryPage struct {
 	Next, HistoryID string
 }
 
-var metadataHeaders = []string{"From", "Reply-To", "To", "Cc", "Subject", "Message-ID", "In-Reply-To", "References", "List-Unsubscribe", "Precedence", "Auto-Submitted", "Delivered-To"}
+var metadataHeaders = []string{"From", "Reply-To", "To", "Cc", "Bcc", "Subject", "Message-ID", "In-Reply-To", "References", "List-Unsubscribe", "Precedence", "Auto-Submitted", "Delivered-To"}
 
 func (c *Client) Profile(ctx context.Context) (Profile, error) {
 	var raw struct {
@@ -116,15 +117,22 @@ func (c *Client) message(ctx context.Context, id string, full bool) (Message, er
 	if full {
 		q = url.Values{"format": {"full"}}
 	}
-	var raw struct {
-		ID, ThreadID string
-		LabelIDs     []string
-		InternalDate int64 `json:",string"`
-		Payload      part
-	}
+	var raw gmailMessage
 	if err := c.get(ctx, c.gmail("messages/"+url.PathEscape(id)), q, &raw); err != nil {
 		return Message{}, err
 	}
+	return raw.message(), nil
+}
+
+type gmailMessage struct {
+	ID, ThreadID string
+	LabelIDs     []string
+	InternalDate int64 `json:",string"`
+	Payload      part
+	Raw          string
+}
+
+func (raw gmailMessage) message() Message {
 	h := map[string]string{}
 	var delivered []string
 	for _, header := range raw.Payload.Headers {
@@ -143,6 +151,7 @@ func (c *Client) message(ctx context.Context, id string, full bool) (Message, er
 		ReplyTo:     addresses(h["reply-to"]),
 		To:          addresses(h["to"]),
 		Cc:          addresses(h["cc"]),
+		Bcc:         addresses(h["bcc"]),
 		Subject:     h["subject"],
 		MessageID:   firstID(h["message-id"]),
 		InReplyTo:   firstID(h["in-reply-to"]),
@@ -155,7 +164,8 @@ func (c *Client) message(ctx context.Context, id string, full bool) (Message, er
 	if from := addresses(h["from"]); len(from) > 0 {
 		m.From = from[0]
 	}
-	return m, nil
+	m.Attachments = raw.Payload.attachments()
+	return m
 }
 
 func (c *Client) History(ctx context.Context, startHistoryID, pageToken string) (HistoryPage, error) {

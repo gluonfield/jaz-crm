@@ -131,7 +131,10 @@ export function InteractionRow({ interaction, when }: { interaction: Interaction
                 {when ?? recentOrDate(interaction.started_at)}
               </time>
             </span>
-            <span className="block truncate text-[12px] text-ink-3">{interaction.last_message ? <MessageState message={interaction.last_message} /> : who(interaction)}</span>
+            <span className="block truncate text-[12px] text-ink-3">
+              {interaction.drafts?.some((draft) => draft.state === 'draft') && <span className="mr-2 text-ink-2">Gmail draft</span>}
+              {interaction.last_message ? <MessageState message={interaction.last_message} /> : who(interaction)}
+            </span>
             {interaction.preview && <span className="mt-1 line-clamp-2 text-[12.5px] leading-[1.5] text-ink-2">{interaction.preview}</span>}
           </span>
         </button>

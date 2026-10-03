@@ -51,6 +51,12 @@ type Drafting struct {
 	StartedAt *time.Time `json:"started_at,omitempty"`
 }
 
+type EmailDraft struct {
+	FollowUpID string `json:"follow_up_id"`
+	Subject    string `json:"subject"`
+	State      string `json:"state"`
+}
+
 type Interaction struct {
 	ID           string        `json:"id"`
 	Kind         string        `json:"kind"`
@@ -71,6 +77,7 @@ type Interaction struct {
 	Preview      string        `json:"preview,omitempty"`
 	LastMessage  *MessageView  `json:"last_message,omitempty"`
 	Drafting     *Drafting     `json:"drafting,omitempty"`
+	Drafts       []EmailDraft  `json:"drafts,omitempty"`
 }
 
 func limitOf(limit int) int32 {
@@ -283,7 +290,22 @@ func (s *Service) views(ctx context.Context, workspaceID string, list []storage.
 		v := &out[index[l.InteractionID]]
 		v.Records = append(v.Records, Ref{ID: l.RecordID, Object: label.Object, Name: label.Name})
 	}
+	if mode != sourceView {
+		drafts, err := s.store.InteractionDrafts(ctx, ids)
+		if err != nil {
+			return nil, err
+		}
+		for _, draft := range drafts {
+			if draft.FollowUpID != nil {
+				v := &out[index[draft.InteractionID]]
+				v.Drafts = append(v.Drafts, EmailDraft{FollowUpID: *draft.FollowUpID, Subject: draft.Subject, State: draft.State})
+			}
+		}
+	}
 	for _, p := range parts {
+		if p.Kind == "draft" {
+			continue
+		}
 		v := &out[index[p.InteractionID]]
 		sender := authors[deref(p.AuthorHandleID)]
 		author := cmp.Or(p.AuthorName, sender.Name, sender.Address)

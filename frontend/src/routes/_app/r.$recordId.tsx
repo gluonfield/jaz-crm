@@ -5,6 +5,7 @@ import { Button } from '@jaz/ui/button'
 import { Header, Tab } from '@/components/controls'
 import { dateMetadata } from '@/components/date-field'
 import { Field } from '@/components/fields'
+import { Conversation } from '@/components/follow-up'
 import { PageEditor } from '@/components/editor'
 import { History } from '@/components/history'
 import { ObjectIcon } from '@/components/icons'
@@ -76,6 +77,9 @@ function RecordPage() {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          {record.object === 'follow_ups' && <DropdownMenuItem onSelect={() => void navigate({ to: '.', search: tab ? {} : { tab: 'activity' } })}>
+            <FileText /> {tab ? 'Conversation' : 'Changes'}
+          </DropdownMenuItem>}
           <DropdownMenuItem
             onSelect={() =>
               remove.mutate(
@@ -90,6 +94,14 @@ function RecordPage() {
       </DropdownMenu>
     </Header>
   )
+  if (record.object === 'follow_ups' && !tab) {
+    return <>
+      {header}
+      <div className="@container flex min-h-0 flex-1">
+        <Conversation key={record.id} record={record} onClose={() => void navigate({ to: '/o/$object', params: { object: 'follow_ups' } })} />
+      </div>
+    </>
+  }
   // Pages and the records of the workspace's own tables read as documents:
   // a table record's properties sit under its title, as in Notion.
   if (page || !object.standard) {

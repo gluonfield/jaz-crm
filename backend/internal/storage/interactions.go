@@ -222,6 +222,7 @@ type DomainRule struct {
 
 type InteractionStore interface {
 	RecordStore
+	DraftStore
 	// Atomically runs fn against the store within one transaction.
 	Atomically(ctx context.Context, fn func(InteractionStore) error) error
 	LockWorkspace(ctx context.Context, workspaceID string) error

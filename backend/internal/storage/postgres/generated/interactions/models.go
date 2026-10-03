@@ -16,6 +16,27 @@ type DomainRule struct {
 	CreatedAt   time.Time
 }
 
+type GmailDraft struct {
+	ConnectionID   string
+	DraftID        string
+	MessageID      string
+	RfcMessageID   string
+	ThreadID       string
+	FollowUpID     *string
+	Subject        string
+	Body           string
+	HTML           string
+	Sender         string
+	Recipients     []string
+	Cc             []string
+	Bcc            []string
+	State          string
+	StateChangedAt time.Time
+	SentMessageID  string
+	At             time.Time
+	Attachments    []string
+}
+
 type Handle struct {
 	ID          string
 	WorkspaceID string

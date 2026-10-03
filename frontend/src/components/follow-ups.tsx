@@ -18,11 +18,17 @@ const groups = [
   { name: 'Today', className: 'text-running' },
   { name: 'Next 7 days', className: 'text-ink-2' },
   { name: 'Later', className: 'text-ink-2' },
+  { name: 'Done', className: 'text-ink-3' },
+  { name: 'Dismissed', className: 'text-ink-3' },
 ]
 
 // groupOf places a follow-up by when it is due where the workspace is;
 // one without a date waits until later.
 function groupOf(record: CrmRecord, zone: string) {
+  const status = text(record, 'status')
+  if (status === 'Done' || status === 'Dismissed') {
+    return status === 'Done' ? 4 : 5
+  }
   const due = text(record, 'action_date')
   if (!due) {
     return 3
@@ -90,6 +96,10 @@ const daysSince = (iso: string) => Math.floor((Date.now() - Date.parse(iso)) / o
 // standing says whose move it is, and how long the other side has been
 // waiting or the move has been overdue; a dot on the avatar repeats it.
 function standing(record: CrmRecord, zone: string) {
+  const status = text(record, 'status')
+  if (status === 'Done' || status === 'Dismissed') {
+    return { label: status, tone: 'text-ink-3', dot: undefined }
+  }
   const move = text(record, 'waiting_on')
   const due = text(record, 'action_date')
   const overdue = !!due && isOverdue(due, zone)
@@ -124,6 +134,7 @@ function FollowUp({ record, zone, index, selected, onSelect }: { record: CrmReco
   const person = valuesOf(record, 'person')[0] as Ref | undefined
   const company = valuesOf(record, 'company')[0] as Ref | undefined
   const state = standing(record, zone)
+  const open = text(record, 'status') === 'Open'
   const channel = record.activity?.channel ?? text(record, 'channel').toLowerCase()
   const due = text(record, 'action_date')
   const last = lastLine(record, me ? [me.email, ...(me.addresses ?? [])] : [])
@@ -147,7 +158,7 @@ function FollowUp({ record, zone, index, selected, onSelect }: { record: CrmReco
               <span className="min-w-0 truncate text-[12px] text-ink-3">{company.name}</span>
             </>}
           </div>
-          {state && <span className={cn('shrink-0 text-[12px] transition-opacity duration-150 group-focus-within:opacity-0 group-hover:opacity-0', state.tone)}>{state.label}</span>}
+          {state && <span className={cn('shrink-0 text-[12px]', open && 'transition-opacity duration-150 group-focus-within:opacity-0 group-hover:opacity-0', state.tone)}>{state.label}</span>}
         </div>
         {subject && <p className="truncate text-[12.5px] text-ink-2">{recordName(record)}</p>}
         <div className="flex min-w-0 items-center justify-between gap-2 text-[12px] text-ink-3">

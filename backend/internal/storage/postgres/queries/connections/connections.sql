@@ -22,7 +22,14 @@ UPDATE connections SET teammates_send = @teammates_send
 WHERE workspace_id = @workspace_id AND id = @id AND user_id = @user_id;
 
 -- name: DeleteConnection :execrows
-DELETE FROM connections WHERE workspace_id = $1 AND id = $2;
+WITH cleared_drafts AS (
+  UPDATE record_values v SET active_until = now()
+  FROM attributes a, gmail_drafts d JOIN connections c ON c.id = d.connection_id
+  WHERE c.workspace_id = @workspace_id AND c.id = @id AND d.state <> 'sent'
+    AND v.record_id = d.follow_up_id AND v.attribute_id = a.id
+    AND a.slug IN ('draft', 'subject', 'draft_status') AND v.active_until IS NULL
+)
+DELETE FROM connections target WHERE target.workspace_id = @workspace_id AND target.id = @id;
 
 -- name: GetCursor :one
 SELECT cursor FROM sync_cursors WHERE connection_id = $1 AND stream = $2;

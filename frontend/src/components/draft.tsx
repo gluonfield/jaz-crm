@@ -10,38 +10,52 @@ import { Release } from './draft-release'
 const list = (record: CrmRecord, slug: string) => valuesOf(record, slug).map(valueText)
 const text = (record: CrmRecord, slug: string) => list(record, slug).join(', ')
 const drafted = { drafting: 'Drafting a message…', completed: 'Message drafted', failed: 'Couldn’t draft a message', skipped: 'No message drafted' }
-type Fields = { draft: string; subject: string; to: string; cc: string }
+type Fields = { draft: string; subject: string; to: string; cc: string; revision?: string }
 const addresses = (value: string) => value.split(/[,;\n]/).map((address) => address.trim()).filter(Boolean)
-const messageOf = (fields: Fields): DraftMessage => ({ draft: fields.draft.trim(), subject: fields.subject.trim(), to: addresses(fields.to), cc: addresses(fields.cc) })
+const messageOf = (fields: Fields): DraftMessage => ({ draft: fields.draft.trim(), subject: fields.subject.trim(), to: addresses(fields.to), cc: addresses(fields.cc), revision: fields.revision })
 
 export function Draft({ record, channel, sender, error, drafting }: { record: CrmRecord; channel: string; sender?: DraftSender; error?: string; drafting?: Interaction['drafting'] }) {
-  const current: Fields = { draft: text(record, 'draft'), subject: sender?.subject ?? text(record, 'subject'), to: (sender?.to ?? list(record, 'to')).join(', '), cc: (sender?.cc ?? list(record, 'cc')).join(', ') }
+  const current: Fields = { draft: text(record, 'draft'), subject: sender?.subject ?? text(record, 'subject'), to: (sender?.to ?? list(record, 'to')).join(', '), cc: (sender?.cc ?? list(record, 'cc')).join(', '), revision: sender?.revision }
   const [edited, setEdited] = useState<Fields | null>(null)
+  if (edited && JSON.stringify(messageOf(edited)) === JSON.stringify(messageOf(current))) {
+    setEdited(null)
+  }
   const fields = edited ?? current
   const message = messageOf(fields)
-  const saving = useRef<{ key: string; promise: Promise<unknown> } | null>(null)
+  const saving = useRef<{ key: string; savedKey?: string; revision?: string; promise: Promise<string | undefined>; pending: boolean } | null>(null)
   const email = channel === 'Email'
   const write = useMutation({
     mutationKey: ['save_draft'],
     scope: { id: `draft:${record.id}` },
-    mutationFn: ({ draft, subject, to, cc }: DraftMessage) => call('save_draft', { record_id: record.id, channel, draft, subject, to, cc }),
+    mutationFn: (message: DraftMessage) => call<{ revision?: string }>('save_draft', { record_id: record.id, channel, ...message }),
   })
-  const commit = (next = message): Promise<unknown> => {
+  const commit = (next = message): Promise<string | undefined> => {
     const key = JSON.stringify(next)
-    if (saving.current?.key === key) {
+    if (saving.current?.key === key || saving.current?.savedKey === key) {
       return saving.current.promise
     }
-    if (text(record, 'draft_status') === 'Sending' || (!saving.current && key === JSON.stringify(messageOf(current)))) {
-      return Promise.resolve()
+    if (text(record, 'draft_status') === 'Sending' || (!saving.current?.pending && key === JSON.stringify(messageOf(current)))) {
+      return Promise.resolve(next.revision)
     }
-    const promise = write.mutateAsync(next).then(() => {
-      setEdited((latest) => latest && JSON.stringify(messageOf(latest)) === key ? null : latest)
-    }).finally(() => {
+    const previous = saving.current
+    const revision = next.revision && previous?.revision === next.revision ? previous.promise.catch(() => next.revision) : Promise.resolve(next.revision)
+    const promise = revision.then((revision) => write.mutateAsync({ ...next, revision })).then(({ revision }) => {
+      if (saving.current?.promise === promise) {
+        saving.current.savedKey = JSON.stringify({ ...next, revision })
+        setEdited((latest) => latest && latest.revision === next.revision ? { ...latest, revision } : latest)
+      }
+      return revision
+    }).catch((error: unknown) => {
       if (saving.current?.promise === promise) {
         saving.current = null
       }
+      throw error
+    }).finally(() => {
+      if (saving.current?.promise === promise) {
+        saving.current.pending = false
+      }
     })
-    saving.current = { key, promise }
+    saving.current = { key, revision: next.revision, promise, pending: true }
     return promise
   }
   const person = (valuesOf(record, 'person')[0] as Ref | undefined)?.name
@@ -51,7 +65,7 @@ export function Draft({ record, channel, sender, error, drafting }: { record: Cr
     <div className="group rounded-[var(--radius-card)] bg-list-hover transition-colors duration-150 focus-within:bg-list-active" onKeyDown={(event) => event.stopPropagation()}>
       {email && <div className={cn('flex-col border-b border-border px-3.5 py-2 text-[12.5px] text-ink-3', idle)}>
         <div className="mb-1 flex items-center justify-between gap-3">
-          <span>{sender?.reply ? 'Reply' : 'New email'}</span>
+          <span>{sender?.imported_draft ? 'Gmail draft' : sender?.reply ? 'Reply' : 'New email'}</span>
           {sender && <span className="truncate" title={sender.from}>From {sender.from}</span>}
         </div>
         {error && <p role="alert" className="mb-1 text-danger">{error}</p>}
@@ -69,6 +83,8 @@ export function Draft({ record, channel, sender, error, drafting }: { record: Cr
             />
           </label>
         ))}
+        {!!sender?.bcc?.length && <p className="flex gap-2 py-1"><span className="w-12 shrink-0">Bcc</span><span className="min-w-0 text-ink-2 [overflow-wrap:anywhere]">{sender.bcc.join(', ')}</span></p>}
+        {!!sender?.attachments?.length && <p className="py-1 text-ink-2 [overflow-wrap:anywhere]">Attachments: {sender.attachments.join(', ')}</p>}
       </div>}
       <textarea
         aria-label="Draft"
@@ -95,7 +111,7 @@ export function Draft({ record, channel, sender, error, drafting }: { record: Cr
             {status.reason && <> · {status.reason}</>}
           </span> : write.isPending ? 'Saving…' : current.draft && edited === null && 'Draft saved'}
         </p>
-        <Release record={record} draft={message.draft} channel={channel} sender={sender && { ...sender, ...message }} beforeSend={commit} disabled={!!error} />
+        <Release record={record} draft={message.draft} channel={channel} sender={sender && { ...sender, ...message, html: sender.draft?.trim() === message.draft && sender.revision === message.revision ? sender.html : undefined }} beforeSend={commit} disabled={!!error} />
       </div>
     </div>
   )

@@ -75,6 +75,9 @@ func pass(ctx workflow.Context, a *Activities, id string) (bool, error) {
 	if workflow.GetVersion(ctx, "follow-ups", workflow.DefaultVersion, 1) == 1 {
 		steps = slices.Insert(steps, 7, step{a.FollowUps, nil})
 	}
+	if workflow.GetVersion(ctx, "gmail-drafts", workflow.DefaultVersion, 1) == 1 {
+		steps = slices.Insert(steps, 3, step{a.GmailDrafts, nil})
+	}
 	for _, s := range steps {
 		if err := run(s.activity, s.out); err != nil {
 			return false, err

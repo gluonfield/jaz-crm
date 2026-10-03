@@ -189,6 +189,15 @@ func (a *Activities) GmailBackfill(ctx context.Context, id string) (bool, error)
 	return next == connections.BackfillDone, a.Connections.SetCursor(ctx, id, connections.StreamBackfill, next)
 }
 
+func (a *Activities) GmailDrafts(ctx context.Context, id string) error {
+	defer heartbeats(ctx)()
+	s, err := a.session(ctx, id)
+	if err != nil {
+		return err
+	}
+	return classify(a.Agent.SyncGmailDrafts(ctx, s.conn, s.google))
+}
+
 // GmailIncremental ingests mail added since the history cursor. A cursor
 // too old for Gmail restarts the backfill.
 func (a *Activities) GmailIncremental(ctx context.Context, id string) error {
@@ -361,6 +370,11 @@ func (a *Activities) FetchContent(ctx context.Context, id string) (int, error) {
 		return 0, classify(err)
 	}
 	for i, p := range parts {
+		if slices.Contains(messages[i].Labels, "DRAFT") {
+			if err := a.Interactions.IngestEmail(ctx, s.known, emailOf(s.conn, messages[i])); err != nil {
+				return 0, err
+			}
+		}
 		if err := a.Interactions.SetContent(ctx, p.ID, messages[i].Text, messages[i].HTML); err != nil {
 			return 0, err
 		}
@@ -376,20 +390,7 @@ func (a *Activities) FollowUps(ctx context.Context, id string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	done := make(chan struct{})
-	defer close(done)
-	go func() {
-		tick := time.NewTicker(30 * time.Second)
-		defer tick.Stop()
-		for {
-			select {
-			case <-done:
-				return
-			case <-tick.C:
-				activity.RecordHeartbeat(ctx)
-			}
-		}
-	}()
+	defer heartbeats(ctx)()
 	return a.Agent.Run(ctx, c.WorkspaceID)
 }
 
@@ -516,4 +517,23 @@ func (a *Activities) TranscriptChecked(ctx context.Context, interactionID string
 // Revoke marks a connection whose grant Google rejected.
 func (a *Activities) Revoke(ctx context.Context, id string) error {
 	return a.Connections.Revoke(ctx, id)
+}
+
+func heartbeats(ctx context.Context) func() {
+	done := make(chan struct{})
+	go func() {
+		tick := time.NewTicker(30 * time.Second)
+		defer tick.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-ctx.Done():
+				return
+			case <-tick.C:
+				activity.RecordHeartbeat(ctx)
+			}
+		}
+	}()
+	return func() { close(done) }
 }

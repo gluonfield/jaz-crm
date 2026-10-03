@@ -11,8 +11,6 @@ import (
 	"golang.org/x/net/html/charset"
 )
 
-const maxText = 20000
-
 type part struct {
 	MimeType, Filename string
 	Headers            []struct{ Name, Value string }
@@ -29,9 +27,6 @@ func (p part) content() (string, string) {
 		text = htmlText(rich)
 	}
 	text = strings.ToValidUTF8(text, "�")
-	if r := []rune(text); len(r) > maxText {
-		text = string(r[:maxText])
-	}
 	return text, rich
 }
 
@@ -128,4 +123,15 @@ func tidy(s string) string {
 		}
 	}
 	return strings.TrimSpace(strings.Join(lines, "\n"))
+}
+
+func (p part) attachments() []string {
+	var names []string
+	if p.Filename != "" {
+		names = append(names, p.Filename)
+	}
+	for _, child := range p.Parts {
+		names = append(names, child.attachments()...)
+	}
+	return names
 }

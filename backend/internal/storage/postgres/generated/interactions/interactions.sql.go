@@ -257,7 +257,8 @@ WHERE handles.workspace_id = $1
   AND EXISTS (
     SELECT 1 FROM participants own
     JOIN handles internal ON internal.id = own.handle_id AND internal.triage = 'internal'
-    WHERE own.interaction_id = interactions.id AND (($3::boolean AND interactions.kind = 'email' AND own.role = 'from')
+    WHERE own.interaction_id = interactions.id AND (($3::boolean AND interactions.kind = 'email' AND own.role = 'from'
+      AND EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
       OR ($4::boolean AND interactions.kind = 'meeting' AND interactions.ended_at <= now() AND own.role IN ('organizer', 'attendee')))
   )
 `
@@ -356,7 +357,7 @@ WHERE interactions.workspace_id = $1 AND NOT interactions.skipped
     OR interactions.drafting_state = 'failed'
     OR (interactions.drafting_state = 'drafting' AND interactions.drafting_started_at < now() - interval '15 minutes'))
   AND EXISTS (SELECT 1 FROM links WHERE links.interaction_id = interactions.id)
-  AND NOT EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.content IS NULL AND parts.provider_id IS NOT NULL)
+  AND NOT EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind <> 'draft' AND parts.content IS NULL AND parts.provider_id IS NOT NULL)
 ORDER BY latest.at DESC
 LIMIT $3
 `
@@ -880,10 +881,11 @@ func (q *Queries) KeptWithoutPerson(ctx context.Context, workspaceID string) ([]
 }
 
 const listHandles = `-- name: ListHandles :many
-SELECT handles.id, handles.workspace_id, handles.kind, handles.value, handles.name, handles.person_id, handles.triage, handles.decided_by, handles.reason, handles.created_at, handles.photo_url, count(DISTINCT participants.interaction_id)::int AS interactions, coalesce(max(interactions.started_at), handles.created_at)::timestamptz AS last_seen
+SELECT handles.id, handles.workspace_id, handles.kind, handles.value, handles.name, handles.person_id, handles.triage, handles.decided_by, handles.reason, handles.created_at, handles.photo_url, count(DISTINCT interactions.id)::int AS interactions, coalesce(max(interactions.started_at), handles.created_at)::timestamptz AS last_seen
 FROM handles
 LEFT JOIN participants ON participants.handle_id = handles.id
 LEFT JOIN interactions ON interactions.id = participants.interaction_id
+  AND (interactions.kind <> 'email' OR EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
 WHERE handles.workspace_id = $1 AND handles.triage = $2
   AND ($3::text IS NULL OR handles.value ILIKE '%' || $3::text || '%' OR handles.name ILIKE '%' || $3::text || '%')
 GROUP BY handles.id
@@ -1017,6 +1019,7 @@ SELECT links.record_id, count(*)::int AS interactions, min(interactions.started_
 FROM links
 JOIN interactions ON interactions.id = links.interaction_id AND NOT interactions.skipped
 WHERE interactions.workspace_id = $1 AND links.record_id = ANY($2::uuid[]) AND interactions.started_at <= now() AND interactions.kind <> 'note'
+  AND (interactions.kind <> 'email' OR EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
 GROUP BY links.record_id
 `
 
@@ -1130,6 +1133,7 @@ func (q *Queries) RecordLastMessages(ctx context.Context, arg RecordLastMessages
 const searchInteractions = `-- name: SearchInteractions :many
 SELECT interactions.id, interactions.workspace_id, interactions.kind, interactions.source, interactions.external_id, interactions.connection_id, interactions.user_id, interactions.title, interactions.started_at, interactions.ended_at, interactions.meet_code, interactions.transcript_checked_at, interactions.skipped, interactions.created_at, interactions.channel, interactions.provenance, interactions.date_only, interactions.followed_up_at, interactions.drafting_state, interactions.drafting_reason, interactions.drafting_started_at FROM interactions
 WHERE interactions.workspace_id = $1 AND NOT interactions.skipped
+  AND (interactions.kind <> 'email' OR EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
   AND EXISTS (SELECT 1 FROM links WHERE links.interaction_id = interactions.id)
   AND ($2::text = '' OR interactions.title ILIKE '%' || $2::text || '%' OR EXISTS (
     SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.search @@ websearch_to_tsquery('simple', $2::text)
@@ -1351,6 +1355,7 @@ SELECT interactions.id, interactions.workspace_id, interactions.kind, interactio
 JOIN links ON links.interaction_id = interactions.id AND links.record_id = $1
 LEFT JOIN interactions cursor ON cursor.id = nullif($2::text, '')::uuid AND cursor.workspace_id = $3 AND NOT cursor.skipped
 WHERE interactions.workspace_id = $3 AND NOT interactions.skipped
+  AND (interactions.kind <> 'email' OR EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
   AND (cardinality($4::text[]) = 0 OR interactions.kind = ANY($4::text[]))
   AND ($2::text = '' OR CASE WHEN $5::bool
     THEN (interactions.started_at, interactions.id) > (cursor.started_at, cursor.id)
@@ -1424,7 +1429,9 @@ func (q *Queries) Timeline(ctx context.Context, arg TimelineParams) ([]Interacti
 const unassessedHandles = `-- name: UnassessedHandles :many
 SELECT handles.id, handles.value, handles.name,
   array(SELECT interactions.title FROM participants JOIN interactions ON interactions.id = participants.interaction_id
-    WHERE participants.handle_id = handles.id ORDER BY interactions.started_at DESC LIMIT 3)::text[] AS titles
+    WHERE participants.handle_id = handles.id
+      AND (interactions.kind <> 'email' OR EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
+    ORDER BY interactions.started_at DESC LIMIT 3)::text[] AS titles
 FROM handles
 WHERE handles.workspace_id = $1 AND handles.triage = 'pending' AND handles.decided_by IS NULL
 ORDER BY handles.created_at
@@ -1473,7 +1480,7 @@ func (q *Queries) UnassessedHandles(ctx context.Context, arg UnassessedHandlesPa
 const unfetchedParts = `-- name: UnfetchedParts :many
 SELECT parts.id, parts.provider_id::text AS provider_id FROM parts
 JOIN interactions ON interactions.id = parts.interaction_id AND NOT interactions.skipped
-WHERE parts.connection_id = $1 AND (parts.content IS NULL OR parts.html IS NULL) AND parts.provider_id IS NOT NULL
+WHERE parts.connection_id = $1 AND parts.kind <> 'draft' AND (parts.content IS NULL OR parts.html IS NULL) AND parts.provider_id IS NOT NULL
   AND EXISTS (SELECT 1 FROM links WHERE links.interaction_id = interactions.id)
 ORDER BY parts.at DESC
 LIMIT $2
@@ -1668,7 +1675,13 @@ const upsertPart = `-- name: UpsertPart :exec
 INSERT INTO parts (interaction_id, kind, external_id, connection_id, provider_id, author_handle_id, author_name, at, content, recipients, direction, date_only, partial, position)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, coalesce($10::text[], '{}'), $11, $12, $13, $14)
 ON CONFLICT (interaction_id, external_id) DO UPDATE
-SET content = COALESCE(EXCLUDED.content, parts.content), author_name = EXCLUDED.author_name, at = EXCLUDED.at,
+SET kind = EXCLUDED.kind,
+    content = CASE WHEN parts.kind = 'draft' THEN EXCLUDED.content ELSE COALESCE(EXCLUDED.content, parts.content) END,
+    html = CASE WHEN parts.kind = 'draft' THEN NULL ELSE parts.html END,
+    connection_id = CASE WHEN parts.kind = 'draft' THEN EXCLUDED.connection_id ELSE parts.connection_id END,
+    provider_id = CASE WHEN parts.kind = 'draft' THEN EXCLUDED.provider_id ELSE parts.provider_id END,
+    author_handle_id = CASE WHEN parts.kind = 'draft' THEN EXCLUDED.author_handle_id ELSE parts.author_handle_id END,
+    author_name = EXCLUDED.author_name, at = EXCLUDED.at,
     recipients = EXCLUDED.recipients, direction = EXCLUDED.direction, date_only = EXCLUDED.date_only, partial = EXCLUDED.partial, position = EXCLUDED.position
 `
 
@@ -1689,6 +1702,7 @@ type UpsertPartParams struct {
 	Position       int32
 }
 
+// A sent copy of a retained draft must fetch its content from the sent provider message.
 func (q *Queries) UpsertPart(ctx context.Context, arg UpsertPartParams) error {
 	_, err := q.db.Exec(ctx, upsertPart,
 		arg.InteractionID,

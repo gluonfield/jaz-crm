@@ -37,6 +37,10 @@ type EmailMessage struct {
 // transaction. Threads merge across mailboxes by Message-ID, since each
 // mailbox has its own thread ids.
 func (s *Service) IngestEmail(ctx context.Context, known Known, m EmailMessage) error {
+	if slices.Contains(m.Labels, "DRAFT") {
+		_, err := s.store.RepairDraftMessage(ctx, m.ConnectionID, m.ProviderID)
+		return err
+	}
 	if m.From.Email == "" {
 		return nil
 	}
@@ -79,6 +83,9 @@ func (s *Service) IngestEmail(ctx context.Context, known Known, m EmailMessage) 
 			AuthorHandleID: &author.ID, AuthorName: m.From.Name, At: &m.Date, Recipients: recipients,
 		})
 		if err != nil {
+			return err
+		}
+		if err := store.LinkSentGmailDrafts(ctx, m.ConnectionID, m.ProviderID, id); err != nil {
 			return err
 		}
 		return store.Relink(ctx, []string{id})

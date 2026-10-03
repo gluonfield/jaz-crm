@@ -88,7 +88,7 @@ export function InteractionDetails({ interactionId, onClose, onNavigate }: { int
             />
           </div>
           <div className="mt-8 border-t border-border pt-6">
-            <Content interaction={interaction} />
+            <Content interaction={interaction} onNavigate={onNavigate} />
           </div>
         </article>
       </div>
@@ -119,9 +119,15 @@ function People({ interaction, onNavigate }: { interaction: Interaction; onNavig
   )
 }
 
-function Content({ interaction }: { interaction: Interaction }) {
+function Content({ interaction, onNavigate }: { interaction: Interaction; onNavigate?: () => void }) {
   return (
     <div className="flex flex-col gap-6">
+      {interaction.drafts?.map((draft) => (
+        <Link key={draft.follow_up_id} to="/r/$recordId" params={{ recordId: draft.follow_up_id }} onClick={onNavigate} className="rounded-[var(--radius-control)] bg-panel px-3 py-2.5 hover:bg-list-hover">
+          <span className="block text-[12px] text-ink-3">{draft.state === 'draft' ? 'Gmail draft · Review' : 'Draft removed from Gmail'}</span>
+          <span className="text-[13px] text-ink">{draft.subject || 'No subject'}</span>
+        </Link>
+      ))}
       {interaction.invitation && (
         <section>
           <h2 className="mb-2 text-[12px] font-medium text-ink-3">Invitation</h2>

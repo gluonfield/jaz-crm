@@ -50,6 +50,13 @@ func (a *Agent) conversation(ctx context.Context, actor auth.Actor, conv interac
 		return Conversation{}, err
 	}
 	in := Conversation{Now: time.Now().UTC().Format(time.RFC3339), Timezone: ws.Timezone, StartedAt: conv.StartedAt, EndedAt: conv.EndedAt, Purpose: ws.Description, Kind: conv.Kind, Channel: conv.Channel, Title: conv.Title, Description: conv.Invitation, Messages: conversationLines(conv), Records: []Record{}, FollowUps: []Open{}, WebAccess: ws.DraftingWebAccess}
+	includeFollowUp := func(f records.Record) {
+		if value(f, "status") != "Open" || slices.ContainsFunc(in.FollowUps, func(o Open) bool { return o.ID == f.ID }) {
+			return
+		}
+		linked := slices.ContainsFunc(conv.Records, func(ref interactions.Ref) bool { return ref.ID == f.ID })
+		in.FollowUps = append(in.FollowUps, Open{ID: f.ID, Action: value(f, "name"), WaitingOn: value(f, "waiting_on"), ActionDate: value(f, "action_date"), DateBasis: value(f, "action_date_basis"), DateReason: value(f, "action_date_reason"), Draft: value(f, "draft"), Subject: value(f, "subject"), Channel: value(f, "channel"), Conversation: linked})
+	}
 	for _, u := range users {
 		person := Person{Name: u.Name, Address: u.Email}
 		in.Us = append(in.Us, person)
@@ -76,6 +83,9 @@ func (a *Agent) conversation(ctx context.Context, actor auth.Actor, conv interac
 			return Conversation{}, err
 		}
 		in.Records = append(in.Records, recordInput(r))
+		if r.Object == records.FollowUps {
+			includeFollowUp(r)
+		}
 		if r.Object == "people" || r.Object == "deals" {
 			pending = append(pending, refs(r, "company")...)
 		}
@@ -94,9 +104,7 @@ func (a *Agent) conversation(ctx context.Context, actor auth.Actor, conv interac
 				return Conversation{}, err
 			}
 			for _, f := range open {
-				if !slices.ContainsFunc(in.FollowUps, func(o Open) bool { return o.ID == f.ID }) {
-					in.FollowUps = append(in.FollowUps, Open{ID: f.ID, Action: value(f, "name"), WaitingOn: value(f, "waiting_on"), ActionDate: value(f, "action_date"), DateBasis: value(f, "action_date_basis"), DateReason: value(f, "action_date_reason"), Draft: value(f, "draft"), Subject: value(f, "subject")})
-				}
+				includeFollowUp(f)
 			}
 		}
 	}

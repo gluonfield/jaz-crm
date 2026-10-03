@@ -32,7 +32,28 @@ func NewService(crm *records.Service, store storage.InteractionStore, conns *con
 
 // SaveDraft records an edit in the CRM composer with the same source on
 // both transports, so a browser edit remains editable inside an MCP app.
-func (s *Service) SaveDraft(ctx context.Context, actor auth.Actor, id, draft, subject, channel string, to, cc []string) (records.Record, error) {
+type SavedDraft struct {
+	Record   records.Record
+	Revision string
+}
+
+func (s *Service) SaveDraft(ctx context.Context, actor auth.Actor, id, draft, subject, channel string, to, cc []string, revisions ...string) (SavedDraft, error) {
+	imported, err := s.store.GmailDraft(ctx, actor.WorkspaceID, id)
+	if err == nil && imported.State == "draft" {
+		revision := ""
+		if len(revisions) > 0 {
+			revision = revisions[0]
+		}
+		return s.saveImported(ctx, actor, imported, revision, draft, subject, channel, to, cc)
+	}
+	if err != nil && !errors.Is(err, storage.ErrNotFound) {
+		return SavedDraft{}, err
+	}
+	record, err := s.saveRecordDraft(ctx, actor, id, draft, subject, channel, to, cc)
+	return SavedDraft{Record: record}, err
+}
+
+func (s *Service) saveRecordDraft(ctx context.Context, actor auth.Actor, id, draft, subject, channel string, to, cc []string) (records.Record, error) {
 	current, err := s.crm.Get(ctx, actor, id)
 	if err != nil {
 		return records.Record{}, err
@@ -69,6 +90,8 @@ type Seen struct {
 	Subject   string
 	From      string
 	To, Cc    []string
+	Bcc       []string
+	Revision  string
 }
 
 // Release is a person letting a follow-up's draft go. An email draft is sent
@@ -101,7 +124,7 @@ func (s *Service) Release(ctx context.Context, actor auth.Actor, id string, seen
 	if err != nil {
 		return records.Record{}, err
 	}
-	if reply.message.Body == "" || len(reply.message.To)+len(reply.message.Cc) == 0 {
+	if reply.message.Body == "" || len(reply.message.To)+len(reply.message.Cc)+len(reply.bcc) == 0 {
 		return records.Record{}, errs.Invalidf("an email draft needs text and a recipient")
 	}
 	if reply.message.Subject == "" {
@@ -125,6 +148,9 @@ func (s *Service) Release(ctx context.Context, actor auth.Actor, id string, seen
 	if !sameSet(reply.message.To, seen.To) || !sameSet(reply.message.Cc, seen.Cc) {
 		return records.Record{}, errs.Invalidf("the reply recipients changed since you saw them; review them again")
 	}
+	if reply.imported != nil && (seen.Revision != reply.imported.MessageID || !sameSet(seen.Bcc, reply.bcc)) {
+		return records.Record{}, errs.Invalidf("the Gmail draft changed since you reviewed it; review it again")
+	}
 	expect := map[string][]string{}
 	for _, attribute := range []string{"draft", "subject", "channel", "to", "cc", "draft_status"} {
 		expect[attribute] = values(f, attribute)
@@ -140,12 +166,16 @@ func (s *Service) Release(ctx context.Context, actor auth.Actor, id string, seen
 	}); err != nil {
 		return records.Record{}, err
 	}
-	_, err = reply.mailbox.Send(ctx, reply.message)
+	sentID, err := reply.send(ctx)
 	// Once Gmail answers, save its outcome even if the browser disconnected.
 	settle, done := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 	defer done()
 	var api *google.APIError
+	var invalid errs.Invalid
 	switch {
+	case errors.As(err, &invalid):
+		_, undo := s.set(settle, actor, id, "draft_status", records.DraftApproved)
+		return records.Record{}, errors.Join(err, undo)
 	case errors.Is(err, google.ErrRevoked) || errors.As(err, &api) && api.Status >= 400 && api.Status < 500 && api.Status != http.StatusRequestTimeout:
 		if _, undo := s.set(settle, actor, id, "draft_status", records.DraftApproved); undo != nil {
 			return records.Record{}, errors.Join(err, undo)
@@ -156,6 +186,35 @@ func (s *Service) Release(ctx context.Context, actor auth.Actor, id string, seen
 		return records.Record{}, errs.Invalidf("Google refused to send the email: %s (%s). Review the error before trying again", api.Message, api.Reason)
 	case err != nil:
 		return records.Record{}, errs.Invalidf("the reply may have gone out from %s: check its Sent mail, then set the draft back to Approved to send it again", reply.account)
+	}
+	if reply.imported != nil {
+		var record records.Record
+		err := s.store.Atomically(settle, func(store storage.InteractionStore) error {
+			snapshot := *reply.imported
+			if err := store.LockGmailDraft(settle, snapshot.ConnectionID, snapshot.DraftID); err != nil {
+				return err
+			}
+			snapshot, err := store.GmailDraftByID(settle, snapshot.ConnectionID, snapshot.DraftID)
+			if err != nil {
+				return err
+			}
+			writer := *s
+			writer.store, writer.crm = store, records.NewService(store)
+			if snapshot.State == "sent" {
+				if snapshot.SentMessageID != sentID {
+					return errs.Invalidf("Gmail reported a different sent message; review its Sent mail")
+				}
+				record, err = writer.crm.Get(settle, actor, id)
+				return err
+			}
+			snapshot.State, snapshot.SentMessageID = "sent", sentID
+			if err := store.UpsertGmailDraft(settle, snapshot); err != nil {
+				return err
+			}
+			record, err = writer.set(settle, actor, id, "draft_status", records.DraftSent, "status", "Done")
+			return err
+		})
+		return record, err
 	}
 	return s.set(settle, actor, id, "draft_status", records.DraftSent, "status", "Done")
 }
@@ -177,10 +236,14 @@ func (s *Service) set(ctx context.Context, actor auth.Actor, id string, pairs ..
 
 // outgoing is a reply ready to send from one mailbox.
 type outgoing struct {
-	mailbox *google.Client
-	account string
-	message google.Outgoing
-	latest  *time.Time
+	mailbox     *google.Client
+	account     string
+	message     google.Outgoing
+	latest      *time.Time
+	imported    *storage.GmailDraft
+	bcc         []string
+	attachments []string
+	html        string
 }
 
 // sender finds the newest message of the email conversations a follow-up is

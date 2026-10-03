@@ -63,7 +63,14 @@ func (q *Queries) AddAliases(ctx context.Context, arg AddAliasesParams) error {
 }
 
 const deleteConnection = `-- name: DeleteConnection :execrows
-DELETE FROM connections WHERE workspace_id = $1 AND id = $2
+WITH cleared_drafts AS (
+  UPDATE record_values v SET active_until = now()
+  FROM attributes a, gmail_drafts d JOIN connections c ON c.id = d.connection_id
+  WHERE c.workspace_id = $1 AND c.id = $2 AND d.state <> 'sent'
+    AND v.record_id = d.follow_up_id AND v.attribute_id = a.id
+    AND a.slug IN ('draft', 'subject', 'draft_status') AND v.active_until IS NULL
+)
+DELETE FROM connections target WHERE target.workspace_id = $1 AND target.id = $2
 `
 
 type DeleteConnectionParams struct {
