@@ -11,7 +11,6 @@ import type { CrmRecord, DraftSender, Interaction, Ref } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { RecordChip } from './controls'
 import { MessageThread } from './email-thread'
-import { HTMLContent } from './html-content'
 import { Release } from './draft-release'
 
 const text = (record: CrmRecord, slug: string) => valuesOf(record, slug).map(valueText).join(', ')
@@ -177,7 +176,7 @@ function Conversation({ record, onClose }: { record: CrmRecord; onClose: () => v
           </>
         )}
       </div>
-      <footer className="shrink-0 border-t border-border px-5 py-3">
+      <footer className="shrink-0 px-5 pb-4">
         <Draft record={record} channel={channel} sender={sender.data} error={sender.error?.message} drafting={drafting} />
       </footer>
     </section>
@@ -239,7 +238,6 @@ function Draft({ record, channel, sender, error, drafting }: { record: CrmRecord
   const saving = useRef<{ text: string; promise: Promise<unknown> } | null>(null)
   const draft = edited ?? current
   const client = useQueryClient()
-  const [signature, setSignature] = useState(false)
   const email = channel === 'Email'
   const to = list(record, 'to')
   const write = useMutation({
@@ -278,49 +276,44 @@ function Draft({ record, channel, sender, error, drafting }: { record: CrmRecord
     saving.current = { text: next, promise }
     return promise
   }
+  const person = (valuesOf(record, 'person')[0] as Ref | undefined)?.name
+  // The AI's state shows while it works or could not help, and beside the
+  // draft it wrote; addresses show while a reply is being written.
+  const status = drafting && (drafting.state !== 'completed' || current) ? drafting : undefined
   return (
-    <div className="flex flex-col gap-2 rounded-[var(--radius-card)] border border-border bg-bg px-3 pb-2 pt-2.5 transition-colors duration-150 focus-within:border-primary">
-      <div className="flex min-w-0 flex-wrap gap-x-3 gap-y-1 text-[12px] text-ink-3">
-        <h3 className="font-medium text-ink-2">{channel ? `${channel} reply` : 'Reply'}</h3>
-        {email && <>
-          {error ? <span className="text-ink-2">{error}</span> : <Address label="From" value={sender?.from} />}
-          <Address label="To" value={sender?.to.join(', ')} />
-          <Address label="Cc" value={sender?.cc.join(', ')} />
-        </>}
-      </div>
-      {drafting && (drafting.state !== 'completed' || current) && <div role="status" aria-live="polite" className="flex items-start gap-1.5 text-[12px] leading-[18px] text-ink-3">
-        {drafting.state === 'drafting' && <LoaderCircle aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 animate-spin motion-reduce:animate-none" />}
+    <div className="group rounded-[var(--radius-card)] border border-border bg-bg transition-colors duration-150 focus-within:border-primary">
+      {status && <p role="status" aria-live="polite" className="flex items-start gap-1.5 px-3 pt-2 text-[12px] leading-[18px] text-ink-3">
+        {status.state === 'drafting' && <LoaderCircle aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 animate-spin motion-reduce:animate-none" />}
         <span>
-          <span className={cn('font-medium', drafting.state === 'failed' ? 'text-danger' : 'text-ink-2')}>{ { drafting: 'Drafting a reply…', completed: 'Reply drafted', failed: 'Couldn’t draft a reply', skipped: 'No reply drafted' }[drafting.state] }</span>
-          {drafting.reason && <> · {drafting.reason}</>}
+          <span className={cn('font-medium', status.state === 'failed' ? 'text-danger' : 'text-ink-2')}>{ { drafting: 'Drafting a reply…', completed: 'Reply drafted', failed: 'Couldn’t draft a reply', skipped: 'No reply drafted' }[status.state] }</span>
+          {status.reason && <> · {status.reason}</>}
         </span>
-      </div>}
-      <textarea
-        aria-label="Draft"
-        placeholder="Write a reply…"
-        value={draft}
-        onChange={(e) => setEdited(e.target.value)}
-        onBlur={() => void commit().catch(() => {})}
-        onKeyDown={(e) => {
-          e.stopPropagation()
-          if (e.key === 'Escape') {
-            setEdited(null)
-          } else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-            e.preventDefault()
-            e.currentTarget.blur()
-          }
-        }}
-        className="field-sizing-content block max-h-[40dvh] min-h-16 w-full resize-none bg-transparent text-[13px] leading-5 text-ink-2 outline-none focus:text-ink"
-      />
-      {signature && sender?.signature && <div className="cursor-default border-t border-border pt-2"><HTMLContent html={sender.signature} className="[&_img]:max-h-16" /></div>}
-      <div className="flex items-center gap-2">
-        {sender?.signature && <button type="button" aria-expanded={signature} onClick={() => setSignature(!signature)} className="-mx-1 inline-flex items-center gap-1 rounded-[var(--radius-control)] px-1 text-[12px] text-ink-3 outline-none hover:text-ink-2 focus-visible:ring-2 focus-visible:ring-primary">
-          Signature
-          <ChevronDown aria-hidden="true" className={cn('size-3.5 transition-transform duration-150 motion-reduce:transition-none', signature && 'rotate-180')} />
-        </button>}
-        <div className="ml-auto">
-          <Release record={record} draft={draft} channel={channel} sender={sender} beforeSend={commit} disabled={!!error} />
-        </div>
+      </p>}
+      {email && <p className={cn('flex min-w-0 flex-wrap gap-x-3 px-3 text-[12px] leading-[18px] text-ink-3', status ? 'pt-0.5' : 'pt-2', !(draft || error) && 'hidden group-focus-within:flex')}>
+        {error ? <span className="text-ink-2">{error}</span> : <Address label="From" value={sender?.from} />}
+        <Address label="To" value={sender?.to.join(', ')} />
+        <Address label="Cc" value={sender?.cc.join(', ')} />
+      </p>}
+      <div className="flex items-end gap-2 py-1.5 pl-3 pr-1.5">
+        <textarea
+          aria-label="Draft"
+          rows={1}
+          placeholder={person ? `Reply to ${person}…` : 'Write a reply…'}
+          value={draft}
+          onChange={(e) => setEdited(e.target.value)}
+          onBlur={() => void commit().catch(() => {})}
+          onKeyDown={(e) => {
+            e.stopPropagation()
+            if (e.key === 'Escape') {
+              setEdited(null)
+            } else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+              e.preventDefault()
+              e.currentTarget.blur()
+            }
+          }}
+          className="field-sizing-content block max-h-[40dvh] min-h-7 min-w-0 flex-1 resize-none bg-transparent py-1 text-[13px] leading-5 text-ink-2 outline-none placeholder:text-ink-3 focus:text-ink"
+        />
+        <Release record={record} draft={draft} channel={channel} sender={sender} beforeSend={commit} disabled={!!error} />
       </div>
     </div>
   )
