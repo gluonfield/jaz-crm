@@ -14,7 +14,6 @@
 Linear is the reference and Jaz Tasks its in-house model; CRM and future products match both.
 
 - Make aesthetic, product and UI/UX decisions as a world-class product designer and product manager. Start from the established, well-tested patterns of leading products for the same job, such as chat threads, mail readers, composers, lists and navigation, and adapt them to Jaz instead of inventing new interactions. Judge every screen in its idle and busy states: each element earns its space at the moment it appears.
-
 - Calm, dense work surfaces. Records set the hierarchy; no filler copy, explanatory paragraphs or decorative UI.
 - Colour comes only from the tokens in `frontend/src/styles.css` (see `frontend/THEMING.md`): `bg` content, `panel` chrome, `raised` menus and dialogs, `ink`/`ink-2`/`ink-3` text, `border` hairlines, `primary` for selection and primary actions with white labels. Support light, dark and MCP host themes.
 - Inter 13px for UI, 12px for secondary text, medium-weight headings, tabular figures for counts. Icons are 16px in `ink-2`.
