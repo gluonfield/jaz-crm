@@ -44,7 +44,7 @@ function TriagePage() {
   }
   const contacts = listed?.filter((c) => !leaving.some((key) => c.address === key || c.address.endsWith(`@${key}`))) ?? []
   const choose = (contact: Contact, decision: 'keep' | 'skip') => leave(contact.address, { addresses: [contact.address], decision })
-  const [focus] = useListKeys(contacts.length, {
+  const [focus] = useListKeys(contacts.map((c) => c.address), {
     y: (i) => choose(contacts[i], 'keep'),
     n: (i) => choose(contacts[i], 'skip'),
     Enter: (i) => contacts[i].person_id && navigate({ to: '/r/$recordId', params: { recordId: contacts[i].person_id } }),

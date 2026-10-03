@@ -39,12 +39,19 @@ export function useInView(ref: RefObject<HTMLElement | null>, active: boolean, o
 
 // useListKeys moves a focused row with j/k or the arrows and hands other keys
 // the focused index. Rows carry data-row={index} to be scrolled into view.
-export function useListKeys(length: number, keys: Record<string, (index: number) => void> = {}) {
-  const [cursor, setCursor] = useState(-1)
-  const focus = Math.min(cursor, length - 1)
+// Focus follows its item when the list reorders; when the item leaves, as
+// when it is done, the item that took its place is focused.
+export function useListKeys(ids: string[], keys: Record<string, (index: number) => void> = {}) {
+  const [cursor, setCursor] = useState<{ id: string; index: number } | null>(null)
+  const found = cursor ? ids.indexOf(cursor.id) : -1
+  const focus = !cursor || ids.length === 0 ? -1 : found >= 0 ? found : Math.min(cursor.index, ids.length - 1)
+  if (cursor && focus >= 0 && (found < 0 || found !== cursor.index)) {
+    setCursor({ id: ids[focus], index: focus })
+  }
+  const select = (index: number) => setCursor(index >= 0 && index < ids.length ? { id: ids[index], index } : null)
   const move = (delta: number) => {
-    const next = Math.max(0, Math.min(length - 1, focus + delta))
-    setCursor(next)
+    const next = Math.max(0, Math.min(ids.length - 1, focus + delta))
+    select(next)
     document.querySelector(`[data-row="${next}"]`)?.scrollIntoView({ block: 'nearest' })
   }
   const bound: Record<string, () => void> = { j: () => move(1), ArrowDown: () => move(1), k: () => move(-1), ArrowUp: () => move(-1) }
@@ -52,7 +59,7 @@ export function useListKeys(length: number, keys: Record<string, (index: number)
     bound[key] = () => focus >= 0 && fn(focus)
   }
   useKeys(bound)
-  return [focus, setCursor] as const
+  return [focus, select] as const
 }
 
 export function useDebounced<T>(value: T, ms = 200) {

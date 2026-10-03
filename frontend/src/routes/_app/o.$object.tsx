@@ -84,7 +84,7 @@ function ObjectList({ slug, filter, setFilter, flush }: { slug: string; filter: 
   useInView(end, !everything && !!hasNextPage && !isFetchingNextPage, fetchNextPage)
   const navigate = useNavigate()
   const openRecord = (index: number) => records && navigate({ to: '/r/$recordId', params: { recordId: records[index].id } })
-  const [focus, setFocus] = useListKeys(records?.length ?? 0, queue ? { Enter: editDraft, Escape: () => setFocus(-1) } : { Enter: openRecord, o: openRecord })
+  const [focus, setFocus] = useListKeys(records?.map((r) => r.id) ?? [], queue ? { Enter: editDraft, Escape: () => setFocus(-1) } : { Enter: openRecord, o: openRecord })
   const [creating, setCreating] = useState(false)
   const rows = useRef<HTMLTableSectionElement>(null)
   useFlip(rows)
