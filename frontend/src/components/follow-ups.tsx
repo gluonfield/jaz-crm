@@ -10,6 +10,7 @@ import { useConnections } from '@/lib/sync'
 import type { CrmRecord, DraftSender, Interaction, Ref } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { RecordChip } from './controls'
+import { RecordIcon } from './icons'
 import { MessageThread } from './email-thread'
 import { MarkdownView } from './editor'
 import { Release } from './draft-release'
@@ -53,26 +54,30 @@ const refsOf = (record: CrmRecord) => Object.entries(subjects).flatMap(([object,
 function FollowUp({ record, index, selected, onSelect }: { record: CrmRecord; index: number; selected: boolean; onSelect: () => void }) {
   const draft = text(record, 'draft')
   const review = text(record, 'action_date')
+  const refs = refsOf(record)
   return (
     <li
       data-row={index}
       aria-current={selected || undefined}
       onClick={onSelect}
       className={cn(
-        'group relative -mx-2 flex cursor-default flex-col gap-0.5 rounded-[var(--radius-card)] px-2 py-2.5 text-[12px] text-ink-3 hover:bg-list-hover',
+        'group relative -mx-2 flex cursor-default gap-3 rounded-[var(--radius-card)] px-2 py-2.5 text-[12px] text-ink-3 hover:bg-list-hover',
         'before:absolute before:inset-x-2 before:top-0 before:h-px before:bg-border first:before:hidden hover:before:opacity-0 [&:hover+li]:before:opacity-0',
         selected && 'bg-list-hover before:opacity-0 [&+li]:before:opacity-0',
       )}
     >
-      <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
-        <span className="truncate text-[13px] font-medium text-ink">{recordName(record)}</span>
-        {review && <span className={cn('ml-auto shrink-0 tabular-nums transition-opacity duration-150 group-focus-within:opacity-0 group-hover:opacity-0')}><DateLabel value={review} suggested={text(record, 'action_date_basis') === 'Suggested'} /></span>}
+      {refs[0] ? <RecordIcon object={refs[0].plural} name={refs[0].ref.name ?? ''} photo={refs[0].ref.photo} size={28} className="mt-0.5" /> : <span aria-hidden="true" className="size-7 shrink-0" />}
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+          <span className="truncate text-[13px] font-medium text-ink">{recordName(record)}</span>
+          {review && <span className={cn('ml-auto shrink-0 tabular-nums transition-opacity duration-150 group-focus-within:opacity-0 group-hover:opacity-0')}><DateLabel value={review} suggested={text(record, 'action_date_basis') === 'Suggested'} /></span>}
+        </div>
+        <p className="truncate">{[...refs.map(({ ref }) => ref.name), moves[text(record, 'waiting_on')]].filter(Boolean).join(' · ')}</p>
+        {draft && <p className="truncate">
+          <span className="mr-1.5 text-ink-2">{text(record, 'draft_status') || 'Draft'}</span>
+          {draft.replace(/\s+/g, ' ')}
+        </p>}
       </div>
-      <p className="truncate">{[...refsOf(record).map(({ ref }) => ref.name), moves[text(record, 'waiting_on')]].filter(Boolean).join(' · ')}</p>
-      {draft && <p className="truncate">
-        <span className="mr-1.5 text-ink-2">{text(record, 'draft_status') || 'Draft'}</span>
-        {draft.replace(/\s+/g, ' ')}
-      </p>}
       <Done record={record} className="absolute right-1 top-1.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100" />
     </li>
   )
