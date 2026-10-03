@@ -103,6 +103,13 @@ func (s *Service) SyncGmailDrafts(ctx context.Context, connection storage.Connec
 
 func (s *Service) importGmailDraft(ctx context.Context, connection storage.Connection, draft google.Draft, expectedRevision string) error {
 	m := draft.Message
+	own, err := s.addresses.InternalAddresses(ctx, connection.WorkspaceID)
+	if err != nil {
+		return err
+	}
+	ready := m.HasDraftText() && slices.ContainsFunc(slices.Concat(m.To, m.Cc, m.Bcc), func(address google.Address) bool {
+		return address.Email != "" && !slices.Contains(own, address.Email)
+	})
 	return s.store.Atomically(ctx, func(store storage.InteractionStore) error {
 		if err := store.LockGmailDraft(ctx, connection.ID, draft.ID); err != nil {
 			return err
@@ -141,6 +148,9 @@ func (s *Service) importGmailDraft(ctx context.Context, connection storage.Conne
 		if err := store.UpsertGmailDraft(ctx, snapshot); err != nil {
 			return err
 		}
+		if !ready && current.FollowUpID == nil {
+			return nil
+		}
 		if thread, err := store.EmailThreadByMessageIDs(ctx, connection.WorkspaceID, append(slices.Clone(m.References), m.InReplyTo)); err == nil {
 			affected = append(affected, thread)
 		} else if !errors.Is(err, storage.ErrNotFound) {
@@ -178,12 +188,10 @@ func (s *Service) importGmailDraft(ctx context.Context, connection storage.Conne
 				}
 			}
 		}
-		// Empty, unaddressed drafts are still tracked for edits and deletion,
-		// but they do not create work for the team.
-		if id == "" && len(snapshot.To)+len(snapshot.Cc)+len(snapshot.Bcc) == 0 {
-			return nil
-		}
 		set := map[string][]string{"status": {"Open"}, "waiting_on": {"Us"}, "channel": {"Email"}}
+		if !ready {
+			set["status"] = []string{"Dismissed"}
+		}
 		remove := map[string][]string{}
 		if current.FollowUpID == nil {
 			set["name"], set["owner"] = []string{"Review email: " + m.Subject}, []string{connection.Account}

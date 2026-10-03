@@ -269,6 +269,116 @@ func TestImportedGmailDraftLifecycle(t *testing.T) {
 	}
 }
 
+func TestGmailDraftEligibility(t *testing.T) {
+	signature := `<div class="gmail_signature">Owner<br>CAS</div>`
+	for _, test := range []struct {
+		name, to, body, rich string
+		ready, rejectSend    bool
+	}{
+		{name: "unaddressed", body: "A prepared email"},
+		{name: "empty", to: "jane@acme.com", rejectSend: true},
+		{name: "plain signature", to: "jane@acme.com", body: "-- \r\nOwner\r\nCAS", rejectSend: true},
+		{name: "Gmail signature", to: "jane@acme.com", body: "-- \r\nOwner\r\nCAS", rich: `<div dir="ltr"><div><br></div><span class="gmail_signature_prefix">-- </span><br>` + signature + `</div>`, rejectSend: true},
+		{name: "quoted history", to: "jane@acme.com", body: "> Previous email", rich: `<div><br></div><div class="gmail_quote"><blockquote>Previous email</blockquote></div>` + signature, rejectSend: true},
+		{name: "teammate only", to: "owner@cas.dev", body: "A prepared email"},
+		{name: "reported signature-only internal draft", to: "owner@cas.dev", body: "-- \r\nOwner\r\nCAS", rich: `<div><br></div><span class="gmail_signature_prefix">-- </span>` + signature, rejectSend: true},
+		{name: "new external contact", to: "jane@acme.com", body: "A prepared email", ready: true},
+		{name: "teammate and external contact", to: "owner@cas.dev, jane@acme.com", body: "A prepared email", ready: true},
+		{name: "authored text and signature", to: "jane@acme.com", body: "Your quote is ready.\r\n-- \r\nOwner", rich: `<div>Your quote is ready.</div>` + signature, ready: true},
+		{name: "text after signature", to: "jane@acme.com", body: "Owner\r\nYour quote is ready.", rich: signature + `<div>Your quote is ready.</div>`, ready: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			store := postgrestest.New(t)
+			owner, err := workspaces.NewService(store, workspaces.Config{}).Provision(ctx, "owner@cas.dev")
+			if err != nil {
+				t.Fatal(err)
+			}
+			actor := auth.Actor{UserID: owner.ID, WorkspaceID: owner.WorkspaceID}
+			raw := "From: Owner <owner@cas.dev>\r\nTo: " + test.to + "\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n" + test.body
+			if test.rich != "" {
+				raw = strings.Replace(raw, "Content-Type: text/plain", "Content-Type: text/html", 1)
+				raw = strings.TrimSuffix(raw, test.body) + test.rich
+			}
+			provider := &draftMailbox{t: t, raw: raw, revision: 1, present: true, at: time.Now()}
+			server := httptest.NewServer(provider)
+			t.Cleanup(server.Close)
+			conns, err := connections.NewService(store, connections.Config{Google: google.OAuthConfig{ClientID: "client", ClientSecret: "secret", TokenURL: server.URL + "/token"}, Key: []byte("0123456789abcdef0123456789abcdef"), Endpoints: google.Endpoints{Gmail: server.URL}}, syncer{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			connection, err := conns.Connect(ctx, actor, "code", "verifier")
+			if err != nil {
+				t.Fatal(err)
+			}
+			mailbox, err := conns.Google(ctx, connection)
+			if err != nil {
+				t.Fatal(err)
+			}
+			crm := records.NewService(store)
+			svc := followups.NewService(crm, store, conns, store)
+			if err := svc.SyncGmailDrafts(ctx, connection, mailbox); err != nil {
+				t.Fatal(err)
+			}
+			all, _, err := crm.Search(ctx, actor, records.Search{Object: records.FollowUps})
+			if err != nil || (len(all) == 1) != test.ready || len(all) > 1 {
+				t.Fatalf("unfinished draft created follow-up work: %+v %v", all, err)
+			}
+			snapshot, err := store.GmailDraftByID(ctx, connection.ID, "stable-draft")
+			if err != nil || snapshot.MessageID != "draft-message-1" || snapshot.State != "draft" || (snapshot.FollowUpID != nil) != test.ready {
+				t.Fatalf("provider snapshot was lost: %+v %v", snapshot, err)
+			}
+			provider.raw, provider.revision = draftMIME("Your quote is ready.", "Quote"), 2
+			if err := svc.SyncGmailDrafts(ctx, connection, mailbox); err != nil {
+				t.Fatal(err)
+			}
+			all, _, err = crm.Search(ctx, actor, records.Search{Object: records.FollowUps})
+			if err != nil || len(all) != 1 || field(all[0], "status") != "Open" {
+				t.Fatalf("ready draft did not become actionable: %+v %v", all, err)
+			}
+			id := all[0].ID
+			provider.raw, provider.revision = raw, 3
+			if err := svc.SyncGmailDrafts(ctx, connection, mailbox); err != nil {
+				t.Fatal(err)
+			}
+			record, err := crm.Get(ctx, actor, id)
+			want := "Dismissed"
+			if test.ready {
+				want = "Open"
+			}
+			if err != nil || field(record, "status") != want {
+				t.Fatalf("cleared provider draft stayed actionable: %+v %v", record, err)
+			}
+			if test.rejectSend {
+				provider.raw = strings.Replace(provider.raw, "MIME-Version:", "Subject: Draft\r\nMIME-Version:", 1)
+				provider.revision++
+				if err := svc.SyncGmailDrafts(ctx, connection, mailbox); err != nil {
+					t.Fatal(err)
+				}
+				preview, err := svc.Sender(ctx, actor, id)
+				if err != nil {
+					t.Fatal(err)
+				}
+				_, err = svc.Release(ctx, actor, id, followups.Seen{Confirmed: true, Draft: preview.Draft, Subject: preview.Subject, From: preview.From, To: preview.To, Cc: preview.Cc, Bcc: preview.Bcc, Revision: preview.Revision})
+				if err == nil || !strings.Contains(err.Error(), "needs text and a recipient") || provider.sends != 0 {
+					t.Fatalf("unfinished draft passed send validation: %v", err)
+				}
+			}
+			provider.raw = draftMIME("The revised quote is ready.", "Revised quote")
+			provider.revision++
+			if err := svc.SyncGmailDrafts(ctx, connection, mailbox); err != nil {
+				t.Fatal(err)
+			}
+			all, _, err = crm.Search(ctx, actor, records.Search{Object: records.FollowUps})
+			if err != nil || len(all) != 1 || all[0].ID != id || field(all[0], "status") != "Open" || field(all[0], "draft") != "The revised quote is ready." {
+				t.Fatalf("ready draft lost its existing identity: %+v %v", all, err)
+			}
+			if provider.updates != 0 || provider.sends != 0 {
+				t.Fatalf("sync changed the Gmail original: %d updates, %d sends", provider.updates, provider.sends)
+			}
+		})
+	}
+}
+
 func field(record records.Record, attribute string) string {
 	for _, field := range record.Fields {
 		if field.Attribute == attribute && len(field.Values) > 0 {

@@ -124,7 +124,7 @@ func (s *Service) Release(ctx context.Context, actor auth.Actor, id string, seen
 	if err != nil {
 		return records.Record{}, err
 	}
-	if reply.message.Body == "" || len(reply.message.To)+len(reply.message.Cc)+len(reply.bcc) == 0 {
+	if !(google.Message{Text: reply.message.Body, HTML: reply.html}).HasDraftText() || len(reply.message.To)+len(reply.message.Cc)+len(reply.bcc) == 0 {
 		return records.Record{}, errs.Invalidf("an email draft needs text and a recipient")
 	}
 	if reply.message.Subject == "" {
