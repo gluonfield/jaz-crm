@@ -107,7 +107,7 @@ function OtherAddresses({ member, editable }: { member: Member; editable: boolea
   const [text, setText] = useState(current)
   const update = useAction<object>('update_member')
   if (!editable) {
-    return current && <div className="truncate text-[12px] text-ink-3">Also sends from {current}</div>
+    return current ? <div className="truncate text-[12px] text-ink-3">Also sends from {current}</div> : null
   }
   return (
     <input

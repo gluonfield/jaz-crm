@@ -183,20 +183,21 @@ func (s *Service) SetAddresses(ctx context.Context, actor auth.Actor, email stri
 	user := users[i]
 	if user.ID != actor.UserID {
 		if err := s.requireAdmin(ctx, actor); err != nil {
-			return user, err
+			return storage.User{}, err
 		}
 	}
-	user.Addresses = []string{}
+	cleaned := []string{}
 	for _, address := range addresses {
 		address = strings.ToLower(strings.TrimSpace(address))
 		if !validEmail(address) {
-			return user, errs.Invalidf("%q is not an email address", address)
+			return storage.User{}, errs.Invalidf("%q is not an email address", address)
 		}
-		if address != strings.ToLower(user.Email) && !slices.Contains(user.Addresses, address) {
-			user.Addresses = append(user.Addresses, address)
+		if address != strings.ToLower(user.Email) && !slices.Contains(cleaned, address) {
+			cleaned = append(cleaned, address)
 		}
 	}
-	return user, s.store.SetUserAddresses(ctx, actor.WorkspaceID, user.ID, user.Addresses)
+	user.Addresses = cleaned
+	return user, s.store.SetUserAddresses(ctx, actor.WorkspaceID, user.ID, cleaned)
 }
 
 func validEmail(email string) bool {

@@ -1,6 +1,6 @@
 import { Check, ChevronDown, ChevronsRight, LoaderCircle, X } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Button } from '@jaz/ui/button'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
 import { formatDay } from '@/lib/format'
@@ -48,12 +48,12 @@ export const editDraft = () => document.querySelector<HTMLElement>('[data-conver
 
 const subjects = { person: 'people', company: 'companies', deal: 'deals' }
 const channels: Record<string, string> = { email: 'Email', linkedin: 'LinkedIn' }
+const moves: Record<string, string> = { Us: 'Our move', Them: 'Waiting on them' }
+const refsOf = (record: CrmRecord) => Object.entries(subjects).flatMap(([object, plural]) => (valuesOf(record, object) as Ref[]).map((ref) => ({ plural, ref })))
 
 function FollowUp({ record, index, selected, onSelect }: { record: CrmRecord; index: number; selected: boolean; onSelect: () => void }) {
   const draft = text(record, 'draft')
   const review = text(record, 'review_on')
-  const who = Object.keys(subjects).flatMap((slug) => (valuesOf(record, slug) as Ref[]).map((v) => v.name))
-  const waiting = { Us: 'Our move', Them: 'Waiting on them' }[text(record, 'waiting_on')]
   return (
     <li
       data-row={index}
@@ -69,7 +69,7 @@ function FollowUp({ record, index, selected, onSelect }: { record: CrmRecord; in
         <span className="truncate text-[13px] font-medium text-ink">{recordName(record)}</span>
         {review && <span className={cn('ml-auto shrink-0 tabular-nums transition-opacity duration-150 group-focus-within:opacity-0 group-hover:opacity-0', review <= today() && 'text-ink')}>{formatDay(review)}</span>}
       </div>
-      <p className="truncate">{[...who, waiting].filter(Boolean).join(' · ')}</p>
+      <p className="truncate">{[...refsOf(record).map(({ ref }) => ref.name), moves[text(record, 'waiting_on')]].filter(Boolean).join(' · ')}</p>
       {draft && <p className="truncate">
         <span className="mr-1.5 text-ink-2">{text(record, 'draft_status') || 'Draft'}</span>
         {draft.replace(/\s+/g, ' ')}
@@ -83,7 +83,7 @@ function FollowUp({ record, index, selected, onSelect }: { record: CrmRecord; in
 // whose move it is.
 function Summary({ record }: { record: CrmRecord }) {
   const review = text(record, 'review_on')
-  const waiting = { Us: 'Our move', Them: 'Waiting on them' }[text(record, 'waiting_on')]
+  const move = moves[text(record, 'waiting_on')]
   return (
     <>
       <div className="flex min-w-0 items-baseline gap-2">
@@ -91,8 +91,8 @@ function Summary({ record }: { record: CrmRecord }) {
         {review && <span className={cn('ml-auto shrink-0 text-[12px] tabular-nums', review <= today() ? 'text-ink' : 'text-ink-3')}>{formatDay(review)}</span>}
       </div>
       <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[12px] text-ink-3">
-        {Object.entries(subjects).flatMap(([slug, object]) => (valuesOf(record, slug) as Ref[]).map((v) => <RecordChip key={v.id} object={object} value={v} />))}
-        {waiting && <span className="ml-0.5 shrink-0">{waiting}</span>}
+        {refsOf(record).map(({ plural, ref }) => <RecordChip key={ref.id} object={plural} value={ref} />)}
+        {move && <span className="ml-0.5 shrink-0">{move}</span>}
       </div>
     </>
   )
@@ -143,8 +143,9 @@ function Conversation({ record, onClose }: { record: CrmRecord; onClose: () => v
   // it failed, so loading means not yet answered.
   const loading = !conversations.isFetched || (!!conversation && !thread.isFetched)
   const messages = thread.data?.messages ?? (conversation?.last_message ? [conversation.last_message] : [])
+  const error = conversations.error ?? thread.error
   const body = useRef<HTMLDivElement>(null)
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!loading && body.current) {
       body.current.scrollTop = body.current.scrollHeight
     }
@@ -169,7 +170,7 @@ function Conversation({ record, onClose }: { record: CrmRecord; onClose: () => v
           </div>
         ) : (
           <div className="flex flex-col gap-4">
-            {(conversations.error || thread.error) && <p role="alert" className="text-[12px] text-ink-3">{(conversations.error || thread.error)?.message}</p>}
+            {error && <p role="alert" className="text-[12px] text-ink-3">{error.message}</p>}
             {conversation && (messages.length > 0
               ? <MessageThread key={conversation.id} interaction={thread.data ?? conversation} messages={messages} initialVisible={4} />
               : <p className="text-[12px] text-ink-3">Message text is not available yet.</p>)}
@@ -185,13 +186,18 @@ function Conversation({ record, onClose }: { record: CrmRecord; onClose: () => v
 // history one step away.
 function Context({ record }: { record: CrmRecord }) {
   const [open, setOpen] = useState(false)
-  const lines = text(record, 'context').split('\n').map((line) => line.replace(/^\s*[-*•]\s*/, '').trim()).filter(Boolean)
-  const events = lines.flatMap((line) => {
+  const about: string[] = []
+  const events: { day: string; event: string }[] = []
+  for (const bullet of text(record, 'context').split('\n')) {
+    const line = bullet.replace(/^\s*[-*•]\s*/, '').trim()
     const [, day, event] = line.match(/^(\d{4}-\d{2}-\d{2}):\s*(.*)$/) ?? []
-    return day ? [{ day, event }] : []
-  })
-  const about = lines.filter((line) => !/^\d{4}-\d{2}-\d{2}:/.test(line))
-  if (lines.length === 0) {
+    if (day) {
+      events.push({ day, event })
+    } else if (line) {
+      about.push(line)
+    }
+  }
+  if (about.length + events.length === 0) {
     return null
   }
   return (
