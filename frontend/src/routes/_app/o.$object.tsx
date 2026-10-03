@@ -128,20 +128,27 @@ function ObjectList({ slug, filter, setFilter, flush }: { slug: string; filter: 
     'aria-label': `Search ${object.name.toLowerCase()}`,
     'data-page-search': true,
   }
-  // The queue's own column holds what chooses its records: the view as its
-  // title, the order and a search that narrows the view.
+  // The queue has no page header: its own column holds what chooses its
+  // records, the view as its title, the order and a search that narrows the
+  // view, beside the way to the table and to a new follow-up.
   const controls = (
     <>
-      <div className="flex min-w-0 items-center justify-between gap-2">
-        <div className="-ml-2 min-w-0">{recordFilters(true)}</div>
+      <div className="flex min-w-0 items-center gap-1">
+        <div className="-ml-2 mr-auto min-w-0">{recordFilters(true)}</div>
         {sorter(
           <Button variant="ghost" aria-label="Sort records" className="bg-list-hover hover:bg-list-active">
             {sortName}
             <ArrowUp className="text-ink-3" />
           </Button>,
         )}
+        <Button variant="ghost" size="icon" aria-label="Table" title="Table" onClick={() => void navigate({ to: '.', search: { ...search, view: 'table' }, replace: true })}>
+          <Table2 />
+        </Button>
+        <Button variant="ghost" size="icon" aria-label="New follow-up" title="New follow-up" onClick={() => setCreating(true)}>
+          <Plus />
+        </Button>
       </div>
-      <label className="flex h-[34px] items-center gap-2 rounded-[8px] bg-list-hover px-2.5 text-ink-3 transition-colors focus-within:bg-list-active">
+      <label className="flex h-8 items-center gap-2 rounded-[8px] bg-list-hover px-2.5 text-ink-3 transition-colors focus-within:bg-list-active">
         <Search className="size-3.5 shrink-0" />
         <input
           {...searching}
@@ -152,7 +159,7 @@ function ObjectList({ slug, filter, setFilter, flush }: { slug: string; filter: 
             }
           }}
           placeholder="Search people, companies, emails"
-          className="min-w-0 flex-1 bg-transparent text-[13px] text-ink outline-none placeholder:text-ink-3 [&::-webkit-search-cancel-button]:hidden"
+          className="min-w-0 flex-1 bg-transparent text-[12.5px] text-ink outline-none placeholder:text-ink-3 [&::-webkit-search-cancel-button]:hidden"
         />
         {!q && <Kbd className="ml-0">/</Kbd>}
       </label>
@@ -164,39 +171,37 @@ function ObjectList({ slug, filter, setFilter, flush }: { slug: string; filter: 
   )
   return (
     <>
-      <Header className="h-auto min-h-11 flex-wrap py-2">
+      {!queue && <Header className="h-auto min-h-11 flex-wrap py-2">
         <ObjectIcon slug={slug} />
         <span className="whitespace-nowrap">{object.name}</span>
-        {total !== undefined && !queue && <span className="font-normal tabular-nums text-ink-3">{total}</span>}
+        {total !== undefined && <span className="font-normal tabular-nums text-ink-3">{total}</span>}
         {status && (
           <div role="group" aria-label="View" className="ml-2 flex h-7 items-center rounded-full bg-list-hover p-0.5">
-            <ViewButton active={!!board || queue} label={slug === 'follow_ups' ? 'Queue' : 'Board'} onClick={() => void navigate({ to: '.', search: { ...search, view: own ? 'board' : undefined }, replace: true })}>
+            <ViewButton active={!!board} label={slug === 'follow_ups' ? 'Queue' : 'Board'} onClick={() => void navigate({ to: '.', search: { ...search, view: own ? 'board' : undefined }, replace: true })}>
               {slug === 'follow_ups' ? <ListChecks /> : <Kanban />}
             </ViewButton>
-            <ViewButton active={!board && !queue} label="Table" onClick={() => void navigate({ to: '.', search: { ...search, view: own ? undefined : 'table' }, replace: true })}>
+            <ViewButton active={!board} label="Table" onClick={() => void navigate({ to: '.', search: { ...search, view: own ? undefined : 'table' }, replace: true })}>
               <Table2 />
             </ViewButton>
           </div>
         )}
         <div className="ml-auto flex max-w-full flex-wrap items-center gap-1 font-normal">
-          {!queue && <>
-            {recordFilters()}
-            {sorter(
-              <Button variant="ghost" aria-label="Sort records">
-                <ArrowDownAZ />
-                <span className="hidden xl:inline">{sortName}</span>
-              </Button>,
-            )}
-            <label className="group flex h-7 shrink-0 items-center gap-1.5 rounded-[var(--radius-control)] px-2 text-ink-3 transition-colors focus-within:bg-list-hover hover:bg-list-hover">
-              <Search className="size-3.5 shrink-0" />
-              <input {...searching} onKeyDown={(e) => e.stopPropagation()} placeholder="Search" className="w-20 min-w-0 bg-transparent text-[12.5px] text-ink outline-none transition-[width] duration-150 placeholder:text-ink-3 focus:w-40" />
-            </label>
-          </>}
+          {recordFilters()}
+          {sorter(
+            <Button variant="ghost" aria-label="Sort records">
+              <ArrowDownAZ />
+              <span className="hidden xl:inline">{sortName}</span>
+            </Button>,
+          )}
+          <label className="group flex h-7 shrink-0 items-center gap-1.5 rounded-[var(--radius-control)] px-2 text-ink-3 transition-colors focus-within:bg-list-hover hover:bg-list-hover">
+            <Search className="size-3.5 shrink-0" />
+            <input {...searching} onKeyDown={(e) => e.stopPropagation()} placeholder="Search" className="w-20 min-w-0 bg-transparent text-[12.5px] text-ink outline-none transition-[width] duration-150 placeholder:text-ink-3 focus:w-40" />
+          </label>
           <Button className="ml-1" onClick={() => setCreating(true)}>
             <Plus /> New
           </Button>
         </div>
-      </Header>
+      </Header>}
       <CreateRecord object={object} open={creating} onOpenChange={setCreating} openCreated />
       {result.isError ? <EmptyState title={result.error.message} icon={<Search />} /> : board ? (
         records && <Board object={object} status={board} records={records} />

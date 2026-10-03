@@ -43,8 +43,8 @@ export function RecordFilters({ object, filters, query, selected, title = false,
       <Picker
         trigger={title
           ? <button type="button" className="flex min-w-0 items-center gap-2 rounded-[var(--radius-control)] px-2 py-1 text-left outline-none hover:bg-list-hover focus-visible:ring-2 focus-visible:ring-ring">
-            <span className="truncate text-[15px] font-semibold text-ink">{label}</span>
-            <span className="text-[14px] tabular-nums text-ink-3">{total}</span>
+            <span className="truncate text-[14px] font-semibold text-ink">{label}</span>
+            <span className="text-[13px] tabular-nums text-ink-3">{total}</span>
             <ChevronDown className="size-3.5 shrink-0 text-ink-3" />
           </button>
           : <Button variant="ghost" className="max-w-40 shrink-0"><Bookmark className="shrink-0" /><span className="truncate">{label}</span><ChevronDown className="shrink-0" /></Button>}

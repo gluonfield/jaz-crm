@@ -60,7 +60,7 @@ export function FollowUpQueue({ records, focus, onFocus, controls, empty }: { re
               const members = queue.filter((item) => item.group === g)
               return members.length > 0 && (
                 <section key={group.name} aria-label={group.name} className="flex flex-col gap-0.5">
-                  <h3 className="flex justify-between px-2.5 pb-1 pt-3 text-[12px] font-semibold uppercase tracking-[0.03em]">
+                  <h3 className="flex justify-between px-2.5 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-[0.04em]">
                     <span className={group.className}>{group.name}</span>
                     <span className="tabular-nums text-ink-3">{members.length}</span>
                   </h3>
@@ -134,22 +134,22 @@ function FollowUp({ record, zone, index, selected, onSelect }: { record: CrmReco
       onClick={onSelect}
       className={cn('group relative flex cursor-default gap-3 rounded-[8px] p-2.5 hover:bg-list-hover', selected && 'bg-list-active hover:bg-list-active')}
     >
-      <span className="relative size-[34px] shrink-0">
-        {subject ? <RecordIcon object={subject.plural} name={subject.ref.name ?? ''} photo={subject.ref.photo} size={34} /> : <span aria-hidden="true" className="block size-[34px] rounded-full bg-list-active" />}
+      <span className="relative size-8 shrink-0">
+        {subject ? <RecordIcon object={subject.plural} name={subject.ref.name ?? ''} photo={subject.ref.photo} size={32} /> : <span aria-hidden="true" className="block size-8 rounded-full bg-list-active" />}
         {state?.dot && <span aria-hidden="true" className={cn('absolute -bottom-0.5 -right-0.5 size-3 rounded-full border-2 border-bg', state.dot)} />}
       </span>
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex min-w-0 items-center justify-between gap-2">
           <div className="flex min-w-0 flex-1 items-center gap-1.5">
-            <span className="max-w-[75%] shrink-0 truncate text-[13.5px] font-semibold text-ink">{subject?.ref.name || recordName(record)}</span>
+            <span className="max-w-[75%] shrink-0 truncate text-[13px] font-semibold text-ink">{subject?.ref.name || recordName(record)}</span>
             {person && company && <>
               <RecordIcon object="companies" name={company.name ?? ''} photo={company.photo} size={14} />
-              <span className="min-w-0 truncate text-[12.5px] text-ink-3">{company.name}</span>
+              <span className="min-w-0 truncate text-[12px] text-ink-3">{company.name}</span>
             </>}
           </div>
           {state && <span className={cn('shrink-0 text-[12px] transition-opacity duration-150 group-focus-within:opacity-0 group-hover:opacity-0', state.tone)}>{state.label}</span>}
         </div>
-        {subject && <p className="truncate text-[13px] text-ink-2">{recordName(record)}</p>}
+        {subject && <p className="truncate text-[12.5px] text-ink-2">{recordName(record)}</p>}
         <div className="flex min-w-0 items-center justify-between gap-2 text-[12px] text-ink-3">
           <div className="flex min-w-0 items-center gap-1.5">
             {channel && <ChannelTag channel={channel} />}

@@ -81,12 +81,12 @@ export function Conversation({ record, onClose }: { record: CrmRecord; onClose: 
         <Button variant="ghost" size="icon-sm" aria-label="Back" title="Back" className="-ml-2 @4xl:hidden" onClick={onClose}>
           <ArrowLeft />
         </Button>
-        {subject && <RecordIcon object={subject.plural} name={subject.ref.name ?? ''} photo={subject.ref.photo} size={36} />}
+        {subject && <RecordIcon object={subject.plural} name={subject.ref.name ?? ''} photo={subject.ref.photo} size={32} />}
         <div className="flex min-w-0 flex-col gap-[3px]">
           <div className="flex min-w-0 items-center gap-2">
             {subject
-              ? <Link to="/r/$recordId" params={{ recordId: subject.ref.id }} className="truncate text-[15px] font-semibold text-ink outline-none hover:underline focus-visible:underline">{subject.ref.name || 'Unnamed'}</Link>
-              : <h2 className="truncate text-[15px] font-semibold text-ink">{recordName(record)}</h2>}
+              ? <Link to="/r/$recordId" params={{ recordId: subject.ref.id }} className="truncate text-[14px] font-semibold text-ink outline-none hover:underline focus-visible:underline">{subject.ref.name || 'Unnamed'}</Link>
+              : <h2 className="truncate text-[14px] font-semibold text-ink">{recordName(record)}</h2>}
             {person && company && <>
               <span aria-hidden="true" className="text-ink-3">·</span>
               <RecordChip object="companies" value={company} />
