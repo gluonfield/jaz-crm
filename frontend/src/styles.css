@@ -378,3 +378,10 @@
     pointer-events: none;
   }
 }
+
+/* Short markdown fields read as secondary text at the same proportions. */
+.prose-page.prose-compact {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--color-ink-2);
+}

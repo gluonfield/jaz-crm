@@ -101,6 +101,19 @@ function alongPath(parts: string[], ancestors: string[]) {
   return matched === parts.length
 }
 
+// MarkdownView shows short markdown, such as a person's context, read-only
+// with the page typography at a compact size.
+export function MarkdownView({ text }: { text: string }) {
+  const editor = useEditor({
+    editable: false,
+    extensions: [StarterKit, TaskList, TaskItem, TableKit, Markdown],
+    content: text,
+    contentType: 'markdown',
+    editorProps: { attributes: { class: 'prose-page prose-compact' } },
+  }, [text])
+  return <EditorContent editor={editor} />
+}
+
 // PageEditor edits a page's markdown content in place. It saves shortly after
 // typing stops, on blur and on leaving, each save expecting the content it
 // last saw, so an agent's edit is never overwritten unseen: a conflicting

@@ -1,6 +1,6 @@
-import { Check, ChevronDown, ChevronsRight, LoaderCircle, X } from 'lucide-react'
+import { Check, ChevronsRight, LoaderCircle, X } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Button } from '@jaz/ui/button'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
 import { formatDay } from '@/lib/format'
@@ -11,6 +11,7 @@ import type { CrmRecord, DraftSender, Interaction, Ref } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { RecordChip } from './controls'
 import { MessageThread } from './email-thread'
+import { MarkdownView } from './editor'
 import { Release } from './draft-release'
 
 const text = (record: CrmRecord, slug: string) => valuesOf(record, slug).map(valueText).join(', ')
@@ -183,45 +184,14 @@ function Conversation({ record, onClose }: { record: CrmRecord; onClose: () => v
   )
 }
 
-// Context is what we know of the person: who they are, with the dated
-// history one step away.
+// Context is what we know of the person, as its markdown says it.
 function Context({ record }: { record: CrmRecord }) {
-  const [open, setOpen] = useState(false)
-  const about: string[] = []
-  const events: { day: string; event: string }[] = []
-  for (const bullet of text(record, 'context').split('\n')) {
-    const line = bullet.replace(/^\s*[-*•]\s*/, '').trim()
-    const [, day, event] = line.match(/^(\d{4}-\d{2}-\d{2}):\s*(.*)$/) ?? []
-    if (day) {
-      events.push({ day, event })
-    } else if (line) {
-      about.push(line)
-    }
-  }
-  if (about.length + events.length === 0) {
-    return null
-  }
-  return (
-    <section aria-label={`${recordName(record)} context`} className="mt-3 rounded-[var(--radius-control)] bg-list-hover px-3 py-2 text-[12px] leading-[18px] text-ink-2">
-      {about.map((line, i) => <p key={i}>{line}</p>)}
-      {events.length > 0 && (
-        <>
-          <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="-mx-1 mt-1 inline-flex items-center gap-1 rounded-[var(--radius-control)] px-1 text-ink-3 outline-none hover:text-ink-2 focus-visible:ring-2 focus-visible:ring-primary">
-            History <span className="tabular-nums">{events.length}</span>
-            <ChevronDown aria-hidden="true" className={cn('size-3.5 transition-transform duration-150 motion-reduce:transition-none', open && 'rotate-180')} />
-          </button>
-          {open && <div className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5">
-            {events.map((e, i) => (
-              <Fragment key={i}>
-                <span className="whitespace-nowrap tabular-nums text-ink-3">{formatDay(e.day)}</span>
-                <span>{e.event}</span>
-              </Fragment>
-            ))}
-          </div>}
-        </>
-      )}
+  const context = text(record, 'context')
+  return context ? (
+    <section aria-label={`${recordName(record)} context`} className="scrollbar-quiet mt-3 max-h-36 overflow-y-auto rounded-[var(--radius-control)] bg-list-hover px-3 py-2">
+      <MarkdownView text={context} />
     </section>
-  )
+  ) : null
 }
 
 function Address({ label, value }: { label: string; value?: string }) {
