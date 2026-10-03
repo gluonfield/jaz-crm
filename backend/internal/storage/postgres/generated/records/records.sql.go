@@ -289,18 +289,6 @@ func (q *Queries) DeleteRecord(ctx context.Context, arg DeleteRecordParams) (int
 }
 
 const dropFilterConditions = `-- name: DropFilterConditions :exec
-WITH active AS (
-  UPDATE active_filters SET filters = (
-    SELECT coalesce(jsonb_agg(condition ORDER BY position), '[]'::jsonb)
-    FROM jsonb_array_elements(filters) WITH ORDINALITY AS conditions(condition, position)
-    WHERE NOT EXISTS (
-      SELECT 1 FROM attributes
-      WHERE attributes.id = ANY($1::uuid[]) AND attributes.object_id = active_filters.object_id AND attributes.slug = condition->>'attribute'
-    )
-  )
-  WHERE object_id IN (SELECT id FROM objects WHERE workspace_id = $2)
-    AND object_id IN (SELECT object_id FROM attributes WHERE id = ANY($1::uuid[]))
-)
 UPDATE saved_filters SET filters = (
   SELECT coalesce(jsonb_agg(condition ORDER BY position), '[]'::jsonb) FROM jsonb_array_elements(filters) WITH ORDINALITY AS conditions(condition, position)
   WHERE NOT EXISTS (
@@ -319,28 +307,6 @@ type DropFilterConditionsParams struct {
 func (q *Queries) DropFilterConditions(ctx context.Context, arg DropFilterConditionsParams) error {
 	_, err := q.db.Exec(ctx, dropFilterConditions, arg.AttributeIDs, arg.WorkspaceID)
 	return err
-}
-
-const getActiveFilter = `-- name: GetActiveFilter :one
-SELECT active_filters.object_id, active_filters.query, active_filters.filters, active_filters.saved_id FROM active_filters JOIN objects ON objects.id = active_filters.object_id
-WHERE objects.workspace_id = $1 AND objects.id = $2
-`
-
-type GetActiveFilterParams struct {
-	WorkspaceID string
-	ObjectID    string
-}
-
-func (q *Queries) GetActiveFilter(ctx context.Context, arg GetActiveFilterParams) (ActiveFilter, error) {
-	row := q.db.QueryRow(ctx, getActiveFilter, arg.WorkspaceID, arg.ObjectID)
-	var i ActiveFilter
-	err := row.Scan(
-		&i.ObjectID,
-		&i.Query,
-		&i.Filters,
-		&i.SavedID,
-	)
-	return i, err
 }
 
 const getRecords = `-- name: GetRecords :many
@@ -949,38 +915,6 @@ func (q *Queries) SearchRecords(ctx context.Context, arg SearchRecordsParams) ([
 		return nil, err
 	}
 	return items, nil
-}
-
-const setActiveFilter = `-- name: SetActiveFilter :execrows
-INSERT INTO active_filters (object_id, query, filters, saved_id)
-SELECT objects.id, $1, $2, $3::text FROM objects
-WHERE objects.workspace_id = $4 AND objects.id = $5
-  AND ($3::text IS NULL OR EXISTS (
-    SELECT 1 FROM saved_filters WHERE id = $3 AND object_id = objects.id
-  ))
-ON CONFLICT (object_id) DO UPDATE SET query = EXCLUDED.query, filters = EXCLUDED.filters, saved_id = EXCLUDED.saved_id
-`
-
-type SetActiveFilterParams struct {
-	Query       string
-	Filters     []byte
-	SavedID     *string
-	WorkspaceID string
-	ObjectID    string
-}
-
-func (q *Queries) SetActiveFilter(ctx context.Context, arg SetActiveFilterParams) (int64, error) {
-	result, err := q.db.Exec(ctx, setActiveFilter,
-		arg.Query,
-		arg.Filters,
-		arg.SavedID,
-		arg.WorkspaceID,
-		arg.ObjectID,
-	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
 }
 
 const stageInUse = `-- name: StageInUse :one

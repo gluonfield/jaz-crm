@@ -191,9 +191,7 @@ func TestFollowUpQueues(t *testing.T) {
 		{"Their future action", "Their overdue action", "Their undated action"},
 	} {
 		filter := listed[i].(map[string]any)
-		mustCall(t, a, "set_active_filter", map[string]any{"object": "follow_ups", "saved_id": filter["id"], "filters": filter["filters"]})
-		active := mustCall(t, a, "get_active_filter", map[string]any{"object": "follow_ups"})
-		found := mustCall(t, a, "search_records", map[string]any{"object": "follow_ups", "filters": active["filters"], "sort": "name"})["records"].([]any)
+		found := mustCall(t, a, "search_records", map[string]any{"object": "follow_ups", "filters": filter["filters"], "sort": "name"})["records"].([]any)
 		var got []string
 		for _, row := range found {
 			got = append(got, row.(map[string]any)["values"].(map[string]any)["name"].(string))
@@ -201,5 +199,28 @@ func TestFollowUpQueues(t *testing.T) {
 		if !slices.Equal(got, want) {
 			t.Fatalf("%s membership: got %v, want %v", filter["name"], got, want)
 		}
+	}
+}
+
+func TestSavedFiltersFollowSchemaDeletion(t *testing.T) {
+	e := serve(t)
+	a := e.session(t, e.apiKey(t, "owner@example.com"))
+	mustCall(t, a, "create_object", map[string]any{"slug": "suppliers", "name": "Suppliers"})
+	mustCall(t, a, "create_attribute", map[string]any{"object": "people", "slug": "supplier", "name": "Supplier", "type": "reference", "target": "suppliers"})
+	mustCall(t, a, "create_attribute", map[string]any{"object": "people", "slug": "code", "name": "Code", "type": "text"})
+	conditions := []any{
+		map[string]any{"attribute": "supplier", "operator": "is_not_empty"},
+		map[string]any{"attribute": "code", "operator": "is", "value": "A1"},
+		map[string]any{"attribute": "name", "operator": "contains", "value": "Ada"},
+	}
+	mustCall(t, a, "save_filter", map[string]any{"object": "people", "name": "Supplier search", "filters": conditions, "query": "Lovelace"})
+	mustCall(t, a, "edit_object", map[string]any{"object": "suppliers", "action": "delete"})
+	if got := mustCall(t, a, "list_saved_filters", map[string]any{"object": "people"})["filters"].([]any)[0].(map[string]any)["filters"]; !reflect.DeepEqual(got, conditions[1:]) {
+		t.Fatalf("deleted reference condition remains: %v", got)
+	}
+	mustCall(t, a, "edit_attribute", map[string]any{"object": "people", "attribute": "code", "action": "delete"})
+	got := mustCall(t, a, "list_saved_filters", map[string]any{"object": "people"})["filters"].([]any)[0].(map[string]any)
+	if !reflect.DeepEqual(got["filters"], conditions[2:]) || got["query"] != "Lovelace" {
+		t.Fatalf("attribute cleanup changed unrelated conditions: %v", got)
 	}
 }

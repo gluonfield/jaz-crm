@@ -8,13 +8,6 @@ import (
 	"time"
 )
 
-type ActiveFilter struct {
-	ObjectID string
-	Query    string
-	Filters  []byte
-	SavedID  *string
-}
-
 type Attribute struct {
 	ID             string
 	ObjectID       string

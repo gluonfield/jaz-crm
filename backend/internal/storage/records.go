@@ -130,12 +130,6 @@ type SavedFilter struct {
 	ObjectID string         `json:"-"`
 }
 
-type ActiveFilter struct {
-	Query   string         `json:"query"`
-	Filters []RecordFilter `json:"filters"`
-	SavedID string         `json:"saved_id,omitempty"`
-}
-
 // ValueChanges closes current values by ID and inserts new ones. Revise
 // rewrites current values' text in place, keeping one version of a document
 // while one writer goes on editing it.
@@ -184,8 +178,6 @@ type RecordStore interface {
 	SearchRecords(ctx context.Context, query RecordQuery) ([]Record, int, error)
 	RelatedRecords(ctx context.Context, workspaceID, attributeID string, ids []string, limit int32) ([]RelatedRecord, error)
 	SavedFilters(ctx context.Context, workspaceID, objectID string) ([]SavedFilter, error)
-	ActiveFilter(ctx context.Context, workspaceID, objectID string) (ActiveFilter, error)
-	SetActiveFilter(ctx context.Context, workspaceID, objectID string, filter ActiveFilter) error
 	SaveFilter(ctx context.Context, workspaceID string, filter SavedFilter) (SavedFilter, error)
 	DeleteFilter(ctx context.Context, workspaceID, id string) error
 	CurrentValues(ctx context.Context, workspaceID string, recordIDs []string) ([]RecordValue, error)

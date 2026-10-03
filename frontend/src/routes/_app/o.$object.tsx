@@ -24,12 +24,11 @@ import { formatDay, formatNumber } from '@/lib/format'
 import { useDebounced, useFlip, useInView, useListKeys } from '@/lib/hooks'
 import { DateLabel, dateMetadata } from '@/components/date-field'
 import { useObjects, useRecordPages, useTool, useWorkspace } from '@/lib/queries'
-import { useActiveFilter } from '@/lib/active-filter'
 import { useColumnWidths } from '@/lib/use-column-widths'
 import { validateRecordSearch } from '@/lib/record-search'
 import { statusOf } from '@/lib/stages'
 import { useMail } from '@/lib/sync'
-import type { ActiveFilter, Attribute, CrmObject, CrmRecord } from '@/lib/types'
+import type { Attribute, CrmObject, CrmRecord } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 export const Route = createFileRoute('/_app/o/$object')({
@@ -46,28 +45,15 @@ const arrivals: Record<string, string> = {
 
 function ObjectPage() {
   const { object: slug } = Route.useParams()
-  const search = Route.useSearch()
   const workspace = useWorkspace()
-  const initial = useMemo(() => search.filters !== undefined || search.q !== undefined || search.saved !== undefined
-    ? { filters: search.filters ?? [], query: search.q ?? '', saved_id: search.saved }
-    : undefined, [search.filters, search.q, search.saved])
-  return workspace && <FilteredObject key={`${workspace.id}:${slug}:${JSON.stringify(initial)}`} slug={slug} initial={initial} />
+  return workspace && <ObjectList key={`${workspace.id}:${slug}`} slug={slug} />
 }
 
-function FilteredObject({ slug, initial }: { slug: string; initial?: ActiveFilter }) {
-  const { filter, error, setFilter, flush } = useActiveFilter(slug, initial)
-  if (!filter) {
-    return error ? <EmptyState title={error.message} icon={<Search />} /> : <Header>{slug}</Header>
-  }
-  return <ObjectList slug={slug} filter={filter} setFilter={setFilter} flush={flush} />
-}
-
-function ObjectList({ slug, filter, setFilter, flush }: { slug: string; filter: ActiveFilter; setFilter: (filter: ActiveFilter, debounce?: boolean) => void; flush: () => void }) {
+function ObjectList({ slug }: { slug: string }) {
   const objects = useObjects()
   const object = objects?.find((o) => o.slug === slug)
   const search = Route.useSearch()
-  const { sort, view, limit = 100 } = search
-  const { query: q, filters, saved_id: saved } = filter
+  const { sort, view, q = '', filters = slug === 'follow_ups' ? [{ attribute: 'status', operator: 'is', value: 'Open' }] : [], saved, limit = 100 } = search
   const query = useDebounced(q.trim())
   const queue = slug === 'follow_ups' && view !== 'table'
   const result = useRecordPages(slug, query, filters, slug === 'companies' ? [{ object: 'people', attribute: 'company', limit: 4 }] : undefined, sort ?? (slug === 'follow_ups' ? 'action_date' : undefined), limit)
@@ -104,8 +90,8 @@ function ObjectList({ slug, filter, setFilter, flush }: { slug: string; filter: 
   const columns = object.attributes.filter((a) => a.slug !== 'name' && a.type !== 'markdown' && !(slug === 'follow_ups' && dateMetadata(a.slug))).sort((a, b) => (own ? 0 : Number(b.type === 'select') - Number(a.type === 'select')))
   const recordFilters = (title = false) => (
     <RecordFilters key={slug} object={object} filters={filters} query={q} selected={saved} title={title} total={total}
-      onChange={(filters) => setFilter({ ...filter, filters })}
-      onApply={(saved) => setFilter({ filters: saved?.filters ?? [], query: saved?.query ?? '', saved_id: saved?.id })}
+      onChange={(filters) => void navigate({ to: '.', search: (previous) => ({ ...previous, filters }), replace: true })}
+      onApply={(saved) => void navigate({ to: '.', search: (previous) => ({ ...previous, filters: saved?.filters ?? [], q: saved?.query, saved: saved?.id }), replace: true })}
     />
   )
   const sortName = sort === 'name' ? 'Name' : slug === 'follow_ups' ? 'Action date' : 'Recently added'
@@ -123,8 +109,10 @@ function ObjectList({ slug, filter, setFilter, flush }: { slug: string; filter: 
     type: 'search',
     autoComplete: 'off',
     value: q,
-    onChange: (e: React.ChangeEvent<HTMLInputElement>) => setFilter({ ...filter, query: e.target.value }, true),
-    onBlur: flush,
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
+      const q = e.target.value
+      void navigate({ to: '.', search: (previous) => ({ ...previous, q: q || undefined }), replace: true })
+    },
     'aria-label': `Search ${object.name.toLowerCase()}`,
     'data-page-search': true,
   }
@@ -159,7 +147,7 @@ function ObjectList({ slug, filter, setFilter, flush }: { slug: string; filter: 
       </label>
       {query && <p className="flex items-center justify-between px-1 text-[12px] text-ink-3">
         <span className="tabular-nums">Showing {total ?? 0} of {unsearched ?? '…'}</span>
-        <button type="button" className="text-primary outline-none hover:underline focus-visible:underline" onClick={() => setFilter({ ...filter, query: '' })}>Clear</button>
+        <button type="button" className="text-primary outline-none hover:underline focus-visible:underline" onClick={() => void navigate({ to: '.', search: (previous) => ({ ...previous, q: undefined }), replace: true })}>Clear</button>
       </p>}
     </>
   )

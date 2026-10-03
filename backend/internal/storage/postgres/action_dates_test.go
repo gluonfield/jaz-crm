@@ -86,10 +86,6 @@ func TestActionDateMigration(t *testing.T) {
 	if err != nil || len(filters) != 1 || filters[0].ID != filterID || filters[0].Filters[2].Attribute != "action_date" || filters[0].Filters[2].Value != "now" {
 		t.Fatalf("existing Chase preset identity and deadline semantics: %+v %v", filters, err)
 	}
-	var active string
-	if err := db.QueryRowContext(ctx, "SELECT filters::text FROM active_filters WHERE object_id=$1", object).Scan(&active); err != nil || strings.Contains(active, "review_on") || !strings.Contains(active, "action_date") || !strings.Contains(active, "now") {
-		t.Fatalf("active filter migration: %s %v", active, err)
-	}
 	var originalDates int
 	if err := db.QueryRowContext(ctx, "SELECT count(*) FROM record_values v JOIN attributes a ON a.id=v.attribute_id WHERE a.object_id=$1 AND a.slug='action_date' AND v.text='2026-10-19'", object).Scan(&originalDates); err != nil || originalDates != 4 {
 		t.Fatalf("migration must retain original dates in history: %d %v", originalDates, err)
@@ -104,19 +100,17 @@ func TestNeedsAttentionMigration(t *testing.T) {
 	assigned := `[{"attribute":"status","operator":"is","value":"Open"},{"attribute":"waiting_on","operator":"is","value":"Us"}]`
 	updated := `[{"attribute":"status","operator":"is","value":"Open"},{"attribute":"waiting_on","operator":"is_not","value":"Them"}]`
 	type fixture struct {
-		name, slug, query, saved, active, wantSaved, wantActive string
-		workspace, object, id                                   string
+		name, slug, query, saved, wantSaved string
+		workspace, object, id               string
 	}
 	fixtures := []fixture{
-		{name: "Needs attention", slug: "follow_ups", saved: old, active: old, wantSaved: updated, wantActive: updated},
-		{name: "Needs attention", slug: "follow_ups", saved: old, active: custom, wantSaved: updated, wantActive: custom},
-		{name: "Needs attention", slug: "follow_ups", saved: custom, active: custom, wantSaved: custom, wantActive: custom},
-		{name: "Needs attention", slug: "follow_ups", query: "Customer", saved: old, active: old, wantSaved: old, wantActive: old},
-		{name: "My deadlines", slug: "follow_ups", saved: old, active: old, wantSaved: old, wantActive: old},
-		{name: "Needs attention", slug: "deals", saved: old, active: old, wantSaved: old, wantActive: old},
-		{name: "Needs attention", slug: "follow_ups", saved: assigned, active: assigned, wantSaved: updated, wantActive: updated},
-		{name: "Needs attention", slug: "follow_ups", saved: assigned, active: custom, wantSaved: updated, wantActive: custom},
-		{name: "Needs attention", slug: "follow_ups", query: "Customer", saved: assigned, active: assigned, wantSaved: assigned, wantActive: assigned},
+		{name: "Needs attention", slug: "follow_ups", saved: old, wantSaved: updated},
+		{name: "Needs attention", slug: "follow_ups", saved: custom, wantSaved: custom},
+		{name: "Needs attention", slug: "follow_ups", query: "Customer", saved: old, wantSaved: old},
+		{name: "My deadlines", slug: "follow_ups", saved: old, wantSaved: old},
+		{name: "Needs attention", slug: "deals", saved: old, wantSaved: old},
+		{name: "Needs attention", slug: "follow_ups", saved: assigned, wantSaved: updated},
+		{name: "Needs attention", slug: "follow_ups", query: "Customer", saved: assigned, wantSaved: assigned},
 	}
 	for i := range fixtures {
 		f := &fixtures[i]
@@ -130,9 +124,6 @@ func TestNeedsAttentionMigration(t *testing.T) {
 		if _, err := db.ExecContext(ctx, "INSERT INTO saved_filters(id,workspace_id,object_id,name,query,filters) VALUES($1,$2,$3,$4,$5,$6::jsonb)", f.id, f.workspace, f.object, f.name, f.query, f.saved); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := db.ExecContext(ctx, "INSERT INTO active_filters(object_id,query,filters,saved_id) VALUES($1,'Customer',$2::jsonb,$3)", f.object, f.active, f.id); err != nil {
-			t.Fatal(err)
-		}
 	}
 	store, err := postgres.Open(ctx, dsn)
 	if err != nil {
@@ -144,21 +135,12 @@ func TestNeedsAttentionMigration(t *testing.T) {
 		if err != nil || len(filters) != 1 || filters[0].ID != f.id || filters[0].Query != f.query {
 			t.Fatalf("case %d lost saved filter identity or query: %+v %v", i, filters, err)
 		}
-		active, err := store.ActiveFilter(ctx, f.workspace, f.object)
-		if err != nil || active.SavedID != f.id || active.Query != "Customer" {
-			t.Fatalf("case %d lost selected filter identity or query: %+v %v", i, active, err)
+		var want []storage.RecordFilter
+		if err := json.Unmarshal([]byte(f.wantSaved), &want); err != nil {
+			t.Fatal(err)
 		}
-		for _, check := range []struct {
-			got  []storage.RecordFilter
-			want string
-		}{{filters[0].Filters, f.wantSaved}, {active.Filters, f.wantActive}} {
-			var want []storage.RecordFilter
-			if err := json.Unmarshal([]byte(check.want), &want); err != nil {
-				t.Fatal(err)
-			}
-			if !reflect.DeepEqual(check.got, want) {
-				t.Fatalf("case %d migration: got %+v, want %+v", i, check.got, want)
-			}
+		if !reflect.DeepEqual(filters[0].Filters, want) {
+			t.Fatalf("case %d migration: got %+v, want %+v", i, filters[0].Filters, want)
 		}
 	}
 }

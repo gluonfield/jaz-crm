@@ -6,7 +6,7 @@ import type { CrmObject, CrmRecord, Interaction, RecordFilter, Relation, Workspa
 
 // recordWrites change only records and their schema, which recordReads show.
 const recordWrites = new Set(['upsert_record', 'save_action_date', 'save_draft', 'add_attribute_option', 'edit_pipeline_stage', 'create_object', 'create_attribute', 'edit_object', 'edit_attribute'])
-const recordReads = new Set(['search_records', 'get_record', 'get_draft_sender', 'list_objects', 'record_history', 'list_saved_filters', 'get_active_filter'])
+const recordReads = new Set(['search_records', 'get_record', 'get_draft_sender', 'list_objects', 'record_history', 'list_saved_filters'])
 
 // Every query is a tool call keyed by [tool, args]. A successful change
 // refetches what it can alter on screen, everything unless it only writes

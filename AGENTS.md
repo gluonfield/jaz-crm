@@ -5,6 +5,7 @@
 - PostgreSQL UUID storage may retain the same identity; encode/decode at one owning boundary when exposing shortuuid IDs. Preserve existing data and links when changing ID presentation. Security tokens still use cryptographically secure token generation.
 - Write self-documenting code. Add comments only to explain non-obvious behavior, constraints or reasons the code cannot express; omit comments that narrate the code.
 - Keep implementations and JSON minimal; every line and field must earn its place. Prefer correcting contracts and deleting duplication over adding branches or layers.
+- Workspace members share records and named presets. Active search, conditions, preset selection and navigation belong to each client instance.
 
 - Never add useless or fake tests. Every test must run in the normal verification path, exercise real production behavior, and fail when that behavior breaks. Delete tautologies, tests of trivial helpers or forwarding, checks of source text or internal constants, duplicate coverage, and permanently skipped or inactive tests.
 - Fakes may isolate external boundaries; they must preserve the real contract and never stand in for end-to-end verification.

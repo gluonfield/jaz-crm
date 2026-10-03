@@ -1,5 +1,7 @@
 # Workspace filters — 2026-10-02
 
+Superseded on 2026-10-03: named presets remain shared; active search, conditions and preset selection belong to each client instance. See [Independent client UI](requests-independent-ui.md).
+
 - [x] Confirm scope: filters belong to the workspace, not individual users.
 - [x] Persist the active filter for each workspace/object, shared across members and devices.
 - [x] Preserve named presets, filter links and the follow-up default; allow clearing conditions.
