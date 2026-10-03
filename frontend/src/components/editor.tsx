@@ -106,7 +106,9 @@ function alongPath(parts: string[], ancestors: string[]) {
 export function MarkdownView({ text }: { text: string }) {
   const editor = useEditor({
     editable: false,
-    extensions: [StarterKit, TaskList, TaskItem, TableKit, Markdown],
+    // An editor keeps an empty line after a final list for typing into; a
+    // view would add one on every click.
+    extensions: [StarterKit.configure({ trailingNode: false }), TaskList, TaskItem, TableKit, Markdown],
     content: text,
     contentType: 'markdown',
     editorProps: { attributes: { class: 'prose-page prose-compact' } },
