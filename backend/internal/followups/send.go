@@ -223,7 +223,7 @@ func (s *Service) reply(ctx context.Context, actor auth.Actor, f records.Record)
 	if err != nil {
 		return outgoing{}, err
 	}
-	signature, err := mailbox.Signature(ctx, sender.Account)
+	identity, err := mailbox.Identity(ctx, sender.Account)
 	if err != nil {
 		return outgoing{}, err
 	}
@@ -246,7 +246,7 @@ func (s *Service) reply(ctx context.Context, actor auth.Actor, f records.Record)
 		references = append(slices.Clone(references), original.MessageID)
 	}
 	return outgoing{mailbox: mailbox, account: sender.Account, message: google.Outgoing{
-		From: sender.Account, To: to, Cc: cc, Subject: subject, Body: body, Signature: signature,
+		From: google.Address{Name: identity.Name, Email: sender.Account}, To: to, Cc: cc, Subject: subject, Body: body, Signature: identity.Signature,
 		ThreadID: thread, InReplyTo: original.MessageID, References: references,
 	}}, nil
 }

@@ -72,7 +72,7 @@ func (g *gmail) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/gmail/v1/users/me/messages":
 		fmt.Fprint(w, `{"messages":[{"id":"g2","threadId":"t9"}]}`)
 	case "/gmail/v1/users/me/settings/sendAs/owner@cas.dev", "/gmail/v1/users/me/settings/sendAs/mate@cas.dev":
-		fmt.Fprint(w, `{"sendAsEmail":"owner@cas.dev","signature":"<div>Owner Name<br>CAS</div>"}`)
+		fmt.Fprint(w, `{"sendAsEmail":"owner@cas.dev","displayName":"Owner Name","signature":"<div>Owner Name<br>CAS</div>"}`)
 	case "/gmail/v1/users/me/messages/send":
 		if g.drop {
 			panic(http.ErrAbortHandler)
@@ -285,7 +285,7 @@ func releaseSendsEmailRepliesAndApprovesOthers(t *testing.T, transport string) {
 	}
 	h := g.sent[0].Header
 	got := []string{h.Get("X-Thread"), h.Get("From"), h.Get("To"), h.Get("Cc"), h.Get("Subject"), h.Get("In-Reply-To"), h.Get("References")}
-	want := []string{"t9", "owner@cas.dev", "jane@acme.com", "bob@acme.com", "Re: Quote for 500 brackets", "<m2@acme.com>", "<m1@acme.com> <m2@acme.com>"}
+	want := []string{"t9", `"Owner Name" <owner@cas.dev>`, "jane@acme.com", "bob@acme.com", "Re: Quote for 500 brackets", "<m2@acme.com>", "<m1@acme.com> <m2@acme.com>"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("reply headers %q, want %q", got, want)
 	}

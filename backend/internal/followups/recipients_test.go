@@ -118,7 +118,8 @@ func TestReplyAllRecipientsThroughPreviewAndSend(t *testing.T) {
 				t.Fatalf("send: %v; messages: %d", err, len(g.sent))
 			}
 			h := g.sent[0].Header
-			if h.Get("From") != from || h.Get("To") != strings.Join(tc.to, ", ") || h.Get("Cc") != strings.Join(tc.cc, ", ") {
+			sender, _ := h.AddressList("From")
+			if len(sender) != 1 || sender[0].Address != from || h.Get("To") != strings.Join(tc.to, ", ") || h.Get("Cc") != strings.Join(tc.cc, ", ") {
 				t.Fatalf("sent recipients differ from the preview: %v", h)
 			}
 			for attribute, want := range map[string][]string{"to": tc.to, "cc": tc.cc, "draft_status": {records.DraftSent}} {

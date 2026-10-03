@@ -38,8 +38,8 @@ func (s *Service) Sender(ctx context.Context, actor auth.Actor, id string) (Send
 	if err != nil {
 		return Sender{}, err
 	}
-	sig, err := mailbox.Signature(ctx, sender.Account)
-	return Sender{From: sender.Account, Signature: sig.HTML, To: to, Cc: cc}, err
+	identity, err := mailbox.Identity(ctx, sender.Account)
+	return Sender{From: sender.Account, Signature: identity.Signature.HTML, To: to, Cc: cc}, err
 }
 
 func (s *Service) recipients(ctx context.Context, f records.Record, last google.Message, sender, holder storage.Connection) ([]string, []string, error) {

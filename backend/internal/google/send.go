@@ -8,6 +8,7 @@ import (
 	"io"
 	"mime"
 	"mime/multipart"
+	"net/mail"
 	"net/textproto"
 	"net/url"
 	"strings"
@@ -19,7 +20,7 @@ import (
 // and its sender's signature below it, as Gmail sends mail. A reply names the
 // Gmail thread it joins in the sending mailbox and the Message-IDs it answers.
 type Outgoing struct {
-	From       string
+	From       Address
 	To, Cc     []string
 	Subject    string
 	Body       string
@@ -35,14 +36,21 @@ type Signature struct {
 	HTML, Text string
 }
 
-// Signature reads the signature Gmail adds to new mail sent as an address of
-// the mailbox; Gmail exposes no other, such as one chosen for replies.
-func (c *Client) Signature(ctx context.Context, address string) (Signature, error) {
-	var raw struct{ Signature string }
+// Identity is how Gmail presents mail sent as an address of the mailbox: the
+// name in its From header and the signature below new mail.
+type Identity struct {
+	Name      string
+	Signature Signature
+}
+
+// Identity reads the From name and signature Gmail uses for an address of the
+// mailbox; Gmail exposes no other signature, such as one chosen for replies.
+func (c *Client) Identity(ctx context.Context, address string) (Identity, error) {
+	var raw struct{ DisplayName, Signature string }
 	if err := c.get(ctx, c.gmail("settings/sendAs/"+url.PathEscape(address)), nil, &raw); err != nil {
-		return Signature{}, err
+		return Identity{}, err
 	}
-	return Signature{HTML: raw.Signature, Text: htmlText(raw.Signature)}, nil
+	return Identity{Name: raw.DisplayName, Signature: Signature{HTML: raw.Signature, Text: htmlText(raw.Signature)}}, nil
 }
 
 // Send sends a message from the mailbox and returns its Gmail id. It is never
@@ -72,7 +80,7 @@ func (c *Client) Send(ctx context.Context, m Outgoing) (string, error) {
 	if err := parts.Close(); err != nil {
 		return "", err
 	}
-	header("From", m.From)
+	header("From", (&mail.Address{Name: m.From.Name, Address: m.From.Email}).String())
 	header("To", strings.Join(m.To, ", "))
 	header("Cc", strings.Join(m.Cc, ", "))
 	header("Subject", mime.QEncoding.Encode("utf-8", m.Subject))

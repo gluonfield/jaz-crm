@@ -42,7 +42,7 @@ func TestSendReply(t *testing.T) {
 	sends := 0
 	var bodies map[string]string
 	c := fake(t, map[string]http.HandlerFunc{
-		"/gmail/v1/users/me/settings/sendAs/owner@cas.dev": respond(http.StatusOK, `{"sendAsEmail":"owner@cas.dev","signature":"<div dir=\"ltr\"><b>Owner Name</b><div>CAS &amp; Co · <a href=\"https://cas.dev\">cas.dev</a></div></div>"}`),
+		"/gmail/v1/users/me/settings/sendAs/owner@cas.dev": respond(http.StatusOK, `{"sendAsEmail":"owner@cas.dev","displayName":"Ōwner Name","signature":"<div dir=\"ltr\"><b>Owner Name</b><div>CAS &amp; Co · <a href=\"https://cas.dev\">cas.dev</a></div></div>"}`),
 		"/gmail/v1/users/me/messages/send": func(w http.ResponseWriter, r *http.Request) {
 			sends++
 			var body struct{ Raw, ThreadID string }
@@ -58,8 +58,12 @@ func TestSendReply(t *testing.T) {
 				t.Fatal(err)
 			}
 			subject, _ := new(mime.WordDecoder).DecodeHeader(m.Header.Get("Subject"))
-			got := []string{body.ThreadID, m.Header.Get("From"), m.Header.Get("To"), m.Header.Get("Cc"), subject, m.Header.Get("In-Reply-To"), m.Header.Get("References")}
-			want := []string{"t9", "owner@cas.dev", "jane@acme.com, sales@acme.com", "bob@acme.com", "Re: Quote for 500 brackets — revised", "<m2@acme.com>", "<m1@acme.com> <m2@acme.com>"}
+			from, err := mail.ParseAddress(m.Header.Get("From"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := []string{body.ThreadID, from.Name + " <" + from.Address + ">", m.Header.Get("To"), m.Header.Get("Cc"), subject, m.Header.Get("In-Reply-To"), m.Header.Get("References")}
+			want := []string{"t9", "Ōwner Name <owner@cas.dev>", "jane@acme.com, sales@acme.com", "bob@acme.com", "Re: Quote for 500 brackets — revised", "<m2@acme.com>", "<m1@acme.com> <m2@acme.com>"}
 			for i := range want {
 				if got[i] != want[i] {
 					t.Errorf("sent field %d = %q, want %q", i, got[i], want[i])
@@ -73,13 +77,14 @@ func TestSendReply(t *testing.T) {
 			w.WriteHeader(http.StatusServiceUnavailable)
 		},
 	})
-	signature, err := c.Signature(t.Context(), "owner@cas.dev")
-	if err != nil || signature.Text != "Owner Name\nCAS & Co · cas.dev https://cas.dev" {
-		t.Fatalf("signature: %q %v", signature.Text, err)
+	identity, err := c.Identity(t.Context(), "owner@cas.dev")
+	signature := identity.Signature
+	if err != nil || identity.Name != "Ōwner Name" || signature.Text != "Owner Name\nCAS & Co · cas.dev https://cas.dev" {
+		t.Fatalf("identity: %+v %v", identity, err)
 	}
 	draft := strings.Repeat("Thanks Jane. ", 10) + "\n500 < 600 & <b>soon</b>"
 	reply := Outgoing{
-		From: "owner@cas.dev", To: []string{"jane@acme.com", "sales@acme.com"}, Cc: []string{"bob@acme.com"},
+		From: Address{Name: identity.Name, Email: "owner@cas.dev"}, To: []string{"jane@acme.com", "sales@acme.com"}, Cc: []string{"bob@acme.com"},
 		Subject: "Re: Quote for 500 brackets — revised", Body: draft, Signature: signature,
 		ThreadID: "t9", InReplyTo: "m2@acme.com", References: []string{"m1@acme.com", "m2@acme.com"},
 	}
