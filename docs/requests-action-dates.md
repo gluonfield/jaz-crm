@@ -6,16 +6,20 @@
 - [x] Preserve manual scheduling, concrete reasons to wait and earlier overdue work.
 - [x] Recheck the reported response before changing its date: it is already Sent and Done, so no pending response remains to move.
 - [x] Verify real model scheduling, local timezone conversion, Today/Overdue behavior, full checks and strict review.
-- [ ] Commit/push and verify the production rollout.
+- [x] Commit/push and verify the production rollout.
 
 This supersedes the arrival-time deadline below. A reply remains visible immediately; its overdue state begins at 22:00 local time on the day received.
 
 Validation: fourteen real model cases pass, including local receipt days across UTC midnight, after-22:00 arrival, London daylight saving, repeat requests and manual/explicit-wait/overdue exceptions. Full Go 1.26 build/vet/PostgreSQL suite and frontend tests pass. Production date helpers keep the deadline out of Overdue through 21:59:59 and mark it overdue at 22:00. Strict review reuses the existing datetime and urgency contracts without new branches or dependencies. The reported response had already been sent and completed when read, so its cleared date was preserved.
 
+Production: `f9f47af` is SUCCESS on Server (`a913d2a0-b4d6-45ca-8d01-ce5a6f43d5d3`) and Worker (`ba0690fb-3fbd-49ce-a0bf-05c91e5515b9`); health passes.
+
 ## Scheduling links, 2026-10-03
 
 - [x] Diagnose the omitted calendar link: the selected Company page identifies Ujjwal's calendar, while the reply was sent by Augustinas; the prompt has no explicit booking workflow.
 - [ ] Clarify whether that calendar serves CAS customer calls from either teammate, then encode the booking rule and verify real draft behavior.
+
+Evidence: the link was written at 16:23:05 London time, before the 16:24:24 draft. Company knowledge is loaded for each conversation; the exact model reason for omitting the link is not recorded. No booking policy or sent message was changed while the calendar-routing question is pending.
 
 ## Urgent incoming replies, 2026-10-03
 
