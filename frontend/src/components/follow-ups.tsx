@@ -169,15 +169,17 @@ function Conversation({ record, onClose }: { record: CrmRecord; onClose: () => v
             Loading conversation…
           </div>
         ) : (
-          <div className="flex flex-col gap-4">
-            {error && <p role="alert" className="text-[12px] text-ink-3">{error.message}</p>}
+          <>
+            {error && <p role="alert" className="mb-4 text-[12px] text-ink-3">{error.message}</p>}
             {conversation && (messages.length > 0
               ? <MessageThread key={conversation.id} interaction={thread.data ?? conversation} messages={messages} initialVisible={4} />
               : <p className="text-[12px] text-ink-3">Message text is not available yet.</p>)}
-            <Draft key={text(record, 'draft_status') === 'Sent' ? 'sent' : 'draft'} record={record} channel={channel} sender={sender.data} error={sender.error?.message} drafting={drafting} />
-          </div>
+          </>
         )}
       </div>
+      <footer className="shrink-0 border-t border-border px-5 py-3">
+        <Draft record={record} channel={channel} sender={sender.data} error={sender.error?.message} drafting={drafting} />
+      </footer>
     </section>
   )
 }
@@ -237,7 +239,7 @@ function Draft({ record, channel, sender, error, drafting }: { record: CrmRecord
   const saving = useRef<{ text: string; promise: Promise<unknown> } | null>(null)
   const draft = edited ?? current
   const client = useQueryClient()
-  const locked = ['Sending', 'Sent'].includes(text(record, 'draft_status'))
+  const [signature, setSignature] = useState(false)
   const email = channel === 'Email'
   const to = list(record, 'to')
   const write = useMutation({
@@ -261,7 +263,9 @@ function Draft({ record, channel, sender, error, drafting }: { record: CrmRecord
     if (saving.current?.text === next) {
       return saving.current.promise
     }
-    if (locked || (!saving.current && next === current)) {
+    // A draft being sent cannot change; the new text stays here and saves on
+    // the next blur once the send settles.
+    if (text(record, 'draft_status') === 'Sending' || (!saving.current && next === current)) {
       return Promise.resolve()
     }
     const promise = write.mutateAsync(next).then(() => {
@@ -275,7 +279,7 @@ function Draft({ record, channel, sender, error, drafting }: { record: CrmRecord
     return promise
   }
   return (
-    <div className="flex flex-col gap-2 rounded-[var(--radius-control)] bg-bg px-3 py-2.5">
+    <div className="flex flex-col gap-2 rounded-[var(--radius-card)] border border-border bg-bg px-3 pb-2 pt-2.5 transition-colors duration-150 focus-within:border-primary">
       <div className="flex min-w-0 flex-wrap gap-x-3 gap-y-1 text-[12px] text-ink-3">
         <h3 className="font-medium text-ink-2">{channel ? `${channel} reply` : 'Reply'}</h3>
         {email && <>
@@ -295,7 +299,6 @@ function Draft({ record, channel, sender, error, drafting }: { record: CrmRecord
         aria-label="Draft"
         placeholder="Write a reply…"
         value={draft}
-        disabled={locked}
         onChange={(e) => setEdited(e.target.value)}
         onBlur={() => void commit().catch(() => {})}
         onKeyDown={(e) => {
@@ -307,11 +310,17 @@ function Draft({ record, channel, sender, error, drafting }: { record: CrmRecord
             e.currentTarget.blur()
           }
         }}
-        className="field-sizing-content block max-h-96 min-h-24 w-full resize-none bg-transparent text-[13px] leading-5 text-ink-2 outline-none focus:text-ink disabled:opacity-70"
+        className="field-sizing-content block max-h-[40dvh] min-h-16 w-full resize-none bg-transparent text-[13px] leading-5 text-ink-2 outline-none focus:text-ink"
       />
-      {sender?.signature && <div className="cursor-default border-t border-border pt-2"><HTMLContent html={sender.signature} className="[&_img]:max-h-16" /></div>}
-      <div className="flex justify-end">
-        <Release record={record} draft={draft} channel={channel} sender={sender} beforeSend={commit} disabled={!!error} />
+      {signature && sender?.signature && <div className="cursor-default border-t border-border pt-2"><HTMLContent html={sender.signature} className="[&_img]:max-h-16" /></div>}
+      <div className="flex items-center gap-2">
+        {sender?.signature && <button type="button" aria-expanded={signature} onClick={() => setSignature(!signature)} className="-mx-1 inline-flex items-center gap-1 rounded-[var(--radius-control)] px-1 text-[12px] text-ink-3 outline-none hover:text-ink-2 focus-visible:ring-2 focus-visible:ring-primary">
+          Signature
+          <ChevronDown aria-hidden="true" className={cn('size-3.5 transition-transform duration-150 motion-reduce:transition-none', signature && 'rotate-180')} />
+        </button>}
+        <div className="ml-auto">
+          <Release record={record} draft={draft} channel={channel} sender={sender} beforeSend={commit} disabled={!!error} />
+        </div>
       </div>
     </div>
   )

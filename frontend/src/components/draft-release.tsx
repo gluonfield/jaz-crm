@@ -14,7 +14,7 @@ export function Release({ record, draft, channel, sender, beforeSend, disabled }
   const workspace = useWorkspace()
   const state = text(record, 'draft_status')
   const email = channel === 'Email'
-  if (state === 'Sent' || state === 'Sending' || (!email && state === 'Approved')) {
+  if ((state === 'Sent' && !draft.trim()) || state === 'Sending' || (!email && state === 'Approved')) {
     return <span className="text-[12px] text-ink-3">{state === 'Approved' ? 'Approved · waiting for the sender' : state}</span>
   }
   const unavailable = disabled || !draft.trim() || !channel || (email && !sender)
