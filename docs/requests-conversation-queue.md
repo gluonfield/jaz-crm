@@ -22,6 +22,6 @@ Read-only production-data check: the exact generated grouped SQL with query `sta
 - [x] Keep record identity for keyboard navigation in the raw history table, where multiple actions share a conversation ID.
 - [x] Exercise delayed saves, continued typing, failed saves and successful retries through the real composer and action menu in a temporary React DOM harness. No emails sent.
 - [x] Final full Go build/vet/tests and frontend tests/typecheck/lint/web and embedded builds.
-- [ ] Production rollout of the review fixes.
+- [x] Review commit `03454d7` is live: Server `09d8fadb` and Worker `3017da50` are SUCCESS on that revision; production health returns `ok`.
 
 Native browser visual acceptance remains blocked by Jaz CDP timeouts. React DOM checks establish state and interaction behavior, not layout or native pointer behavior.
