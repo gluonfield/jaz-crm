@@ -195,11 +195,11 @@ JOIN objects ON objects.id = records.object_id WHERE objects.slug = 'companies';
 	if err != nil || len(followUpFilters) != 3 {
 		t.Fatalf("existing workspace did not get follow-up filters: %v %v", followUpFilters, err)
 	}
-	followUp, _, err := svc.Upsert(ctx, actor, records.SourceUser, records.Write{Object: records.FollowUps, Set: map[string][]string{"name": {"Send the quote"}, "deal": {found[0].ID}, "action_date": {"2000-01-01"}}})
+	followUp, _, err := svc.Upsert(ctx, actor, records.SourceUser, records.Write{Object: records.FollowUps, Set: map[string][]string{"name": {"Send the quote"}, "deal": {found[0].ID}, "waiting_on": {"Us"}, "action_date": {"2000-01-01"}}})
 	if err != nil {
 		t.Fatalf("migrated follow-ups unusable: %v", err)
 	}
-	if due, _, err := svc.Search(ctx, actor, records.Search{Object: records.FollowUps, Filters: followUpFilters[1].Filters}); err != nil || len(due) != 1 || due[0].ID != followUp.ID {
+	if due, _, err := svc.Search(ctx, actor, records.Search{Object: records.FollowUps, Filters: followUpFilters[0].Filters}); err != nil || len(due) != 1 || due[0].ID != followUp.ID {
 		t.Fatalf("migrated Needs attention filter does not find a due follow-up: %v %v", due, err)
 	}
 	if err := svc.DeleteFilter(ctx, actor, filters[0].ID); err != nil {

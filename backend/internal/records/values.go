@@ -104,7 +104,7 @@ var StandardObjects = []storage.NewObject{
 	}, Filters: []storage.SavedFilter{
 		{Name: "Needs attention", Filters: []storage.RecordFilter{
 			{Attribute: "status", Operator: "is", Value: "Open"},
-			{Attribute: "action_date", Operator: "on_or_before", Value: "today"},
+			{Attribute: "waiting_on", Operator: "is", Value: "Us"},
 		}},
 		{Name: "Chase", Filters: []storage.RecordFilter{
 			{Attribute: "status", Operator: "is", Value: "Open"},

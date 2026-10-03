@@ -149,3 +149,52 @@ func TestSavedPeopleFiltersRoundTrip(t *testing.T) {
 		t.Fatalf("deleting a filter affected its people: %v", got)
 	}
 }
+
+func TestFollowUpQueues(t *testing.T) {
+	e := serve(t)
+	a := e.session(t, e.apiKey(t, "queues@jaz.test"))
+	mustCall(t, a, "save_filter", map[string]any{"object": "follow_ups", "name": "A custom view"})
+	listed := mustCall(t, a, "list_saved_filters", map[string]any{"object": "follow_ups"})["filters"].([]any)
+	var names []string
+	for _, item := range listed {
+		names = append(names, item.(map[string]any)["name"].(string))
+	}
+	if !slices.Equal(names, []string{"Needs attention", "Chase", "Waiting on them", "A custom view"}) {
+		t.Fatalf("queue priority: %v", names)
+	}
+	for _, fixture := range []struct{ name, waiting, date, status string }{
+		{"Our overdue action", "Us", "2000-01-01", "Open"},
+		{"Our future action", "Us", "2099-10-19", "Open"},
+		{"Our undated action", "Us", "", "Open"},
+		{"Their overdue action", "Them", "2000-01-01", "Open"},
+		{"Their future action", "Them", "2099-10-19", "Open"},
+		{"Their undated action", "Them", "", "Open"},
+		{"Our completed action", "Us", "", "Done"},
+		{"Their dismissed action", "Them", "", "Dismissed"},
+	} {
+		values := map[string]any{"name": fixture.name, "waiting_on": fixture.waiting, "status": fixture.status}
+		if fixture.date != "" {
+			values["action_date"] = fixture.date
+			values["action_date_basis"] = "Stated"
+			values["action_date_reason"] = "The conversation states this date."
+		}
+		mustCall(t, a, "upsert_record", map[string]any{"object": "follow_ups", "values": values})
+	}
+	for i, want := range [][]string{
+		{"Our future action", "Our overdue action", "Our undated action"},
+		{"Their overdue action"},
+		{"Their future action", "Their overdue action", "Their undated action"},
+	} {
+		filter := listed[i].(map[string]any)
+		mustCall(t, a, "set_active_filter", map[string]any{"object": "follow_ups", "saved_id": filter["id"], "filters": filter["filters"]})
+		active := mustCall(t, a, "get_active_filter", map[string]any{"object": "follow_ups"})
+		found := mustCall(t, a, "search_records", map[string]any{"object": "follow_ups", "filters": active["filters"], "sort": "name"})["records"].([]any)
+		var got []string
+		for _, row := range found {
+			got = append(got, row.(map[string]any)["values"].(map[string]any)["name"].(string))
+		}
+		if !slices.Equal(got, want) {
+			t.Fatalf("%s membership: got %v, want %v", filter["name"], got, want)
+		}
+	}
+}

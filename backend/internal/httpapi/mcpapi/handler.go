@@ -30,7 +30,7 @@ context and the new information, keeping what is still true; every write replace
 it before. Log dated notes with log_interaction. Companies have founded_year (a whole year) and size
 (an employee range). Follow-ups track what we or they owe next on a person, company or deal, with a
 action_date (YYYY-MM-DD or RFC3339 with offset) and an optional draft: get_record lists a record's follow-ups, and search_records on
-follow_ups with Needs attention is the queue; Chase shows open, overdue actions waiting on Them.
+follow_ups with Needs attention shows every open action waiting on Us, regardless of date; Chase shows open, overdue actions waiting on Them.
 An agent setting action_date must also set action_date_basis (Stated or Suggested) and
 action_date_reason with evidence or the scheduling convention. Manual dates and explicit clears
 are preserved by automatic drafting. Waiting on Them never gets an automatic draft. To send an approved LinkedIn draft,

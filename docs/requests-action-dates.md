@@ -17,3 +17,13 @@ Validation: full PostgreSQL-backed backend suite, build and vet; frontend date/D
 Review: date precision is a schema type; query sorting/filtering uses one deadline conversion. Existing record-write transactions enforce completion, source precedence and draft rules. Manual dates use the existing explicit-override convention used by the composer; the automatic drafting agent retains only its read-only tools. No dependencies added. Old dates retain their value and audit history; agent-authored legacy dates are Suggested because their original rationale was not recorded.
 
 Production: `3682736` is pushed and active on Server and Worker. Health, migrated Chase conditions, London timezone, preserved knowledge settings and web-access setting pass. All 11 active dates migrated; four closed dates remain only in history. The questioned October 19 date is preserved as Suggested with the honest legacy reason. No stale automatic drafts remain on Them actions. The deployed embedded resource matches the tested build after its server-injected MCP URL; the website date controls match after chunk hashes.
+
+## Filter correction, 2026-10-03
+
+- [x] Put Needs attention before Chase, followed by Waiting on them.
+- [x] Include open actions waiting on Us in Needs attention regardless of date; migrate unchanged existing presets and selected filters while preserving custom filters.
+- [x] Verify future and undated Us actions remain visible and Them actions use their own queues, including a fixture matching the reported item.
+
+The reported October 19 item was Open and waiting on Us. The former Needs attention deadline condition excluded it, while both Them presets correctly excluded it by direction.
+
+Validation: full backend build/vet/PostgreSQL tests and frontend checks pass. Real web/embedded filter selection passes in light/dark and at narrow width, including persistence across reload. Reverting either preset membership or ordering makes the API regression fail. Migration checks cover unchanged, edited, renamed and unrelated presets. Strict review keeps ordering in the record service, reuses schema order, and changes the filter contract without adding date exceptions to the UI.

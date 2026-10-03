@@ -1,8 +1,10 @@
 package records
 
 import (
+	"cmp"
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -21,7 +23,22 @@ func (s *Service) SavedFilters(ctx context.Context, actor auth.Actor, slug strin
 	if err != nil {
 		return nil, err
 	}
-	return s.store.SavedFilters(ctx, actor.WorkspaceID, object.ID)
+	filters, err := s.store.SavedFilters(ctx, actor.WorkspaceID, object.ID)
+	if err != nil {
+		return nil, err
+	}
+	order := map[string]int{}
+	for _, standard := range StandardObjects {
+		if standard.Slug == slug {
+			for i, filter := range standard.Filters {
+				order[strings.ToLower(filter.Name)] = i - len(standard.Filters)
+			}
+		}
+	}
+	slices.SortStableFunc(filters, func(a, b storage.SavedFilter) int {
+		return cmp.Compare(order[strings.ToLower(a.Name)], order[strings.ToLower(b.Name)])
+	})
+	return filters, nil
 }
 
 func (s *Service) ActiveFilter(ctx context.Context, actor auth.Actor, slug string) (storage.ActiveFilter, error) {
