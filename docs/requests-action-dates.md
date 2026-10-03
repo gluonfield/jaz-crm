@@ -44,8 +44,10 @@ Verification: the original predicate fails the real API reproduction. Full backe
 - [x] Allow agents to propose a separate subject, including after calls/notes; separate legacy leading Subject lines from existing draft bodies.
 - [x] Show editable subject and recipients in the composer and subject in confirmation; reject stale subject confirmations and protect approval on edits.
 - [x] Verify both transports, new-email and reply delivery, agent persistence, migration, real screens, full checks and strict review.
-- [ ] Commit/push and verify production.
+- [x] Commit/push and verify production.
 
 Verification: full backend build/vet/PostgreSQL suite and frontend checks pass. Real website/embedded app checks pass in light/dark and narrow layouts: subject/To/Cc/body editing, reload persistence, confirmation, stale-subject rejection, and sending through the real API with Gmail isolated at its HTTP boundary. A live gpt-6-luna probe proposes a distinct subject after a call and inherits the subject for an existing reply. Migration tests preserve explicit subjects, other channels, in-flight sends, original text/source and draft timestamps.
 
 Review: preview and sending now share one message composer with optional reply metadata. Subject uses the existing record schema, approval guard and atomic sent-draft cleanup. Editor state and saves move together into one composer component. No dependencies added. Legacy subject extraction preserves the original writing time so a migration cannot make stale text look freshly reviewed. Confirmation retains the reviewed message and save callback; background changes are not silently saved over before sending. Gmail thread IDs are used only with matching subjects, following https://developers.google.com/workspace/gmail/api/guides/threads.
+
+Production: `fe5ffa9` is pushed and SUCCESS on Server and Worker. Health, live save/send subject schemas and exact embedded resource match pass. The reported Dan draft now has a separate subject and its original body; the prior combined text remains in history. Every existing Follow-ups schema has the subject attribute.
