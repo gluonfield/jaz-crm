@@ -5,9 +5,11 @@
 - [x] Treat an incoming response as due at the message's local arrival time, including weekends, so urgency starts immediately.
 - [x] Replace the receipt-day convention: date-only deadlines allow until the end of the day.
 - [x] Verify real model plans for immediate and deferred responses, the existing timed-deadline path, full backend checks and strict review.
-- [ ] Commit/push and verify the active Server and Worker revisions.
+- [x] Commit/push and verify the active Server and Worker revisions.
 
 Validation: eleven live model cases cover first/repeated requests, an existing date-only Today action, a reply while waiting on Them, manual dates, explicit waits, no action, unavailable pricing, overdue work and a future deliverable. Incoming actions use the local arrival minute; the old prompt fails both ordinary immediate-response cases. The unavailable-price case supplies the fact that enterprise pricing is not established, so a truthful acknowledgement is valid; the original probe's no-draft requirement was overly restrictive. Full Go 1.26 build/vet/PostgreSQL suite passes on the final source revision; frontend tests and a production date-helper check confirm that a timed arrival deadline is overdue immediately while a date-only deadline is not. Strict review keeps the correction in the existing planner, using the existing timezone conversion and urgency grouping without new branches or dependencies.
+
+Production: `10ddd51` is SUCCESS on Server (`c18a61b5-7249-47c5-8095-778301bed1bf`) and Worker (`addf13a3-6a12-42c6-99ed-f5fb58389dcb`); health passes. New incoming response actions use receipt-time scheduling after sync and drafting. Existing manual scheduling and reviewed sending are preserved.
 
 ## Immediate replies, 2026-10-03
 
