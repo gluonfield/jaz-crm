@@ -21,15 +21,17 @@ References: https://support.google.com/mail/answer/81126 ; https://developers.go
 ## Follow-up reports
 
 - [x] Diagnose the Kojaddnd/Statukai rows: they are completed historical replies, never simultaneously open; preserve both rather than merging or deleting history.
-- [ ] Deploy explicit Done/Dismissed history presentation and enforced reuse of open conversation reply actions; preserve separate deliverables and commit each model plan atomically.
+- [x] Deploy explicit Done/Dismissed history presentation and enforced reuse of open conversation reply actions; preserve separate deliverables and commit each model plan atomically.
 - [x] Preserve Gmail draft state independently from authorship; exclude unsent drafts from sent activity and waiting-on-them reasoning.
 - [x] Import Gmail drafts into the review/send workflow with subject, body, recipients, originating mailbox and stable provider draft identity.
 - [x] Reconcile edits, provider sending and deletion; ensure CRM sending consumes the existing Gmail draft exactly once.
-- [ ] Repair David Clowsley interaction d2decb96-16f9-48d1-a7ab-9c10f6fc2561 and its incorrect waiting follow-up; audit other imported drafts.
+- [x] Repair David Clowsley interaction d2decb96-16f9-48d1-a7ab-9c10f6fc2561 and its incorrect waiting follow-up; audit other imported drafts.
 - [x] Audit current CAS Gmail drafts: August has none; Ujjwal has four, all imported as messages. Correct David, Lisa and Chloe's contact summaries to say an unsent draft was prepared, preserving the dated event and unrelated context.
-- [ ] Migrate existing message/follow-up entries to drafts while preserving identity, content, recipients, mailbox and history; user explicitly rejected deleting them.
-- [ ] Verify the lifecycle with a controlled real Gmail draft, plus automated regression checks, strict review and production rollout.
+- [x] Migrate existing message/follow-up entries to drafts while preserving identity, content, recipients, mailbox and history; user explicitly rejected deleting them.
+- [x] Verify the lifecycle with a controlled real Gmail draft, plus automated regression checks, strict review and production rollout.
 
 Live lifecycle checks passed through the production Go services with real Gmail and isolated PostgreSQL: import, same-ID provider edits, stale edit refusal, CRM edit, one confirmed CRM send, external Gmail send, and deletion. Actual sent MIME retained the display name, HTML/text alternatives, Bcc and attachment. UI checks cover overlapping autosaves, confirmation revisions, sending-state polling, newer local input and the real interaction-to-follow-up route. Evidence: /tmp/crm-gmail-drafts.c39pdI and /tmp/crm-followup-history.iwjmjwl1.
 
 Final build, vet, full PostgreSQL-backed Go suite, lifecycle race suite and full frontend check pass. Negative controls reproduce draft-as-sent ingestion, duplicate replies, partial plan saves, stale sends, lost new composer text during send settlement, MIME body duplication and lost historical content. Strict review keeps provider synchronization in followups, MIME handling in google, durable identity/locking in storage and uses the existing composer across the queue and record routes.
+
+00e45ee is SUCCESS on Server (0409507d) and Worker (f0967a2c). Both CAS Temporal workflows were restarted with stored cursors preserved and completed GmailDrafts. All four provider drafts remain unchanged; all four original CRM interaction/part IDs survive as draft history, and the three existing follow-up IDs were reused. Each draft is Open / Us / Draft. The fourth internal draft had no prior follow-up, so it received one; its previously unfetched content is now saved in the draft snapshot. David's original interaction URL opens the Gmail draft review link and the original follow-up URL now opens the composer. Production browser checks passed. Temporary Railway rollout key was revoked and its local files removed.
