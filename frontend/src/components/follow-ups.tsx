@@ -288,10 +288,10 @@ function Draft({ record, channel, sender, error, drafting }: { record: CrmRecord
           <Address label="Cc" value={sender?.cc.join(', ')} />
         </>}
       </div>
-      {drafting && <div role="status" aria-live="polite" className="flex items-start gap-1.5 text-[12px] leading-[18px] text-ink-3">
+      {drafting && (drafting.state !== 'completed' || current) && <div role="status" aria-live="polite" className="flex items-start gap-1.5 text-[12px] leading-[18px] text-ink-3">
         {drafting.state === 'drafting' && <LoaderCircle aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 animate-spin motion-reduce:animate-none" />}
         <span>
-          <span className={cn('font-medium', drafting.state === 'failed' ? 'text-danger' : 'text-ink-2')}>{ { drafting: 'Drafting…', completed: 'Completed', failed: 'Failed', skipped: 'Skipped' }[drafting.state] }</span>
+          <span className={cn('font-medium', drafting.state === 'failed' ? 'text-danger' : 'text-ink-2')}>{ { drafting: 'Drafting a reply…', completed: 'Reply drafted', failed: 'Couldn’t draft a reply', skipped: 'No reply drafted' }[drafting.state] }</span>
           {drafting.reason && <> · {drafting.reason}</>}
         </span>
       </div>}
