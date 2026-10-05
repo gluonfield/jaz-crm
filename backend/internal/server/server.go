@@ -28,6 +28,7 @@ func New(authn *authapi.Handler, agents *mcpapi.Handler, connect *connectapi.Han
 	mux.Handle("/.well-known/", cors(authn))
 	mux.Handle("/mcp", cors(agents.MCP))
 	mux.HandleFunc("GET /favicon.svg", mcpapi.Favicon)
+	mux.HandleFunc("GET /favicon.ico", mcpapi.Favicon)
 	mux.Handle("POST /api/tools/{tool}", authn.Session(agents.API))
 	mux.Handle("GET /connections/google/start", authn.Session(http.HandlerFunc(connect.Start)))
 	mux.Handle("GET /connections/google/callback", authn.Session(http.HandlerFunc(connect.Callback)))

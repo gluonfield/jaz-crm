@@ -22,6 +22,9 @@ import (
 //go:embed app/mcp-app.html
 var appHTML string
 
+//go:embed app/favicon.ico
+var faviconICO []byte
+
 const (
 	appURI  = "ui://jaz-crm/app"
 	appMIME = "text/html;profile=mcp-app"
@@ -37,7 +40,12 @@ func icon(stroke string) string {
 // favicon is the glyph for browser tabs, which follows the tab's colour scheme.
 var favicon = strings.Replace(strings.Replace(glyph, "STROKE", "#1f2328", 1), "><", "><style>@media (prefers-color-scheme: dark){svg{stroke:#e8e8e8}}</style><", 1)
 
-func Favicon(w http.ResponseWriter, _ *http.Request) {
+func Favicon(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/favicon.ico" {
+		w.Header().Set("Content-Type", "image/x-icon")
+		_, _ = w.Write(faviconICO)
+		return
+	}
 	w.Header().Set("Content-Type", "image/svg+xml")
 	_, _ = io.WriteString(w, favicon)
 }
