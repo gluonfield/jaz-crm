@@ -30,7 +30,7 @@ func (s *Service) History(ctx context.Context, actor auth.Actor, id string) ([]C
 	if err != nil {
 		return nil, err
 	}
-	found, err := s.find(ctx, actor.WorkspaceID, id)
+	found, err := s.store.Records(ctx, actor.WorkspaceID, []string{id})
 	if err != nil {
 		return nil, err
 	}

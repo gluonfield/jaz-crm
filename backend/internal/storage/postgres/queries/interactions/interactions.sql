@@ -241,7 +241,7 @@ SELECT * FROM interactions WHERE workspace_id = @workspace_id AND id = ANY(@ids:
 -- or the upcoming ones, soonest first.
 SELECT interactions.* FROM interactions
 JOIN links ON links.interaction_id = interactions.id AND links.record_id = @record_id
-LEFT JOIN interactions cursor ON cursor.id = nullif(@cursor::text, '')::text AND cursor.workspace_id = @workspace_id AND NOT cursor.skipped
+LEFT JOIN interactions cursor ON cursor.id = nullif(@cursor::text, '') AND cursor.workspace_id = @workspace_id AND NOT cursor.skipped
 WHERE interactions.workspace_id = @workspace_id AND NOT interactions.skipped
   AND (interactions.kind <> 'email' OR EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
   AND (cardinality(@kinds::text[]) = 0 OR interactions.kind = ANY(@kinds::text[]))

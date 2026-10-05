@@ -1353,7 +1353,7 @@ func (q *Queries) SkipRecordHandles(ctx context.Context, arg SkipRecordHandlesPa
 const timeline = `-- name: Timeline :many
 SELECT interactions.id, interactions.workspace_id, interactions.kind, interactions.source, interactions.external_id, interactions.connection_id, interactions.user_id, interactions.title, interactions.started_at, interactions.ended_at, interactions.meet_code, interactions.transcript_checked_at, interactions.skipped, interactions.created_at, interactions.channel, interactions.provenance, interactions.date_only, interactions.followed_up_at, interactions.drafting_state, interactions.drafting_reason, interactions.drafting_started_at FROM interactions
 JOIN links ON links.interaction_id = interactions.id AND links.record_id = $1
-LEFT JOIN interactions cursor ON cursor.id = nullif($2::text, '')::text AND cursor.workspace_id = $3 AND NOT cursor.skipped
+LEFT JOIN interactions cursor ON cursor.id = nullif($2::text, '') AND cursor.workspace_id = $3 AND NOT cursor.skipped
 WHERE interactions.workspace_id = $3 AND NOT interactions.skipped
   AND (interactions.kind <> 'email' OR EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
   AND (cardinality($4::text[]) = 0 OR interactions.kind = ANY($4::text[]))

@@ -1,11 +1,13 @@
 package postgres_test
 
 import (
+	"errors"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
+	"github.com/gluonfield/jaz-crm/backend/internal/errs"
 	"github.com/gluonfield/jaz-crm/backend/internal/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres"
 	"github.com/lithammer/shortuuid/v4"
@@ -82,14 +84,17 @@ INSERT INTO sessions(token_hash,user_id,expires_at) SELECT 'legacy'::bytea,id,no
 			t.Fatalf("lookup %q: %+v, %v", id, got, err)
 		}
 	}
-	if len(child.Fields) != 2 || child.Fields[1].Attribute != "parent" || child.Fields[1].Values[0].RecordID != parent {
+	parentField := slices.IndexFunc(child.Fields, func(f records.Field) bool {
+		return f.Attribute == "parent"
+	})
+	if parentField < 0 || len(child.Fields[parentField].Values) != 1 || child.Fields[parentField].Values[0].RecordID != parent {
 		t.Fatalf("mixed reference: %+v", child)
 	}
 	workspace, err := store.Workspace(ctx, actor.WorkspaceID)
 	if err != nil || !slices.Equal(workspace.CompanyPageIDs, []string{parent}) {
 		t.Fatalf("legacy knowledge pages: %+v, %v", workspace, err)
 	}
-	if _, err := crm.Get(ctx, actor, strings.ToLower(child.ID)); err == nil {
-		t.Fatal("ID lookup must be case-sensitive")
+	if _, err := crm.Get(ctx, actor, strings.ToLower(child.ID)); !errors.As(err, new(errs.Invalid)) {
+		t.Fatalf("ID lookup must be case-sensitive: %v", err)
 	}
 }

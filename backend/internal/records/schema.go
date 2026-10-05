@@ -139,7 +139,7 @@ func (s *Service) object(ctx context.Context, actor auth.Actor, slug string) (Ob
 
 // Delete removes a record, its values and every reference to it.
 func (s *Service) Delete(ctx context.Context, actor auth.Actor, id string) error {
-	records, err := s.find(ctx, actor.WorkspaceID, id)
+	records, err := s.store.Records(ctx, actor.WorkspaceID, []string{id})
 	if err != nil {
 		return err
 	}

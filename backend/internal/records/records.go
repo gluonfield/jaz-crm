@@ -148,7 +148,7 @@ func (s *Service) Get(ctx context.Context, actor auth.Actor, id string) (Record,
 }
 
 func (s *Service) get(ctx context.Context, workspaceID string, sc schema, id string) (Record, error) {
-	records, err := s.find(ctx, workspaceID, id)
+	records, err := s.store.Records(ctx, workspaceID, []string{id})
 	if err != nil {
 		return Record{}, err
 	}
@@ -160,10 +160,6 @@ func (s *Service) get(ctx context.Context, workspaceID string, sc schema, id str
 		return Record{}, err
 	}
 	return views[0], nil
-}
-
-func (s *Service) find(ctx context.Context, workspaceID, id string) ([]storage.Record, error) {
-	return s.store.Records(ctx, workspaceID, []string{id})
 }
 
 // entry validates a raw value, resolving a reference to its record.
@@ -198,7 +194,7 @@ func (s *Service) member(ctx context.Context, workspaceID string, attr storage.A
 // the target object such as a company's domain.
 func (s *Service) resolve(ctx context.Context, workspaceID string, sc schema, attr storage.Attribute, raw string) (string, error) {
 	target := sc.objectByID(*attr.TargetObjectID)
-	records, err := s.find(ctx, workspaceID, raw)
+	records, err := s.store.Records(ctx, workspaceID, []string{raw})
 	if err != nil {
 		return "", err
 	}
