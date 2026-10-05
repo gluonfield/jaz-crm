@@ -1,9 +1,9 @@
 -- name: UpsertHandle :one
-INSERT INTO handles (workspace_id, kind, value, name, triage, decided_by, reason)
+INSERT INTO handles (workspace_id, kind, value, name, triage, decided_by, reason, id)
 SELECT @workspace_id, @kind, @value, @name,
   coalesce(rule.triage, @triage)::text,
   CASE WHEN rule.domain IS NOT NULL THEN 'user' ELSE sqlc.narg(decided_by)::text END,
-  coalesce(rule.reason, @reason)::text
+  coalesce(rule.reason, @reason)::text, sqlc.arg(id)::text
 FROM (SELECT 1) AS input
 LEFT JOIN domain_rules rule ON rule.workspace_id = @workspace_id AND rule.domain = split_part(@value, '@', 2)
   AND @kind::text = 'email' AND @triage::text <> 'internal'
@@ -19,7 +19,7 @@ UPDATE handles SET triage = $3, decided_by = $4, reason = $5, person_id = $6
 WHERE workspace_id = $1 AND id = $2;
 
 -- name: GetHandles :many
-SELECT * FROM handles WHERE workspace_id = @workspace_id AND id = ANY(@ids::uuid[]);
+SELECT * FROM handles WHERE workspace_id = @workspace_id AND id = ANY(@ids::text[]);
 
 -- name: HandlesByValue :many
 SELECT * FROM handles WHERE workspace_id = @workspace_id AND value = ANY(@handle_values::text[]);
@@ -50,7 +50,7 @@ WHERE handles.workspace_id = @workspace_id AND handles.kind = 'email' AND handle
 -- name: PersonPhotos :many
 -- PersonPhotos picks a profile picture for each person from their addresses.
 SELECT DISTINCT ON (person_id) person_id::text AS person_id, photo_url FROM handles
-WHERE workspace_id = @workspace_id AND person_id = ANY(@person_ids::uuid[]) AND photo_url <> ''
+WHERE workspace_id = @workspace_id AND person_id = ANY(@person_ids::text[]) AND photo_url <> ''
 ORDER BY person_id, created_at;
 
 -- name: MarkInternal :exec
@@ -130,8 +130,8 @@ WHERE interactions.workspace_id = @workspace_id AND interactions.kind = 'email' 
 LIMIT 1;
 
 -- name: UpsertEmailThread :one
-INSERT INTO interactions (workspace_id, kind, source, external_id, connection_id, user_id, title, started_at, ended_at)
-VALUES (@workspace_id, 'email', 'gmail', @external_id, @connection_id, @user_id, @title, @at, @at)
+INSERT INTO interactions (workspace_id, kind, source, external_id, connection_id, user_id, title, started_at, ended_at, id)
+VALUES (@workspace_id, 'email', 'gmail', @external_id, @connection_id, @user_id, @title, @at, @at, sqlc.arg(id))
 ON CONFLICT (workspace_id, source, external_id) DO UPDATE
 SET started_at = LEAST(interactions.started_at, EXCLUDED.started_at),
     ended_at = GREATEST(interactions.ended_at, EXCLUDED.ended_at),
@@ -145,8 +145,8 @@ SET started_at = LEAST(started_at, @at), ended_at = GREATEST(ended_at, @at),
 WHERE id = @id;
 
 -- name: UpsertInteraction :one
-INSERT INTO interactions (workspace_id, kind, source, external_id, connection_id, user_id, title, started_at, ended_at, meet_code, skipped, channel, provenance, date_only)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+INSERT INTO interactions (workspace_id, kind, source, external_id, connection_id, user_id, title, started_at, ended_at, meet_code, skipped, channel, provenance, date_only, id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, sqlc.arg(id))
 ON CONFLICT (workspace_id, source, external_id) DO UPDATE
 SET kind = EXCLUDED.kind, title = EXCLUDED.title, started_at = EXCLUDED.started_at, ended_at = EXCLUDED.ended_at,
     meet_code = EXCLUDED.meet_code, skipped = interactions.skipped OR EXCLUDED.skipped,
@@ -177,7 +177,7 @@ SET kind = EXCLUDED.kind,
 DELETE FROM parts WHERE interaction_id = $1;
 
 -- name: InteractionsOfHandles :many
-SELECT DISTINCT interaction_id FROM participants WHERE handle_id = ANY(@handle_ids::uuid[]);
+SELECT DISTINCT interaction_id FROM participants WHERE handle_id = ANY(@handle_ids::text[]);
 
 -- name: InteractionsOfObject :many
 SELECT DISTINCT links.interaction_id FROM links
@@ -185,7 +185,7 @@ JOIN records ON records.id = links.record_id
 WHERE records.workspace_id = @workspace_id AND records.object_id = @object_id;
 
 -- name: DeleteSyncLinks :exec
-DELETE FROM links WHERE source = 'sync' AND interaction_id = ANY(@ids::uuid[]);
+DELETE FROM links WHERE source = 'sync' AND interaction_id = ANY(@ids::text[]);
 
 -- name: InsertSyncLinks :exec
 -- InsertSyncLinks links interactions to the people behind their kept
@@ -194,7 +194,7 @@ WITH people AS (
   SELECT DISTINCT participants.interaction_id, handles.person_id AS record_id FROM participants
   JOIN handles ON handles.id = participants.handle_id AND handles.triage = 'kept' AND handles.person_id IS NOT NULL
   JOIN interactions ON interactions.id = participants.interaction_id AND NOT interactions.skipped
-  WHERE participants.interaction_id = ANY(@ids::uuid[])
+  WHERE participants.interaction_id = ANY(@ids::text[])
 ), companies AS (
   SELECT DISTINCT people.interaction_id, record_values.ref_record_id AS record_id FROM people
   JOIN record_values ON record_values.record_id = people.record_id AND record_values.active_until IS NULL AND record_values.ref_record_id IS NOT NULL
@@ -209,7 +209,7 @@ ON CONFLICT (interaction_id, record_id) DO NOTHING;
 -- name: ClearUnlinkedContent :exec
 -- ClearUnlinkedContent forgets provider content of interactions no record links.
 UPDATE parts SET content = NULL, html = NULL
-WHERE provider_id IS NOT NULL AND (content IS NOT NULL OR html IS NOT NULL) AND interaction_id = ANY(@ids::uuid[])
+WHERE provider_id IS NOT NULL AND (content IS NOT NULL OR html IS NOT NULL) AND interaction_id = ANY(@ids::text[])
   AND NOT EXISTS (SELECT 1 FROM links WHERE links.interaction_id = parts.interaction_id);
 
 -- name: AddLink :exec
@@ -234,14 +234,14 @@ LIMIT $2;
 UPDATE parts SET content = $2, html = $3 WHERE id = $1;
 
 -- name: GetInteractions :many
-SELECT * FROM interactions WHERE workspace_id = @workspace_id AND id = ANY(@ids::uuid[]);
+SELECT * FROM interactions WHERE workspace_id = @workspace_id AND id = ANY(@ids::text[]);
 
 -- name: Timeline :many
 -- Timeline lists a record's interactions that started by now, newest first,
 -- or the upcoming ones, soonest first.
 SELECT interactions.* FROM interactions
 JOIN links ON links.interaction_id = interactions.id AND links.record_id = @record_id
-LEFT JOIN interactions cursor ON cursor.id = nullif(@cursor::text, '')::uuid AND cursor.workspace_id = @workspace_id AND NOT cursor.skipped
+LEFT JOIN interactions cursor ON cursor.id = nullif(@cursor::text, '')::text AND cursor.workspace_id = @workspace_id AND NOT cursor.skipped
 WHERE interactions.workspace_id = @workspace_id AND NOT interactions.skipped
   AND (interactions.kind <> 'email' OR EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
   AND (cardinality(@kinds::text[]) = 0 OR interactions.kind = ANY(@kinds::text[]))
@@ -267,16 +267,16 @@ LIMIT @row_limit;
 -- name: InteractionParticipants :many
 SELECT participants.interaction_id, participants.role, sqlc.embed(handles) FROM participants
 JOIN handles ON handles.id = participants.handle_id
-WHERE participants.interaction_id = ANY(@ids::uuid[])
+WHERE participants.interaction_id = ANY(@ids::text[])
 ORDER BY participants.interaction_id, handles.value;
 
 -- name: InteractionParts :many
 SELECT id, interaction_id, kind, external_id, connection_id, provider_id, author_handle_id, author_name, at, content, recipients, direction, date_only, partial, position, html FROM parts
-WHERE interaction_id = ANY(@ids::uuid[]) ORDER BY interaction_id, position, at, id;
+WHERE interaction_id = ANY(@ids::text[]) ORDER BY interaction_id, position, at, id;
 
 -- name: InteractionLinks :many
 SELECT links.interaction_id, links.record_id, links.source FROM links
-WHERE links.interaction_id = ANY(@ids::uuid[])
+WHERE links.interaction_id = ANY(@ids::text[])
 ORDER BY links.interaction_id, links.created_at;
 
 -- name: RecordActivity :many
@@ -288,7 +288,7 @@ SELECT links.record_id, count(*)::int AS interactions, min(interactions.started_
   (array_agg(interactions.date_only AND interactions.ended_at IS NULL ORDER BY least(coalesce(interactions.ended_at, interactions.started_at), now()) DESC, (interactions.date_only AND interactions.ended_at IS NULL)))[1]::boolean AS last_date_only
 FROM links
 JOIN interactions ON interactions.id = links.interaction_id AND NOT interactions.skipped
-WHERE interactions.workspace_id = @workspace_id AND links.record_id = ANY(@record_ids::uuid[]) AND interactions.started_at <= now() AND interactions.kind <> 'note'
+WHERE interactions.workspace_id = @workspace_id AND links.record_id = ANY(@record_ids::text[]) AND interactions.started_at <= now() AND interactions.kind <> 'note'
   AND (interactions.kind <> 'email' OR EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
 GROUP BY links.record_id;
 
@@ -303,11 +303,11 @@ FROM links
 JOIN interactions ON interactions.id = links.interaction_id AND NOT interactions.skipped
 JOIN parts ON parts.interaction_id = interactions.id AND parts.kind = 'message'
 LEFT JOIN handles ON handles.id = parts.author_handle_id
-WHERE interactions.workspace_id = @workspace_id AND links.record_id = ANY(@record_ids::uuid[]) AND parts.at <= now()
+WHERE interactions.workspace_id = @workspace_id AND links.record_id = ANY(@record_ids::text[]) AND parts.at <= now()
 ORDER BY links.record_id, parts.at DESC, parts.position DESC, parts.id DESC;
 
 -- name: DeleteLinks :exec
-DELETE FROM links WHERE interaction_id = ANY(@ids::uuid[]);
+DELETE FROM links WHERE interaction_id = ANY(@ids::text[]);
 
 -- name: SetDomainRule :exec
 INSERT INTO domain_rules (workspace_id, domain, triage, reason) VALUES ($1, $2, $3, $4)

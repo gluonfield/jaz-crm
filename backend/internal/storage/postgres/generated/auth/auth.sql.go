@@ -20,7 +20,7 @@ func (q *Queries) ClearKnowledgePages(ctx context.Context, workspaceID string) e
 }
 
 const createAPIKey = `-- name: CreateAPIKey :one
-INSERT INTO api_keys (user_id, label, hint, key_hash) VALUES ($1, $2, $3, $4) RETURNING id, user_id, label, hint, key_hash, created_at
+INSERT INTO api_keys (user_id, label, hint, key_hash, id) VALUES ($1, $2, $3, $4, $5) RETURNING id, user_id, label, hint, key_hash, created_at
 `
 
 type CreateAPIKeyParams struct {
@@ -28,6 +28,7 @@ type CreateAPIKeyParams struct {
 	Label   string
 	Hint    string
 	KeyHash []byte
+	ID      string
 }
 
 func (q *Queries) CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (APIKey, error) {
@@ -36,6 +37,7 @@ func (q *Queries) CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (API
 		arg.Label,
 		arg.Hint,
 		arg.KeyHash,
+		arg.ID,
 	)
 	var i APIKey
 	err := row.Scan(
@@ -50,8 +52,8 @@ func (q *Queries) CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (API
 }
 
 const createAuthUser = `-- name: CreateAuthUser :one
-INSERT INTO users (workspace_id, name, email, avatar_url, admin)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO users (workspace_id, name, email, avatar_url, admin, id)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING id, workspace_id, name, email, avatar_url, admin, created_at, addresses
 `
 
@@ -61,6 +63,7 @@ type CreateAuthUserParams struct {
 	Email       string
 	AvatarURL   *string
 	Admin       bool
+	ID          string
 }
 
 func (q *Queries) CreateAuthUser(ctx context.Context, arg CreateAuthUserParams) (User, error) {
@@ -70,6 +73,7 @@ func (q *Queries) CreateAuthUser(ctx context.Context, arg CreateAuthUserParams) 
 		arg.Email,
 		arg.AvatarURL,
 		arg.Admin,
+		arg.ID,
 	)
 	var i User
 	err := row.Scan(
@@ -86,7 +90,7 @@ func (q *Queries) CreateAuthUser(ctx context.Context, arg CreateAuthUserParams) 
 }
 
 const createInvite = `-- name: CreateInvite :one
-INSERT INTO workspace_invites (workspace_id, email, invited_by) VALUES ($1, lower($3::text), $2)
+INSERT INTO workspace_invites (workspace_id, email, invited_by, id) VALUES ($1, lower($3::text), $2, $4)
 RETURNING id, workspace_id, email, invited_by, created_at
 `
 
@@ -94,10 +98,16 @@ type CreateInviteParams struct {
 	WorkspaceID string
 	InvitedBy   *string
 	Email       string
+	ID          string
 }
 
 func (q *Queries) CreateInvite(ctx context.Context, arg CreateInviteParams) (WorkspaceInvite, error) {
-	row := q.db.QueryRow(ctx, createInvite, arg.WorkspaceID, arg.InvitedBy, arg.Email)
+	row := q.db.QueryRow(ctx, createInvite,
+		arg.WorkspaceID,
+		arg.InvitedBy,
+		arg.Email,
+		arg.ID,
+	)
 	var i WorkspaceInvite
 	err := row.Scan(
 		&i.ID,
@@ -125,11 +135,16 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) er
 }
 
 const createWorkspace = `-- name: CreateWorkspace :one
-INSERT INTO workspaces (name) VALUES ($1) RETURNING id, name, created_at, description, auto_keep_email, auto_keep_meetings, auto_keep_records, auto_keep_ai, company_page_id, drafting_web_access, timezone
+INSERT INTO workspaces (name, id) VALUES ($1, $2) RETURNING id, name, created_at, description, auto_keep_email, auto_keep_meetings, auto_keep_records, auto_keep_ai, company_page_id, drafting_web_access, timezone
 `
 
-func (q *Queries) CreateWorkspace(ctx context.Context, name string) (Workspace, error) {
-	row := q.db.QueryRow(ctx, createWorkspace, name)
+type CreateWorkspaceParams struct {
+	Name string
+	ID   string
+}
+
+func (q *Queries) CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams) (Workspace, error) {
+	row := q.db.QueryRow(ctx, createWorkspace, arg.Name, arg.ID)
 	var i Workspace
 	err := row.Scan(
 		&i.ID,
@@ -253,7 +268,7 @@ func (q *Queries) GetUser(ctx context.Context, id string) (User, error) {
 const getWorkspace = `-- name: GetWorkspace :one
 SELECT id, name, created_at, description, auto_keep_email, auto_keep_meetings,
   auto_keep_records, auto_keep_ai, drafting_web_access,
-  ARRAY(SELECT page_id FROM workspace_knowledge_pages WHERE workspace_id = workspaces.id ORDER BY position)::uuid[] AS company_page_ids, timezone
+  ARRAY(SELECT page_id FROM workspace_knowledge_pages WHERE workspace_id = workspaces.id ORDER BY position)::text[] AS company_page_ids, timezone
 FROM workspaces WHERE id = $1
 `
 
@@ -484,8 +499,8 @@ const replaceAPIKey = `-- name: ReplaceAPIKey :one
 WITH replaced AS (
   DELETE FROM api_keys WHERE user_id = $1 AND label = $2 AND key_hash <> $4
 )
-INSERT INTO api_keys (user_id, label, hint, key_hash)
-VALUES ($1, $2, $3, $4)
+INSERT INTO api_keys (user_id, label, hint, key_hash, id)
+VALUES ($1, $2, $3, $4, $5)
 ON CONFLICT (key_hash) DO UPDATE SET label = EXCLUDED.label
 WHERE api_keys.user_id = EXCLUDED.user_id
 RETURNING id, user_id, label, hint, key_hash, created_at
@@ -496,6 +511,7 @@ type ReplaceAPIKeyParams struct {
 	Label   string
 	Hint    string
 	KeyHash []byte
+	ID      string
 }
 
 // ReplaceAPIKey makes the key the user's one key with this label, keeping it
@@ -506,6 +522,7 @@ func (q *Queries) ReplaceAPIKey(ctx context.Context, arg ReplaceAPIKeyParams) (A
 		arg.Label,
 		arg.Hint,
 		arg.KeyHash,
+		arg.ID,
 	)
 	var i APIKey
 	err := row.Scan(
@@ -521,7 +538,7 @@ func (q *Queries) ReplaceAPIKey(ctx context.Context, arg ReplaceAPIKeyParams) (A
 
 const setKnowledgePages = `-- name: SetKnowledgePages :exec
 INSERT INTO workspace_knowledge_pages (workspace_id, page_id, position)
-SELECT $1, page_id, position FROM unnest($2::uuid[]) WITH ORDINALITY AS selected(page_id, position)
+SELECT $1, page_id, position FROM unnest($2::text[]) WITH ORDINALITY AS selected(page_id, position)
 `
 
 type SetKnowledgePagesParams struct {
@@ -652,11 +669,11 @@ func (q *Queries) UpdateTriageSettings(ctx context.Context, arg UpdateTriageSett
 
 const updateWorkspace = `-- name: UpdateWorkspace :execrows
 UPDATE workspaces SET name = COALESCE($1, name), description = COALESCE($2, description),
-  company_page_id = CASE WHEN $3::uuid[] IS NULL THEN company_page_id ELSE ($3::uuid[])[1] END,
+  company_page_id = CASE WHEN $3::text[] IS NULL THEN company_page_id ELSE ($3::text[])[1] END,
   drafting_web_access = COALESCE($4, drafting_web_access),
   timezone = COALESCE($5, timezone)
 WHERE workspaces.id = $6 AND NOT EXISTS (
-  SELECT 1 FROM unnest($3::uuid[]) AS selected(id)
+  SELECT 1 FROM unnest($3::text[]) AS selected(id)
   LEFT JOIN records ON records.id = selected.id AND records.workspace_id = $6
   LEFT JOIN objects ON objects.id = records.object_id AND objects.slug = 'pages'
   WHERE objects.id IS NULL

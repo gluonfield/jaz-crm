@@ -1,9 +1,9 @@
 -- name: CreateObject :one
-INSERT INTO objects (workspace_id, slug, name) VALUES ($1, $2, $3) RETURNING *;
+INSERT INTO objects (workspace_id, slug, name, id) VALUES ($1, $2, $3, sqlc.arg(id)) RETURNING *;
 
 -- name: CreateAttribute :one
-INSERT INTO attributes (object_id, slug, name, type, multi, is_unique, target_object_id, options)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+INSERT INTO attributes (object_id, slug, name, type, multi, is_unique, target_object_id, options, id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, sqlc.arg(id))
 RETURNING *;
 
 -- name: StartRecords :exec
@@ -43,10 +43,10 @@ UPDATE saved_filters SET filters = (
   SELECT coalesce(jsonb_agg(condition ORDER BY position), '[]'::jsonb) FROM jsonb_array_elements(filters) WITH ORDINALITY AS conditions(condition, position)
   WHERE NOT EXISTS (
     SELECT 1 FROM attributes
-    WHERE attributes.id = ANY(@attribute_ids::uuid[]) AND attributes.object_id = saved_filters.object_id AND attributes.slug = condition->>'attribute'
+    WHERE attributes.id = ANY(@attribute_ids::text[]) AND attributes.object_id = saved_filters.object_id AND attributes.slug = condition->>'attribute'
   )
 )
-WHERE saved_filters.workspace_id = @workspace_id AND saved_filters.object_id IN (SELECT object_id FROM attributes WHERE id = ANY(@attribute_ids::uuid[]));
+WHERE saved_filters.workspace_id = @workspace_id AND saved_filters.object_id IN (SELECT object_id FROM attributes WHERE id = ANY(@attribute_ids::text[]));
 
 -- name: ListObjects :many
 SELECT * FROM objects WHERE workspace_id = $1 ORDER BY created_at, slug;
@@ -89,18 +89,18 @@ SELECT * FROM records WHERE workspace_id = $1 AND id = $2 FOR UPDATE;
 DELETE FROM records WHERE workspace_id = $1 AND id = $2;
 
 -- name: CreateRecord :one
-INSERT INTO records (workspace_id, object_id) VALUES ($1, $2) RETURNING *;
+INSERT INTO records (workspace_id, object_id, id) VALUES ($1, $2, sqlc.arg(id)) RETURNING *;
 
 -- name: LockRecord :one
 SELECT * FROM records WHERE workspace_id = $1 AND object_id = $2 AND id = $3 FOR UPDATE;
 
 -- name: GetRecords :many
-SELECT * FROM records WHERE workspace_id = @workspace_id AND id = ANY(@ids::uuid[]);
+SELECT * FROM records WHERE workspace_id = @workspace_id AND id = ANY(@ids::text[]);
 
 -- name: CurrentValues :many
 SELECT record_values.* FROM record_values
 JOIN records ON records.id = record_values.record_id
-WHERE records.workspace_id = @workspace_id AND record_values.record_id = ANY(@record_ids::uuid[])
+WHERE records.workspace_id = @workspace_id AND record_values.record_id = ANY(@record_ids::text[])
   AND record_values.active_until IS NULL
 ORDER BY record_values.id;
 
@@ -121,7 +121,7 @@ SELECT DISTINCT record_values.record_id FROM record_values
 JOIN records ON records.id = record_values.record_id
 WHERE records.workspace_id = @workspace_id AND record_values.active_until IS NULL
   AND (record_values.attribute_id, record_values.unique_key) IN (
-    SELECT (@attribute_ids::uuid[])[i], (@unique_keys::text[])[i] FROM generate_subscripts(@attribute_ids::uuid[], 1) AS i
+    SELECT (@attribute_ids::text[])[i], (@unique_keys::text[])[i] FROM generate_subscripts(@attribute_ids::text[], 1) AS i
   );
 
 -- name: SearchRecords :many
@@ -135,16 +135,16 @@ WITH scoped AS (
   FROM records
   JOIN workspaces ON workspaces.id = records.workspace_id
   LEFT JOIN LATERAL (
-    SELECT min(interactions.id::text)::uuid AS id FROM links
+    SELECT min(interactions.id) AS id FROM links
     JOIN interactions ON interactions.id = links.interaction_id
-    WHERE (@group_by_conversation::boolean OR sqlc.narg(conversation_id)::uuid IS NOT NULL) AND links.record_id = records.id
+    WHERE (@group_by_conversation::boolean OR sqlc.narg(conversation_id)::text IS NOT NULL) AND links.record_id = records.id
       AND interactions.workspace_id = @workspace_id AND NOT interactions.skipped
       AND interactions.kind IN ('email', 'message') AND interactions.started_at <= now()
     -- Actions spanning conversations stay separate instead of guessing a reply target.
     HAVING count(*) = 1
   ) conversation ON true
   WHERE records.workspace_id = @workspace_id AND records.object_id = @object_id
-    AND (sqlc.narg(conversation_id)::uuid IS NULL OR conversation.id = sqlc.narg(conversation_id)::uuid)
+    AND (sqlc.narg(conversation_id)::text IS NULL OR conversation.id = sqlc.narg(conversation_id)::text)
 ), matched AS (
   SELECT scoped.*, CASE WHEN @group_by_conversation::boolean
     THEN bool_or(matches_text) OVER (PARTITION BY coalesce(conversation_id, id))
@@ -170,11 +170,11 @@ WITH scoped AS (
   ) state ON true
   WHERE matched.matches_query
   AND NOT EXISTS (
-    SELECT 1 FROM generate_subscripts(@attribute_ids::uuid[], 1) AS i
+    SELECT 1 FROM generate_subscripts(@attribute_ids::text[], 1) AS i
     WHERE EXISTS (
       SELECT 1 FROM record_values JOIN attributes ON attributes.id = record_values.attribute_id
       WHERE record_values.record_id = matched.id AND record_values.active_until IS NULL
-        AND record_values.attribute_id = (@attribute_ids::uuid[])[i]
+        AND record_values.attribute_id = (@attribute_ids::text[])[i]
         AND CASE (@operators::text[])[i]
           WHEN 'is_empty' THEN true
           WHEN 'is_not_empty' THEN true
@@ -212,7 +212,7 @@ ORDER BY (
       THEN to_char(record_instant(record_values.text, workspaces.timezone) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US')
       ELSE record_values.text END) FROM record_values JOIN attributes ON attributes.id = record_values.attribute_id
     WHERE record_values.record_id = records.id AND record_values.active_until IS NULL
-      AND record_values.attribute_id = sqlc.narg(sort_attribute_id)::uuid
+      AND record_values.attribute_id = sqlc.narg(sort_attribute_id)::text
   ) NULLS LAST, records.created_at DESC, records.id
 LIMIT @row_limit OFFSET @row_offset;
 
@@ -226,7 +226,7 @@ JOIN LATERAL (
   ORDER BY records.created_at DESC, records.id
   LIMIT @row_limit
 ) children ON true
-WHERE parents.workspace_id = @workspace_id AND parents.id = ANY(@ids::uuid[])
+WHERE parents.workspace_id = @workspace_id AND parents.id = ANY(@ids::text[])
 ORDER BY parents.id, children.created_at DESC, children.id;
 
 -- name: CloseValues :exec

@@ -207,7 +207,7 @@ func (q *Queries) ListConnections(ctx context.Context, workspaceID string) ([]Co
 }
 
 const listCursors = `-- name: ListCursors :many
-SELECT connection_id, stream, cursor, updated_at FROM sync_cursors WHERE connection_id = ANY($1::uuid[])
+SELECT connection_id, stream, cursor, updated_at FROM sync_cursors WHERE connection_id = ANY($1::text[])
 `
 
 func (q *Queries) ListCursors(ctx context.Context, connectionIds []string) ([]SyncCursor, error) {
@@ -237,7 +237,7 @@ func (q *Queries) ListCursors(ctx context.Context, connectionIds []string) ([]Sy
 
 const mailProgress = `-- name: MailProgress :many
 SELECT connection_id::text AS connection_id, count(*)::int AS messages, min(at)::timestamptz AS oldest
-FROM parts WHERE connection_id = ANY($1::uuid[]) AND kind = 'message'
+FROM parts WHERE connection_id = ANY($1::text[]) AND kind = 'message'
 GROUP BY connection_id
 `
 
@@ -269,8 +269,8 @@ func (q *Queries) MailProgress(ctx context.Context, connectionIds []string) ([]M
 }
 
 const saveConnection = `-- name: SaveConnection :one
-INSERT INTO connections (workspace_id, user_id, provider, account, refresh_token)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO connections (workspace_id, user_id, provider, account, refresh_token, id)
+VALUES ($1, $2, $3, $4, $5, $6)
 ON CONFLICT (workspace_id, provider, account) DO UPDATE
 SET user_id = EXCLUDED.user_id, refresh_token = EXCLUDED.refresh_token, status = 'active'
 RETURNING id, workspace_id, user_id, provider, account, refresh_token, status, created_at, aliases, teammates_send
@@ -282,6 +282,7 @@ type SaveConnectionParams struct {
 	Provider     string
 	Account      string
 	RefreshToken []byte
+	ID           string
 }
 
 func (q *Queries) SaveConnection(ctx context.Context, arg SaveConnectionParams) (Connection, error) {
@@ -291,6 +292,7 @@ func (q *Queries) SaveConnection(ctx context.Context, arg SaveConnectionParams) 
 		arg.Provider,
 		arg.Account,
 		arg.RefreshToken,
+		arg.ID,
 	)
 	var i Connection
 	err := row.Scan(

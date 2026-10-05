@@ -1,6 +1,6 @@
 -- name: SaveConnection :one
-INSERT INTO connections (workspace_id, user_id, provider, account, refresh_token)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO connections (workspace_id, user_id, provider, account, refresh_token, id)
+VALUES ($1, $2, $3, $4, $5, sqlc.arg(id))
 ON CONFLICT (workspace_id, provider, account) DO UPDATE
 SET user_id = EXCLUDED.user_id, refresh_token = EXCLUDED.refresh_token, status = 'active'
 RETURNING *;
@@ -42,7 +42,7 @@ ON CONFLICT (connection_id, stream) DO UPDATE SET cursor = EXCLUDED.cursor, upda
 DELETE FROM sync_cursors WHERE connection_id = $1 AND stream = $2;
 
 -- name: ListCursors :many
-SELECT * FROM sync_cursors WHERE connection_id = ANY(@connection_ids::uuid[]);
+SELECT * FROM sync_cursors WHERE connection_id = ANY(@connection_ids::text[]);
 
 -- name: InternalAddresses :many
 -- InternalAddresses are the workspace's own addresses: its members' emails and
@@ -65,5 +65,5 @@ WHERE id = @id AND NOT aliases @> @aliases::text[];
 -- name: MailProgress :many
 -- MailProgress counts each connection's synced mail and finds its earliest.
 SELECT connection_id::text AS connection_id, count(*)::int AS messages, min(at)::timestamptz AS oldest
-FROM parts WHERE connection_id = ANY(@connection_ids::uuid[]) AND kind = 'message'
+FROM parts WHERE connection_id = ANY(@connection_ids::text[]) AND kind = 'message'
 GROUP BY connection_id;

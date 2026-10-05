@@ -1,5 +1,5 @@
 -- name: LockGmailDraft :exec
-SELECT pg_advisory_xact_lock(hashtextextended('gmail-draft:' || CAST(sqlc.arg(connection_id) AS uuid)::text || ':' || sqlc.arg(draft_id)::text, 0));
+SELECT pg_advisory_xact_lock(hashtextextended('gmail-draft:' || sqlc.arg(connection_id)::text || ':' || sqlc.arg(draft_id)::text, 0));
 
 -- name: GmailDrafts :many
 SELECT * FROM gmail_drafts WHERE connection_id = $1
@@ -17,7 +17,7 @@ WHERE c.workspace_id = $1 AND d.follow_up_id = $2;
 -- name: InteractionDrafts :many
 SELECT l.interaction_id, sqlc.embed(d)
 FROM links l JOIN gmail_drafts d ON d.follow_up_id = l.record_id
-WHERE l.interaction_id = ANY(@ids::uuid[]) AND d.state <> 'sent'
+WHERE l.interaction_id = ANY(@ids::text[]) AND d.state <> 'sent'
 ORDER BY l.interaction_id, d.at, d.draft_id;
 
 -- name: UpsertGmailDraft :exec
@@ -57,7 +57,7 @@ UPDATE interactions i SET
   started_at = coalesce((SELECT min(p.at) FROM parts p WHERE p.interaction_id = i.id AND p.kind = 'message'), i.started_at),
   ended_at = (SELECT max(p.at) FROM parts p WHERE p.interaction_id = i.id AND p.kind = 'message'),
   followed_up_at = NULL, drafting_state = '', drafting_reason = '', drafting_started_at = NULL
-WHERE i.id = ANY(@ids::uuid[]);
+WHERE i.id = ANY(@ids::text[]);
 
 -- name: LinkKnownSentGmailDrafts :exec
 INSERT INTO links (interaction_id, record_id, source)

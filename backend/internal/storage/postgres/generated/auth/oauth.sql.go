@@ -80,17 +80,23 @@ func (q *Queries) CreateOAuthCode(ctx context.Context, arg CreateOAuthCodeParams
 }
 
 const createOAuthGrant = `-- name: CreateOAuthGrant :one
-INSERT INTO oauth_grants (client_id, user_id, scope) VALUES ($1, $2, $3) RETURNING id, client_id, user_id, scope, created_at, revoked_at
+INSERT INTO oauth_grants (client_id, user_id, scope, id) VALUES ($1, $2, $3, $4) RETURNING id, client_id, user_id, scope, created_at, revoked_at
 `
 
 type CreateOAuthGrantParams struct {
 	ClientID string
 	UserID   string
 	Scope    string
+	ID       string
 }
 
 func (q *Queries) CreateOAuthGrant(ctx context.Context, arg CreateOAuthGrantParams) (OAuthGrant, error) {
-	row := q.db.QueryRow(ctx, createOAuthGrant, arg.ClientID, arg.UserID, arg.Scope)
+	row := q.db.QueryRow(ctx, createOAuthGrant,
+		arg.ClientID,
+		arg.UserID,
+		arg.Scope,
+		arg.ID,
+	)
 	var i OAuthGrant
 	err := row.Scan(
 		&i.ID,

@@ -11,7 +11,6 @@ import (
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"github.com/gluonfield/jaz-crm/backend/internal/errs"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
-	"github.com/google/uuid"
 )
 
 type Service struct {
@@ -162,11 +161,7 @@ func (s *Service) get(ctx context.Context, workspaceID string, sc schema, id str
 	return views[0], nil
 }
 
-// find loads a record by id; anything but a UUID names no record.
 func (s *Service) find(ctx context.Context, workspaceID, id string) ([]storage.Record, error) {
-	if uuid.Validate(id) != nil {
-		return nil, nil
-	}
 	return s.store.Records(ctx, workspaceID, []string{id})
 }
 

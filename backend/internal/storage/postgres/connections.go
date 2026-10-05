@@ -5,12 +5,14 @@ import (
 
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 	conndb "github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/generated/connections"
+	"github.com/lithammer/shortuuid/v4"
 )
 
 func toConnection(r conndb.Connection) storage.Connection { return storage.Connection(r) }
 func toCursor(r conndb.SyncCursor) storage.SyncCursor     { return storage.SyncCursor(r) }
 
 func (s *Store) SaveConnection(ctx context.Context, c storage.NewConnection) (storage.Connection, error) {
+	c.ID = shortuuid.New()
 	return one(toConnection)(s.conn.SaveConnection(ctx, conndb.SaveConnectionParams(c)))
 }
 

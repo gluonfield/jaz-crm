@@ -52,8 +52,8 @@ func (q *Queries) CloseValues(ctx context.Context, arg CloseValuesParams) error 
 }
 
 const createAttribute = `-- name: CreateAttribute :one
-INSERT INTO attributes (object_id, slug, name, type, multi, is_unique, target_object_id, options)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+INSERT INTO attributes (object_id, slug, name, type, multi, is_unique, target_object_id, options, id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 RETURNING id, object_id, slug, name, type, multi, is_unique, target_object_id, created_at, options
 `
 
@@ -66,6 +66,7 @@ type CreateAttributeParams struct {
 	IsUnique       bool
 	TargetObjectID *string
 	Options        []string
+	ID             string
 }
 
 func (q *Queries) CreateAttribute(ctx context.Context, arg CreateAttributeParams) (Attribute, error) {
@@ -78,6 +79,7 @@ func (q *Queries) CreateAttribute(ctx context.Context, arg CreateAttributeParams
 		arg.IsUnique,
 		arg.TargetObjectID,
 		arg.Options,
+		arg.ID,
 	)
 	var i Attribute
 	err := row.Scan(
@@ -96,17 +98,23 @@ func (q *Queries) CreateAttribute(ctx context.Context, arg CreateAttributeParams
 }
 
 const createObject = `-- name: CreateObject :one
-INSERT INTO objects (workspace_id, slug, name) VALUES ($1, $2, $3) RETURNING id, workspace_id, slug, name, created_at
+INSERT INTO objects (workspace_id, slug, name, id) VALUES ($1, $2, $3, $4) RETURNING id, workspace_id, slug, name, created_at
 `
 
 type CreateObjectParams struct {
 	WorkspaceID string
 	Slug        string
 	Name        string
+	ID          string
 }
 
 func (q *Queries) CreateObject(ctx context.Context, arg CreateObjectParams) (Object, error) {
-	row := q.db.QueryRow(ctx, createObject, arg.WorkspaceID, arg.Slug, arg.Name)
+	row := q.db.QueryRow(ctx, createObject,
+		arg.WorkspaceID,
+		arg.Slug,
+		arg.Name,
+		arg.ID,
+	)
 	var i Object
 	err := row.Scan(
 		&i.ID,
@@ -119,16 +127,17 @@ func (q *Queries) CreateObject(ctx context.Context, arg CreateObjectParams) (Obj
 }
 
 const createRecord = `-- name: CreateRecord :one
-INSERT INTO records (workspace_id, object_id) VALUES ($1, $2) RETURNING id, workspace_id, object_id, created_at
+INSERT INTO records (workspace_id, object_id, id) VALUES ($1, $2, $3) RETURNING id, workspace_id, object_id, created_at
 `
 
 type CreateRecordParams struct {
 	WorkspaceID string
 	ObjectID    string
+	ID          string
 }
 
 func (q *Queries) CreateRecord(ctx context.Context, arg CreateRecordParams) (Record, error) {
-	row := q.db.QueryRow(ctx, createRecord, arg.WorkspaceID, arg.ObjectID)
+	row := q.db.QueryRow(ctx, createRecord, arg.WorkspaceID, arg.ObjectID, arg.ID)
 	var i Record
 	err := row.Scan(
 		&i.ID,
@@ -178,7 +187,7 @@ func (q *Queries) CreateSavedFilter(ctx context.Context, arg CreateSavedFilterPa
 const currentValues = `-- name: CurrentValues :many
 SELECT record_values.id, record_values.record_id, record_values.attribute_id, record_values.text, record_values.ref_record_id, record_values.unique_key, record_values.source, record_values.actor_id, record_values.active_from, record_values.active_until FROM record_values
 JOIN records ON records.id = record_values.record_id
-WHERE records.workspace_id = $1 AND record_values.record_id = ANY($2::uuid[])
+WHERE records.workspace_id = $1 AND record_values.record_id = ANY($2::text[])
   AND record_values.active_until IS NULL
 ORDER BY record_values.id
 `
@@ -293,10 +302,10 @@ UPDATE saved_filters SET filters = (
   SELECT coalesce(jsonb_agg(condition ORDER BY position), '[]'::jsonb) FROM jsonb_array_elements(filters) WITH ORDINALITY AS conditions(condition, position)
   WHERE NOT EXISTS (
     SELECT 1 FROM attributes
-    WHERE attributes.id = ANY($1::uuid[]) AND attributes.object_id = saved_filters.object_id AND attributes.slug = condition->>'attribute'
+    WHERE attributes.id = ANY($1::text[]) AND attributes.object_id = saved_filters.object_id AND attributes.slug = condition->>'attribute'
   )
 )
-WHERE saved_filters.workspace_id = $2 AND saved_filters.object_id IN (SELECT object_id FROM attributes WHERE id = ANY($1::uuid[]))
+WHERE saved_filters.workspace_id = $2 AND saved_filters.object_id IN (SELECT object_id FROM attributes WHERE id = ANY($1::text[]))
 `
 
 type DropFilterConditionsParams struct {
@@ -310,7 +319,7 @@ func (q *Queries) DropFilterConditions(ctx context.Context, arg DropFilterCondit
 }
 
 const getRecords = `-- name: GetRecords :many
-SELECT id, workspace_id, object_id, created_at FROM records WHERE workspace_id = $1 AND id = ANY($2::uuid[])
+SELECT id, workspace_id, object_id, created_at FROM records WHERE workspace_id = $1 AND id = ANY($2::text[])
 `
 
 type GetRecordsParams struct {
@@ -648,7 +657,7 @@ SELECT DISTINCT record_values.record_id FROM record_values
 JOIN records ON records.id = record_values.record_id
 WHERE records.workspace_id = $1 AND record_values.active_until IS NULL
   AND (record_values.attribute_id, record_values.unique_key) IN (
-    SELECT ($2::uuid[])[i], ($3::text[])[i] FROM generate_subscripts($2::uuid[], 1) AS i
+    SELECT ($2::text[])[i], ($3::text[])[i] FROM generate_subscripts($2::text[], 1) AS i
   )
 `
 
@@ -690,7 +699,7 @@ JOIN LATERAL (
   ORDER BY records.created_at DESC, records.id
   LIMIT $3
 ) children ON true
-WHERE parents.workspace_id = $2 AND parents.id = ANY($4::uuid[])
+WHERE parents.workspace_id = $2 AND parents.id = ANY($4::text[])
 ORDER BY parents.id, children.created_at DESC, children.id
 `
 
@@ -821,16 +830,16 @@ WITH scoped AS (
   FROM records
   JOIN workspaces ON workspaces.id = records.workspace_id
   LEFT JOIN LATERAL (
-    SELECT min(interactions.id::text)::uuid AS id FROM links
+    SELECT min(interactions.id) AS id FROM links
     JOIN interactions ON interactions.id = links.interaction_id
-    WHERE ($5::boolean OR $6::uuid IS NOT NULL) AND links.record_id = records.id
+    WHERE ($5::boolean OR $6::text IS NOT NULL) AND links.record_id = records.id
       AND interactions.workspace_id = $7 AND NOT interactions.skipped
       AND interactions.kind IN ('email', 'message') AND interactions.started_at <= now()
     -- Actions spanning conversations stay separate instead of guessing a reply target.
     HAVING count(*) = 1
   ) conversation ON true
   WHERE records.workspace_id = $7 AND records.object_id = $8
-    AND ($6::uuid IS NULL OR conversation.id = $6::uuid)
+    AND ($6::text IS NULL OR conversation.id = $6::text)
 ), matched AS (
   SELECT scoped.id, scoped.workspace_id, scoped.object_id, scoped.created_at, scoped.timezone, scoped.conversation_id, scoped.matches_text, CASE WHEN $5::boolean
     THEN bool_or(matches_text) OVER (PARTITION BY coalesce(conversation_id, id))
@@ -856,11 +865,11 @@ WITH scoped AS (
   ) state ON true
   WHERE matched.matches_query
   AND NOT EXISTS (
-    SELECT 1 FROM generate_subscripts($9::uuid[], 1) AS i
+    SELECT 1 FROM generate_subscripts($9::text[], 1) AS i
     WHERE EXISTS (
       SELECT 1 FROM record_values JOIN attributes ON attributes.id = record_values.attribute_id
       WHERE record_values.record_id = matched.id AND record_values.active_until IS NULL
-        AND record_values.attribute_id = ($9::uuid[])[i]
+        AND record_values.attribute_id = ($9::text[])[i]
         AND CASE ($10::text[])[i]
           WHEN 'is_empty' THEN true
           WHEN 'is_not_empty' THEN true
@@ -898,7 +907,7 @@ ORDER BY (
       THEN to_char(record_instant(record_values.text, workspaces.timezone) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US')
       ELSE record_values.text END) FROM record_values JOIN attributes ON attributes.id = record_values.attribute_id
     WHERE record_values.record_id = records.id AND record_values.active_until IS NULL
-      AND record_values.attribute_id = $1::uuid
+      AND record_values.attribute_id = $1::text
   ) NULLS LAST, records.created_at DESC, records.id
 LIMIT $3 OFFSET $2
 `

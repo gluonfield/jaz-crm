@@ -2,7 +2,7 @@
 
 - Use Go 1.26.
 - Use `github.com/lithammer/shortuuid/v4` for new product IDs, with its default alphabet. IDs retain all 128 UUID bits; never truncate them or invent another alphabet. Treat IDs as opaque, case-sensitive strings. Keep provider-owned IDs in their provider's format.
-- PostgreSQL UUID storage may retain the same identity; encode/decode at one owning boundary when exposing shortuuid IDs. Preserve existing data and links when changing ID presentation. Security tokens still use cryptographically secure token generation.
+- Store product IDs and references as text. Preserve existing ID strings and links; generate shortuuids only for new records. Security tokens still use cryptographically secure token generation.
 - Write self-documenting code. Add comments only to explain non-obvious behavior, constraints or reasons the code cannot express; omit comments that narrate the code.
 - Keep implementations and JSON minimal; every line and field must earn its place. Prefer correcting contracts and deleting duplication over adding branches or layers.
 - Workspace members share records and named presets. Active search, conditions, preset selection and navigation belong to each client instance.

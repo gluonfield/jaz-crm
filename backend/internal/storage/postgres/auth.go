@@ -8,6 +8,7 @@ import (
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 	authdb "github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/generated/auth"
 	recdb "github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/generated/records"
+	"github.com/lithammer/shortuuid/v4"
 )
 
 func toUser(r authdb.User) storage.User                      { return storage.User(r) }
@@ -25,11 +26,11 @@ func (s *Store) UserByAPIKey(ctx context.Context, keyHash []byte) (storage.User,
 }
 
 func (s *Store) CreateAPIKey(ctx context.Context, userID, label, hint string, keyHash []byte) (storage.APIKey, error) {
-	return one(toAPIKey)(s.auth.CreateAPIKey(ctx, authdb.CreateAPIKeyParams{UserID: userID, Label: label, Hint: hint, KeyHash: keyHash}))
+	return one(toAPIKey)(s.auth.CreateAPIKey(ctx, authdb.CreateAPIKeyParams{ID: shortuuid.New(), UserID: userID, Label: label, Hint: hint, KeyHash: keyHash}))
 }
 
 func (s *Store) ReplaceAPIKey(ctx context.Context, userID, label, hint string, keyHash []byte) (storage.APIKey, error) {
-	return one(toAPIKey)(s.auth.ReplaceAPIKey(ctx, authdb.ReplaceAPIKeyParams{UserID: userID, Label: label, Hint: hint, KeyHash: keyHash}))
+	return one(toAPIKey)(s.auth.ReplaceAPIKey(ctx, authdb.ReplaceAPIKeyParams{ID: shortuuid.New(), UserID: userID, Label: label, Hint: hint, KeyHash: keyHash}))
 }
 
 func (s *Store) APIKeys(ctx context.Context, userID string) ([]storage.APIKey, error) {
@@ -88,7 +89,7 @@ func (s *Store) CreateOAuthGrant(ctx context.Context, clientID, userID, scope st
 	var grant authdb.OAuthGrant
 	err := s.tx(ctx, func(q *authdb.Queries, _ *recdb.Queries) error {
 		var err error
-		if grant, err = q.CreateOAuthGrant(ctx, authdb.CreateOAuthGrantParams{ClientID: clientID, UserID: userID, Scope: scope}); err != nil {
+		if grant, err = q.CreateOAuthGrant(ctx, authdb.CreateOAuthGrantParams{ID: shortuuid.New(), ClientID: clientID, UserID: userID, Scope: scope}); err != nil {
 			return err
 		}
 		return insertTokens(ctx, q, grant.ID, tokens)

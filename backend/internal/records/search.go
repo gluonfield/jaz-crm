@@ -10,6 +10,7 @@ import (
 	"github.com/gluonfield/jaz-crm/backend/internal/errs"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 	"github.com/google/uuid"
+	"github.com/lithammer/shortuuid/v4"
 )
 
 type Filter = storage.RecordFilter
@@ -59,7 +60,8 @@ func (s *Service) Search(ctx context.Context, actor auth.Actor, q Search) ([]Rec
 	}
 	query.GroupByConversation = q.GroupByConversation
 	if id := strings.TrimSpace(q.ConversationID); id != "" {
-		if uuid.Validate(id) != nil {
+		decoded, err := shortuuid.DefaultEncoder.Decode(id)
+		if uuid.Validate(id) != nil && (err != nil || shortuuid.DefaultEncoder.Encode(decoded) != id) {
 			return nil, 0, errs.Invalidf("invalid conversation_id")
 		}
 		query.ConversationID = &id

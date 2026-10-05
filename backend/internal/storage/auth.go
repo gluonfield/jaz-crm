@@ -38,6 +38,7 @@ type NewUser struct {
 	Email       string
 	AvatarURL   *string
 	Admin       bool
+	ID          string
 }
 
 type APIKey struct {

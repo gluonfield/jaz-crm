@@ -12,7 +12,7 @@ VALUES ($1, $2, $3, $4, $5, $6, $7);
 DELETE FROM oauth_codes WHERE code_hash = $1 RETURNING *;
 
 -- name: CreateOAuthGrant :one
-INSERT INTO oauth_grants (client_id, user_id, scope) VALUES ($1, $2, $3) RETURNING *;
+INSERT INTO oauth_grants (client_id, user_id, scope, id) VALUES ($1, $2, $3, sqlc.arg(id)) RETURNING *;
 
 -- name: CreateOAuthToken :exec
 INSERT INTO oauth_tokens (token_hash, grant_id, kind, expires_at) VALUES ($1, $2, $3, $4);

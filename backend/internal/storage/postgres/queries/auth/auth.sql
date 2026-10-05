@@ -4,7 +4,7 @@ JOIN users ON users.id = api_keys.user_id
 WHERE api_keys.key_hash = $1;
 
 -- name: CreateAPIKey :one
-INSERT INTO api_keys (user_id, label, hint, key_hash) VALUES ($1, $2, $3, $4) RETURNING *;
+INSERT INTO api_keys (user_id, label, hint, key_hash, id) VALUES ($1, $2, $3, $4, sqlc.arg(id)) RETURNING *;
 
 -- name: ReplaceAPIKey :one
 -- ReplaceAPIKey makes the key the user's one key with this label, keeping it
@@ -12,8 +12,8 @@ INSERT INTO api_keys (user_id, label, hint, key_hash) VALUES ($1, $2, $3, $4) RE
 WITH replaced AS (
   DELETE FROM api_keys WHERE user_id = sqlc.arg(user_id) AND label = sqlc.arg(label) AND key_hash <> sqlc.arg(key_hash)
 )
-INSERT INTO api_keys (user_id, label, hint, key_hash)
-VALUES (sqlc.arg(user_id), sqlc.arg(label), sqlc.arg(hint), sqlc.arg(key_hash))
+INSERT INTO api_keys (user_id, label, hint, key_hash, id)
+VALUES (sqlc.arg(user_id), sqlc.arg(label), sqlc.arg(hint), sqlc.arg(key_hash), sqlc.arg(id))
 ON CONFLICT (key_hash) DO UPDATE SET label = EXCLUDED.label
 WHERE api_keys.user_id = EXCLUDED.user_id
 RETURNING *;
@@ -40,12 +40,12 @@ WITH linked AS (
 SELECT users.* FROM users JOIN linked ON linked.user_id = users.id ORDER BY users.created_at;
 
 -- name: CreateWorkspace :one
-INSERT INTO workspaces (name) VALUES ($1) RETURNING *;
+INSERT INTO workspaces (name, id) VALUES ($1, sqlc.arg(id)) RETURNING *;
 
 -- name: GetWorkspace :one
 SELECT id, name, created_at, description, auto_keep_email, auto_keep_meetings,
   auto_keep_records, auto_keep_ai, drafting_web_access,
-  ARRAY(SELECT page_id FROM workspace_knowledge_pages WHERE workspace_id = workspaces.id ORDER BY position)::uuid[] AS company_page_ids, timezone
+  ARRAY(SELECT page_id FROM workspace_knowledge_pages WHERE workspace_id = workspaces.id ORDER BY position)::text[] AS company_page_ids, timezone
 FROM workspaces WHERE id = $1;
 
 -- name: LockWorkspace :one
@@ -57,11 +57,11 @@ UPDATE users SET addresses = @addresses::text[] WHERE id = @id AND workspace_id 
 -- name: UpdateWorkspace :execrows
 -- Keep the legacy root readable while older workers finish a rolling deployment.
 UPDATE workspaces SET name = COALESCE(sqlc.narg(name), name), description = COALESCE(sqlc.narg(description), description),
-  company_page_id = CASE WHEN @company_page_ids::uuid[] IS NULL THEN company_page_id ELSE (@company_page_ids::uuid[])[1] END,
+  company_page_id = CASE WHEN @company_page_ids::text[] IS NULL THEN company_page_id ELSE (@company_page_ids::text[])[1] END,
   drafting_web_access = COALESCE(sqlc.narg(drafting_web_access), drafting_web_access),
   timezone = COALESCE(sqlc.narg(timezone), timezone)
 WHERE workspaces.id = @id AND NOT EXISTS (
-  SELECT 1 FROM unnest(@company_page_ids::uuid[]) AS selected(id)
+  SELECT 1 FROM unnest(@company_page_ids::text[]) AS selected(id)
   LEFT JOIN records ON records.id = selected.id AND records.workspace_id = @id
   LEFT JOIN objects ON objects.id = records.object_id AND objects.slug = 'pages'
   WHERE objects.id IS NULL
@@ -72,14 +72,14 @@ DELETE FROM workspace_knowledge_pages WHERE workspace_id = $1;
 
 -- name: SetKnowledgePages :exec
 INSERT INTO workspace_knowledge_pages (workspace_id, page_id, position)
-SELECT @workspace_id, page_id, position FROM unnest(@company_page_ids::uuid[]) WITH ORDINALITY AS selected(page_id, position);
+SELECT @workspace_id, page_id, position FROM unnest(@company_page_ids::text[]) WITH ORDINALITY AS selected(page_id, position);
 
 -- name: DeleteWorkspace :execrows
 DELETE FROM workspaces WHERE id = $1 AND name = $2;
 
 -- name: CreateAuthUser :one
-INSERT INTO users (workspace_id, name, email, avatar_url, admin)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO users (workspace_id, name, email, avatar_url, admin, id)
+VALUES ($1, $2, $3, $4, $5, sqlc.arg(id))
 RETURNING *;
 
 -- name: ListUsers :many
@@ -129,7 +129,7 @@ WHERE identities.issuer = $1 AND identities.subject = $2
 ORDER BY users.created_at;
 
 -- name: CreateInvite :one
-INSERT INTO workspace_invites (workspace_id, email, invited_by) VALUES ($1, lower(@email::text), $2)
+INSERT INTO workspace_invites (workspace_id, email, invited_by, id) VALUES ($1, lower(@email::text), $2, sqlc.arg(id))
 RETURNING *;
 
 -- name: ListInvites :many

@@ -24,5 +24,5 @@ SELECT DISTINCT ON (records.id) records.id::text AS record_id, domain_logos.toke
 JOIN record_values ON record_values.record_id = records.id AND record_values.active_until IS NULL
 JOIN attributes ON attributes.id = record_values.attribute_id AND attributes.type = 'domain'
 JOIN domain_logos ON domain_logos.domain = record_values.text AND domain_logos.image IS NOT NULL
-WHERE records.workspace_id = @workspace_id AND records.id = ANY(@record_ids::uuid[])
+WHERE records.workspace_id = @workspace_id AND records.id = ANY(@record_ids::text[])
 ORDER BY records.id, record_values.id;

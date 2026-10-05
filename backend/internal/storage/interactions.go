@@ -29,6 +29,7 @@ type NewHandle struct {
 	Triage      string
 	DecidedBy   *string
 	Reason      string
+	ID          string
 }
 
 type Verdict struct {
@@ -105,6 +106,7 @@ type NewInteraction struct {
 	Channel      string
 	Provenance   string
 	DateOnly     bool
+	ID           string
 }
 
 // EmailThread widens a thread's time span to include a message.
@@ -115,6 +117,7 @@ type EmailThread struct {
 	UserID       *string
 	Title        string
 	At           time.Time
+	ID           string
 }
 
 type Participant struct {

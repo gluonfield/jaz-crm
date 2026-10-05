@@ -9,6 +9,7 @@ import (
 	intdb "github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/generated/interactions"
 	recdb "github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/generated/records"
 	"github.com/jackc/pgx/v5"
+	"github.com/lithammer/shortuuid/v4"
 )
 
 func toObject(r recdb.Object) storage.Object          { return storage.Object(r) }
@@ -32,7 +33,7 @@ func (s *Store) CreateObject(ctx context.Context, workspaceID string, object sto
 
 func (s *Store) CreateAttribute(ctx context.Context, attr storage.AttributeInput) error {
 	return s.tx(ctx, func(_ *authdb.Queries, r *recdb.Queries) error {
-		created, err := r.CreateAttribute(ctx, recdb.CreateAttributeParams{
+		created, err := r.CreateAttribute(ctx, recdb.CreateAttributeParams{ID: shortuuid.New(),
 			ObjectID: attr.ObjectID, Slug: attr.Slug, Name: attr.Name, Type: attr.Type, Multi: attr.Multi, IsUnique: attr.IsUnique, TargetObjectID: attr.TargetObjectID, Options: attr.Options,
 		})
 		if err != nil || attr.Start == nil {
@@ -180,7 +181,7 @@ func (s *Store) WriteRecord(ctx context.Context, workspaceID, objectID, id strin
 		}
 		var record recdb.Record
 		if id == "" {
-			record, err = r.CreateRecord(ctx, recdb.CreateRecordParams{WorkspaceID: workspaceID, ObjectID: objectID})
+			record, err = r.CreateRecord(ctx, recdb.CreateRecordParams{ID: shortuuid.New(), WorkspaceID: workspaceID, ObjectID: objectID})
 		} else {
 			record, err = r.LockRecord(ctx, recdb.LockRecordParams{WorkspaceID: workspaceID, ObjectID: objectID, ID: id})
 		}

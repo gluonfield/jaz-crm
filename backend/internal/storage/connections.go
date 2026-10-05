@@ -28,6 +28,7 @@ type NewConnection struct {
 	Provider     string
 	Account      string
 	RefreshToken []byte
+	ID           string
 }
 
 // MailProgress is how much of a connection's mail is synced.

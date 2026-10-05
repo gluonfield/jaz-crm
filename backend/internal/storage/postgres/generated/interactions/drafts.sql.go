@@ -152,7 +152,7 @@ func (q *Queries) GmailDrafts(ctx context.Context, connectionID string) ([]Gmail
 const interactionDrafts = `-- name: InteractionDrafts :many
 SELECT l.interaction_id, d.connection_id, d.draft_id, d.message_id, d.rfc_message_id, d.thread_id, d.follow_up_id, d.subject, d.body, d.html, d.sender, d.recipients, d.cc, d.bcc, d.state, d.state_changed_at, d.sent_message_id, d.at, d.attachments
 FROM links l JOIN gmail_drafts d ON d.follow_up_id = l.record_id
-WHERE l.interaction_id = ANY($1::uuid[]) AND d.state <> 'sent'
+WHERE l.interaction_id = ANY($1::text[]) AND d.state <> 'sent'
 ORDER BY l.interaction_id, d.at, d.draft_id
 `
 
@@ -242,7 +242,7 @@ func (q *Queries) LinkSentGmailDrafts(ctx context.Context, arg LinkSentGmailDraf
 }
 
 const lockGmailDraft = `-- name: LockGmailDraft :exec
-SELECT pg_advisory_xact_lock(hashtextextended('gmail-draft:' || CAST($1 AS uuid)::text || ':' || $2::text, 0))
+SELECT pg_advisory_xact_lock(hashtextextended('gmail-draft:' || $1::text || ':' || $2::text, 0))
 `
 
 type LockGmailDraftParams struct {
@@ -292,7 +292,7 @@ UPDATE interactions i SET
   started_at = coalesce((SELECT min(p.at) FROM parts p WHERE p.interaction_id = i.id AND p.kind = 'message'), i.started_at),
   ended_at = (SELECT max(p.at) FROM parts p WHERE p.interaction_id = i.id AND p.kind = 'message'),
   followed_up_at = NULL, drafting_state = '', drafting_reason = '', drafting_started_at = NULL
-WHERE i.id = ANY($1::uuid[])
+WHERE i.id = ANY($1::text[])
 `
 
 func (q *Queries) RepairDraftInteractions(ctx context.Context, ids []string) error {

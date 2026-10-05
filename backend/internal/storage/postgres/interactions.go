@@ -10,6 +10,7 @@ import (
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 	intdb "github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/generated/interactions"
 	"github.com/jackc/pgx/v5"
+	"github.com/lithammer/shortuuid/v4"
 )
 
 func toHandle(r intdb.Handle) storage.Handle                { return storage.Handle(r) }
@@ -35,6 +36,7 @@ func toParticipant(r intdb.InteractionParticipantsRow) storage.Participant {
 }
 
 func (s *Store) UpsertHandle(ctx context.Context, h storage.NewHandle) (storage.Handle, error) {
+	h.ID = shortuuid.New()
 	return one(toHandle)(s.in.UpsertHandle(ctx, intdb.UpsertHandleParams(h)))
 }
 
@@ -107,6 +109,7 @@ func (s *Store) EmailThreadByMessageIDs(ctx context.Context, workspaceID string,
 }
 
 func (s *Store) UpsertEmailThread(ctx context.Context, t storage.EmailThread) (string, error) {
+	t.ID = shortuuid.New()
 	id, err := s.in.UpsertEmailThread(ctx, intdb.UpsertEmailThreadParams(t))
 	return id, mapError(err)
 }
@@ -116,6 +119,7 @@ func (s *Store) ExtendEmailThread(ctx context.Context, id string, at time.Time, 
 }
 
 func (s *Store) UpsertInteraction(ctx context.Context, i storage.NewInteraction) (storage.Interaction, error) {
+	i.ID = shortuuid.New()
 	return one(toInteraction)(s.in.UpsertInteraction(ctx, intdb.UpsertInteractionParams(i)))
 }
 

@@ -25,11 +25,12 @@ func (s *Store) ShareIdentity(ctx context.Context, from, identity storage.Identi
 func (s *Store) CreateOwnedWorkspace(ctx context.Context, name string, owner storage.NewUser, identity storage.Identity, objects []storage.NewObject) (storage.User, error) {
 	var user authdb.User
 	err := s.tx(ctx, func(a *authdb.Queries, r *recdb.Queries) error {
-		workspace, err := a.CreateWorkspace(ctx, name)
+		workspace, err := a.CreateWorkspace(ctx, authdb.CreateWorkspaceParams{Name: name, ID: shortuuid.New()})
 		if err != nil {
 			return err
 		}
 		owner.WorkspaceID = workspace.ID
+		owner.ID = shortuuid.New()
 		if user, err = a.CreateAuthUser(ctx, authdb.CreateAuthUserParams(owner)); err != nil {
 			return err
 		}
@@ -74,7 +75,7 @@ func (s *Store) DeleteWorkspace(ctx context.Context, id, name string) error {
 func createObjects(ctx context.Context, r *recdb.Queries, workspaceID string, objects []storage.NewObject) error {
 	ids := map[string]string{}
 	for _, object := range objects {
-		created, err := r.CreateObject(ctx, recdb.CreateObjectParams{WorkspaceID: workspaceID, Slug: object.Slug, Name: object.Name})
+		created, err := r.CreateObject(ctx, recdb.CreateObjectParams{ID: shortuuid.New(), WorkspaceID: workspaceID, Slug: object.Slug, Name: object.Name})
 		if err != nil {
 			return err
 		}
@@ -87,7 +88,7 @@ func createObjects(ctx context.Context, r *recdb.Queries, workspaceID string, ob
 				id := ids[attr.Target]
 				target = &id
 			}
-			if _, err := r.CreateAttribute(ctx, recdb.CreateAttributeParams{
+			if _, err := r.CreateAttribute(ctx, recdb.CreateAttributeParams{ID: shortuuid.New(),
 				ObjectID: ids[object.Slug], Slug: attr.Slug, Name: attr.Name, Type: attr.Type,
 				Multi: attr.Multi, IsUnique: attr.IsUnique, TargetObjectID: target, Options: append([]string{}, attr.Options...),
 			}); err != nil {
@@ -114,6 +115,7 @@ func (s *Store) JoinWorkspace(ctx context.Context, invite storage.WorkspaceInvit
 			return err
 		}
 		member.WorkspaceID = invite.WorkspaceID
+		member.ID = shortuuid.New()
 		var err error
 		if user, err = a.CreateAuthUser(ctx, authdb.CreateAuthUserParams(member)); err != nil {
 			return err
@@ -124,7 +126,7 @@ func (s *Store) JoinWorkspace(ctx context.Context, invite storage.WorkspaceInvit
 }
 
 func (s *Store) CreateInvite(ctx context.Context, workspaceID, email, invitedBy string) (storage.WorkspaceInvite, error) {
-	return one(toInvite)(s.auth.CreateInvite(ctx, authdb.CreateInviteParams{WorkspaceID: workspaceID, Email: email, InvitedBy: &invitedBy}))
+	return one(toInvite)(s.auth.CreateInvite(ctx, authdb.CreateInviteParams{ID: shortuuid.New(), WorkspaceID: workspaceID, Email: email, InvitedBy: &invitedBy}))
 }
 
 func (s *Store) Invites(ctx context.Context, workspaceID string) ([]storage.WorkspaceInvite, error) {

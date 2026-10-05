@@ -139,9 +139,6 @@ func mapError(err error) error {
 		return err
 	case pgErr.Code == "23505":
 		return fmt.Errorf("%w: %s", storage.ErrConflict, pgErr.ConstraintName)
-	case pgErr.Code == "22P02":
-		// A malformed id, such as a UUID column given "abc", names nothing.
-		return storage.ErrNotFound
 	}
 	return fmt.Errorf("%w: %w", storage.ErrUnexpected, err)
 }
