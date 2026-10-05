@@ -10,3 +10,4 @@
 - [x] Commit and push.
 
 - [x] Complete the requested thermo-nuclear review; remove the redundant lookup wrapper and cursor cast, verify references, run full checks and push.
+- [x] Preserve missing-logo HTTP responses for the retained UUID token column; reproduce the regression through HTTP/PostgreSQL and restore its parse-error mapping.

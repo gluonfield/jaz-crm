@@ -137,6 +137,8 @@ func mapError(err error) error {
 	switch {
 	case !errors.As(err, &pgErr):
 		return err
+	case pgErr.Code == "22P02":
+		return storage.ErrNotFound
 	case pgErr.Code == "23505":
 		return fmt.Errorf("%w: %s", storage.ErrConflict, pgErr.ConstraintName)
 	}

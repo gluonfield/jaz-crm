@@ -53,7 +53,7 @@ func TestServesLogosByToken(t *testing.T) {
 	if res.StatusCode != http.StatusOK || string(body) != "<svg/>" || res.Header.Get("Content-Type") != "image/svg+xml" || res.Header.Get("Content-Security-Policy") == "" {
 		t.Fatalf("logo: %d %q %v", res.StatusCode, body, res.Header)
 	}
-	for _, probe := range []string{"acme.io", "00000000-0000-4000-8000-000000000000"} {
+	for _, probe := range []string{"acme.io", "00000000-0000-4000-8000-000000000000", "urn:uuid:00000000-0000-4000-8000-000000000000"} {
 		res, err := http.Get(srv.URL + "/logos/" + probe)
 		if err != nil {
 			t.Fatal(err)
