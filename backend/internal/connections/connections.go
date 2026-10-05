@@ -231,6 +231,30 @@ func (s *Service) Mailbox(ctx context.Context, actor auth.Actor, preferred strin
 	return storage.Connection{}, errs.Invalidf("no mailbox to send from: connect your Google account")
 }
 
+// SenderMailbox keeps an assigned sender fixed across viewers.
+func (s *Service) SenderMailbox(ctx context.Context, actor auth.Actor, address string) (storage.Connection, error) {
+	if address == "" {
+		return s.Mailbox(ctx, actor, "")
+	}
+	list, err := s.store.Connections(ctx, actor.WorkspaceID)
+	if err != nil {
+		return storage.Connection{}, err
+	}
+	for _, c := range list {
+		if c.Account != address && !slices.Contains(c.Aliases, address) {
+			continue
+		}
+		if c.Status != "active" {
+			return storage.Connection{}, errs.Invalidf("%s must reconnect Google to send this draft", address)
+		}
+		if c.UserID != actor.UserID && !c.TeammatesSend {
+			return storage.Connection{}, errs.Invalidf("%s must allow teammates to send this draft", address)
+		}
+		return c, nil
+	}
+	return storage.Connection{}, errs.Invalidf("%s must connect Google to send this draft", address)
+}
+
 // SetTeammatesSend decides whether the workspace's other members may send
 // replies from the actor's own mailbox.
 func (s *Service) SetTeammatesSend(ctx context.Context, actor auth.Actor, id string, allowed bool) error {

@@ -152,7 +152,7 @@ func (s *Service) Release(ctx context.Context, actor auth.Actor, id string, seen
 		return records.Record{}, errs.Invalidf("the Gmail draft changed since you reviewed it; review it again")
 	}
 	expect := map[string][]string{}
-	for _, attribute := range []string{"draft", "subject", "channel", "to", "cc", "draft_status"} {
+	for _, attribute := range []string{"draft", "subject", "channel", "owner", "to", "cc", "draft_status"} {
 		expect[attribute] = values(f, attribute)
 	}
 	remove := map[string][]string{}
@@ -248,7 +248,7 @@ type outgoing struct {
 
 // sender finds the newest message of the email conversations a follow-up is
 // linked to, and the mailbox a reply to it goes from: the one holding it when
-// the actor may send from it, else their own.
+// the actor may send from it, else their own. New emails use the assigned owner.
 func (s *Service) sender(ctx context.Context, actor auth.Actor, f records.Record) (storage.Part, storage.Connection, error) {
 	threads, err := s.store.Timeline(ctx, storage.TimelineQuery{RecordID: f.ID, WorkspaceID: actor.WorkspaceID, Kinds: []string{interactions.Email}, Limit: 20})
 	if err != nil {
@@ -264,7 +264,7 @@ func (s *Service) sender(ctx context.Context, actor auth.Actor, f records.Record
 	}
 	parts = slices.DeleteFunc(parts, func(p storage.Part) bool { return p.Kind != "message" || p.ConnectionID == nil || p.ProviderID == nil })
 	if len(parts) == 0 {
-		sender, err := s.conns.Mailbox(ctx, actor, "")
+		sender, err := s.conns.SenderMailbox(ctx, actor, value(f, "owner"))
 		return storage.Part{}, sender, err
 	}
 	last := slices.MaxFunc(parts, func(a, b storage.Part) int { return a.At.Compare(*b.At) })
