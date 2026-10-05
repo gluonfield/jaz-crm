@@ -232,8 +232,7 @@
   }
 }
 
-/* Page content: calm document typography in the app's tokens. A link to a
-   record is a mention. */
+/* Page content: calm document typography in the app's tokens. */
 .prose-page {
   font-size: 15px;
   line-height: 1.65;
@@ -358,14 +357,17 @@
     border-radius: 4px;
     padding: 0 0.15em;
     background: var(--color-list-hover);
-    &::before {
-      content: '@';
-      color: var(--color-ink-3);
-      font-weight: 400;
-    }
     &:hover {
       background: var(--color-list-active);
     }
+  }
+  & .record-link-icon {
+    display: inline-flex;
+    width: 14px;
+    height: 14px;
+    margin-right: 4px;
+    vertical-align: -2px;
+    user-select: none;
   }
   & .suggestion {
     color: var(--color-primary);

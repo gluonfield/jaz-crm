@@ -6,7 +6,6 @@ import { TableKit } from '@tiptap/extension-table'
 import { Placeholder } from '@tiptap/extensions'
 import { Markdown } from '@tiptap/markdown'
 import { EditorContent, useEditor } from '@tiptap/react'
-import StarterKit from '@tiptap/starter-kit'
 import Suggestion, { type SuggestionProps } from '@tiptap/suggestion'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -19,6 +18,7 @@ import { toolQuery, useObjects } from '@/lib/queries'
 import type { CrmObject, CrmRecord } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { singular } from './create-record'
+import { DocumentKit } from './document-links'
 import { RecordIcon } from './icons'
 
 type Mention = { id: string; name: string; object: string; detail: string; photo?: string }
@@ -108,7 +108,7 @@ export function MarkdownView({ text }: { text: string }) {
     editable: false,
     // An editor keeps an empty line after a final list for typing into; a
     // view would add one on every click.
-    extensions: [StarterKit.configure({ trailingNode: false }), TaskList, TaskItem, TableKit, Markdown],
+    extensions: [DocumentKit.configure({ trailingNode: false }), TaskList, TaskItem, TableKit, Markdown],
     content: text,
     contentType: 'markdown',
     editorProps: { attributes: { class: 'prose-page prose-compact' } },
@@ -197,7 +197,7 @@ export function PageEditor({ record }: { record: CrmRecord }) {
 
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ link: { openOnClick: false } }),
+      DocumentKit.configure({ link: { openOnClick: false } }),
       TaskList,
       TaskItem.configure({ nested: true }),
       TableKit,
