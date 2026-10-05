@@ -16,6 +16,7 @@ import { ExternalLink } from '@/components/external-link'
 import { ConnectGoogle, EmptyState } from '@/components/empty-state'
 import { ObjectIcon, RecordIcon } from '@/components/icons'
 import { Picker } from '@/components/picker'
+import { OwnerFilter } from '@/components/owner-filter'
 import { RecordFilters } from '@/components/record-filters'
 import { RecordMenu } from '@/components/record-menu'
 import { SelectField } from '@/components/select-field'
@@ -84,6 +85,7 @@ function ObjectList({ slug }: { slug: string }) {
   const own = !object.standard
   // The CRM's objects show their choices first; the workspace's own tables keep the order columns were added in.
   const columns = object.attributes.filter((a) => a.slug !== 'name' && a.type !== 'markdown' && !(slug === 'follow_ups' && dateMetadata(a.slug))).sort((a, b) => (own ? 0 : Number(b.type === 'select') - Number(a.type === 'select')))
+  const ownerFilter = slug === 'follow_ups' && <OwnerFilter filters={filters} onChange={(filters) => void navigate({ to: '.', search: (previous) => ({ ...previous, filters }), replace: true })} />
   const recordFilters = (title = false) => (
     <RecordFilters key={slug} object={object} filters={filters} query={q} scope={scope} selected={saved} title={title} total={total}
       onChange={(filters) => void navigate({ to: '.', search: (previous) => ({ ...previous, filters }), replace: true })}
@@ -128,21 +130,24 @@ function ObjectList({ slug }: { slug: string }) {
         )}
       </div>
       {conversationFilter && <div>{conversationFilter}</div>}
-      <label className="flex h-8 items-center gap-2 rounded-[8px] bg-list-hover px-2.5 text-ink-3 transition-colors focus-within:bg-list-active">
-        <Search className="size-3.5 shrink-0" />
-        <input
-          {...searching}
-          onKeyDown={(e) => {
-            e.stopPropagation()
-            if (e.key === 'Escape') {
-              e.currentTarget.blur()
-            }
-          }}
-          placeholder="Search people, companies, emails"
-          className="min-w-0 flex-1 bg-transparent text-[12.5px] text-ink outline-none placeholder:text-ink-3 [&::-webkit-search-cancel-button]:hidden"
-        />
-        {!q && <Kbd className="ml-0">/</Kbd>}
-      </label>
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        {ownerFilter}
+        <label className="flex h-8 min-w-0 flex-1 basis-32 items-center gap-2 rounded-[8px] bg-list-hover px-2.5 text-ink-3 transition-colors focus-within:bg-list-active">
+          <Search className="size-3.5 shrink-0" />
+          <input
+            {...searching}
+            onKeyDown={(e) => {
+              e.stopPropagation()
+              if (e.key === 'Escape') {
+                e.currentTarget.blur()
+              }
+            }}
+            placeholder="Search people, companies, emails"
+            className="min-w-0 flex-1 bg-transparent text-[12.5px] text-ink outline-none placeholder:text-ink-3 [&::-webkit-search-cancel-button]:hidden"
+          />
+          {!q && <Kbd className="ml-0">/</Kbd>}
+        </label>
+      </div>
       {query && <p className="flex items-center justify-between px-1 text-[12px] text-ink-3">
         <span className="tabular-nums">Showing {total ?? 0} of {unsearched ?? '…'}</span>
         <button type="button" className="text-primary outline-none hover:underline focus-visible:underline" onClick={() => void navigate({ to: '.', search: (previous) => ({ ...previous, q: undefined }), replace: true })}>Clear</button>
@@ -168,6 +173,7 @@ function ObjectList({ slug }: { slug: string }) {
         )}
         <div className="ml-auto flex max-w-full flex-wrap items-center gap-1 font-normal">
           {recordFilters()}
+          {ownerFilter}
           {sorter(
             <Button variant="ghost" aria-label="Sort records">
               <ArrowDownAZ />
