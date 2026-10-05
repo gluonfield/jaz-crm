@@ -3,6 +3,7 @@
 - [x] Confirm who created the Ujjwal outreach drafts shown under Augustinas's account.
 - [x] Fix the new-email sender mismatch first: preserve the assigned sender across viewers, permissions and concurrent edits.
 - [x] Add a quick filter for the viewer's own follow-ups after the sender fix is shipped.
+- [x] Make Assigned to me the default when opening Follow-ups, preserving explicit Everyone or teammate selections.
 
 ## Evidence
 
@@ -23,3 +24,5 @@ Full Go build, vet and tests, and frontend check pass. Real storage and both HTT
 Follow-ups now has an owner picker beside search, in both queue and table. Everyone clears only owner conditions; Assigned to me uses the authenticated workspace member; teammate names select their work. This applies across channels. The existing route filters preserve the selection on reload, alongside status, search and sort; there is no extra saved preference or server state.
 
 Actual built app and real HTTP/storage verification on a disposable database: Everyone shows three open actions; Assigned to me shows the viewer's Email and LinkedIn actions and excludes the teammate and completed action. Queue/table selection and reload pass, and clearing owner preserves status, text and sort. Light/dark rendering and 390px frame geometry verify the new control and search stay within the pane. The existing sidebar limits the rest of the screen at this width. Maintainability review has no outstanding findings; all frontend checks pass. Production readback follows the push.
+
+Follow-ups defaults to Open actions assigned to the authenticated workspace member when the URL has no explicit filters. Explicit Everyone, teammate and saved-view filters remain authoritative. Real built-app HTTP/storage checks verify the default in queue and table, Everyone selection and reload, and a teammate URL. Full backend/frontend checks and maintainability review pass.

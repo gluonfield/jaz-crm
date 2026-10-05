@@ -54,8 +54,12 @@ function ObjectPage() {
 function ObjectList({ slug }: { slug: string }) {
   const objects = useObjects()
   const object = objects?.find((o) => o.slug === slug)
+  const me = useWorkspace()?.members?.find((m) => m.is_me)
   const search = Route.useSearch()
-  const { sort, view, q = '', filters = slug === 'follow_ups' ? [{ attribute: 'status', operator: 'is', value: 'Open' }] : [], saved, limit = 100, conversation_id } = search
+  const { sort, view, q = '', filters = slug === 'follow_ups' ? [
+    { attribute: 'status', operator: 'is', value: 'Open' },
+    ...(me ? [{ attribute: 'owner', operator: 'is' as const, value: me.email }] : []),
+  ] : [], saved, limit = 100, conversation_id } = search
   const query = useDebounced(q.trim())
   const queue = slug === 'follow_ups' && (view ? view !== 'table' : search.group_by_conversation !== false)
   const scope = { group_by_conversation: slug === 'follow_ups' ? queue : undefined, conversation_id }
