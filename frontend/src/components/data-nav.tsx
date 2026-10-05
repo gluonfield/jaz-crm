@@ -3,7 +3,7 @@ import { ChevronRight, FileText, FolderInput, Pencil, Plus, Table2, Trash2 } fro
 import { type ReactNode, useState } from 'react'
 import { call } from '@/lib/api'
 import { slugify } from '@/lib/crm'
-import { type Page, type Pages, path, usePages, within } from '@/lib/pages'
+import { type Page, type PageDrag, type Pages, path, usePageDrag, usePages, within } from '@/lib/pages'
 import { useAction, useObjects } from '@/lib/queries'
 import { readItem, writeItem } from '@/lib/storage'
 import type { CrmObject, CrmRecord } from '@/lib/types'
@@ -56,10 +56,15 @@ export function DataNav() {
     setOpened(next)
     writeItem(openedKey, JSON.stringify([...next]))
   }
+  const drag = usePageDrag(pages, (parent) => {
+    if (parent && !opened.has(parent)) {
+      toggle(parent)
+    }
+  })
   return (
     <div className="mt-4 flex flex-col gap-px">
-      <div className="flex h-7 items-center pl-2 pr-1 text-[12px] font-medium text-ink-3">
-        <span className="flex-1">Data</span>
+      <div {...drag.onto('')} className={cn('flex h-7 items-center rounded-[var(--radius-control)] pl-2 pr-1 text-[12px] font-medium text-ink-3', drag.target === '' && 'bg-primary-soft text-primary')}>
+        <span className="flex-1">{drag.dragging ? 'Move to top level' : 'Data'}</span>
         <DropdownMenu>
           <DropdownMenuTrigger
             aria-label="New page or table"
@@ -80,7 +85,7 @@ export function DataNav() {
       {tables.map((o) => (
         <TableItem key={o.slug} object={o} />
       ))}
-      {pages?.children.get('')?.map((page) => <PageItem key={page.id} page={page} pages={pages} depth={0} opened={opened} toggle={toggle} />)}
+      {pages?.children.get('')?.map((page) => <PageItem key={page.id} page={page} pages={pages} depth={0} opened={opened} toggle={toggle} drag={drag} />)}
       <NameDialog
         open={naming}
         onOpenChange={setNaming}
@@ -143,14 +148,14 @@ function TableItem({ object }: { object: CrmObject }) {
   )
 }
 
-function PageItem({ page, pages, depth, opened, toggle }: { page: Page; pages: Pages; depth: number; opened: Set<string>; toggle: (id: string) => void }) {
+function PageItem({ page, pages, depth, opened, toggle, drag }: { page: Page; pages: Pages; depth: number; opened: Set<string>; toggle: (id: string) => void; drag: PageDrag }) {
   const inside = pages.children.get(page.id) ?? []
   const open = opened.has(page.id)
   const newPage = useNewPage()
   return (
     <>
       <PageMenu page={page} pages={pages}>
-        <div className="group/row relative">
+        <div {...drag.from(page.id)} {...drag.onto(page.id)} className={cn('group/row relative rounded-[var(--radius-control)] [&>a]:cursor-grab', drag.dragging === page.id && 'opacity-50', drag.target === page.id && 'bg-primary-soft [&>a]:bg-transparent [&>a]:text-primary')}>
           <NavItem to={`/r/${page.id}`} depth={depth} icon={<FileText className={cn(inside.length > 0 && 'group-hover/row:invisible')} />}>
             {page.name}
           </NavItem>
@@ -164,7 +169,7 @@ function PageItem({ page, pages, depth, opened, toggle }: { page: Page; pages: P
           </button>
         </div>
       </PageMenu>
-      {open && inside.map((child) => <PageItem key={child.id} page={child} pages={pages} depth={depth + 1} opened={opened} toggle={toggle} />)}
+      {open && inside.map((child) => <PageItem key={child.id} page={child} pages={pages} depth={depth + 1} opened={opened} toggle={toggle} drag={drag} />)}
     </>
   )
 }

@@ -1,6 +1,6 @@
-import { useMemo } from 'react'
+import { type DragEvent, useMemo, useState } from 'react'
 import { recordName, valuesOf } from './crm'
-import { useTool } from './queries'
+import { useAction, useTool } from './queries'
 import type { CrmRecord, Ref } from './types'
 
 export type Page = { id: string; name: string; parent?: string }
@@ -45,3 +45,71 @@ export function path(pages: Pages, id: string): Page[] {
 
 // within reports whether a page is the given one or inside it.
 export const within = (pages: Pages, id: string, ancestor: string) => path(pages, id).some((p) => p.id === ancestor)
+
+export function usePageDrag(pages: Pages | undefined, moved: (parent: string) => void) {
+  const write = useAction<object>('upsert_record')
+  const [dragging, setDragging] = useState<string>()
+  const [target, setTarget] = useState<string>()
+  const type = 'application/x-jaz-crm-page'
+  const reset = () => {
+    setDragging(undefined)
+    setTarget(undefined)
+  }
+  const accepts = (parent: string) => {
+    const page = pages?.byId.get(dragging ?? '')
+    return !!pages && !!page && (parent === '' || pages.byId.has(parent)) && parent !== (page.parent ?? '') && !within(pages, parent, page.id)
+  }
+  return {
+    dragging,
+    target,
+    from: (id: string) => ({
+      draggable: !write.isPending,
+      onDragStart: (event: DragEvent<HTMLElement>) => {
+        if (write.isPending) {
+          event.preventDefault()
+          return
+        }
+        event.dataTransfer.clearData()
+        event.dataTransfer.setData(type, id)
+        event.dataTransfer.effectAllowed = 'move'
+        setDragging(id)
+      },
+      onDragEnd: reset,
+    }),
+    onto: (parent: string) => ({
+      onDragOver: (event: DragEvent<HTMLElement>) => {
+        if (!event.dataTransfer.types.includes(type)) {
+          return
+        }
+        event.stopPropagation()
+        const allowed = accepts(parent)
+        event.dataTransfer.dropEffect = allowed ? 'move' : 'none'
+        if (allowed) {
+          event.preventDefault()
+          setTarget(parent)
+        }
+      },
+      onDragLeave: (event: DragEvent<HTMLElement>) => {
+        if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) {
+          setTarget((current) => current === parent ? undefined : current)
+        }
+      },
+      onDrop: (event: DragEvent<HTMLElement>) => {
+        if (!event.dataTransfer.types.includes(type)) {
+          return
+        }
+        event.preventDefault()
+        event.stopPropagation()
+        if (event.dataTransfer.getData(type) === dragging && accepts(parent)) {
+          write.mutate(
+            { object: 'pages', record_id: dragging, ...(parent ? { values: { parent } } : { remove: { parent: [] } }) },
+            { onSuccess: () => moved(parent) },
+          )
+        }
+        reset()
+      },
+    }),
+  }
+}
+
+export type PageDrag = ReturnType<typeof usePageDrag>
