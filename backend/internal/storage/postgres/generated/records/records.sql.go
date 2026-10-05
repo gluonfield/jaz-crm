@@ -127,7 +127,7 @@ func (q *Queries) CreateObject(ctx context.Context, arg CreateObjectParams) (Obj
 }
 
 const createRecord = `-- name: CreateRecord :one
-INSERT INTO records (workspace_id, object_id, id) VALUES ($1, $2, $3) RETURNING id, workspace_id, object_id, created_at
+INSERT INTO records (workspace_id, object_id, id) VALUES ($1, $2, $3) RETURNING id, workspace_id, object_id, created_at, updated_at
 `
 
 type CreateRecordParams struct {
@@ -144,6 +144,7 @@ func (q *Queries) CreateRecord(ctx context.Context, arg CreateRecordParams) (Rec
 		&i.WorkspaceID,
 		&i.ObjectID,
 		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -319,7 +320,7 @@ func (q *Queries) DropFilterConditions(ctx context.Context, arg DropFilterCondit
 }
 
 const getRecords = `-- name: GetRecords :many
-SELECT id, workspace_id, object_id, created_at FROM records WHERE workspace_id = $1 AND id = ANY($2::text[])
+SELECT id, workspace_id, object_id, created_at, updated_at FROM records WHERE workspace_id = $1 AND id = ANY($2::text[])
 `
 
 type GetRecordsParams struct {
@@ -341,6 +342,7 @@ func (q *Queries) GetRecords(ctx context.Context, arg GetRecordsParams) ([]Recor
 			&i.WorkspaceID,
 			&i.ObjectID,
 			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -527,7 +529,7 @@ func (q *Queries) LockObjectStatuses(ctx context.Context, arg LockObjectStatuses
 }
 
 const lockRecord = `-- name: LockRecord :one
-SELECT id, workspace_id, object_id, created_at FROM records WHERE workspace_id = $1 AND object_id = $2 AND id = $3 FOR UPDATE
+SELECT id, workspace_id, object_id, created_at, updated_at FROM records WHERE workspace_id = $1 AND object_id = $2 AND id = $3 FOR UPDATE
 `
 
 type LockRecordParams struct {
@@ -544,12 +546,13 @@ func (q *Queries) LockRecord(ctx context.Context, arg LockRecordParams) (Record,
 		&i.WorkspaceID,
 		&i.ObjectID,
 		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
 
 const lockRecordForDeletion = `-- name: LockRecordForDeletion :one
-SELECT id, workspace_id, object_id, created_at FROM records WHERE workspace_id = $1 AND id = $2 FOR UPDATE
+SELECT id, workspace_id, object_id, created_at, updated_at FROM records WHERE workspace_id = $1 AND id = $2 FOR UPDATE
 `
 
 type LockRecordForDeletionParams struct {
@@ -565,6 +568,7 @@ func (q *Queries) LockRecordForDeletion(ctx context.Context, arg LockRecordForDe
 		&i.WorkspaceID,
 		&i.ObjectID,
 		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -821,33 +825,33 @@ func (q *Queries) ReviseValue(ctx context.Context, arg ReviseValueParams) error 
 
 const searchRecords = `-- name: SearchRecords :many
 WITH scoped AS (
-  SELECT records.id, records.workspace_id, records.object_id, records.created_at, workspaces.timezone, conversation.id AS conversation_id,
-    ($4::text IS NULL OR EXISTS (
+  SELECT records.id, records.workspace_id, records.object_id, records.created_at, records.updated_at, workspaces.timezone, conversation.id AS conversation_id,
+    ($5::text IS NULL OR EXISTS (
       SELECT 1 FROM record_values
       WHERE record_values.record_id = records.id AND record_values.active_until IS NULL
-        AND record_values.text ILIKE '%' || $4::text || '%'
+        AND record_values.text ILIKE '%' || $5::text || '%'
     )) AS matches_text
   FROM records
   JOIN workspaces ON workspaces.id = records.workspace_id
   LEFT JOIN LATERAL (
     SELECT min(interactions.id) AS id FROM links
     JOIN interactions ON interactions.id = links.interaction_id
-    WHERE ($5::boolean OR $6::text IS NOT NULL) AND links.record_id = records.id
-      AND interactions.workspace_id = $7 AND NOT interactions.skipped
+    WHERE ($6::boolean OR $7::text IS NOT NULL) AND links.record_id = records.id
+      AND interactions.workspace_id = $8 AND NOT interactions.skipped
       AND interactions.kind IN ('email', 'message') AND interactions.started_at <= now()
     -- Actions spanning conversations stay separate instead of guessing a reply target.
     HAVING count(*) = 1
   ) conversation ON true
-  WHERE records.workspace_id = $7 AND records.object_id = $8
-    AND ($6::text IS NULL OR conversation.id = $6::text)
+  WHERE records.workspace_id = $8 AND records.object_id = $9
+    AND ($7::text IS NULL OR conversation.id = $7::text)
 ), matched AS (
-  SELECT scoped.id, scoped.workspace_id, scoped.object_id, scoped.created_at, scoped.timezone, scoped.conversation_id, scoped.matches_text, CASE WHEN $5::boolean
+  SELECT scoped.id, scoped.workspace_id, scoped.object_id, scoped.created_at, scoped.updated_at, scoped.timezone, scoped.conversation_id, scoped.matches_text, CASE WHEN $6::boolean
     THEN bool_or(matches_text) OVER (PARTITION BY coalesce(conversation_id, id))
     ELSE matches_text END AS matches_query
   FROM scoped
 ), ranked AS (
   SELECT matched.id, matched.conversation_id,
-    CASE WHEN $5::boolean THEN row_number() OVER (
+    CASE WHEN $6::boolean THEN row_number() OVER (
       PARTITION BY coalesce(matched.conversation_id, matched.id)
       ORDER BY CASE state.status WHEN 'Done' THEN 1 WHEN 'Dismissed' THEN 2 ELSE 0 END,
         CASE WHEN state.status IS NULL OR state.status = 'Open' THEN CASE state.waiting_on WHEN 'Them' THEN 1 ELSE 0 END ELSE 0 END,
@@ -860,59 +864,60 @@ WITH scoped AS (
       max(record_values.text) FILTER (WHERE attributes.slug = 'waiting_on') AS waiting_on,
       max(record_values.text) FILTER (WHERE attributes.slug = 'action_date') AS action_date
     FROM record_values JOIN attributes ON attributes.id = record_values.attribute_id
-    WHERE $5::boolean AND record_values.record_id = matched.id
+    WHERE $6::boolean AND record_values.record_id = matched.id
       AND record_values.active_until IS NULL AND attributes.slug IN ('status', 'waiting_on', 'action_date')
   ) state ON true
   WHERE matched.matches_query
   AND NOT EXISTS (
-    SELECT 1 FROM generate_subscripts($9::text[], 1) AS i
+    SELECT 1 FROM generate_subscripts($10::text[], 1) AS i
     WHERE EXISTS (
       SELECT 1 FROM record_values JOIN attributes ON attributes.id = record_values.attribute_id
       WHERE record_values.record_id = matched.id AND record_values.active_until IS NULL
-        AND record_values.attribute_id = ($9::text[])[i]
-        AND CASE ($10::text[])[i]
+        AND record_values.attribute_id = ($10::text[])[i]
+        AND CASE ($11::text[])[i]
           WHEN 'is_empty' THEN true
           WHEN 'is_not_empty' THEN true
-          WHEN 'contains' THEN record_values.text ILIKE '%' || ($11::text[])[i] || '%'
-          WHEN 'not_contains' THEN record_values.text ILIKE '%' || ($11::text[])[i] || '%'
+          WHEN 'contains' THEN record_values.text ILIKE '%' || ($12::text[])[i] || '%'
+          WHEN 'not_contains' THEN record_values.text ILIKE '%' || ($12::text[])[i] || '%'
           WHEN 'before' THEN CASE WHEN attributes.type = 'datetime'
-            THEN record_instant(record_values.text, matched.timezone) < record_instant(($11::text[])[i], matched.timezone)
-            ELSE record_values.text < ($11::text[])[i] END
+            THEN record_instant(record_values.text, matched.timezone) < record_instant(($12::text[])[i], matched.timezone)
+            ELSE record_values.text < ($12::text[])[i] END
           WHEN 'on_or_before' THEN CASE WHEN attributes.type = 'datetime'
-            THEN record_instant(record_values.text, matched.timezone) <= record_instant(($11::text[])[i], matched.timezone)
-            ELSE record_values.text <= ($11::text[])[i] END
+            THEN record_instant(record_values.text, matched.timezone) <= record_instant(($12::text[])[i], matched.timezone)
+            ELSE record_values.text <= ($12::text[])[i] END
           WHEN 'after' THEN CASE WHEN attributes.type = 'datetime'
-            THEN record_instant(record_values.text, matched.timezone) > record_instant(($11::text[])[i], matched.timezone)
-            ELSE record_values.text > ($11::text[])[i] END
+            THEN record_instant(record_values.text, matched.timezone) > record_instant(($12::text[])[i], matched.timezone)
+            ELSE record_values.text > ($12::text[])[i] END
           WHEN 'on_or_after' THEN CASE WHEN attributes.type = 'datetime'
-            THEN record_instant(record_values.text, matched.timezone) >= record_instant(($11::text[])[i], matched.timezone)
-            ELSE record_values.text >= ($11::text[])[i] END
-          ELSE CASE WHEN attributes.type = 'datetime' AND ($11::text[])[i] = 'today' THEN
+            THEN record_instant(record_values.text, matched.timezone) >= record_instant(($12::text[])[i], matched.timezone)
+            ELSE record_values.text >= ($12::text[])[i] END
+          ELSE CASE WHEN attributes.type = 'datetime' AND ($12::text[])[i] = 'today' THEN
             CASE WHEN length(record_values.text) = 10 THEN record_values.text::date
               ELSE (record_values.text::timestamptz AT TIME ZONE matched.timezone)::date END = (CURRENT_TIMESTAMP AT TIME ZONE matched.timezone)::date
-          WHEN attributes.type = 'datetime' AND ($11::text[])[i] = 'now' THEN
+          WHEN attributes.type = 'datetime' AND ($12::text[])[i] = 'now' THEN
             record_instant(record_values.text, matched.timezone) = CURRENT_TIMESTAMP
-          ELSE lower(record_values.text) = ($11::text[])[i] OR record_values.unique_key = ($11::text[])[i]
-            OR record_values.ref_record_id::text = ($11::text[])[i] END
+          ELSE lower(record_values.text) = ($12::text[])[i] OR record_values.unique_key = ($12::text[])[i]
+            OR record_values.ref_record_id::text = ($12::text[])[i] END
         END
-    ) = (($10::text[])[i] IN ('is_not', 'not_contains', 'is_empty'))
+    ) = (($11::text[])[i] IN ('is_not', 'not_contains', 'is_empty'))
   )
 )
-SELECT records.id, records.workspace_id, records.object_id, records.created_at, coalesce(ranked.conversation_id::text, '')::text AS conversation_id, count(*) OVER () AS total FROM ranked
+SELECT records.id, records.workspace_id, records.object_id, records.created_at, records.updated_at, coalesce(ranked.conversation_id::text, '')::text AS conversation_id, count(*) OVER () AS total FROM ranked
 JOIN records ON records.id = ranked.id
 JOIN workspaces ON workspaces.id = records.workspace_id
 WHERE ranked.position = 1
-ORDER BY (
+ORDER BY CASE WHEN $1::boolean THEN records.updated_at END DESC, (
     SELECT min(CASE WHEN attributes.type = 'datetime'
       THEN to_char(record_instant(record_values.text, workspaces.timezone) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US')
       ELSE record_values.text END) FROM record_values JOIN attributes ON attributes.id = record_values.attribute_id
     WHERE record_values.record_id = records.id AND record_values.active_until IS NULL
-      AND record_values.attribute_id = $1::text
+      AND record_values.attribute_id = $2::text
   ) NULLS LAST, records.created_at DESC, records.id
-LIMIT $3 OFFSET $2
+LIMIT $4 OFFSET $3
 `
 
 type SearchRecordsParams struct {
+	SortUpdatedAt       bool
 	SortAttributeID     *string
 	Offset              int32
 	Limit               int32
@@ -934,6 +939,7 @@ type SearchRecordsRow struct {
 
 func (q *Queries) SearchRecords(ctx context.Context, arg SearchRecordsParams) ([]SearchRecordsRow, error) {
 	rows, err := q.db.Query(ctx, searchRecords,
+		arg.SortUpdatedAt,
 		arg.SortAttributeID,
 		arg.Offset,
 		arg.Limit,
@@ -958,6 +964,7 @@ func (q *Queries) SearchRecords(ctx context.Context, arg SearchRecordsParams) ([
 			&i.Record.WorkspaceID,
 			&i.Record.ObjectID,
 			&i.Record.CreatedAt,
+			&i.Record.UpdatedAt,
 			&i.ConversationID,
 			&i.Total,
 		); err != nil {

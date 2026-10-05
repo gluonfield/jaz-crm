@@ -45,6 +45,7 @@ type Record struct {
 	ConversationID string
 	Object         string
 	CreatedAt      time.Time
+	UpdatedAt      time.Time
 	Fields         []Field
 	Related        map[string][]Value
 }
@@ -258,7 +259,7 @@ func (s *Service) views(ctx context.Context, workspaceID string, sc schema, reco
 	}
 	out := make([]Record, len(records))
 	for i, r := range records {
-		view := Record{ID: r.ID, Object: sc.objectByID(r.ObjectID).Slug, CreatedAt: r.CreatedAt, Fields: []Field{}}
+		view := Record{ID: r.ID, Object: sc.objectByID(r.ObjectID).Slug, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, Fields: []Field{}}
 		for _, attr := range sc.attributes(r.ObjectID) {
 			if attr.Type == Markdown && !full {
 				continue

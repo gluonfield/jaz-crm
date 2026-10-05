@@ -15,6 +15,7 @@ import { Related } from '@/components/related'
 import { SubPages } from '@/components/sub-pages'
 import { Summary } from '@/components/summary'
 import { Timeline } from '@/components/timeline'
+import { UpdatedAt } from '@/components/updated-at'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
 import { useAction, useObjects, useTool, useUpcoming, useWrite } from '@/lib/queries'
@@ -70,13 +71,17 @@ function RecordPage() {
         </>
       )}
       <span className="truncate">{name}</span>
+      <span className="ml-auto hidden shrink-0 text-[12px] font-normal text-ink-3 md:block">
+        Last updated <UpdatedAt at={record.updated_at} />
+      </span>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="ml-auto" aria-label="More">
+          <Button variant="ghost" size="icon" className="ml-auto md:ml-0" aria-label="More">
             <MoreHorizontal />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          <div className="px-2 py-1.5 text-[12px] text-ink-3 md:hidden">Last updated <UpdatedAt at={record.updated_at} /></div>
           {record.object === 'follow_ups' && <DropdownMenuItem onSelect={() => void navigate({ to: '.', search: tab ? {} : { tab: 'activity' } })}>
             <FileText /> {tab ? 'Conversation' : 'Changes'}
           </DropdownMenuItem>}

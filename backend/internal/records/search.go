@@ -21,8 +21,8 @@ type Search struct {
 	Where   map[string]string
 	Filters []Filter
 	// Sort names a date or text attribute to order by, earliest or first
-	// alphabetically, empty last; empty lists the newest first. Offset skips
-	// records for the next page.
+	// alphabetically, empty last; updated_at lists the most recently changed
+	// first, and empty lists the newest first. Offset skips the next page.
 	Sort                string
 	Offset              int
 	Limit               int
@@ -66,7 +66,8 @@ func (s *Service) Search(ctx context.Context, actor auth.Actor, q Search) ([]Rec
 		}
 		query.ConversationID = &id
 	}
-	if q.Sort != "" {
+	query.SortUpdatedAt = q.Sort == "updated_at"
+	if q.Sort != "" && !query.SortUpdatedAt {
 		attr, err := sc.attribute(object, q.Sort)
 		if err != nil {
 			return nil, 0, err

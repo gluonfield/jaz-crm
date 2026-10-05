@@ -45,6 +45,7 @@ type Record struct {
 	WorkspaceID string
 	ObjectID    string
 	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 // RecordValue is one value of a record's attribute. A current value has no
@@ -109,6 +110,7 @@ type RecordQuery struct {
 	// SortAttributeID orders records by that attribute's value, earliest or
 	// first alphabetically, empty last; nil keeps the newest first.
 	SortAttributeID *string
+	SortUpdatedAt   bool
 	Offset          int32
 	Limit           int32
 }

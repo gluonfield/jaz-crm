@@ -26,3 +26,11 @@ describe('conversation search links', () => {
     assert.deepEqual(input, { object: 'follow_ups', group_by_conversation: true, conversation_id: undefined, filters: [], query: 'Done action', limit: 20 })
   })
 })
+
+test('last updated sorting survives route reload and embedded search links', () => {
+  const path = '/o/people?sort=updated_at'
+  const route = validateRecordSearch(defaultParseSearch(new URL(path, 'http://crm').search))
+  assert.equal(route.sort, 'updated_at')
+  assert.equal(recordSearchInput(path).sort, 'updated_at')
+  assert.equal(validateRecordSearch({ ...route, sort: undefined }).sort, undefined)
+})

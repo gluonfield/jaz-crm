@@ -127,6 +127,7 @@ func (s *Store) SearchRecords(ctx context.Context, query storage.RecordQuery) ([
 		WorkspaceID: query.WorkspaceID, ObjectID: query.ObjectID, Query: query.Query,
 		AttributeIDs: query.AttributeIDs, Operators: query.Operators, Matches: query.Matches,
 		SortAttributeID: query.SortAttributeID, Offset: query.Offset, Limit: query.Limit,
+		SortUpdatedAt:       query.SortUpdatedAt,
 		GroupByConversation: query.GroupByConversation, ConversationID: query.ConversationID,
 	}
 	rows, err := s.rec.SearchRecords(ctx, params)

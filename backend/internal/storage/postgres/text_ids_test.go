@@ -36,7 +36,11 @@ INSERT INTO sessions(token_hash,user_id,expires_at) SELECT 'legacy'::bytea,id,no
 		var rows []string
 		for _, table := range []string{"workspaces", "users", "objects", "attributes", "records", "record_values", "workspace_knowledge_pages", "connections", "interactions", "links", "sessions"} {
 			var row string
-			if err := db.QueryRowContext(ctx, "SELECT jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text)::text FROM "+table+" t").Scan(&row); err != nil {
+			value := "to_jsonb(t)"
+			if table == "records" {
+				value += " - 'updated_at'"
+			}
+			if err := db.QueryRowContext(ctx, "SELECT jsonb_agg("+value+" ORDER BY to_jsonb(t)::text)::text FROM "+table+" t").Scan(&row); err != nil {
 				t.Fatal(err)
 			}
 			rows = append(rows, row)

@@ -19,6 +19,7 @@ import { Picker } from '@/components/picker'
 import { RecordFilters } from '@/components/record-filters'
 import { RecordMenu } from '@/components/record-menu'
 import { SelectField } from '@/components/select-field'
+import { UpdatedAt } from '@/components/updated-at'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
 import { formatDay, formatNumber } from '@/lib/format'
 import { useDebounced, useFlip, useInView, useListKeys } from '@/lib/hooks'
@@ -90,14 +91,14 @@ function ObjectList({ slug }: { slug: string }) {
     />
   )
   const conversationFilter = conversation_id && <Button variant="ghost" aria-label="Clear conversation filter" title="Show all conversations" onClick={() => void navigate({ to: '.', search: (previous) => ({ ...previous, conversation_id: undefined }), replace: true })}>This conversation<X /></Button>
-  const sortName = sort === 'name' ? 'Name' : slug === 'follow_ups' ? 'Action date' : 'Recently added'
+  const sortName = sort === 'updated_at' ? 'Last updated' : sort === 'name' ? 'Name' : slug === 'follow_ups' ? 'Action date' : 'Recently added'
   const sorter = (trigger: ReactNode) => (
     <Picker
       trigger={trigger}
       placeholder="Sort by…"
-      options={[{ value: '', label: slug === 'follow_ups' ? 'Action date' : 'Recently added' }, { value: 'name', label: 'Name' }]}
+      options={[{ value: '', label: slug === 'follow_ups' ? 'Action date' : 'Recently added' }, { value: 'updated_at', label: 'Last updated' }, { value: 'name', label: 'Name' }]}
       selected={[sort ?? '']}
-      onSelect={(value) => void navigate({ to: '.', search: { ...search, sort: value === 'name' ? 'name' : undefined }, replace: true })}
+      onSelect={(value) => void navigate({ to: '.', search: { ...search, sort: value === 'name' || value === 'updated_at' ? value : undefined }, replace: true })}
       align={queue ? 'end' : 'start'}
     />
   )
@@ -195,6 +196,7 @@ function ObjectList({ slug }: { slug: string }) {
             <colgroup>
               <col style={{ width: width('name', 280) }} />
               {slug === 'companies' && <col style={{ width: width('people', 240) }} />}
+              <col style={{ width: width('updated_at', 140) }} />
               {columns.map((a) => (
                 <col key={a.slug} style={{ width: width(a.slug, defaultWidth(a)) }} />
               ))}
@@ -213,6 +215,10 @@ function ObjectList({ slug }: { slug: string }) {
                     <Resizer onPointerDown={resize('people', 240)} />
                   </th>
                 )}
+                <th className="relative px-3 font-medium">
+                  Last updated
+                  <Resizer onPointerDown={resize('updated_at', 140)} />
+                </th>
                 {columns.map((a) => (
                   <th key={a.slug} className="relative px-3 font-medium">
                     {own ? <ColumnHeader object={object} attribute={a} /> : <span className="block truncate">{a.name}</span>}
@@ -247,6 +253,7 @@ function ObjectList({ slug }: { slug: string }) {
                       </Link>
                     </td>
                     {slug === 'companies' && <td className="overflow-hidden px-3 text-ink-2"><CompanyPeople company={r} /></td>}
+                    <td className="px-3 text-[12px] text-ink-3"><UpdatedAt at={r.updated_at} /></td>
                     {columns.map((a) => (
                       <td key={a.slug} className="overflow-hidden px-3 py-1 text-ink-2">
                         {own ? (

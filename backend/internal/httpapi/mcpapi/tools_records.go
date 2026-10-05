@@ -205,6 +205,7 @@ type recordView struct {
 	ConversationID string                 `json:"conversation_id,omitempty"`
 	Object         string                 `json:"object"`
 	CreatedAt      time.Time              `json:"created_at"`
+	UpdatedAt      time.Time              `json:"updated_at" jsonschema:"when the record's fields or document last changed"`
 	Values         map[string]any         `json:"values"`
 	Related        map[string][]refView   `json:"related,omitempty"`
 	Activity       *interactions.Activity `json:"activity,omitempty"`
@@ -247,7 +248,7 @@ func recordOf(r records.Record, photos map[string]string) recordView {
 		}
 		related[relation] = list
 	}
-	return recordView{ID: r.ID, ConversationID: r.ConversationID, Object: r.Object, CreatedAt: r.CreatedAt, Values: values, Related: related, Photo: photos[r.ID]}
+	return recordView{ID: r.ID, ConversationID: r.ConversationID, Object: r.Object, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, Values: values, Related: related, Photo: photos[r.ID]}
 }
 
 type searchInput struct {
@@ -255,7 +256,7 @@ type searchInput struct {
 	Query               string             `json:"query,omitempty" jsonschema:"text that any value contains, case-insensitively"`
 	Where               map[string]string  `json:"where,omitempty" jsonschema:"attribute slug to a value the record must hold; a reference takes a record id or a unique value such as a domain"`
 	Filters             []records.Filter   `json:"filters,omitempty" jsonschema:"multiple attribute conditions; every condition must match, including repeated attributes"`
-	Sort                string             `json:"sort,omitempty" jsonschema:"a date or text attribute to order by, earliest or first alphabetically and empty last, such as action_date or name; omit for newest first"`
+	Sort                string             `json:"sort,omitempty" jsonschema:"updated_at for most recently changed first, or a date or text attribute for earliest or first alphabetically and empty last, such as action_date or name; omit for newest created first"`
 	Offset              int                `json:"offset,omitempty" jsonschema:"matching records to skip, for the next page"`
 	Limit               int                `json:"limit,omitempty" jsonschema:"at most 500, default 20"`
 	Include             []records.Relation `json:"include,omitempty" jsonschema:"at most 8 reverse relationships to include as compact references, keyed by object.attribute in each record's related field"`

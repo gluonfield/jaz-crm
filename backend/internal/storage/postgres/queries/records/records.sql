@@ -207,7 +207,7 @@ SELECT sqlc.embed(records), coalesce(ranked.conversation_id::text, '')::text AS 
 JOIN records ON records.id = ranked.id
 JOIN workspaces ON workspaces.id = records.workspace_id
 WHERE ranked.position = 1
-ORDER BY (
+ORDER BY CASE WHEN @sort_updated_at::boolean THEN records.updated_at END DESC, (
     SELECT min(CASE WHEN attributes.type = 'datetime'
       THEN to_char(record_instant(record_values.text, workspaces.timezone) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US')
       ELSE record_values.text END) FROM record_values JOIN attributes ON attributes.id = record_values.attribute_id

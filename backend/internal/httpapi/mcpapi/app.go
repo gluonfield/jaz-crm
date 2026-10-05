@@ -100,6 +100,9 @@ type showOutput struct {
 
 func recordSearchURI(in searchInput) string {
 	params := url.Values{}
+	if in.Sort != "" {
+		params.Set("sort", in.Sort)
+	}
 	if in.Query != "" {
 		query, _ := json.Marshal(in.Query)
 		params.Set("q", string(query))

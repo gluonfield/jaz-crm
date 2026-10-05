@@ -34,6 +34,7 @@ type Record struct {
 	WorkspaceID string
 	ObjectID    string
 	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 type RecordValue struct {

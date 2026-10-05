@@ -39,6 +39,7 @@ export type CrmRecord = {
   conversation_id?: string
   object: string
   created_at: string
+  updated_at: string
   values: Record<string, Value | Value[] | null>
   related?: Record<string, Ref[]>
   activity?: { interactions: number; first_at?: string; last_at?: string; channel?: string; last_message?: CrmMessage }
