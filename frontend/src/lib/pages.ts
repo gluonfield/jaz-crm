@@ -5,7 +5,7 @@ import type { CrmRecord, Ref } from './types'
 
 export type Page = { id: string; name: string; parent?: string; icon?: string }
 
-export const pageIcon = (record: CrmRecord) => typeof record.values.icon === 'string' ? record.values.icon : undefined
+export const pageIcon = (record: CrmRecord) => record.object === 'pages' && typeof record.values.icon === 'string' ? record.values.icon : undefined
 
 // Pages is every page, its sub-pages by parent ('' for the top level), oldest
 // first.

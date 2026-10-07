@@ -52,8 +52,7 @@ func (s *Service) include(ctx context.Context, actor auth.Actor, sc schema, targ
 		}
 		grouped := map[string][]Value{}
 		for _, record := range found {
-			label := labels[record.ID]
-			grouped[record.ParentID] = append(grouped[record.ParentID], Value{RecordID: record.ID, Text: label.Text, Icon: label.Icon})
+			grouped[record.ParentID] = append(grouped[record.ParentID], labels[record.ID])
 		}
 		for i := range records {
 			if records[i].Related == nil {

@@ -264,8 +264,7 @@ func (s *Service) views(ctx context.Context, workspaceID string, sc schema, reco
 			field := Field{Attribute: attr.Slug, Multi: attr.Multi}
 			for _, v := range held[[2]string{r.ID, attr.ID}] {
 				if v.RefRecordID != nil {
-					label := labels[*v.RefRecordID]
-					field.Values = append(field.Values, Value{RecordID: *v.RefRecordID, Text: label.Text, Icon: label.Icon})
+					field.Values = append(field.Values, labels[*v.RefRecordID])
 				} else {
 					field.Values = append(field.Values, Value{Text: *v.Text})
 				}
@@ -310,6 +309,9 @@ func (s *Service) Labels(ctx context.Context, workspaceID string, ids []string) 
 // email address, else any text; page icons travel with their labels.
 func (s *Service) labels(ctx context.Context, workspaceID string, sc schema, ids []string) (map[string]Value, error) {
 	out := map[string]Value{}
+	for _, id := range ids {
+		out[id] = Value{RecordID: id}
+	}
 	if len(ids) == 0 {
 		return out, nil
 	}

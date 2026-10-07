@@ -24,7 +24,7 @@ export function RecordCard({ recordId, onOpen }: { recordId: string; onOpen: (ur
   const stage = valuesOf(record, 'stage')[0]
   const value = valuesOf(record, 'value')[0]
   const description = valuesOf(record, 'description')[0]
-  const fields = Object.keys(record.values).filter((slug) => !['name', 'stage', 'value', 'description', 'icon'].includes(slug) && valuesOf(record, slug).length > 0)
+  const fields = Object.keys(record.values).filter((slug) => !['name', 'stage', 'value', 'description'].includes(slug) && (record.object !== 'pages' || slug !== 'icon') && valuesOf(record, slug).length > 0)
   const href = `codex://plugins/jaz-crm/app/show_crm?path=${encodeURIComponent(`/r/${record.id}`)}`
   return (
     <a

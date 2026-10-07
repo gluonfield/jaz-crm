@@ -59,8 +59,7 @@ func (s *Service) History(ctx context.Context, actor auth.Actor, id string) ([]C
 	for _, v := range past {
 		c := Change{Attribute: sc.attributeByID(v.AttributeID).Slug, Source: Source(v.Source), Actor: v.ActorName, At: v.ActiveFrom}
 		if v.RefRecordID != nil {
-			label := labels[*v.RefRecordID]
-			c.Value = Value{RecordID: *v.RefRecordID, Text: label.Text, Icon: label.Icon}
+			c.Value = labels[*v.RefRecordID]
 		} else {
 			c.Value = Value{Text: *v.Text}
 		}

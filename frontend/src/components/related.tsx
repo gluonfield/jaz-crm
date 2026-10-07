@@ -12,7 +12,7 @@ import { Stage } from './stage'
 // detail is the first short plain value worth showing beside a related
 // record's name, such as a person's job title.
 function detail(record: CrmRecord, object: CrmObject) {
-  const attribute = object.attributes.find((a) => a.slug !== 'name' && a.slug !== 'icon' && ['text', 'select', 'number', 'date'].includes(a.type) && valuesOf(record, a.slug).length > 0)
+  const attribute = object.attributes.find((a) => a.slug !== 'name' && (object.slug !== 'pages' || a.slug !== 'icon') && ['text', 'select', 'number', 'date'].includes(a.type) && valuesOf(record, a.slug).length > 0)
   const text = attribute ? valueText(valuesOf(record, attribute.slug)[0]) : ''
   return text.length > 60 ? '' : text
 }

@@ -40,9 +40,16 @@ func TestAgentPagesAndTables(t *testing.T) {
 		}
 		got := mustCall(t, a, "get_record", map[string]any{"record_id": child})
 		parent := got["values"].(map[string]any)["parent"].(map[string]any)
-		if value, _ := parent["icon"].(string); value != icon || parent["name"] != "Research" {
+		if value, _ := parent["icon"].(string); value != icon || parent["name"] != "Research" || parent["id"] != research {
 			t.Fatalf("parent icon %q: %v", icon, parent)
 		}
+	}
+	blank := mustCall(t, a, "upsert_record", map[string]any{"object": "pages", "values": map[string]any{"icon": "📚"}})["record"].(map[string]any)["id"].(string)
+	nested := mustCall(t, a, "upsert_record", map[string]any{"object": "pages", "values": map[string]any{"name": "Untitled child", "parent": blank}})["record"].(map[string]any)["id"].(string)
+	mustCall(t, a, "upsert_record", map[string]any{"object": "pages", "record_id": blank, "remove": map[string]any{"icon": []string{}}})
+	untitled, ok := mustCall(t, a, "get_record", map[string]any{"record_id": nested})["values"].(map[string]any)["parent"].(map[string]any)
+	if !ok || untitled["id"] != blank || untitled["name"] != nil || untitled["icon"] != nil {
+		t.Fatalf("an undecorated nameless page retains its reference: %v", untitled)
 	}
 	found := mustCall(t, a, "search_records", map[string]any{"object": "painpoints", "query": "a week"})["records"].([]any)
 	if len(found) != 1 || found[0].(map[string]any)["values"].(map[string]any)["content"] != nil {
