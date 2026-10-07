@@ -2,6 +2,7 @@ package mcpapi
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
@@ -50,7 +51,7 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 			photos, err := pics.of(ctx, actor, found)
 			out := recordsOutput{Records: []recordView{}, Total: total, ResourceURI: recordSearchURI(in)}
 			for _, record := range found {
-				out.Records = append(out.Records, recordWith(record, activity, photos))
+				out.Records = append(out.Records, r.recordWith(record, activity, photos))
 			}
 			return out, err
 		})
@@ -71,7 +72,7 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 				return recordOutput{}, err
 			}
 			photos, err := pics.of(ctx, actor, []records.Record{record})
-			return recordOutput{recordView: recordWith(record, activity, photos), ResourceURI: "ui://jaz-crm/r/" + record.ID}, err
+			return recordOutput{recordView: r.recordWith(record, activity, photos), ResourceURI: "ui://jaz-crm/r/" + record.ID}, err
 		})
 	add(r, &mcp.Tool{Name: "record_history", Title: "Record history", Annotations: readOnly,
 		Description: "A record's recent changes, newest first: the value each attribute got, from which source (user, agent or sync), who made it and when; removed marks a value taken away with nothing in its place."},
@@ -79,6 +80,9 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 			changes, err := crm.History(ctx, actor, in.RecordID)
 			out := historyOutput{Changes: []changeView{}}
 			for _, c := range changes {
+				if c.Value.RecordID == "" && c.Value.Icon != "" {
+					c.Value.Text = r.icon(c.Value.Icon)
+				}
 				out.Changes = append(out.Changes, changeView{
 					Attribute: c.Attribute, Value: c.Value.Text, RecordID: c.Value.RecordID, Removed: c.Removed, Source: string(c.Source), Actor: c.Actor, At: c.At,
 				})
@@ -100,7 +104,7 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 			if err != nil {
 				return upsertOutput{}, err
 			}
-			out := upsertOutput{Record: recordOf(record, nil), Skipped: []skipView{}}
+			out := upsertOutput{Record: r.recordOf(record, nil), Skipped: []skipView{}}
 			for _, s := range skips {
 				out.Skipped = append(out.Skipped, skipView{Attribute: s.Attribute, Value: s.Value, SetBy: string(s.Source)})
 			}
@@ -215,22 +219,24 @@ type recordView struct {
 }
 
 // recordWith shows a record with its activity and picture.
-func recordWith(r records.Record, activity map[string]interactions.Activity, photos map[string]string) recordView {
-	view := recordOf(r, photos)
-	a := activity[r.ID]
+func (r *registry) recordWith(record records.Record, activity map[string]interactions.Activity, photos map[string]string) recordView {
+	view := r.recordOf(record, photos)
+	a := activity[record.ID]
 	view.Activity = &a
 	return view
 }
 
 // recordOf shows a single-valued attribute as its value and a multi-valued
 // one as a list; references appear as the record's id, name and picture.
-func recordOf(r records.Record, photos map[string]string) recordView {
+func (r *registry) recordOf(record records.Record, photos map[string]string) recordView {
 	values := map[string]any{}
-	for _, f := range r.Fields {
+	for _, f := range record.Fields {
 		var list []any
 		for _, v := range f.Values {
 			if v.RecordID != "" {
-				list = append(list, refView{ID: v.RecordID, Name: v.Text, Photo: photos[v.RecordID], Icon: v.Icon})
+				list = append(list, refView{ID: v.RecordID, Name: v.Text, Photo: photos[v.RecordID], Icon: r.icon(v.Icon)})
+			} else if v.Icon != "" {
+				list = append(list, r.icon(v.Icon))
 			} else {
 				list = append(list, v.Text)
 			}
@@ -242,14 +248,21 @@ func recordOf(r records.Record, photos map[string]string) recordView {
 		}
 	}
 	related := map[string][]refView{}
-	for relation, records := range r.Related {
+	for relation, records := range record.Related {
 		list := make([]refView, len(records))
 		for i, record := range records {
-			list[i] = refView{ID: record.RecordID, Name: record.Text, Photo: photos[record.RecordID], Icon: record.Icon}
+			list[i] = refView{ID: record.RecordID, Name: record.Text, Photo: photos[record.RecordID], Icon: r.icon(record.Icon)}
 		}
 		related[relation] = list
 	}
-	return recordView{ID: r.ID, ConversationID: r.ConversationID, Object: r.Object, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, Values: values, Related: related, Photo: photos[r.ID]}
+	return recordView{ID: record.ID, ConversationID: record.ConversationID, Object: record.Object, CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt, Values: values, Related: related, Photo: photos[record.ID]}
+}
+
+func (r *registry) icon(value string) string {
+	if token, ok := strings.CutPrefix(value, "image:"); ok {
+		return "image:" + r.publicURL + "/page-icons/" + token
+	}
+	return value
 }
 
 type searchInput struct {

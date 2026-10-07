@@ -2,13 +2,14 @@ import { Link } from '@tanstack/react-router'
 import { formatDateTime, timeAgo } from '@/lib/format'
 import { useTool } from '@/lib/queries'
 import type { Attribute } from '@/lib/types'
+import { PageIcon } from './page-icon'
 
 type Change = { attribute: string; value: string; record_id?: string; removed?: boolean; source?: string; actor?: string; at: string }
 
 const sources: Record<string, string> = { sync: 'Sync', agent: 'An agent' }
 
 // History lists a record's changes, newest first, ending with its creation.
-export function History({ recordId, createdAt, attributes }: { recordId: string; createdAt: string; attributes: Attribute[] }) {
+export function History({ recordId, createdAt, attributes, object }: { recordId: string; createdAt: string; attributes: Attribute[]; object: string }) {
   const changes = useTool<{ changes: Change[] }>('record_history', { record_id: recordId }).data?.changes
   const label = (slug: string) => attributes.find((a) => a.slug === slug)?.name ?? slug
   // A document's versions are named, not shown in full.
@@ -26,7 +27,7 @@ export function History({ recordId, createdAt, attributes }: { recordId: string;
               <Link to="/r/$recordId" params={{ recordId: c.record_id }} className="text-ink hover:underline">
                 {c.value}
               </Link>
-            ) : (
+            ) : object === 'pages' && c.attribute === 'icon' ? <PageIcon value={c.value} className="align-middle" /> : (
               <span className="text-ink">{c.value}</span>
             )}
           </span>

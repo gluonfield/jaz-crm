@@ -21,10 +21,11 @@ type op[In, Out any] func(ctx context.Context, actor auth.Actor, in In) (Out, er
 // registry publishes each operation as an MCP tool for agents and the MCP
 // App, and at POST /api/tools/{tool} for the web app.
 type registry struct {
-	server  *mcp.Server
-	logger  *log.Logger
-	members *workspaces.Service
-	ops     map[string]func(ctx context.Context, actor auth.Actor, raw json.RawMessage) (any, error)
+	server    *mcp.Server
+	logger    *log.Logger
+	publicURL string
+	members   *workspaces.Service
+	ops       map[string]func(ctx context.Context, actor auth.Actor, raw json.RawMessage) (any, error)
 }
 
 // add publishes an operation that acts in one workspace: the one its optional

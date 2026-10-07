@@ -9,10 +9,10 @@ import { RecordCard } from './record-card'
 import { Related } from './related'
 
 test('page decorations leave custom Icon fields visible in record cards', () => {
-  for (const object of ['parts', 'companies', 'pages']) {
+  for (const [object, icon] of [['parts', 'Brand asset #2'], ['companies', 'Brand asset #2'], ['pages', 'icon:rocket'], ['pages', 'image:http://crm.test/page-icons/thumbnail']]) {
     const record: CrmRecord = {
       id: 'test-record', object, created_at: '2026-10-07T12:00:00Z', updated_at: '2026-10-07T12:00:00Z',
-      values: { name: 'Valve', icon: object === 'pages' ? 'icon:rocket' : 'Brand asset #2', content: 'Review before ordering' },
+      values: { name: 'Valve', icon, content: 'Review before ordering' },
     }
     const client = newQueryClient()
     client.setQueryData(['get_record', { record_id: record.id }], record)
@@ -21,6 +21,10 @@ test('page decorations leave custom Icon fields visible in record cards', () => 
     assert.match(html, /Review before ordering/)
     if (object === 'pages') {
       assert.doesNotMatch(html, /icon:rocket/)
+      assert.doesNotMatch(html, /image:http/)
+      if (icon.startsWith('image:')) {
+        assert.match(html, /<img[^>]+src="http:\/\/crm.test\/page-icons\/thumbnail"/)
+      }
     } else {
       assert.match(html, /Brand asset #2/)
     }

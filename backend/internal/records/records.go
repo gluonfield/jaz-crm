@@ -172,7 +172,11 @@ func (s *Service) entry(ctx context.Context, workspaceID string, sc schema, attr
 	case Member:
 		return s.member(ctx, workspaceID, attr, raw)
 	}
-	return normalize(attr, raw)
+	e, err := normalize(attr, raw)
+	if err == nil && sc.textValue(attr, *e.text).Icon != "" && (strings.HasPrefix(*e.text, "data:") || strings.HasPrefix(*e.text, "image:")) {
+		return s.pageImage(ctx, workspaceID, *e.text)
+	}
+	return e, err
 }
 
 // member names a member of the workspace by their email.
@@ -266,7 +270,7 @@ func (s *Service) views(ctx context.Context, workspaceID string, sc schema, reco
 				if v.RefRecordID != nil {
 					field.Values = append(field.Values, labels[*v.RefRecordID])
 				} else {
-					field.Values = append(field.Values, Value{Text: *v.Text})
+					field.Values = append(field.Values, sc.textValue(attr, *v.Text))
 				}
 			}
 			if len(field.Values) > 0 {
@@ -332,8 +336,8 @@ func (s *Service) labels(ctx context.Context, workspaceID string, sc schema, ids
 		}
 		attr := sc.attributeByID(v.AttributeID)
 		label := out[v.RecordID]
-		if attr.Slug == "icon" && sc.objectByID(attr.ObjectID).Slug == Pages {
-			label.Icon = *v.Text
+		if value := sc.textValue(attr, *v.Text); value.Icon != "" {
+			label.Icon = value.Icon
 			out[v.RecordID] = label
 			continue
 		}
@@ -345,4 +349,12 @@ func (s *Service) labels(ctx context.Context, workspaceID string, sc schema, ids
 		}
 	}
 	return out, err
+}
+
+func (sc schema) textValue(attr storage.Attribute, text string) Value {
+	value := Value{Text: text}
+	if attr.Slug == "icon" && sc.objectByID(attr.ObjectID).Slug == Pages {
+		value.Icon = text
+	}
+	return value
 }

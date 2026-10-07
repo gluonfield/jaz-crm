@@ -18,13 +18,13 @@ func registerFollowUps(r *registry, svc *followups.Service, drafting *followups.
 		Description: "Save the reply edited in the CRM composer. Replaces draft text, subject, channel and recipients; editing withdraws prior approval."},
 		func(ctx context.Context, actor auth.Actor, in saveDraftInput) (saveDraftOutput, error) {
 			saved, err := svc.SaveDraft(ctx, actor, in.RecordID, in.Draft, in.Subject, in.Channel, in.To, in.Cc, in.Revision)
-			return saveDraftOutput{recordView: recordOf(saved.Record, nil), Revision: saved.Revision}, err
+			return saveDraftOutput{recordView: r.recordOf(saved.Record, nil), Revision: saved.Revision}, err
 		})
 	add(r, &mcp.Tool{Name: "send_draft", Title: "Send draft", Meta: mcp.Meta{"ui": map[string]any{"visibility": []string{"app"}}},
 		Description: "Release a follow-up's reviewed draft after explicit confirmation: an email is sent now, replying in its newest linked email conversation when present or starting a new email otherwise; a LinkedIn draft is approved for whoever sends it. The CRM app calls this only after Send/Approve is confirmed."},
 		func(ctx context.Context, actor auth.Actor, in sendInput) (recordView, error) {
 			record, err := svc.Release(ctx, actor, in.RecordID, followups.Seen{Confirmed: in.Confirmed, Draft: in.Draft, Subject: in.Subject, From: in.From, To: in.To, Cc: in.Cc, Bcc: in.Bcc, Revision: in.Revision})
-			return recordOf(record, nil), err
+			return r.recordOf(record, nil), err
 		})
 	add(r, &mcp.Tool{Name: "get_draft_sender", Title: "Get draft sender", Meta: mcp.Meta{"ui": map[string]any{"visibility": []string{"app"}}},
 		Description: "The mailbox, subject, recipients and Gmail signature for a follow-up's email, including before a draft has been written."},

@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/logosapi"
+	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/pageimagesapi"
 	"github.com/gluonfield/jaz-crm/backend/internal/logos"
 	"github.com/gluonfield/jaz-tasks/auth"
 
@@ -68,7 +69,7 @@ func start(t *testing.T, oidc signin.OIDCConfig, members workspaces.Config) stac
 	}
 	lg := logos.NewService(store, logos.Fetcher{})
 	agents := mcpapi.NewHandler(mcpapi.Services{Records: crm, Workspaces: people, Interactions: convs, Connections: conns, Logos: lg}, keys, logger)
-	srv.Config.Handler = server.New(authn, agents, connectapi.NewHandler(conns, keys, logger), webhooks.NewHandler(conns, idle{}, convs, keys, webhooks.Config{}, logger), logosapi.NewHandler(lg, logger), "")
+	srv.Config.Handler = server.New(authn, agents, connectapi.NewHandler(conns, keys, logger), webhooks.NewHandler(conns, idle{}, convs, keys, webhooks.Config{}, logger), logosapi.NewHandler(lg, logger), pageimagesapi.NewHandler(crm, logger), "")
 	srv.Start()
 	t.Cleanup(srv.Close)
 	return stack{url: base, apiKey: apiKey, keys: keys, owner: owner.ID}

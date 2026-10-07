@@ -354,6 +354,21 @@ func (q *Queries) GetRecords(ctx context.Context, arg GetRecordsParams) ([]Recor
 	return items, nil
 }
 
+const insertPageImage = `-- name: InsertPageImage :exec
+INSERT INTO page_images (id, record_id, png) VALUES ($1, $2, $3)
+`
+
+type InsertPageImageParams struct {
+	ID       string
+	RecordID string
+	PNG      []byte
+}
+
+func (q *Queries) InsertPageImage(ctx context.Context, arg InsertPageImageParams) error {
+	_, err := q.db.Exec(ctx, insertPageImage, arg.ID, arg.RecordID, arg.PNG)
+	return err
+}
+
 const insertValue = `-- name: InsertValue :exec
 INSERT INTO record_values (record_id, attribute_id, text, ref_record_id, unique_key, source, actor_id)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -599,6 +614,25 @@ func (q *Queries) LockStatus(ctx context.Context, arg LockStatusParams) (Attribu
 		&i.CreatedAt,
 		&i.Options,
 	)
+	return i, err
+}
+
+const pageImage = `-- name: PageImage :one
+SELECT page_images.id, records.workspace_id, page_images.png
+FROM page_images JOIN records ON records.id = page_images.record_id
+WHERE page_images.id = $1
+`
+
+type PageImageRow struct {
+	ID          string
+	WorkspaceID string
+	PNG         []byte
+}
+
+func (q *Queries) PageImage(ctx context.Context, id string) (PageImageRow, error) {
+	row := q.db.QueryRow(ctx, pageImage, id)
+	var i PageImageRow
+	err := row.Scan(&i.ID, &i.WorkspaceID, &i.PNG)
 	return i, err
 }
 

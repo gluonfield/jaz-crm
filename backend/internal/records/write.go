@@ -10,6 +10,7 @@ import (
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"github.com/gluonfield/jaz-crm/backend/internal/errs"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
+	"github.com/lithammer/shortuuid/v4"
 )
 
 // Source is who wrote a value. A write replaces or removes only values from
@@ -105,6 +106,13 @@ func (s *Service) upsert(ctx context.Context, actor auth.Actor, source Source, w
 		expect[attr.ID] = nil
 		for _, value := range values {
 			if value = strings.TrimSpace(value); value != "" {
+				if object.Slug == Pages && attr.Slug == "icon" && strings.HasPrefix(value, "image:") {
+					e, err := s.entry(ctx, actor.WorkspaceID, sc, attr, value)
+					if err != nil {
+						return Record{}, nil, err
+					}
+					value = *e.text
+				}
 				expect[attr.ID] = append(expect[attr.ID], value)
 			}
 		}
@@ -293,6 +301,13 @@ func plan(current []storage.RecordValue, set, remove []change, source Source, ac
 		actor = &actorID
 	}
 	insert := func(attr storage.Attribute, e entry) {
+		if e.image != nil {
+			image := *e.image
+			image.ID = shortuuid.New()
+			text := "image:" + image.ID
+			e.text = &text
+			out.Images = append(out.Images, image)
+		}
 		out.Insert = append(out.Insert, storage.NewRecordValue{
 			AttributeID: attr.ID, Text: e.text, RefRecordID: e.ref, UniqueKey: e.key, Source: string(source), ActorID: actor,
 		})

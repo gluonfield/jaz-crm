@@ -165,7 +165,7 @@ function RecordPage() {
                 </Tab>
               </div>
               {tab ? (
-                <History recordId={record.id} createdAt={record.created_at} attributes={object.attributes} />
+                <History recordId={record.id} createdAt={record.created_at} attributes={object.attributes} object={record.object} />
               ) : (
                 <Timeline recordId={record.id} object={object} people={emails} />
               )}

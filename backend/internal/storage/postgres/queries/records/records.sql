@@ -104,6 +104,14 @@ WHERE records.workspace_id = @workspace_id AND record_values.record_id = ANY(@re
   AND record_values.active_until IS NULL
 ORDER BY record_values.id;
 
+-- name: InsertPageImage :exec
+INSERT INTO page_images (id, record_id, png) VALUES (@id, @record_id, @png);
+
+-- name: PageImage :one
+SELECT page_images.id, records.workspace_id, page_images.png
+FROM page_images JOIN records ON records.id = page_images.record_id
+WHERE page_images.id = @id;
+
 -- name: RecordHistory :many
 -- RecordHistory lists values a record has had, newest first, with the name
 -- of the member who set each.

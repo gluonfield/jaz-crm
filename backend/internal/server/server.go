@@ -10,6 +10,7 @@ import (
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/connectapi"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/logosapi"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/mcpapi"
+	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/pageimagesapi"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/webhooks"
 	"github.com/gluonfield/jaz-tasks/httpx"
 )
@@ -17,7 +18,7 @@ import (
 // WebDir holds the built web app; empty serves a sign-in page instead.
 type WebDir string
 
-func New(authn *authapi.Handler, agents *mcpapi.Handler, connect *connectapi.Handler, hooks *webhooks.Handler, logos *logosapi.Handler, web WebDir) http.Handler {
+func New(authn *authapi.Handler, agents *mcpapi.Handler, connect *connectapi.Handler, hooks *webhooks.Handler, logos *logosapi.Handler, images *pageimagesapi.Handler, web WebDir) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("ok"))
@@ -36,6 +37,7 @@ func New(authn *authapi.Handler, agents *mcpapi.Handler, connect *connectapi.Han
 	mux.HandleFunc("POST /webhooks/google/calendar", hooks.Calendar)
 	mux.HandleFunc("POST /webhooks/interactions", hooks.Interactions)
 	mux.Handle("GET /logos/{token}", logos)
+	mux.Handle("GET /page-icons/{token}", images)
 	if web == "" {
 		mux.Handle("GET /{$}", authn)
 	} else {

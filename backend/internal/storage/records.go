@@ -146,6 +146,13 @@ type ValueChanges struct {
 	Close  []int64
 	Insert []NewRecordValue
 	Revise []ValueRevision
+	Images []PageImage
+}
+
+type PageImage struct {
+	ID          string
+	WorkspaceID string
+	PNG         []byte
 }
 
 type ValueRevision struct {
@@ -190,6 +197,7 @@ type RecordStore interface {
 	SaveFilter(ctx context.Context, workspaceID string, filter SavedFilter) (SavedFilter, error)
 	DeleteFilter(ctx context.Context, workspaceID, id string) error
 	CurrentValues(ctx context.Context, workspaceID string, recordIDs []string) ([]RecordValue, error)
+	PageImage(ctx context.Context, id string) (PageImage, error)
 	// History returns a record's values, current and closed, newest first.
 	History(ctx context.Context, workspaceID, recordID string, limit int32) ([]PastValue, error)
 	// RecordsByUniqueKeys returns the records holding any (attribute, key) pair.

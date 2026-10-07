@@ -24,7 +24,7 @@ func registerDates(r *registry, crm *records.Service) {
 				w.Set = map[string][]string{"action_date": {in.Value}}
 			}
 			record, _, err := crm.Upsert(ctx, actor, records.SourceUser, w)
-			return recordOf(record, nil), err
+			return r.recordOf(record, nil), err
 		})
 }
 

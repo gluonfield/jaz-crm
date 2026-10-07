@@ -61,7 +61,7 @@ func (s *Service) History(ctx context.Context, actor auth.Actor, id string) ([]C
 		if v.RefRecordID != nil {
 			c.Value = labels[*v.RefRecordID]
 		} else {
-			c.Value = Value{Text: *v.Text}
+			c.Value = sc.textValue(sc.attributeByID(v.AttributeID), *v.Text)
 		}
 		changes = append(changes, c)
 		if v.ActiveUntil != nil && !replaced[v.AttributeID+v.ActiveUntil.String()] {

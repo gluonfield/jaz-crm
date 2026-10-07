@@ -19,6 +19,7 @@ import (
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/connectapi"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/logosapi"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/mcpapi"
+	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/pageimagesapi"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/webhooks"
 	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
 	"github.com/gluonfield/jaz-crm/backend/internal/llm"
@@ -70,6 +71,7 @@ func Server(cfg Config) fx.Option {
 			connectapi.NewHandler,
 			webhooks.NewHandler,
 			logosapi.NewHandler,
+			pageimagesapi.NewHandler,
 			server.New,
 		),
 		fx.Invoke(ProvisionOwner, StartHTTP),

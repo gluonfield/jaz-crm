@@ -174,6 +174,12 @@ func (s *Store) RecordsByUniqueKeys(ctx context.Context, workspaceID string, att
 	return ids, mapError(err)
 }
 
+func (s *Store) PageImage(ctx context.Context, id string) (storage.PageImage, error) {
+	return one(func(r recdb.PageImageRow) storage.PageImage {
+		return storage.PageImage{ID: r.ID, WorkspaceID: r.WorkspaceID, PNG: r.PNG}
+	})(s.rec.PageImage(ctx, id))
+}
+
 func (s *Store) WriteRecord(ctx context.Context, workspaceID, objectID, id string, mutate storage.RecordMutation) (string, error) {
 	err := s.tx(ctx, func(_ *authdb.Queries, r *recdb.Queries) error {
 		statuses, err := r.LockObjectStatuses(ctx, recdb.LockObjectStatusesParams{WorkspaceID: workspaceID, ObjectID: objectID})
@@ -214,6 +220,11 @@ func (s *Store) WriteRecord(ctx context.Context, workspaceID, objectID, id strin
 		}
 		for _, revision := range changes.Revise {
 			if err := r.ReviseValue(ctx, recdb.ReviseValueParams{Text: &revision.Text, RecordID: id, ID: revision.ID}); err != nil {
+				return err
+			}
+		}
+		for _, image := range changes.Images {
+			if err := r.InsertPageImage(ctx, recdb.InsertPageImageParams{ID: image.ID, RecordID: id, PNG: image.PNG}); err != nil {
 				return err
 			}
 		}
