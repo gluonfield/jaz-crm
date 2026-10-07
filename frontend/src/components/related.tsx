@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { useQueries } from '@tanstack/react-query'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
+import { pageIcon } from '@/lib/pages'
 import { timeAgo } from '@/lib/format'
 import { toolQuery } from '@/lib/queries'
 import { statusOf } from '@/lib/stages'
@@ -11,7 +12,7 @@ import { Stage } from './stage'
 // detail is the first short plain value worth showing beside a related
 // record's name, such as a person's job title.
 function detail(record: CrmRecord, object: CrmObject) {
-  const attribute = object.attributes.find((a) => a.slug !== 'name' && ['text', 'select', 'number', 'date'].includes(a.type) && valuesOf(record, a.slug).length > 0)
+  const attribute = object.attributes.find((a) => a.slug !== 'name' && a.slug !== 'icon' && ['text', 'select', 'number', 'date'].includes(a.type) && valuesOf(record, a.slug).length > 0)
   const text = attribute ? valueText(valuesOf(record, attribute.slug)[0]) : ''
   return text.length > 60 ? '' : text
 }
@@ -49,7 +50,7 @@ export function Related({ recordId, object, objects }: { recordId: string; objec
                 params={{ recordId: r.id }}
                 className="-mx-2 flex h-11 items-center gap-2.5 rounded-[var(--radius-control)] px-2 text-[13px] outline-none transition-colors hover:bg-list-hover focus-visible:bg-list-hover"
               >
-                <RecordIcon object={o.slug} name={recordName(r)} photo={r.photo} size={26} />
+                <RecordIcon object={o.slug} name={recordName(r)} photo={r.photo} icon={pageIcon(r)} size={26} />
                 <span className="flex min-w-0 flex-col">
                   <span className="truncate font-medium leading-tight text-ink">{recordName(r)}</span>
                   <span className="truncate text-[12px] leading-tight text-ink-3">

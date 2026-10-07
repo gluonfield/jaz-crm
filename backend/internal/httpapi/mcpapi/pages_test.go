@@ -14,8 +14,8 @@ func TestAgentPagesAndTables(t *testing.T) {
 	acme := mustCall(t, a, "upsert_record", map[string]any{"object": "companies", "values": map[string]any{"name": "Acme", "domains": "acme.com"}})["record"].(map[string]any)["id"].(string)
 	body := "Quotes take a week at [Acme](/r/" + acme + ")."
 	pain := mustCall(t, a, "upsert_record", map[string]any{"object": "painpoints", "values": map[string]any{"name": "Slow quotes", "company": "acme.com", "content": body}})["record"].(map[string]any)["id"].(string)
-	research := mustCall(t, a, "upsert_record", map[string]any{"object": "pages", "values": map[string]any{"name": "Research"}})["record"].(map[string]any)["id"].(string)
-	child := mustCall(t, a, "upsert_record", map[string]any{"object": "pages", "values": map[string]any{"name": "Interviews", "parent": research}})["record"].(map[string]any)["id"].(string)
+	research := mustCall(t, a, "upsert_record", map[string]any{"object": "pages", "values": map[string]any{"name": "Research", "icon": "📚"}})["record"].(map[string]any)["id"].(string)
+	child := mustCall(t, a, "upsert_record", map[string]any{"object": "pages", "values": map[string]any{"name": "Interviews", "parent": research, "icon": "👩🏽‍💻"}})["record"].(map[string]any)["id"].(string)
 
 	record := mustCall(t, a, "get_record", map[string]any{"record_id": pain})
 	if record["values"].(map[string]any)["content"] != body {
@@ -26,8 +26,23 @@ func TestAgentPagesAndTables(t *testing.T) {
 		t.Fatalf("a company lists the painpoints referencing it: %v", company["related"])
 	}
 	page := mustCall(t, a, "get_record", map[string]any{"record_id": research})
-	if refs, _ := page["related"].(map[string]any)["pages.parent"].([]any); len(refs) != 1 || refs[0].(map[string]any)["id"] != child {
+	if page["values"].(map[string]any)["icon"] != "📚" {
+		t.Fatalf("page icon: %v", page["values"])
+	}
+	if refs, _ := page["related"].(map[string]any)["pages.parent"].([]any); len(refs) != 1 || refs[0].(map[string]any)["id"] != child || refs[0].(map[string]any)["icon"] != "👩🏽‍💻" {
 		t.Fatalf("a page lists its sub-pages: %v", page["related"])
+	}
+	for _, icon := range []string{"📚", "icon:rocket", ""} {
+		if icon == "icon:rocket" {
+			mustCall(t, a, "upsert_record", map[string]any{"object": "pages", "record_id": research, "values": map[string]any{"icon": icon}})
+		} else if icon == "" {
+			mustCall(t, a, "upsert_record", map[string]any{"object": "pages", "record_id": research, "remove": map[string]any{"icon": []string{}}})
+		}
+		got := mustCall(t, a, "get_record", map[string]any{"record_id": child})
+		parent := got["values"].(map[string]any)["parent"].(map[string]any)
+		if value, _ := parent["icon"].(string); value != icon || parent["name"] != "Research" {
+			t.Fatalf("parent icon %q: %v", icon, parent)
+		}
 	}
 	found := mustCall(t, a, "search_records", map[string]any{"object": "painpoints", "query": "a week"})["records"].([]any)
 	if len(found) != 1 || found[0].(map[string]any)["values"].(map[string]any)["content"] != nil {

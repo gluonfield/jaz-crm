@@ -27,7 +27,7 @@ export type StageEdit = {
   replacement?: string
 }
 
-export type Ref = { id: string; name?: string; photo?: string }
+export type Ref = { id: string; name?: string; photo?: string; icon?: string }
 
 export type Relation = { object: string; attribute: string; limit?: number }
 

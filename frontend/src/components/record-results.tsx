@@ -1,6 +1,7 @@
 import { RecordIcon } from '@/components/icons'
 import { Stage } from '@/components/stage'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
+import { pageIcon } from '@/lib/pages'
 import { formatNumber } from '@/lib/format'
 import { useTool } from '@/lib/queries'
 import { recordSearchInput } from '@/lib/record-search'
@@ -35,7 +36,7 @@ export function RecordResults({ path, onOpen }: { path: string; onOpen: (url: st
               event.preventDefault()
               onOpen(href)
             }} className="flex min-h-10 items-center gap-3 px-3 py-2 text-[13px] text-ink outline-none hover:bg-list-hover focus-visible:bg-list-hover">
-              <RecordIcon object={record.object} name={name} photo={record.photo} />
+              <RecordIcon object={record.object} name={name} photo={record.photo} icon={pageIcon(record)} />
               <span className="min-w-0 flex-1 truncate font-medium">{name}</span>
               {detail && <span className="hidden max-w-40 truncate text-ink-3 sm:block">{valueText(detail)}</span>}
               {stage && <span className="max-w-28 truncate text-[12px] text-ink-2"><Stage stage={valueText(stage)} /></span>}

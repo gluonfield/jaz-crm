@@ -41,7 +41,7 @@ function identity(record: CrmRecord, object: CrmObject, members: Member[]) {
       const ref = first as Ref
       facts.push(
         <Link key={a.slug} to="/r/$recordId" params={{ recordId: ref.id }} className="inline-flex items-center gap-1.5 text-ink hover:underline">
-          <RecordIcon object={a.target ?? ''} name={ref.name ?? ''} photo={ref.photo} size={16} />
+          <RecordIcon object={a.target ?? ''} name={ref.name ?? ''} photo={ref.photo} icon={ref.icon} size={16} />
           {ref.name}
         </Link>,
       )

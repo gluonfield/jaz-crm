@@ -5,6 +5,7 @@ import { X } from 'lucide-react'
 import { type ReactNode, forwardRef, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { contextHint, recordName, valueKey, valuesOf } from '@/lib/crm'
+import { pageIcon } from '@/lib/pages'
 import { useDebounced } from '@/lib/hooks'
 import { useAction, useRecords, useWorkspace } from '@/lib/queries'
 import type { Attribute, CrmObject, CrmRecord, Member } from '@/lib/types'
@@ -16,7 +17,7 @@ import { StageDot } from './stage'
 import { ValueTag } from './select-field'
 
 type Draft = Record<string, string[]>
-type Label = { name: string; photo?: string }
+type Label = { name: string; photo?: string; icon?: string }
 
 // singular names one of an object's records: person, company, deal.
 export function singular(object: CrmObject) {
@@ -86,7 +87,7 @@ function Form({ object, initial = {}, record, openCreated, close }: { object: Cr
     ),
   )
   const [labels, setLabels] = useState<Record<string, Label>>(() =>
-    Object.fromEntries(Object.values(record?.values ?? {}).flat().flatMap((v) => (v && typeof v !== 'string' ? [[v.id, { name: v.name ?? '', photo: v.photo }]] : []))),
+    Object.fromEntries(Object.values(record?.values ?? {}).flat().flatMap((v) => (v && typeof v !== 'string' ? [[v.id, { name: v.name ?? '', photo: v.photo, icon: v.icon }]] : []))),
   )
   const upsert = useAction<object, { record: CrmRecord }>('upsert_record')
   const navigate = useNavigate()
@@ -327,7 +328,7 @@ function ReferenceProperty({
             values.length > 0 && (
               <span className="flex -space-x-1">
                 {values.slice(0, 3).map((id) => (
-                  <RecordIcon key={id} object={target} name={labels[id]?.name ?? ''} photo={labels[id]?.photo} size={16} className="ring-1 ring-raised" />
+                  <RecordIcon key={id} object={target} name={labels[id]?.name ?? ''} photo={labels[id]?.photo} icon={labels[id]?.icon} size={16} className="ring-1 ring-raised" />
                 ))}
               </span>
             )
@@ -339,11 +340,11 @@ function ReferenceProperty({
       onSearch={setSearch}
       multiple={attribute.multi}
       selected={values}
-      options={found.map((r) => ({ value: r.id, label: recordName(r), icon: <RecordIcon object={target} name={recordName(r)} photo={r.photo} size={16} /> }))}
+      options={found.map((r) => ({ value: r.id, label: recordName(r), icon: <RecordIcon object={target} name={recordName(r)} photo={r.photo} icon={pageIcon(r)} size={16} /> }))}
       onSelect={(id) => {
         const record = found.find((r) => r.id === id)
         if (record) {
-          onLabel(id, { name: recordName(record), photo: record.photo })
+          onLabel(id, { name: recordName(record), photo: record.photo, icon: pageIcon(record) })
         }
         toggle(id)
       }}

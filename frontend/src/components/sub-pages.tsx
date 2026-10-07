@@ -1,8 +1,9 @@
 import { Button } from '@jaz/ui/button'
 import { Link } from '@tanstack/react-router'
-import { FileText, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { usePages } from '@/lib/pages'
 import { useNewPage } from './data-nav'
+import { PageIcon } from './page-icon'
 
 // SubPages lists the pages inside a page as links, in the sidebar's order,
 // and adds one.
@@ -18,7 +19,7 @@ export function SubPages({ page }: { page: string }) {
           params={{ recordId: p.id }}
           className="-mx-2 flex h-8 items-center gap-2 rounded-[var(--radius-control)] px-2 text-[15px] text-ink outline-none transition-colors duration-100 hover:bg-list-hover focus-visible:bg-list-hover"
         >
-          <FileText className="size-4 shrink-0 text-ink-2" />
+          <PageIcon value={p.icon} />
           <span className="truncate underline decoration-ink-3/50 underline-offset-[3px]">{p.name}</span>
         </Link>
       ))}

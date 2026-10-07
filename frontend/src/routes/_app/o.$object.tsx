@@ -22,6 +22,7 @@ import { RecordMenu } from '@/components/record-menu'
 import { SelectField } from '@/components/select-field'
 import { UpdatedAt } from '@/components/updated-at'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
+import { pageIcon } from '@/lib/pages'
 import { formatDay, formatNumber } from '@/lib/format'
 import { useDebounced, useFlip, useInView, useListKeys } from '@/lib/hooks'
 import { DateLabel, dateMetadata } from '@/components/date-field'
@@ -258,7 +259,7 @@ function ObjectList({ slug }: { slug: string }) {
                   >
                     <td className={cn('sticky left-0 z-10 bg-bg px-4 group-hover:bg-list-hover group-data-[state=open]:bg-list-hover', focus === index && 'bg-list-hover')}>
                       <Link to="/r/$recordId" params={{ recordId: r.id }} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} className="flex min-w-0 items-center gap-2.5 font-medium text-ink">
-                        <RecordIcon object={slug} name={recordName(r)} photo={r.photo} />
+                        <RecordIcon object={slug} name={recordName(r)} photo={r.photo} icon={pageIcon(r)} />
                         <span className="min-w-0 truncate">{recordName(r)}</span>
                       </Link>
                     </td>

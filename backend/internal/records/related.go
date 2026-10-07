@@ -46,13 +46,14 @@ func (s *Service) include(ctx context.Context, actor auth.Actor, sc schema, targ
 		for i, record := range found {
 			children[i] = record.ID
 		}
-		names, err := s.names(ctx, actor.WorkspaceID, sc, children)
+		labels, err := s.labels(ctx, actor.WorkspaceID, sc, children)
 		if err != nil {
 			return err
 		}
 		grouped := map[string][]Value{}
 		for _, record := range found {
-			grouped[record.ParentID] = append(grouped[record.ParentID], Value{RecordID: record.ID, Text: names[record.ID]})
+			label := labels[record.ID]
+			grouped[record.ParentID] = append(grouped[record.ParentID], Value{RecordID: record.ID, Text: label.Text, Icon: label.Icon})
 		}
 		for i := range records {
 			if records[i].Related == nil {

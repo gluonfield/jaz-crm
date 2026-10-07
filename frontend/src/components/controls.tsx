@@ -61,7 +61,7 @@ export function RecordChip({ object, value }: { object: string; value: Ref }) {
   return (
     <Link to="/r/$recordId" params={{ recordId: value.id }} onClick={(e) => e.stopPropagation()}
       className={cn(chip, 'outline-none hover:text-ink focus-visible:border-primary')}>
-      <RecordIcon object={object} name={name} photo={value.photo} size={14} />
+      <RecordIcon object={object} name={name} photo={value.photo} icon={value.icon} size={14} />
       <span className="truncate">{name}</span>
     </Link>
   )

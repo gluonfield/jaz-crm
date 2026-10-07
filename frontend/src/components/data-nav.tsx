@@ -9,6 +9,7 @@ import { readItem, writeItem } from '@/lib/storage'
 import type { CrmObject, CrmRecord } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { ObjectIcon } from './icons'
+import { PageIcon } from './page-icon'
 import { NavItem } from './nav-item'
 import { ConfirmDialog, NameDialog } from './prompt-dialog'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuOptions, ContextMenuSeparator, ContextMenuTrigger } from './ui/context-menu'
@@ -156,7 +157,7 @@ function PageItem({ page, pages, depth, opened, toggle, drag }: { page: Page; pa
     <>
       <PageMenu page={page} pages={pages}>
         <div {...drag.from(page.id)} {...drag.onto(page.id)} className={cn('group/row relative rounded-[var(--radius-control)] [&>a]:cursor-grab', drag.dragging === page.id && 'opacity-50', drag.target === page.id && 'bg-primary-soft [&>a]:bg-transparent [&>a]:text-primary')}>
-          <NavItem to={`/r/${page.id}`} depth={depth} icon={<FileText className={cn(inside.length > 0 && 'group-hover/row:invisible')} />}>
+          <NavItem to={`/r/${page.id}`} depth={depth} icon={<PageIcon value={page.icon} className={cn(inside.length > 0 && 'group-hover/row:invisible')} />}>
             {page.name}
           </NavItem>
           {inside.length > 0 && (
@@ -187,7 +188,7 @@ function PageMenu({ page, pages, children }: { page: Page; pages: Pages; childre
     { value: '', label: 'Top level' },
     ...[...pages.byId.values()]
       .filter((p) => !within(pages, p.id, page.id))
-      .map((p) => ({ value: p.id, label: path(pages, p.id).map((a) => a.name).join(' / '), icon: <FileText /> })),
+      .map((p) => ({ value: p.id, label: path(pages, p.id).map((a) => a.name).join(' / '), icon: <PageIcon value={p.icon} /> })),
   ]
   return (
     <>

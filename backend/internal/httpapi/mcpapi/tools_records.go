@@ -198,6 +198,7 @@ type refView struct {
 	ID    string `json:"id"`
 	Name  string `json:"name,omitempty"`
 	Photo string `json:"photo,omitempty"`
+	Icon  string `json:"icon,omitempty"`
 }
 
 type recordView struct {
@@ -229,7 +230,7 @@ func recordOf(r records.Record, photos map[string]string) recordView {
 		var list []any
 		for _, v := range f.Values {
 			if v.RecordID != "" {
-				list = append(list, refView{ID: v.RecordID, Name: v.Text, Photo: photos[v.RecordID]})
+				list = append(list, refView{ID: v.RecordID, Name: v.Text, Photo: photos[v.RecordID], Icon: v.Icon})
 			} else {
 				list = append(list, v.Text)
 			}
@@ -244,7 +245,7 @@ func recordOf(r records.Record, photos map[string]string) recordView {
 	for relation, records := range r.Related {
 		list := make([]refView, len(records))
 		for i, record := range records {
-			list[i] = refView{ID: record.RecordID, Name: record.Text, Photo: photos[record.RecordID]}
+			list[i] = refView{ID: record.RecordID, Name: record.Text, Photo: photos[record.RecordID], Icon: record.Icon}
 		}
 		related[relation] = list
 	}

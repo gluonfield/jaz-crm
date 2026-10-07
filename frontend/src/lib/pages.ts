@@ -3,7 +3,9 @@ import { recordName, valuesOf } from './crm'
 import { useAction, useTool } from './queries'
 import type { CrmRecord, Ref } from './types'
 
-export type Page = { id: string; name: string; parent?: string }
+export type Page = { id: string; name: string; parent?: string; icon?: string }
+
+export const pageIcon = (record: CrmRecord) => typeof record.values.icon === 'string' ? record.values.icon : undefined
 
 // Pages is every page, its sub-pages by parent ('' for the top level), oldest
 // first.
@@ -17,7 +19,7 @@ export function usePages(): Pages | undefined {
 function pagesOf(records: CrmRecord[]): Pages {
   const byId = new Map<string, Page>()
   for (const r of [...records].sort((a, b) => a.created_at.localeCompare(b.created_at))) {
-    byId.set(r.id, { id: r.id, name: recordName(r), parent: (valuesOf(r, 'parent')[0] as Ref | undefined)?.id })
+    byId.set(r.id, { id: r.id, name: recordName(r), parent: (valuesOf(r, 'parent')[0] as Ref | undefined)?.id, icon: pageIcon(r) })
   }
   const children = new Map<string, Page[]>()
   // A page whose parent is unknown, or which no top-level page reaches, sits

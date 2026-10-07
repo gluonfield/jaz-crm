@@ -2,6 +2,7 @@ import { ArrowUpRight } from 'lucide-react'
 import { RecordIcon } from '@/components/icons'
 import { Stage } from '@/components/stage'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
+import { pageIcon } from '@/lib/pages'
 import { formatNumber, recentOrDate } from '@/lib/format'
 import { useTool } from '@/lib/queries'
 import type { CrmRecord } from '@/lib/types'
@@ -23,7 +24,7 @@ export function RecordCard({ recordId, onOpen }: { recordId: string; onOpen: (ur
   const stage = valuesOf(record, 'stage')[0]
   const value = valuesOf(record, 'value')[0]
   const description = valuesOf(record, 'description')[0]
-  const fields = Object.keys(record.values).filter((slug) => !['name', 'stage', 'value', 'description'].includes(slug) && valuesOf(record, slug).length > 0)
+  const fields = Object.keys(record.values).filter((slug) => !['name', 'stage', 'value', 'description', 'icon'].includes(slug) && valuesOf(record, slug).length > 0)
   const href = `codex://plugins/jaz-crm/app/show_crm?path=${encodeURIComponent(`/r/${record.id}`)}`
   return (
     <a
@@ -35,7 +36,7 @@ export function RecordCard({ recordId, onOpen }: { recordId: string; onOpen: (ur
       className="group block rounded-xl bg-raised p-4 text-ink outline-none transition-colors hover:bg-list-hover focus-visible:bg-list-hover"
     >
       <div className="flex items-start gap-3">
-        <RecordIcon object={record.object} name={name} photo={record.photo} size={36} />
+        <RecordIcon object={record.object} name={name} photo={record.photo} icon={pageIcon(record)} size={36} />
         <div className="min-w-0 flex-1">
           <h2 className="m-0 break-words text-[15px] font-semibold leading-5">{name}</h2>
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-ink-3">

@@ -4,6 +4,7 @@ import { Inbox, Moon, PlugZap, Settings, Sun } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { recordName } from '@/lib/crm'
+import { pageIcon } from '@/lib/pages'
 import { useDebounced } from '@/lib/hooks'
 import { useObjects, useRecordSearch } from '@/lib/queries'
 import { setSchemePreference } from '@/lib/theme'
@@ -69,7 +70,7 @@ function Palette() {
         {records.length > 0 && (
           <CommandPrimitive.Group heading="Records" className={groupClass}>
             {records.map((r) => (
-              <Item key={r.id} value={r.id} onSelect={() => go(`/r/${r.id}`)} icon={<RecordIcon object={r.object} name={recordName(r)} photo={r.photo} />}>
+              <Item key={r.id} value={r.id} onSelect={() => go(`/r/${r.id}`)} icon={<RecordIcon object={r.object} name={recordName(r)} photo={r.photo} icon={pageIcon(r)} />}>
                 {recordName(r)}
                 <span className="ml-2 text-ink-3">{objects.find((o) => o.slug === r.object)?.name}</span>
               </Item>

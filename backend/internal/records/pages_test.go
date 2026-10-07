@@ -13,7 +13,7 @@ import (
 // edit each other's pages: titles, places and content.
 func TestPages(t *testing.T) {
 	svc, a, _ := setup(t)
-	root, _ := upsert(t, svc, a, records.SourceUser, records.Write{Object: records.Pages, Set: set("name", "Research")})
+	root, _ := upsert(t, svc, a, records.SourceUser, records.Write{Object: records.Pages, Set: set("name", "Research", "icon", "📚")})
 	child, _ := upsert(t, svc, a, records.SourceUser, records.Write{Object: records.Pages, Set: set("name", "Painpoints", "parent", root.ID)})
 	leaf, _ := upsert(t, svc, a, records.SourceUser, records.Write{Object: records.Pages, Set: set("name", "Quoting", "parent", child.ID)})
 	for _, parent := range []string{root.ID, leaf.ID} {
@@ -22,13 +22,18 @@ func TestPages(t *testing.T) {
 		}
 	}
 	mention := fmt.Sprintf("Slow quotes at [Acme](/r/%s).\n\n- [ ] Ask about lead times", root.ID)
-	moved, skips := upsert(t, svc, a, records.SourceAgent, records.Write{Object: records.Pages, RecordID: leaf.ID, Set: set("name", "Slow quoting", "parent", root.ID, "content", mention)})
+	moved, skips := upsert(t, svc, a, records.SourceAgent, records.Write{Object: records.Pages, RecordID: leaf.ID, Set: set("name", "Slow quoting", "parent", root.ID, "content", mention, "icon", "icon:target")})
 	if len(skips) > 0 || !slices.Equal(values(moved, "name"), []string{"Slow quoting"}) || !slices.Equal(values(moved, "parent"), []string{root.ID}) || !slices.Equal(values(moved, "content"), []string{mention}) {
 		t.Fatalf("an agent's edit of a person's page: %+v %+v", moved, skips)
 	}
 	found, _, err := svc.Search(ctx, a, records.Search{Object: records.Pages, Query: "lead times"})
-	if err != nil || len(found) != 1 || found[0].ID != leaf.ID || len(values(found[0], "content")) != 0 {
+	if err != nil || len(found) != 1 || found[0].ID != leaf.ID || len(values(found[0], "content")) != 0 || !slices.Equal(values(found[0], "icon"), []string{"icon:target"}) {
 		t.Fatalf("searching content finds the page without carrying it: %+v %v", found, err)
+	}
+	upsert(t, svc, a, records.SourceUser, records.Write{Object: records.Pages, RecordID: leaf.ID, Remove: map[string][]string{"icon": {}}})
+	cleared, err := svc.Get(ctx, a, leaf.ID)
+	if err != nil || len(values(cleared, "icon")) != 0 || !slices.Equal(values(cleared, "content"), []string{mention}) {
+		t.Fatalf("removing a page icon: %+v %v", cleared, err)
 	}
 	if err := svc.Delete(ctx, a, root.ID); err != nil {
 		t.Fatal(err)

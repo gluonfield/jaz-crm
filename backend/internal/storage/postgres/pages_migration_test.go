@@ -50,13 +50,13 @@ func TestPagesMigration(t *testing.T) {
 			slugs[o.Slug] = append(slugs[o.Slug], a.Slug+":"+a.Type)
 		}
 	}
-	if !slices.Equal(slugs["pages"], []string{"name:text", "parent:reference", "content:markdown"}) || !slices.Equal(slugs["quotes"], []string{"name:text", "content:markdown"}) || !slices.Equal(slugs["people"], []string{"name:text"}) {
+	if !slices.Equal(slugs["pages"], []string{"name:text", "parent:reference", "content:markdown", "icon:text"}) || !slices.Equal(slugs["quotes"], []string{"name:text", "content:markdown"}) || !slices.Equal(slugs["people"], []string{"name:text"}) {
 		t.Fatalf("migrated schema: %v", slugs)
 	}
 	if _, _, err := crm.Upsert(ctx, actor, records.SourceUser, records.Write{Object: "quotes", RecordID: quote, Set: map[string][]string{"content": {"# Terms"}}}); err != nil {
 		t.Fatalf("an existing table record takes content: %v", err)
 	}
-	page, _, err := crm.Upsert(ctx, actor, records.SourceUser, records.Write{Object: "pages", Set: map[string][]string{"name": {"Research"}}})
+	page, _, err := crm.Upsert(ctx, actor, records.SourceUser, records.Write{Object: "pages", Set: map[string][]string{"name": {"Research"}, "icon": {"📚"}}})
 	if err != nil {
 		t.Fatal(err)
 	}

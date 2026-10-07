@@ -61,6 +61,7 @@ type Field struct {
 type Value struct {
 	Text     string
 	RecordID string
+	Icon     string
 }
 
 // schema is one workspace's objects and attributes.
@@ -249,7 +250,7 @@ func (s *Service) views(ctx context.Context, workspaceID string, sc schema, reco
 			refs = append(refs, *v.RefRecordID)
 		}
 	}
-	names, err := s.names(ctx, workspaceID, sc, refs)
+	labels, err := s.labels(ctx, workspaceID, sc, refs)
 	if err != nil {
 		return nil, err
 	}
@@ -263,7 +264,8 @@ func (s *Service) views(ctx context.Context, workspaceID string, sc schema, reco
 			field := Field{Attribute: attr.Slug, Multi: attr.Multi}
 			for _, v := range held[[2]string{r.ID, attr.ID}] {
 				if v.RefRecordID != nil {
-					field.Values = append(field.Values, Value{RecordID: *v.RefRecordID, Text: names[*v.RefRecordID]})
+					label := labels[*v.RefRecordID]
+					field.Values = append(field.Values, Value{RecordID: *v.RefRecordID, Text: label.Text, Icon: label.Icon})
 				} else {
 					field.Values = append(field.Values, Value{Text: *v.Text})
 				}
@@ -297,17 +299,17 @@ func (s *Service) Labels(ctx context.Context, workspaceID string, ids []string) 
 	if err != nil {
 		return nil, err
 	}
-	names, err := s.names(ctx, workspaceID, sc, ids)
+	labels, err := s.labels(ctx, workspaceID, sc, ids)
 	for _, r := range records {
-		out[r.ID] = Label{Object: sc.objectByID(r.ObjectID).Slug, Name: names[r.ID]}
+		out[r.ID] = Label{Object: sc.objectByID(r.ObjectID).Slug, Name: labels[r.ID].Text}
 	}
 	return out, err
 }
 
-// names names records by their title, else an identifying value such as an
-// email address, else any text; alphabetically by attribute among equals.
-func (s *Service) names(ctx context.Context, workspaceID string, sc schema, ids []string) (map[string]string, error) {
-	out := map[string]string{}
+// labels names records by their title, else an identifying value such as an
+// email address, else any text; page icons travel with their labels.
+func (s *Service) labels(ctx context.Context, workspaceID string, sc schema, ids []string) (map[string]Value, error) {
+	out := map[string]Value{}
 	if len(ids) == 0 {
 		return out, nil
 	}
@@ -327,9 +329,16 @@ func (s *Service) names(ctx context.Context, workspaceID string, sc schema, ids 
 			continue
 		}
 		attr := sc.attributeByID(v.AttributeID)
+		label := out[v.RecordID]
+		if attr.Slug == "icon" && sc.objectByID(attr.ObjectID).Slug == Pages {
+			label.Icon = *v.Text
+			out[v.RecordID] = label
+			continue
+		}
 		was, found := selected[v.RecordID]
 		if !found || rank(attr) < rank(was) || rank(attr) == rank(was) && attr.Slug < was.Slug {
-			out[v.RecordID] = *v.Text
+			label.Text = *v.Text
+			out[v.RecordID] = label
 			selected[v.RecordID] = attr
 		}
 	}

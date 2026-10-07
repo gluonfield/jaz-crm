@@ -121,6 +121,7 @@ var StandardObjects = []storage.NewObject{
 		{Slug: titleAttribute, Name: "Name", Type: Text},
 		{Slug: "parent", Name: "Parent", Type: Reference, Target: Pages},
 		{Slug: ContentAttribute, Name: "Content", Type: Markdown},
+		{Slug: "icon", Name: "Icon", Type: Text},
 	}},
 }
 

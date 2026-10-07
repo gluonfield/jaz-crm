@@ -54,7 +54,7 @@ func legacy(t *testing.T, version int64) (*sql.DB, string) {
 		}
 		_ = admin.Close(ctx)
 	})
-	provider, err := goose.NewProvider(goose.DialectPostgres, db, os.DirFS("migrations"), goose.WithDisableGlobalRegistry(true), goose.WithGoMigrations(datamigrations.DealFollowups, datamigrations.FollowUps, datamigrations.ChaseFilter))
+	provider, err := goose.NewProvider(goose.DialectPostgres, db, os.DirFS("migrations"), goose.WithDisableGlobalRegistry(true), goose.WithGoMigrations(datamigrations.DealFollowups, datamigrations.FollowUps, datamigrations.ChaseFilter, datamigrations.PageIcons))
 	if err != nil {
 		t.Fatal(err)
 	}

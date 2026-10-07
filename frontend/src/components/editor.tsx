@@ -21,7 +21,7 @@ import { singular } from './create-record'
 import { DocumentKit } from './document-links'
 import { RecordIcon } from './icons'
 
-type Mention = { id: string; name: string; object: string; detail: string; photo?: string }
+type Mention = { id: string; name: string; object: string; detail: string; photo?: string; icon?: string }
 type Menu = { items: Mention[]; index: number; loading: boolean; pick: (item: Mention) => void; element: HTMLElement }
 type Bridge = { show: (props: SuggestionProps<Mention, Mention>, element?: HTMLElement) => void; key: (event: KeyboardEvent) => boolean; hide: () => void }
 
@@ -80,7 +80,7 @@ async function matching(query: string, objects: CrmObject[], pages: Pages | unde
     .map((page) => ({ page, trail: path(pages!, page.id).map((p) => p.name) }))
     .filter(({ trail }) => named(trail.at(-1) ?? '') && alongPath(parts.slice(0, -1), trail.slice(0, -1)))
     .slice(0, 5)
-    .map(({ page, trail }) => ({ id: page.id, name: page.name, object: 'pages', detail: trail.slice(0, -1).join(' / ') || 'Page' }))
+    .map(({ page, trail }) => ({ id: page.id, name: page.name, object: 'pages', icon: page.icon, detail: trail.slice(0, -1).join(' / ') || 'Page' }))
   const searched = parts.length > 1 ? [] : objects.filter((o) => o.slug === 'people' || o.slug === 'companies' || !o.standard)
   const results = await Promise.all(searched.map((o) => call<{ records: CrmRecord[] }>('search_records', { object: o.slug, query: title, limit: 8 })))
   const records = results.flatMap((result, i) =>
@@ -262,7 +262,7 @@ export function PageEditor({ record }: { record: CrmRecord }) {
                 onClick={() => menu.pick(item)}
                 className={cn('flex h-8 w-full items-center gap-2.5 rounded-[var(--radius-control)] px-2 text-left text-ink outline-none', index === menu.index && 'bg-list-active')}
               >
-                <RecordIcon object={item.object} name={item.name} photo={item.photo} size={16} />
+                <RecordIcon object={item.object} name={item.name} photo={item.photo} icon={item.icon} size={16} />
                 <span className="min-w-0 flex-1 truncate">{item.name}</span>
                 <span className="max-w-36 shrink-0 truncate text-[12px] text-ink-3">{item.detail}</span>
               </button>

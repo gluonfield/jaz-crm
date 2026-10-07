@@ -2,6 +2,7 @@ import { Link } from '@tanstack/react-router'
 import { Check, Plus } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { recordName, valueKey, valueText, valuesOf } from '@/lib/crm'
+import { pageIcon } from '@/lib/pages'
 import { formatDay, formatNumber } from '@/lib/format'
 import { useDebounced } from '@/lib/hooks'
 import { useRecords, useWorkspace, useWrite } from '@/lib/queries'
@@ -198,7 +199,7 @@ function ReferenceField({ record, attribute, values, limit }: { record: CrmRecor
         {values.map((v) => (
           <Chip key={valueKey(v)} onRemove={() => write.remove(attribute.slug, [valueKey(v)])}>
             <Link to="/r/$recordId" params={{ recordId: valueKey(v) }} className="flex items-center gap-1.5 hover:text-ink">
-              <RecordIcon object={target} name={valueText(v)} size={14} />
+              <RecordIcon object={target} name={valueText(v)} icon={typeof v === 'string' ? undefined : v.icon} size={14} />
               {valueText(v)}
             </Link>
           </Chip>
@@ -213,7 +214,7 @@ function ReferenceField({ record, attribute, values, limit }: { record: CrmRecor
           }
           placeholder={`Find ${target}...`}
           onSearch={setSearch}
-          options={found.map((r) => ({ value: r.id, label: recordName(r), icon: <RecordIcon object={target} name={recordName(r)} size={16} /> }))}
+          options={found.map((r) => ({ value: r.id, label: recordName(r), icon: <RecordIcon object={target} name={recordName(r)} icon={pageIcon(r)} size={16} /> }))}
           onSelect={(id) => write.set(attribute.slug, id)}
         />
       )}

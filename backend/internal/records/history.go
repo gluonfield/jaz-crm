@@ -51,7 +51,7 @@ func (s *Service) History(ctx context.Context, actor auth.Actor, id string) ([]C
 		}
 		replaced[v.AttributeID+v.ActiveFrom.String()] = true
 	}
-	names, err := s.names(ctx, actor.WorkspaceID, sc, refs)
+	labels, err := s.labels(ctx, actor.WorkspaceID, sc, refs)
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +59,8 @@ func (s *Service) History(ctx context.Context, actor auth.Actor, id string) ([]C
 	for _, v := range past {
 		c := Change{Attribute: sc.attributeByID(v.AttributeID).Slug, Source: Source(v.Source), Actor: v.ActorName, At: v.ActiveFrom}
 		if v.RefRecordID != nil {
-			c.Value = Value{RecordID: *v.RefRecordID, Text: names[*v.RefRecordID]}
+			label := labels[*v.RefRecordID]
+			c.Value = Value{RecordID: *v.RefRecordID, Text: label.Text, Icon: label.Icon}
 		} else {
 			c.Value = Value{Text: *v.Text}
 		}

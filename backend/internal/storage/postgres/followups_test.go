@@ -48,7 +48,7 @@ func TestStandardSchemaUpgradeAndDeletedDefault(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	old, err := goose.NewProvider(goose.DialectPostgres, db, os.DirFS("migrations"), goose.WithDisableGlobalRegistry(true), goose.WithExcludeNames([]string{"0015_deal_followups.go", "0019_follow_ups.go", "0033_chase_filter.go"}))
+	old, err := goose.NewProvider(goose.DialectPostgres, db, os.DirFS("migrations"), goose.WithDisableGlobalRegistry(true), goose.WithExcludeNames([]string{"0015_deal_followups.go", "0019_follow_ups.go", "0033_chase_filter.go", "0043_page_icons.go"}))
 	if err != nil {
 		t.Fatal(err)
 	}

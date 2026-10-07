@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { channelNames } from '@/lib/crm'
 import type { Kind } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { PageIcon } from './page-icon'
 
 function hash(value: string) {
   let h = 0
@@ -20,10 +21,10 @@ function initials(name: string) {
 // RecordIcon draws a page as a document, a person as a round avatar and
 // anything else as a square tile: the profile picture when there is one, else
 // lettered and tinted by name.
-export function RecordIcon({ object, name, photo, size = 18, className }: { object: string; name: string; photo?: string; size?: number; className?: string }) {
+export function RecordIcon({ object, name, photo, icon, size = 18, className }: { object: string; name: string; photo?: string; icon?: string; size?: number; className?: string }) {
   const [failed, setFailed] = useState<string>()
   if (object === 'pages') {
-    return <FileText aria-hidden style={{ width: Math.min(size, 20), height: Math.min(size, 20) }} className={cn('shrink-0 text-ink-2', className)} />
+    return <PageIcon value={icon} size={Math.min(size, 20)} className={className} />
   }
   const shape = object === 'people' ? 'rounded-full' : 'rounded-[28%]'
   if (photo && failed !== photo) {

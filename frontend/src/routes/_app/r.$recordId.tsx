@@ -9,6 +9,7 @@ import { Conversation } from '@/components/follow-up'
 import { PageEditor } from '@/components/editor'
 import { History } from '@/components/history'
 import { ObjectIcon } from '@/components/icons'
+import { PageIcon, PageIconPicker } from '@/components/page-icon'
 import { PersonContext } from '@/components/person-context'
 import { Properties } from '@/components/properties'
 import { Related } from '@/components/related'
@@ -19,7 +20,7 @@ import { UpdatedAt } from '@/components/updated-at'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
 import { useAction, useObjects, useTool, useUpcoming, useWrite } from '@/lib/queries'
-import { path, usePages } from '@/lib/pages'
+import { pageIcon, path, usePages } from '@/lib/pages'
 import type { CrmObject, CrmRecord, Ref } from '@/lib/types'
 
 export const Route = createFileRoute('/_app/r/$recordId')({
@@ -48,14 +49,16 @@ function RecordPage() {
     <Header>
       {page ? (
         <>
-          <FileText />
+          <PageIconPicker key={record.id} record={record}>
+            <Button variant="ghost" size="icon-sm" aria-label="Change page icon"><PageIcon value={pageIcon(record)} /></Button>
+          </PageIconPicker>
           {pages &&
             path(pages, record.id)
               .slice(0, -1)
               .map((p) => (
                 <Fragment key={p.id}>
-                  <Link to="/r/$recordId" params={{ recordId: p.id }} className="max-w-48 truncate text-ink-2 hover:text-ink">
-                    {p.name}
+                  <Link to="/r/$recordId" params={{ recordId: p.id }} className="flex min-w-0 max-w-48 items-center gap-1.5 text-ink-2 hover:text-ink">
+                    <PageIcon value={p.icon} /><span className="truncate">{p.name}</span>
                   </Link>
                   <span className="text-ink-3">/</span>
                 </Fragment>
@@ -115,6 +118,7 @@ function RecordPage() {
         {header}
         <div className="scrollbar-quiet @container min-h-0 flex-1 overflow-y-auto">
           <div className="mx-auto flex max-w-[720px] flex-col px-6 pb-24 pt-16">
+            {page && <PageIconPicker key={record.id} record={record} />}
             <h1 className="text-[30px] font-semibold leading-tight tracking-[-0.02em] text-ink">
               <Title key={`${record.id}:${name}`} record={record} object={object} name={name} />
             </h1>
