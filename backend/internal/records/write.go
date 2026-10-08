@@ -10,7 +10,6 @@ import (
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"github.com/gluonfield/jaz-crm/backend/internal/errs"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
-	"github.com/lithammer/shortuuid/v4"
 )
 
 // Source is who wrote a value. A write replaces or removes only values from
@@ -301,13 +300,6 @@ func plan(current []storage.RecordValue, set, remove []change, source Source, ac
 		actor = &actorID
 	}
 	insert := func(attr storage.Attribute, e entry) {
-		if e.image != nil {
-			image := *e.image
-			image.ID = shortuuid.New()
-			text := "image:" + image.ID
-			e.text = &text
-			out.Images = append(out.Images, image)
-		}
 		out.Insert = append(out.Insert, storage.NewRecordValue{
 			AttributeID: attr.ID, Text: e.text, RefRecordID: e.ref, UniqueKey: e.key, Source: string(source), ActorID: actor,
 		})

@@ -27,6 +27,8 @@ Every color, radius, font and shadow in the web app comes from CSS custom proper
 
 Workflow state, label and project colors are workspace data and are drawn as stored.
 
+Page icon colors use `--page-icon-gray`, `--page-icon-brown`, `--page-icon-orange`, `--page-icon-yellow`, `--page-icon-green`, `--page-icon-blue`, `--page-icon-purple`, `--page-icon-pink` and `--page-icon-red`, with defaults for both schemes. Default icons use `--color-ink-2`.
+
 Each token falls back to the matching [MCP Apps](https://github.com/modelcontextprotocol/ext-apps) standard variable before its default, for example `--color-bg: var(--color-background-primary, #fdfdfd)`, so any host that speaks the MCP Apps style contract themes the app without knowing these names:
 
 | Token | Standard variable |

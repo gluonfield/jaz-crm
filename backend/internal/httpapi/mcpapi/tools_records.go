@@ -100,6 +100,15 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 			for slug, value := range in.Expect {
 				expect[slug] = []string{value}
 			}
+			if in.Object == records.Pages {
+				for _, fields := range []map[string][]string{set, in.Remove, expect} {
+					for i, value := range fields["icon"] {
+						if token, ok := strings.CutPrefix(value, "image:"+r.publicURL+"/page-icons/"); ok && !strings.ContainsAny(token, "/?#:") {
+							fields["icon"][i] = "image:" + token
+						}
+					}
+				}
+			}
 			record, skips, err := crm.Upsert(ctx, actor, records.SourceOf(actor), records.Write{Object: in.Object, RecordID: in.RecordID, Set: set, Remove: in.Remove, Expect: expect})
 			if err != nil {
 				return upsertOutput{}, err
@@ -259,7 +268,7 @@ func (r *registry) recordOf(record records.Record, photos map[string]string) rec
 }
 
 func (r *registry) icon(value string) string {
-	if token, ok := strings.CutPrefix(value, "image:"); ok {
+	if token, ok := strings.CutPrefix(value, "image:"); ok && !strings.Contains(token, ":") {
 		return "image:" + r.publicURL + "/page-icons/" + token
 	}
 	return value

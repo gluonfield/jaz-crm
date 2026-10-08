@@ -69,8 +69,8 @@ func registerApp(r *registry, publicURL string) {
 			URI: req.Params.URI, MIMEType: appMIME, Text: body, Meta: mcp.Meta{"ui": map[string]any{
 				"prefersBorder": false,
 				"domain":        publicURL,
-				// Profile pictures load from Google, logos from the CRM.
-				"csp": map[string]any{"connectDomains": []string{}, "resourceDomains": []string{"https://*.googleusercontent.com", publicURL}},
+				// User-linked page icons can come from any HTTP(S) origin.
+				"csp": map[string]any{"connectDomains": []string{}, "resourceDomains": []string{"https://*:*", "http://*:*"}},
 			}, "openai/ui": map[string]any{"availableDisplayModes": []string{"inline", "fullscreen"}}},
 		}}}, nil
 	}

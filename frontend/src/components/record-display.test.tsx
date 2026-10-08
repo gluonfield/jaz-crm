@@ -9,7 +9,7 @@ import { RecordCard } from './record-card'
 import { Related } from './related'
 
 test('page decorations leave custom Icon fields visible in record cards', () => {
-  for (const [object, icon] of [['parts', 'Brand asset #2'], ['companies', 'Brand asset #2'], ['pages', 'icon:rocket'], ['pages', 'image:http://crm.test/page-icons/thumbnail']]) {
+  for (const [object, icon] of [['parts', 'Brand asset #2'], ['companies', 'Brand asset #2'], ['pages', 'icon:rocket'], ['pages', 'icon:Drill:blue'], ['pages', 'image:https://example.com/logo.png']]) {
     const record: CrmRecord = {
       id: 'test-record', object, created_at: '2026-10-07T12:00:00Z', updated_at: '2026-10-07T12:00:00Z',
       values: { name: 'Valve', icon, content: 'Review before ordering' },
@@ -20,10 +20,14 @@ test('page decorations leave custom Icon fields visible in record cards', () => 
     assert.match(html, /Valve/)
     assert.match(html, /Review before ordering/)
     if (object === 'pages') {
-      assert.doesNotMatch(html, /icon:rocket/)
+      assert.doesNotMatch(html, /icon:(rocket|Drill)/)
       assert.doesNotMatch(html, /image:http/)
       if (icon.startsWith('image:')) {
-        assert.match(html, /<img[^>]+src="http:\/\/crm.test\/page-icons\/thumbnail"/)
+        assert.match(html, /<img[^>]+src="https:\/\/example.com\/logo.png"/)
+      }
+      if (icon === 'icon:Drill:blue') {
+        assert.match(html, /lucide-drill/)
+        assert.match(html, /color:var\(--page-icon-blue\)/)
       }
     } else {
       assert.match(html, /Brand asset #2/)

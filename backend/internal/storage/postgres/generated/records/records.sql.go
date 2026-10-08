@@ -354,21 +354,6 @@ func (q *Queries) GetRecords(ctx context.Context, arg GetRecordsParams) ([]Recor
 	return items, nil
 }
 
-const insertPageImage = `-- name: InsertPageImage :exec
-INSERT INTO page_images (id, record_id, png) VALUES ($1, $2, $3)
-`
-
-type InsertPageImageParams struct {
-	ID       string
-	RecordID string
-	PNG      []byte
-}
-
-func (q *Queries) InsertPageImage(ctx context.Context, arg InsertPageImageParams) error {
-	_, err := q.db.Exec(ctx, insertPageImage, arg.ID, arg.RecordID, arg.PNG)
-	return err
-}
-
 const insertValue = `-- name: InsertValue :exec
 INSERT INTO record_values (record_id, attribute_id, text, ref_record_id, unique_key, source, actor_id)
 VALUES ($1, $2, $3, $4, $5, $6, $7)

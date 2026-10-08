@@ -1,24 +1,29 @@
-# Page icons
+# Page Icons
 
-- [x] Add a Notion-style page icon picker with searchable emojis and symbols, pasted emoji support, replacement and removal.
-- [x] Save icons on the page and show them in the page header, sidebar, child-page links and document links.
-- [x] Verify existing-workspace migration and MCP persistence; commit and push the page-icon feature.
-- [x] Complete browser interaction/reload checks and light/narrow layout measurements after the side browser reconnects.
-- [x] Complete the requested thermo-nuclear review, correct findings and verify corrections.
-- [x] Allow uploaded images as page icons, with replacement/removal and shared rendering; review and verify.
+- [x] Add a Notion-style picker with searchable emojis and symbols, pasted emoji support, replacement and removal.
+- [x] Save icons on Pages and share rendering across headers, sidebar, breadcrumbs, child-page links, mentions, reference chips, document links and history.
+- [x] Migrate existing workspaces without changing their records.
+- [x] Complete the requested thermo-nuclear review; preserve custom Icon fields on other objects and complete reference metadata.
+- [x] Support images as page icons. The 2026-10-08 correction replaces the previous upload flow with image URLs until object storage is available.
+- [x] Remove upload controls, thumbnail conversion and new database image writes. Preserve previously stored images.
+- [x] Add saved icon colors, including changing an existing icon's color without reselecting its glyph.
+- [x] Expand the searchable catalogs using open-source data and research an open-source Notion alternative.
+- [x] Replace rounded filled tabs with square transparent tabs and an active underline.
+- [x] Review and verify the final implementation, browser behavior and persistence.
 
 | Before | After |
 | --- | --- |
-| Pages use a fixed document glyph. | Choose or remove an emoji or symbol from the title/header; the sidebar, breadcrumbs, sub-pages, mentions, reference chips and document links share the saved icon. |
-| Existing workspaces have no page icon attribute. | Migration 43 adds Icon while preserving existing records; new workspaces include it. |
-| Page icons accept emojis and symbols. | The Image tab uploads, replaces and removes proportion-preserving thumbnails; shared page surfaces and history render them. |
+| Rounded, filled tab buttons. | Accessible square tabs with transparent backgrounds and an active underline. |
+| A small sample of symbols and emojis. | All 1,854 canonical icons from the installed Lucide library and 3,944 fully qualified Unicode 17 emojis, including skin tones and flags. |
+| Icons have one fixed color. | Default plus nine theme-aware colors, saved with the glyph and shared across every icon surface. |
+| Image uploads write thumbnails to PostgreSQL. | HTTP(S) image URLs; no upload control or new asset writes. Existing assets remain readable and editable through their displayed URLs. |
 
-The feature passes frontend `bun run check`, Go build/vet and the full Go suite (`go test -p 1 ./...`). Real HTTP/MCP/storage checks cover emoji/symbol replacement, complex emojis, removal, reference updates and preserved titles/content. No new dependency.
+The interaction reference is [AppFlowy's open-source picker](https://github.com/AppFlowy-IO/AppFlowy-Web/blob/main/src/components/_shared/icon-picker/IconPicker.tsx). Its catalog has 977 icons across 16 categories; CRM uses its already installed [Lucide](https://lucide.dev/guide/react) catalog rather than copying AppFlowy or Streamline assets. Emoji data comes from [Unicode 17](https://www.unicode.org/Public/17.0.0/emoji/emoji-test.txt); its license is retained beside the generated catalog. No new dependency.
 
-The reconnected side browser exercised actual PNG/JPEG uploads, invalid-file rejection, replacement, reload, removal, linked-page icons and keyboard emoji/symbol selection with natural focus return. Images retain transparency and become 128 × 128 thumbnails; tool reads carry URLs. Light/dark computed styles and 390 px iframe layout pass, including picker bounds. The normalized thumbnail was visually inspected; full-page screenshot capture times out, so screenshot review remains unavailable.
+Frontend bun run check, the full sequential Go suite, Go build/vet and sqlc generation pass. Real HTTP/MCP/PostgreSQL checks cover image links, colors, references, history, concurrency preconditions, removal, rejection of uploads and unsafe schemes, legacy assets and workspace isolation. Saving a URL never downloads it on the server. A compiler-overlay control reproduces the legacy URL concurrency failure when boundary normalization is removed.
 
-The requested review corrected two issues: page-only metadata filtering hid custom Icon fields in cards and related-record details; three backend callers reconstructed the same reference metadata. Icon filtering now applies only to Pages, and the existing resolver returns complete reference values. Real rendering regressions fail before the correction and pass afterward. MCP/storage coverage preserves an untitled page's reference ID after removing its only icon, with a failing compiler-overlay control.
+The real built UI passes mouse selection, color changes, reload, linked-page rendering, URL validation, replacement, broken-image fallback, removal and focus return. Light/dark screenshots were inspected; 390 px iframe measurements confirm picker bounds and no horizontal overflow. The full emoji grid mounts in about 171 ms locally. Keyboard event injection did not reach this browser; synthetic ArrowDown exercises the production focus handler, while the earlier native keyboard checks remain recorded with the original feature.
 
-Review corrections pass the full frontend check, sequential Go suite and Go build/vet. No further structural blockers found; changed handwritten files remain below 1,000 lines.
+The embedded app declares HTTP(S) resource origins for user-linked images while keeping network API connections disabled. A browser probe applies the actual MCP resource policy: an image on another origin loads; the previous origin list blocks it. Hosts may further restrict their sandbox policy.
 
-Image storage and record changes share one transaction. Real HTTP/MCP/PostgreSQL checks cover thumbnail pixels, references, idempotent saves, independent copies, replacement/removal, history, deletion, rejected uploads, cross-workspace reuse and rollback. The final frontend check, full Go suite and Go build/vet pass. No new dependency.
+Earlier releases: dc0ed03 added page icons, a06c2b8 corrected the strict-review findings, and 2b60cb8 added the now-replaced upload flow.

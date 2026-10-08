@@ -146,7 +146,6 @@ type ValueChanges struct {
 	Close  []int64
 	Insert []NewRecordValue
 	Revise []ValueRevision
-	Images []PageImage
 }
 
 type PageImage struct {

@@ -85,10 +85,28 @@
 
 :root {
   color-scheme: light;
+  --page-icon-gray: #787774;
+  --page-icon-brown: #9f6b53;
+  --page-icon-orange: #d9730d;
+  --page-icon-yellow: #b28a00;
+  --page-icon-green: #448361;
+  --page-icon-blue: #337ea9;
+  --page-icon-purple: #9065b0;
+  --page-icon-pink: #c14c8a;
+  --page-icon-red: #c64c4c;
 }
 
 :root:where(.dark) {
   color-scheme: dark;
+  --page-icon-gray: #9b9b9b;
+  --page-icon-brown: #ba856f;
+  --page-icon-orange: #e59d53;
+  --page-icon-yellow: #d8bc65;
+  --page-icon-green: #7cba9b;
+  --page-icon-blue: #6ca8d0;
+  --page-icon-purple: #b391d1;
+  --page-icon-pink: #de91bd;
+  --page-icon-red: #e48787;
   --color-bg: var(--color-background-primary, #151618);
   --color-panel: color-mix(in oklab, black 30%, var(--color-bg));
   --color-surface: var(--color-background-tertiary, #1c1d20);

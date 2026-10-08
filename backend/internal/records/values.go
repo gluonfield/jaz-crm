@@ -135,10 +135,9 @@ func standard(object string, attribute ...string) bool {
 // entry is a validated value ready to store: text, or a referenced record,
 // with the unique key of a unique attribute.
 type entry struct {
-	text  *string
-	ref   *string
-	key   *string
-	image *storage.PageImage
+	text *string
+	ref  *string
+	key  *string
 }
 
 // identity is what makes two values of one attribute the same value.

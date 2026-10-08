@@ -223,11 +223,6 @@ func (s *Store) WriteRecord(ctx context.Context, workspaceID, objectID, id strin
 				return err
 			}
 		}
-		for _, image := range changes.Images {
-			if err := r.InsertPageImage(ctx, recdb.InsertPageImageParams{ID: image.ID, RecordID: id, PNG: image.PNG}); err != nil {
-				return err
-			}
-		}
 		for _, value := range changes.Insert {
 			value.RecordID = id
 			if err := r.InsertValue(ctx, recdb.InsertValueParams(value)); err != nil {
