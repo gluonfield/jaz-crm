@@ -96,16 +96,14 @@ export function PageIconPicker({ record, children }: { record: CrmRecord; childr
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" aria-label={'Icon color: ' + color} disabled={write.isPending}><span className="size-3 rounded-full" style={{ backgroundColor: colorValue(color) }} /> Color <ChevronDown /></Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    {iconColors.map((choice) => <DropdownMenuItem key={choice} onSelect={() => {
+                  <DropdownMenuContent align="end" aria-label="Icon colors" className="grid min-w-0 grid-cols-5 gap-1">
+                    {iconColors.map((choice) => <DropdownMenuItem key={choice} title={choice} aria-label={choice + (color === choice ? ' (selected)' : '')} className="size-10 justify-center p-0" onSelect={() => {
                       setColor(choice)
                       if (saved?.name) {
                         pick(symbolValue(saved.name, choice), false)
                       }
                     }}>
-                      <span className="size-3 shrink-0 rounded-full" style={{ backgroundColor: colorValue(choice) }} />
-                      <span className="flex-1 capitalize">{choice}</span>
-                      {color === choice && <Check />}
+                      <span className={cn('size-5 rounded-full', color === choice && 'ring-2 ring-ink ring-offset-2 ring-offset-popover')} style={{ backgroundColor: colorValue(choice) }} />
                     </DropdownMenuItem>)}
                   </DropdownMenuContent>
                 </DropdownMenu>}

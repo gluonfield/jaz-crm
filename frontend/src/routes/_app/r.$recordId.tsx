@@ -9,7 +9,7 @@ import { Conversation } from '@/components/follow-up'
 import { PageEditor } from '@/components/editor'
 import { History } from '@/components/history'
 import { ObjectIcon } from '@/components/icons'
-import { PageIcon, PageIconPicker } from '@/components/page-icon'
+import { PageIconPicker } from '@/components/page-icon'
 import { PersonContext } from '@/components/person-context'
 import { Properties } from '@/components/properties'
 import { Related } from '@/components/related'
@@ -45,20 +45,25 @@ function RecordPage() {
   const emails = valuesOf(record, 'email_addresses').map(valueText)
   const page = record.object === 'pages'
   const parent = (valuesOf(record, 'parent')[0] as Ref | undefined)?.id
+  const ancestors = page && pages ? path(pages, record.id).slice(0, -1) : []
   const header = (
     <Header className={page ? 'mb-8 border-b-0 px-0' : undefined}>
       {page ? (
         <nav aria-label="Breadcrumbs" className="min-w-0 flex-1">
           <ol className="flex items-center gap-1.5">
-            {pages && path(pages, record.id).slice(0, -1).map((p, index) => (
+            {!parent && <li className="shrink-0"><Link to="/o/$object" params={{ object: 'pages' }} className="text-ink-2 hover:text-ink">Pages</Link></li>}
+            {ancestors.map((p, index) => (
               <li key={p.id} className="flex min-w-0 items-center gap-1.5">
                 {index > 0 && <ChevronRight aria-hidden className="size-3 shrink-0 text-ink-3" />}
-                <Link to="/r/$recordId" params={{ recordId: p.id }} title={p.name} className="flex min-w-0 items-center gap-1.5 text-ink-2 hover:text-ink">
-                  <PageIcon value={p.icon} /><span className="truncate">{p.name}</span>
+                <Link to="/r/$recordId" params={{ recordId: p.id }} title={p.name} className="truncate text-ink-2 hover:text-ink">
+                  {p.name}
                 </Link>
               </li>
             ))}
-            {!parent && <li><Link to="/o/$object" params={{ object: 'pages' }} className="text-ink-2 hover:text-ink">Pages</Link></li>}
+            <li className="flex min-w-0 items-center gap-1.5">
+              {(!parent || ancestors.length > 0) && <ChevronRight aria-hidden className="size-3 shrink-0 text-ink-3" />}
+              <span aria-current="page" title={name} className="truncate">{name}</span>
+            </li>
           </ol>
         </nav>
       ) : (
