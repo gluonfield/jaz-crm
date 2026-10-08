@@ -15,6 +15,7 @@ import { toolQuery, useObjects } from '@/lib/queries'
 import type { CrmObject, CrmRecord } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { singular } from './create-record'
+import { DocumentLinkEditor } from './document-link-editor'
 import { DocumentKit } from './document-links'
 import { RecordIcon } from './icons'
 
@@ -241,6 +242,7 @@ export function PageEditor({ record }: { record: CrmRecord }) {
   return (
     <>
       <EditorContent editor={editor} />
+      {editor && <DocumentLinkEditor editor={editor} />}
       {menu &&
         createPortal(
           <div role="listbox" aria-label="Mention" className="w-80 overflow-hidden rounded-[var(--radius-card)] bg-raised p-1.5 text-[13px] shadow-[var(--shadow-raised)]">

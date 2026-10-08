@@ -17,6 +17,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     let pendingG = false
     const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) {
+        return
+      }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault()
         setUI({ paletteOpen: !getUI().paletteOpen })

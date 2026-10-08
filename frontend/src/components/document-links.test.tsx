@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { Editor } from '@tiptap/core'
-import { DocumentKit } from './document-links'
+import { DocumentKit, documentLinkAt, editDocumentLink } from './document-links'
 
 test('page and read-only documents preserve links, dividers and nested checklists through edits', () => {
   const markdown = '[Budget](/r/budget) and [Visitor guide](https://example.com/guide)\n\n---\n\n- [x] **Book flights**\n  - [ ] Verify passport\n  - Packing list\n- [ ] Compare hotels'
@@ -48,4 +48,51 @@ test('page and read-only documents preserve links, dividers and nested checklist
     roundTrip.destroy()
     editor.destroy()
   }
+})
+
+test('splitting a URL bullet preserves its text and saves two separate bullets', () => {
+  const url = 'https://demo.cambridgeadvancedsystems.com/compact-briggs-die'
+  const editor = new Editor({ element: null, extensions: [DocumentKit], content: '- Start', contentType: 'markdown' })
+  editor.view.updateState(editor.state.reconfigure({ plugins: editor.extensionManager.plugins }))
+  editor.view.dispatch(editor.state.tr.insertText(url, 3, 8))
+  editor.commands.setTextSelection(3 + url.length)
+  assert.equal(editor.commands.splitListItem('listItem'), true)
+  editor.view.dispatch(editor.state.tr.insertText('Next bullet'))
+  assert.equal(editor.state.doc.firstChild!.childCount, 2)
+  assert.equal(editor.state.doc.firstChild!.child(0).textContent, url)
+  assert.equal(editor.state.doc.firstChild!.child(1).textContent, 'Next bullet')
+  const restored = new Editor({ element: null, extensions: [DocumentKit], content: editor.getMarkdown(), contentType: 'markdown' })
+  assert.equal(restored.state.doc.firstChild!.child(0).textContent, url)
+  assert.equal(restored.state.doc.firstChild!.child(1).textContent, 'Next bullet')
+  restored.destroy()
+  editor.destroy()
+})
+
+test('editing one link preserves formatting and repeated links, with atomic undo and safe destinations', () => {
+  const markdown = '[**Visitor** guide](https://example.com/guide) and [Visitor guide](https://example.com/guide)'
+  const editor = new Editor({ element: null, extensions: [DocumentKit], content: markdown, contentType: 'markdown' })
+  editor.view.updateState(editor.state.reconfigure({ plugins: editor.extensionManager.plugins }))
+  const original = editor.getJSON()
+  const first = documentLinkAt(editor, 2)!
+  assert.equal(editDocumentLink(editor, first, first.text, 'https://example.com/new'), true)
+  assert.match(editor.getMarkdown(), /\[\*\*Visitor\*\* guide\]\(https:\/\/example.com\/new\)/)
+  assert.match(editor.getMarkdown(), /\[Visitor guide\]\(https:\/\/example.com\/guide\)/)
+  assert.equal(editor.commands.undo(), true)
+  assert.deepEqual(editor.getJSON(), original)
+  const renamed = documentLinkAt(editor, 2)!
+  assert.equal(editDocumentLink(editor, renamed, 'Demo', '/r/target-page'), true)
+  assert.match(editor.getMarkdown(), /\[\*\*Demo\*\*\]\(\/r\/target-page\)/)
+  assert.match(editor.getMarkdown(), /\[Visitor guide\]\(https:\/\/example.com\/guide\)/)
+  const current = documentLinkAt(editor, 2)!
+  const beforeRejected = editor.getJSON()
+  assert.equal(editDocumentLink(editor, current, 'Danger', 'javascript:alert(1)'), false)
+  assert.deepEqual(editor.getJSON(), beforeRejected)
+  editor.view.dispatch(editor.state.tr.insertText('Prefix ', 1))
+  const afterTyping = editor.getJSON()
+  assert.equal(editDocumentLink(editor, current, 'Old edit', 'https://example.com/stale'), false)
+  assert.deepEqual(editor.getJSON(), afterTyping)
+  const restored = new Editor({ element: null, extensions: [DocumentKit], content: editor.getMarkdown(), contentType: 'markdown' })
+  assert.deepEqual(restored.getJSON(), editor.getJSON())
+  restored.destroy()
+  editor.destroy()
 })
