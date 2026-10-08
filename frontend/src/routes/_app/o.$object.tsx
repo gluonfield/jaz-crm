@@ -8,7 +8,7 @@ import { byUrgency, FollowUpQueue } from '@/components/follow-ups'
 import { Kbd } from '@/components/kbd'
 import { Stage } from '@/components/stage'
 import { Button } from '@jaz/ui/button'
-import { Header } from '@/components/controls'
+import { Header, Loading } from '@/components/controls'
 import { AddColumn, ColumnHeader } from '@/components/columns'
 import { CreateRecord } from '@/components/create-record'
 import { Field } from '@/components/fields'
@@ -85,7 +85,7 @@ function ObjectList({ slug }: { slug: string }) {
   const rows = useRef<HTMLTableSectionElement>(null)
   useFlip(rows)
   if (!object) {
-    return <Header>{slug}</Header>
+    return objects ? <Header>{slug}</Header> : <Loading />
   }
   const own = !object.standard
   // The CRM's objects show their choices first; the workspace's own tables keep the order columns were added in.

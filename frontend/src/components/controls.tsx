@@ -1,6 +1,6 @@
 import { Button } from '@jaz/ui/button'
 import { Link } from '@tanstack/react-router'
-import { X } from 'lucide-react'
+import { LoaderCircle, X } from 'lucide-react'
 import { type ReactNode, useId } from 'react'
 import type { Ref } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -14,6 +14,14 @@ export function Header({ children, className }: { children?: ReactNode; classNam
     <header className={cn("flex h-11 shrink-0 items-center gap-2 border-b border-border px-4 text-[13px] font-medium text-ink [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-ink-2", className)}>
       {children}
     </header>
+  )
+}
+
+export function Loading() {
+  return (
+    <div role="status" aria-label="Loading" className="flex h-full flex-1 items-center justify-center text-ink-3">
+      <LoaderCircle aria-hidden="true" className="size-5 animate-spin motion-reduce:animate-none" />
+    </div>
   )
 }
 

@@ -2,7 +2,7 @@ import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { ChevronRight, FileText, MoreHorizontal, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '@jaz/ui/button'
-import { Header, Tab } from '@/components/controls'
+import { Header, Loading, Tab } from '@/components/controls'
 import { dateMetadata } from '@/components/date-field'
 import { Field } from '@/components/fields'
 import { Conversation } from '@/components/follow-up'
@@ -41,7 +41,7 @@ function RecordPage() {
   const [deleting, setDeleting] = useState(false)
   const pages = usePages()
   if (!record || !objects || !object) {
-    return <Header />
+    return <Loading />
   }
   const name = recordName(record)
   const emails = valuesOf(record, 'email_addresses').map(valueText)
