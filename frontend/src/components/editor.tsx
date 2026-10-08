@@ -1,10 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { type Editor, Extension } from '@tiptap/core'
-import { TaskItem, TaskList } from '@tiptap/extension-list'
-import { TableKit } from '@tiptap/extension-table'
 import { Placeholder } from '@tiptap/extensions'
-import { Markdown } from '@tiptap/markdown'
 import { EditorContent, useEditor } from '@tiptap/react'
 import Suggestion, { type SuggestionProps } from '@tiptap/suggestion'
 import { useEffect, useRef, useState } from 'react'
@@ -108,7 +105,7 @@ export function MarkdownView({ text }: { text: string }) {
     editable: false,
     // An editor keeps an empty line after a final list for typing into; a
     // view would add one on every click.
-    extensions: [DocumentKit.configure({ trailingNode: false }), TaskList, TaskItem, TableKit, Markdown],
+    extensions: [DocumentKit.configure({ trailingNode: false })],
     content: text,
     contentType: 'markdown',
     editorProps: { attributes: { class: 'prose-page prose-compact' } },
@@ -198,11 +195,7 @@ export function PageEditor({ record }: { record: CrmRecord }) {
   const editor = useEditor({
     extensions: [
       DocumentKit.configure({ link: { openOnClick: false } }),
-      TaskList,
-      TaskItem.configure({ nested: true }),
-      TableKit,
       Placeholder.configure({ placeholder: 'Write, or type @ to mention' }),
-      Markdown,
       mentions(find, bridge),
     ],
     content: saved,

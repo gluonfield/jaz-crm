@@ -16,6 +16,7 @@ Every color, radius, font and shadow in the web app comes from CSS custom proper
 | `--color-ink`, `--color-ink-2`, `--color-ink-3` | Primary, secondary and tertiary text |
 | `--color-border` | Hairlines |
 | `--color-primary`, `--color-primary-strong`, `--color-primary-soft`, `--color-on-primary` | Accent for selection, focus and primary actions, and text on it |
+| `--color-link` | Document links: primary accent in light mode, mixed with primary text in dark mode for readability |
 | `--color-selection` | Text selection |
 | `--color-accent`, `--color-accent-soft` | Warm counterpoint; the urgent priority glyph |
 | `--color-running`, `--color-ok`, `--color-danger`, `--color-danger-soft` | Due soon, success, overdue and errors |

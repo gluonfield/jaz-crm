@@ -1,6 +1,6 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
-import { FileText, MoreHorizontal, Trash2 } from 'lucide-react'
-import { Fragment, useState } from 'react'
+import { ChevronRight, FileText, MoreHorizontal, Trash2 } from 'lucide-react'
+import { useState } from 'react'
 import { Button } from '@jaz/ui/button'
 import { Header, Tab } from '@/components/controls'
 import { dateMetadata } from '@/components/date-field'
@@ -20,7 +20,7 @@ import { UpdatedAt } from '@/components/updated-at'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
 import { useAction, useObjects, useTool, useUpcoming, useWrite } from '@/lib/queries'
-import { pageIcon, path, usePages } from '@/lib/pages'
+import { path, usePages } from '@/lib/pages'
 import type { CrmObject, CrmRecord, Ref } from '@/lib/types'
 
 export const Route = createFileRoute('/_app/r/$recordId')({
@@ -46,24 +46,21 @@ function RecordPage() {
   const page = record.object === 'pages'
   const parent = (valuesOf(record, 'parent')[0] as Ref | undefined)?.id
   const header = (
-    <Header>
+    <Header className={page ? 'mb-8 border-b-0 px-0' : undefined}>
       {page ? (
-        <>
-          <PageIconPicker key={record.id} record={record}>
-            <Button variant="ghost" size="icon-sm" aria-label="Change page icon"><PageIcon value={pageIcon(record)} /></Button>
-          </PageIconPicker>
-          {pages &&
-            path(pages, record.id)
-              .slice(0, -1)
-              .map((p) => (
-                <Fragment key={p.id}>
-                  <Link to="/r/$recordId" params={{ recordId: p.id }} className="flex min-w-0 max-w-48 items-center gap-1.5 text-ink-2 hover:text-ink">
-                    <PageIcon value={p.icon} /><span className="truncate">{p.name}</span>
-                  </Link>
-                  <span className="text-ink-3">/</span>
-                </Fragment>
-              ))}
-        </>
+        <nav aria-label="Breadcrumbs" className="min-w-0 flex-1">
+          <ol className="flex items-center gap-1.5">
+            {pages && path(pages, record.id).slice(0, -1).map((p, index) => (
+              <li key={p.id} className="flex min-w-0 items-center gap-1.5">
+                {index > 0 && <ChevronRight aria-hidden className="size-3 shrink-0 text-ink-3" />}
+                <Link to="/r/$recordId" params={{ recordId: p.id }} title={p.name} className="flex min-w-0 items-center gap-1.5 text-ink-2 hover:text-ink">
+                  <PageIcon value={p.icon} /><span className="truncate">{p.name}</span>
+                </Link>
+              </li>
+            ))}
+            {!parent && <li><Link to="/o/$object" params={{ object: 'pages' }} className="text-ink-2 hover:text-ink">Pages</Link></li>}
+          </ol>
+        </nav>
       ) : (
         <>
           <Link to="/o/$object" params={{ object: object.slug }} className="flex items-center gap-2 text-ink-2 hover:text-ink">
@@ -73,7 +70,7 @@ function RecordPage() {
           <span className="text-ink-3">/</span>
         </>
       )}
-      <span className="truncate">{name}</span>
+      {!page && <span className="truncate">{name}</span>}
       <span className="ml-auto hidden shrink-0 text-[12px] font-normal text-ink-3 md:block">
         Last updated <UpdatedAt at={record.updated_at} />
       </span>
@@ -115,9 +112,10 @@ function RecordPage() {
   if (page || !object.standard) {
     return (
       <>
-        {header}
+        {!page && header}
         <div className="scrollbar-quiet @container min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto flex max-w-[720px] flex-col px-6 pb-24 pt-16">
+          <div className={`mx-auto flex max-w-[720px] flex-col px-6 pb-24 ${page ? 'pt-6' : 'pt-16'}`}>
+            {page && header}
             {page && <PageIconPicker key={record.id} record={record} />}
             <h1 className="text-[30px] font-semibold leading-tight tracking-[-0.02em] text-ink">
               <Title key={`${record.id}:${name}`} record={record} object={object} name={name} />

@@ -36,6 +36,7 @@
   --color-primary-strong: color-mix(in oklab, var(--color-primary) 90%, black);
   --color-primary-soft: color-mix(in oklab, var(--color-primary) 16%, var(--color-bg));
   --color-on-primary: #ffffff;
+  --color-link: var(--color-primary);
   --color-selection: color-mix(in oklab, var(--color-primary) 22%, transparent);
 
   --color-running: var(--color-text-warning, #d9a400);
@@ -117,6 +118,7 @@
   --color-ink: var(--color-text-primary, #e6e7ea);
   --color-ink-2: var(--color-text-secondary, #a0a3aa);
   --color-ink-3: var(--color-text-tertiary, #6e717a);
+  --color-link: color-mix(in oklab, var(--color-primary) 70%, var(--color-ink));
 
   --color-selection: color-mix(in oklab, var(--color-primary) 35%, transparent);
 
@@ -300,24 +302,30 @@
   & ul[data-type='taskList'] {
     list-style: none;
     padding-left: 0.2em;
-    & li {
+    & > li {
       display: flex;
       gap: 0.5em;
       & > label {
         flex-shrink: 0;
-        padding-top: 0.15em;
+        display: flex;
+        align-items: center;
+        height: 1.65em;
       }
       & > div {
         flex: 1;
         min-width: 0;
       }
-      &[data-checked='true'] > div {
+      &[data-checked='true'] > div > p {
         color: var(--color-ink-3);
         text-decoration: line-through;
       }
     }
     & input {
-      accent-color: var(--color-primary);
+      width: 15px;
+      height: 15px;
+      margin: 0;
+      accent-color: var(--color-ink);
+      cursor: pointer;
     }
   }
   & blockquote {
@@ -363,20 +371,18 @@
     }
   }
   & a {
-    color: var(--color-ink);
+    color: var(--color-link);
     text-decoration: underline;
-    text-decoration-color: var(--color-ink-3);
+    text-decoration-color: color-mix(in oklab, currentColor 50%, transparent);
     text-underline-offset: 2px;
     cursor: pointer;
-  }
-  & a[href^='/r/'] {
-    text-decoration: none;
-    font-weight: 500;
-    border-radius: 4px;
-    padding: 0 0.15em;
-    background: var(--color-list-hover);
+    border-radius: 2px;
     &:hover {
-      background: var(--color-list-active);
+      text-decoration-color: currentColor;
+    }
+    &:focus-visible {
+      outline: 2px solid var(--color-primary);
+      outline-offset: 2px;
     }
   }
   & .record-link-icon {
