@@ -22,7 +22,7 @@ export type DraftHandle = { save: () => Promise<boolean> }
 export function Draft({ record, channel, sender, error, drafting, ref }: { record: CrmRecord; channel: string; sender?: DraftSender; error?: string; drafting?: Interaction['drafting']; ref?: ReactRef<DraftHandle> }) {
   const current: Fields = { draft: text(record, 'draft'), subject: sender?.subject ?? text(record, 'subject'), to: (sender?.to ?? list(record, 'to')).join(', '), cc: (sender?.cc ?? list(record, 'cc')).join(', '), revision: sender?.revision }
   const [edited, setEdited] = useState<Fields | null>(null)
-  if (edited && JSON.stringify(messageOf(edited)) === JSON.stringify(messageOf(current))) {
+  if (edited && sameFields(edited, current) && edited.revision === current.revision) {
     setEdited(null)
   }
   const fields = edited ?? current
