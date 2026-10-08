@@ -34,6 +34,8 @@ export type Relation = { object: string; attribute: string; limit?: number }
 // A value is text, or a referenced record.
 export type Value = string | Ref
 
+export type TrashedRecord = { id: string; object: string; name: string; icon?: string; deleted_at: string }
+
 export type CrmRecord = {
   id: string
   conversation_id?: string

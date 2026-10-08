@@ -137,7 +137,8 @@ func (q *Queries) DeleteLinks(ctx context.Context, ids []string) error {
 }
 
 const deleteSyncLinks = `-- name: DeleteSyncLinks :exec
-DELETE FROM links WHERE source = 'sync' AND interaction_id = ANY($1::text[])
+DELETE FROM links USING records WHERE source = 'sync' AND links.record_id = records.id
+  AND interaction_id = ANY($1::text[])
 `
 
 func (q *Queries) DeleteSyncLinks(ctx context.Context, ids []string) error {
@@ -179,7 +180,7 @@ const dueMeetings = `-- name: DueMeetings :many
 SELECT id, workspace_id, kind, source, external_id, connection_id, user_id, title, started_at, ended_at, meet_code, transcript_checked_at, skipped, created_at, channel, provenance, date_only, followed_up_at, drafting_state, drafting_reason, drafting_started_at FROM interactions
 WHERE connection_id = $1 AND kind = 'meeting' AND meet_code <> '' AND NOT skipped AND transcript_checked_at IS NULL
   AND ended_at BETWEEN now() - interval '30 days' AND now() - interval '10 minutes'
-  AND EXISTS (SELECT 1 FROM links WHERE links.interaction_id = interactions.id)
+  AND EXISTS (SELECT 1 FROM active_links links WHERE links.interaction_id = interactions.id)
 ORDER BY ended_at DESC
 LIMIT 20
 `
@@ -356,7 +357,7 @@ WHERE interactions.workspace_id = $1 AND NOT interactions.skipped
   AND (latest.at > coalesce(interactions.followed_up_at, '-infinity')
     OR interactions.drafting_state = 'failed'
     OR (interactions.drafting_state = 'drafting' AND interactions.drafting_started_at < now() - interval '15 minutes'))
-  AND EXISTS (SELECT 1 FROM links WHERE links.interaction_id = interactions.id)
+  AND EXISTS (SELECT 1 FROM active_links links WHERE links.interaction_id = interactions.id)
   AND NOT EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind <> 'draft' AND parts.content IS NULL AND parts.provider_id IS NOT NULL)
 ORDER BY latest.at DESC
 LIMIT $3
@@ -611,12 +612,14 @@ const insertSyncLinks = `-- name: InsertSyncLinks :exec
 WITH people AS (
   SELECT DISTINCT participants.interaction_id, handles.person_id AS record_id FROM participants
   JOIN handles ON handles.id = participants.handle_id AND handles.triage = 'kept' AND handles.person_id IS NOT NULL
+  JOIN records ON records.id = handles.person_id
   JOIN interactions ON interactions.id = participants.interaction_id AND NOT interactions.skipped
   WHERE participants.interaction_id = ANY($1::text[])
 ), companies AS (
   SELECT DISTINCT people.interaction_id, record_values.ref_record_id AS record_id FROM people
   JOIN record_values ON record_values.record_id = people.record_id AND record_values.active_until IS NULL AND record_values.ref_record_id IS NOT NULL
   JOIN attributes ON attributes.id = record_values.attribute_id AND attributes.slug = 'company'
+  JOIN records ON records.id = record_values.ref_record_id
 )
 INSERT INTO links (interaction_id, record_id, source)
 SELECT interaction_id, record_id, 'sync' FROM people
@@ -650,7 +653,7 @@ func (q *Queries) InteractionByExternalID(ctx context.Context, arg InteractionBy
 }
 
 const interactionLinks = `-- name: InteractionLinks :many
-SELECT links.interaction_id, links.record_id, links.source FROM links
+SELECT links.interaction_id, links.record_id, links.source FROM active_links links
 WHERE links.interaction_id = ANY($1::text[])
 ORDER BY links.interaction_id, links.created_at
 `
@@ -814,7 +817,7 @@ func (q *Queries) InteractionsOfHandles(ctx context.Context, handleIds []string)
 }
 
 const interactionsOfObject = `-- name: InteractionsOfObject :many
-SELECT DISTINCT links.interaction_id FROM links
+SELECT DISTINCT links.interaction_id FROM active_links links
 JOIN records ON records.id = links.record_id
 WHERE records.workspace_id = $1 AND records.object_id = $2
 `
@@ -1016,7 +1019,7 @@ SELECT links.record_id, count(*)::int AS interactions, min(interactions.started_
   max(least(coalesce(interactions.ended_at, interactions.started_at), now()))::timestamptz AS last_at,
   (array_agg(interactions.date_only ORDER BY interactions.started_at, interactions.date_only))[1]::boolean AS first_date_only,
   (array_agg(interactions.date_only AND interactions.ended_at IS NULL ORDER BY least(coalesce(interactions.ended_at, interactions.started_at), now()) DESC, (interactions.date_only AND interactions.ended_at IS NULL)))[1]::boolean AS last_date_only
-FROM links
+FROM active_links links
 JOIN interactions ON interactions.id = links.interaction_id AND NOT interactions.skipped
 WHERE interactions.workspace_id = $1 AND links.record_id = ANY($2::text[]) AND interactions.started_at <= now() AND interactions.kind <> 'note'
   AND (interactions.kind <> 'email' OR EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
@@ -1071,7 +1074,7 @@ SELECT DISTINCT ON (links.record_id) links.record_id,
   (CASE WHEN interactions.kind = 'email' THEN 'email' ELSE interactions.channel END)::text AS channel,
   parts.at::timestamptz AS at, parts.date_only, parts.author_name, coalesce(parts.content, '')::text AS content, parts.direction,
   coalesce(handles.value, '')::text AS sender_address, coalesce(handles.name, '')::text AS sender_name, handles.person_id
-FROM links
+FROM active_links links
 JOIN interactions ON interactions.id = links.interaction_id AND NOT interactions.skipped
 JOIN parts ON parts.interaction_id = interactions.id AND parts.kind = 'message'
 LEFT JOIN handles ON handles.id = parts.author_handle_id
@@ -1134,7 +1137,7 @@ const searchInteractions = `-- name: SearchInteractions :many
 SELECT interactions.id, interactions.workspace_id, interactions.kind, interactions.source, interactions.external_id, interactions.connection_id, interactions.user_id, interactions.title, interactions.started_at, interactions.ended_at, interactions.meet_code, interactions.transcript_checked_at, interactions.skipped, interactions.created_at, interactions.channel, interactions.provenance, interactions.date_only, interactions.followed_up_at, interactions.drafting_state, interactions.drafting_reason, interactions.drafting_started_at FROM interactions
 WHERE interactions.workspace_id = $1 AND NOT interactions.skipped
   AND (interactions.kind <> 'email' OR EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
-  AND EXISTS (SELECT 1 FROM links WHERE links.interaction_id = interactions.id)
+  AND EXISTS (SELECT 1 FROM active_links links WHERE links.interaction_id = interactions.id)
   AND ($2::text = '' OR interactions.title ILIKE '%' || $2::text || '%' OR EXISTS (
     SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.search @@ websearch_to_tsquery('simple', $2::text)
   ))
@@ -1309,11 +1312,7 @@ func (q *Queries) SkipPendingHandle(ctx context.Context, arg SkipPendingHandlePa
 
 const skipRecordHandles = `-- name: SkipRecordHandles :many
 WITH domains AS (
-    SELECT DISTINCT record_values.text AS domain FROM record_values
-    JOIN attributes ON attributes.id = record_values.attribute_id AND attributes.type = 'domain'
-    JOIN records ON records.id = record_values.record_id AND records.workspace_id = $1
-    JOIN objects ON objects.id = records.object_id AND objects.slug = 'companies'
-    WHERE records.id = $2 AND record_values.active_until IS NULL
+    SELECT DISTINCT domain FROM record_domains WHERE workspace_id = $1 AND record_id = $2
 ), blocked AS (
     INSERT INTO domain_rules (workspace_id, domain, triage, reason)
     SELECT $1, domain, 'skipped', 'company deleted' FROM domains
@@ -1352,7 +1351,7 @@ func (q *Queries) SkipRecordHandles(ctx context.Context, arg SkipRecordHandlesPa
 
 const timeline = `-- name: Timeline :many
 SELECT interactions.id, interactions.workspace_id, interactions.kind, interactions.source, interactions.external_id, interactions.connection_id, interactions.user_id, interactions.title, interactions.started_at, interactions.ended_at, interactions.meet_code, interactions.transcript_checked_at, interactions.skipped, interactions.created_at, interactions.channel, interactions.provenance, interactions.date_only, interactions.followed_up_at, interactions.drafting_state, interactions.drafting_reason, interactions.drafting_started_at FROM interactions
-JOIN links ON links.interaction_id = interactions.id AND links.record_id = $1
+JOIN active_links links ON links.interaction_id = interactions.id AND links.record_id = $1
 LEFT JOIN interactions cursor ON cursor.id = nullif($2::text, '') AND cursor.workspace_id = $3 AND NOT cursor.skipped
 WHERE interactions.workspace_id = $3 AND NOT interactions.skipped
   AND (interactions.kind <> 'email' OR EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
@@ -1481,7 +1480,7 @@ const unfetchedParts = `-- name: UnfetchedParts :many
 SELECT parts.id, parts.provider_id::text AS provider_id FROM parts
 JOIN interactions ON interactions.id = parts.interaction_id AND NOT interactions.skipped
 WHERE parts.connection_id = $1 AND parts.kind <> 'draft' AND (parts.content IS NULL OR parts.html IS NULL) AND parts.provider_id IS NOT NULL
-  AND EXISTS (SELECT 1 FROM links WHERE links.interaction_id = interactions.id)
+  AND EXISTS (SELECT 1 FROM active_links links WHERE links.interaction_id = interactions.id)
 ORDER BY parts.at DESC
 LIMIT $2
 `

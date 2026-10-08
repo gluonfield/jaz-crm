@@ -115,6 +115,11 @@ func (s *Service) keepExisting(ctx context.Context, workspaceID, id, personID, b
 // keep marks a handle kept, finding or creating its person, and links its
 // conversations.
 func (s *Service) keep(ctx context.Context, h storage.Handle, personID, by, reason string) error {
+	if by == ByUser {
+		if err := s.store.RestoreContactRecords(ctx, h.WorkspaceID, h.Value, workDomain(h.Value)); err != nil {
+			return err
+		}
+	}
 	if personID == "" {
 		var err error
 		if personID, err = s.person(ctx, h); err != nil {
@@ -374,9 +379,13 @@ func (s *Service) Contacts(ctx context.Context, actor auth.Actor, verdict, query
 	out := []Contact{}
 	for _, r := range rows {
 		h := r.Handle
+		personID := ""
+		if _, active := labels[deref(h.PersonID)]; active {
+			personID = deref(h.PersonID)
+		}
 		out = append(out, Contact{
 			Address: h.Value, Kind: h.Kind, Name: cmp.Or(labels[deref(h.PersonID)].Name, h.Name), Triage: h.Triage, DecidedBy: deref(h.DecidedBy), Reason: h.Reason,
-			PersonID: deref(h.PersonID), Interactions: int(r.Interactions), LastSeen: r.LastSeen, Photo: h.PhotoURL, Domain: workDomain(h.Value),
+			PersonID: personID, Interactions: int(r.Interactions), LastSeen: r.LastSeen, Photo: h.PhotoURL, Domain: workDomain(h.Value),
 		})
 	}
 	return out, err

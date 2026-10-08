@@ -137,7 +137,7 @@ func (s *Service) object(ctx context.Context, actor auth.Actor, slug string) (Ob
 	return objects[i], nil
 }
 
-// Delete removes a record, its values and every reference to it.
+// Delete moves a record to Trash, retaining its values and references.
 func (s *Service) Delete(ctx context.Context, actor auth.Actor, id string) error {
 	records, err := s.store.Records(ctx, actor.WorkspaceID, []string{id})
 	if err != nil {

@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { Check, ChevronDown, Inbox, LogOut, Monitor, Moon, PlugZap, Plus, Search, Settings, Sun } from 'lucide-react'
+import { Check, ChevronDown, Inbox, LogOut, Monitor, Moon, PlugZap, Plus, Search, Settings, Sun, Trash2 } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import {
   DropdownMenu,
@@ -18,7 +18,7 @@ import { embedded } from '@/lib/api'
 import { useObjects, useTool, useWorkspace } from '@/lib/queries'
 import { steps, syncing, useConnections } from '@/lib/sync'
 import { setSchemePreference } from '@/lib/theme'
-import type { Contact, CrmObject } from '@/lib/types'
+import type { Contact, CrmObject, TrashedRecord } from '@/lib/types'
 import { setUI } from '@/lib/ui'
 import { useMoveWorkspace, useWorkspaces } from '@/lib/workspaces'
 import { DataNav } from './data-nav'
@@ -30,6 +30,7 @@ import { NameDialog } from './prompt-dialog'
 export function Sidebar() {
   const objects = useObjects() ?? []
   const pending = useTool<{ contacts: Contact[] }>('list_triage', { status: 'pending', limit: 200 }).data?.contacts.length ?? 0
+  const trash = useTool<{ records: TrashedRecord[] }>('list_trash').data?.records.length ?? 0
   const sync = useConnections()?.connections.find(syncing)
   const records = objects.filter((o) => o.standard && o.slug !== 'pages')
   const nav = (o: CrmObject) => (
@@ -69,6 +70,7 @@ export function Sidebar() {
         <NavItem to="/settings" icon={<Settings />}>
           Settings
         </NavItem>
+        {trash > 0 && <NavItem to="/trash" icon={<Trash2 />} count={trash}>Trash</NavItem>}
       </Section>
     </aside>
   )

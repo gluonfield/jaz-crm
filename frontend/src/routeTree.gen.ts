@@ -14,6 +14,7 @@ import { Route as WorkspaceDeletedRouteImport } from './routes/workspace-deleted
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppConnectionsRouteImport } from './routes/_app/connections'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
+import { Route as AppTrashRouteImport } from './routes/_app/trash'
 import { Route as AppTriageRouteImport } from './routes/_app/triage'
 import { Route as AppIInteractionIdRouteImport } from './routes/_app/i.$interactionId'
 import { Route as AppOObjectRouteImport } from './routes/_app/o.$object'
@@ -47,6 +48,11 @@ const AppConnectionsRoute = AppConnectionsRouteImport.update({
 const AppSettingsRoute = AppSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTrashRoute = AppTrashRouteImport.update({
+  id: '/trash',
+  path: '/trash',
   getParentRoute: () => AppRoute,
 } as any)
 const AppTriageRoute = AppTriageRouteImport.update({
@@ -105,6 +111,7 @@ export interface FileRoutesByFullPath {
   '/workspace-deleted': typeof WorkspaceDeletedRoute
   '/connections': typeof AppConnectionsRoute
   '/settings': typeof AppSettingsRouteWithChildren
+  '/trash': typeof AppTrashRoute
   '/triage': typeof AppTriageRoute
   '/i/$interactionId': typeof AppIInteractionIdRoute
   '/o/$object': typeof AppOObjectRoute
@@ -119,6 +126,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/workspace-deleted': typeof WorkspaceDeletedRoute
   '/connections': typeof AppConnectionsRoute
+  '/trash': typeof AppTrashRoute
   '/triage': typeof AppTriageRoute
   '/': typeof AppIndexRoute
   '/i/$interactionId': typeof AppIInteractionIdRoute
@@ -137,6 +145,7 @@ export interface FileRoutesById {
   '/workspace-deleted': typeof WorkspaceDeletedRoute
   '/_app/connections': typeof AppConnectionsRoute
   '/_app/settings': typeof AppSettingsRouteWithChildren
+  '/_app/trash': typeof AppTrashRoute
   '/_app/triage': typeof AppTriageRoute
   '/_app/': typeof AppIndexRoute
   '/_app/i/$interactionId': typeof AppIInteractionIdRoute
@@ -156,6 +165,7 @@ export interface FileRouteTypes {
     | '/workspace-deleted'
     | '/connections'
     | '/settings'
+    | '/trash'
     | '/triage'
     | '/i/$interactionId'
     | '/o/$object'
@@ -170,6 +180,7 @@ export interface FileRouteTypes {
   to:
     | '/workspace-deleted'
     | '/connections'
+    | '/trash'
     | '/triage'
     | '/'
     | '/i/$interactionId'
@@ -187,6 +198,7 @@ export interface FileRouteTypes {
     | '/workspace-deleted'
     | '/_app/connections'
     | '/_app/settings'
+    | '/_app/trash'
     | '/_app/triage'
     | '/_app/'
     | '/_app/i/$interactionId'
@@ -240,6 +252,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof AppSettingsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/trash': {
+      id: '/_app/trash'
+      path: '/trash'
+      fullPath: '/trash'
+      preLoaderRoute: typeof AppTrashRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/triage': {
@@ -340,6 +359,7 @@ const AppSettingsRouteWithChildren = AppSettingsRoute._addFileChildren(
 interface AppRouteChildren {
   AppConnectionsRoute: typeof AppConnectionsRoute
   AppSettingsRoute: typeof AppSettingsRouteWithChildren
+  AppTrashRoute: typeof AppTrashRoute
   AppTriageRoute: typeof AppTriageRoute
   AppIndexRoute: typeof AppIndexRoute
   AppIInteractionIdRoute: typeof AppIInteractionIdRoute
@@ -350,6 +370,7 @@ interface AppRouteChildren {
 const AppRouteChildren: AppRouteChildren = {
   AppConnectionsRoute: AppConnectionsRoute,
   AppSettingsRoute: AppSettingsRouteWithChildren,
+  AppTrashRoute: AppTrashRoute,
   AppTriageRoute: AppTriageRoute,
   AppIndexRoute: AppIndexRoute,
   AppIInteractionIdRoute: AppIInteractionIdRoute,

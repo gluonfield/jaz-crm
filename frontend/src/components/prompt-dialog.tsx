@@ -40,7 +40,7 @@ function NameForm({ initial = '', placeholder, action, onSubmit }: Naming) {
   )
 }
 
-// ConfirmDialog asks before deleting something for good.
+// ConfirmDialog asks before deleting something.
 export function ConfirmDialog({ open, onOpenChange, title, children, onConfirm }: { open: boolean; onOpenChange: (open: boolean) => void; title: string; children: ReactNode; onConfirm: () => void }) {
   const description = useId()
   return (
@@ -60,9 +60,10 @@ export function ConfirmDialog({ open, onOpenChange, title, children, onConfirm }
           {children}
         </p>
         <div className="flex justify-end gap-2">
-          <Button onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button className="min-h-10" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button
             variant="danger"
+            className="min-h-10"
             onClick={() => {
               onOpenChange(false)
               onConfirm()

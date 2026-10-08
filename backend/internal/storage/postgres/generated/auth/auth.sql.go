@@ -266,10 +266,11 @@ func (q *Queries) GetUser(ctx context.Context, id string) (User, error) {
 }
 
 const getWorkspace = `-- name: GetWorkspace :one
-SELECT id, name, created_at, description, auto_keep_email, auto_keep_meetings,
+SELECT workspaces.id, workspaces.name, workspaces.created_at, description, auto_keep_email, auto_keep_meetings,
   auto_keep_records, auto_keep_ai, drafting_web_access,
-  ARRAY(SELECT page_id FROM workspace_knowledge_pages WHERE workspace_id = workspaces.id ORDER BY position)::text[] AS company_page_ids, timezone
-FROM workspaces WHERE id = $1
+  ARRAY(SELECT page_id FROM workspace_knowledge_pages JOIN records ON records.id = page_id
+    WHERE workspace_knowledge_pages.workspace_id = workspaces.id ORDER BY position)::text[] AS company_page_ids, timezone
+FROM workspaces WHERE workspaces.id = $1
 `
 
 type GetWorkspaceRow struct {

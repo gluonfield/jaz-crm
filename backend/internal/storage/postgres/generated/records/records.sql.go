@@ -187,8 +187,8 @@ func (q *Queries) CreateSavedFilter(ctx context.Context, arg CreateSavedFilterPa
 
 const currentValues = `-- name: CurrentValues :many
 SELECT record_values.id, record_values.record_id, record_values.attribute_id, record_values.text, record_values.ref_record_id, record_values.unique_key, record_values.source, record_values.actor_id, record_values.active_from, record_values.active_until FROM record_values
-JOIN records ON records.id = record_values.record_id
-WHERE records.workspace_id = $1 AND record_values.record_id = ANY($2::text[])
+JOIN retained_records ON retained_records.id = record_values.record_id
+WHERE retained_records.workspace_id = $1 AND record_values.record_id = ANY($2::text[])
   AND record_values.active_until IS NULL
 ORDER BY record_values.id
 `
@@ -198,6 +198,7 @@ type CurrentValuesParams struct {
 	RecordIDs   []string
 }
 
+// Retained values let parent validation traverse pages in Trash as well.
 func (q *Queries) CurrentValues(ctx context.Context, arg CurrentValuesParams) ([]RecordValue, error) {
 	rows, err := q.db.Query(ctx, currentValues, arg.WorkspaceID, arg.RecordIDs)
 	if err != nil {
@@ -282,7 +283,8 @@ func (q *Queries) DeleteObject(ctx context.Context, arg DeleteObjectParams) (int
 }
 
 const deleteRecord = `-- name: DeleteRecord :execrows
-DELETE FROM records WHERE workspace_id = $1 AND id = $2
+UPDATE retained_records SET deleted_at = clock_timestamp()
+WHERE workspace_id = $1 AND id = $2 AND deleted_at IS NULL
 `
 
 type DeleteRecordParams struct {

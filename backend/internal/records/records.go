@@ -268,7 +268,9 @@ func (s *Service) views(ctx context.Context, workspaceID string, sc schema, reco
 			field := Field{Attribute: attr.Slug, Multi: attr.Multi}
 			for _, v := range held[[2]string{r.ID, attr.ID}] {
 				if v.RefRecordID != nil {
-					field.Values = append(field.Values, labels[*v.RefRecordID])
+					if label, active := labels[*v.RefRecordID]; active {
+						field.Values = append(field.Values, label)
+					}
 				} else {
 					field.Values = append(field.Values, sc.textValue(attr, *v.Text))
 				}
@@ -313,11 +315,15 @@ func (s *Service) Labels(ctx context.Context, workspaceID string, ids []string) 
 // email address, else any text; page icons travel with their labels.
 func (s *Service) labels(ctx context.Context, workspaceID string, sc schema, ids []string) (map[string]Value, error) {
 	out := map[string]Value{}
-	for _, id := range ids {
-		out[id] = Value{RecordID: id}
-	}
 	if len(ids) == 0 {
 		return out, nil
+	}
+	records, err := s.store.Records(ctx, workspaceID, ids)
+	if err != nil {
+		return nil, err
+	}
+	for _, record := range records {
+		out[record.ID] = Value{RecordID: record.ID}
 	}
 	values, err := s.store.CurrentValues(ctx, workspaceID, ids)
 	rank := func(a storage.Attribute) int {
@@ -331,7 +337,7 @@ func (s *Service) labels(ctx context.Context, workspaceID string, sc schema, ids
 	}
 	selected := map[string]storage.Attribute{}
 	for _, v := range values {
-		if v.Text == nil {
+		if _, active := out[v.RecordID]; !active || v.Text == nil {
 			continue
 		}
 		attr := sc.attributeByID(v.AttributeID)

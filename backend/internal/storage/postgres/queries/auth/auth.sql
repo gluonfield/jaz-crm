@@ -43,10 +43,11 @@ SELECT users.* FROM users JOIN linked ON linked.user_id = users.id ORDER BY user
 INSERT INTO workspaces (name, id) VALUES ($1, sqlc.arg(id)) RETURNING *;
 
 -- name: GetWorkspace :one
-SELECT id, name, created_at, description, auto_keep_email, auto_keep_meetings,
+SELECT workspaces.id, workspaces.name, workspaces.created_at, description, auto_keep_email, auto_keep_meetings,
   auto_keep_records, auto_keep_ai, drafting_web_access,
-  ARRAY(SELECT page_id FROM workspace_knowledge_pages WHERE workspace_id = workspaces.id ORDER BY position)::text[] AS company_page_ids, timezone
-FROM workspaces WHERE id = $1;
+  ARRAY(SELECT page_id FROM workspace_knowledge_pages JOIN records ON records.id = page_id
+    WHERE workspace_knowledge_pages.workspace_id = workspaces.id ORDER BY position)::text[] AS company_page_ids, timezone
+FROM workspaces WHERE workspaces.id = $1;
 
 -- name: LockWorkspace :one
 SELECT id FROM workspaces WHERE id = $1 FOR NO KEY UPDATE;

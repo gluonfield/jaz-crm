@@ -12,6 +12,7 @@ import { ObjectIcon } from './icons'
 import { PageIcon } from './page-icon'
 import { NavItem } from './nav-item'
 import { ConfirmDialog, NameDialog } from './prompt-dialog'
+import { RecordDeleteDialog } from './record-delete-dialog'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuOptions, ContextMenuSeparator, ContextMenuTrigger } from './ui/context-menu'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './ui/dropdown-menu'
 
@@ -212,16 +213,15 @@ function PageMenu({ page, pages, children }: { page: Page; pages: Pages; childre
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
-      <ConfirmDialog
+      <RecordDeleteDialog
         open={deleting}
         onOpenChange={setDeleting}
-        title={`Delete ${page.name}?`}
+        name={page.name}
+        object="pages"
         onConfirm={() =>
           remove.mutate({ record_id: page.id }, { onSuccess: () => viewing && void navigate(page.parent ? { to: '/r/$recordId', params: { recordId: page.parent } } : { to: '/' }) })
         }
-      >
-        Its content will be deleted, and the pages inside it move to the top level. This cannot be undone.
-      </ConfirmDialog>
+      />
     </>
   )
 }

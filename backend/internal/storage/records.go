@@ -69,6 +69,14 @@ type PastValue struct {
 	ActorName string
 }
 
+type TrashedRecord struct {
+	ID        string
+	Object    string
+	Name      string
+	Icon      string
+	DeletedAt time.Time
+}
+
 type NewRecordValue struct {
 	RecordID    string
 	AttributeID string
@@ -188,6 +196,8 @@ type RecordStore interface {
 	AddAttributeOption(ctx context.Context, workspaceID, attributeID, value string) (string, error)
 	EditStatus(ctx context.Context, workspaceID, attributeID string, mutate StatusMutation) error
 	DeleteRecord(ctx context.Context, workspaceID, id string) error
+	TrashRecords(ctx context.Context, workspaceID string) ([]TrashedRecord, error)
+	RestoreRecord(ctx context.Context, workspaceID, id string) error
 	Records(ctx context.Context, workspaceID string, ids []string) ([]Record, error)
 	// SearchRecords returns a page of matching records and how many match.
 	SearchRecords(ctx context.Context, query RecordQuery) ([]SearchRecord, int, error)

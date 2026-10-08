@@ -6,7 +6,7 @@ import { recordName, valueText, valuesOf } from '@/lib/crm'
 import { useAction, useWorkspace, useWrite } from '@/lib/queries'
 import type { Attribute, CrmObject, CrmRecord } from '@/lib/types'
 import { CreateRecord } from './create-record'
-import { ConfirmDialog } from './prompt-dialog'
+import { RecordDeleteDialog } from './record-delete-dialog'
 import { RecordIcon } from './icons'
 import { ValueDot } from './select-field'
 import { StageDot } from './stage'
@@ -47,11 +47,7 @@ export function RecordMenu({ object, record, children }: { object: CrmObject; re
         </ContextMenuContent>
       </ContextMenu>
       <CreateRecord object={object} record={record} open={editing} onOpenChange={setEditing} />
-      <ConfirmDialog open={deleting} onOpenChange={setDeleting} title={`Delete ${recordName(record)}?`} onConfirm={() => remove.mutate({ record_id: record.id })}>
-        Its details and links to conversations will be deleted. This cannot be undone.
-        {record.object === 'people' && ' Their addresses move to Skipped in Triage, so sync will not add them back.'}
-        {record.object === 'companies' && ' Contacts at its domains move to Skipped in Triage, including future senders, so sync will not add the company back.'}
-      </ConfirmDialog>
+      <RecordDeleteDialog open={deleting} onOpenChange={setDeleting} name={recordName(record)} object={record.object} onConfirm={() => remove.mutate({ record_id: record.id })} />
     </>
   )
 }

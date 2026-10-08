@@ -239,6 +239,7 @@ type InteractionStore interface {
 	UpsertHandle(ctx context.Context, h NewHandle) (Handle, error)
 	SkipPendingHandle(ctx context.Context, id, reason string) error
 	SetTriage(ctx context.Context, v Verdict) error
+	RestoreContactRecords(ctx context.Context, workspaceID, address, domain string) error
 	Handles(ctx context.Context, workspaceID string, ids []string) ([]Handle, error)
 	HandlesByValue(ctx context.Context, workspaceID string, values []string) ([]Handle, error)
 	HandlesByDomain(ctx context.Context, workspaceID, domain string) ([]Handle, error)

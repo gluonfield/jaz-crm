@@ -103,18 +103,11 @@ func (s *Store) DeleteRecord(ctx context.Context, workspaceID, id string) error 
 		if _, err := r.LockRecordForDeletion(ctx, recdb.LockRecordForDeletionParams{WorkspaceID: workspaceID, ID: id}); err != nil {
 			return err
 		}
-		handles, err := q.SkipRecordHandles(ctx, intdb.SkipRecordHandlesParams{WorkspaceID: workspaceID, RecordID: &id})
+		_, err := q.SkipRecordHandles(ctx, intdb.SkipRecordHandlesParams{WorkspaceID: workspaceID, RecordID: &id})
 		if err != nil {
 			return err
 		}
-		ids, err := q.InteractionsOfHandles(ctx, handles)
-		if err != nil {
-			return err
-		}
-		if err := affected(r.DeleteRecord(ctx, recdb.DeleteRecordParams{WorkspaceID: workspaceID, ID: id})); err != nil {
-			return err
-		}
-		return relink(ctx, q, ids)
+		return affected(r.DeleteRecord(ctx, recdb.DeleteRecordParams{WorkspaceID: workspaceID, ID: id}))
 	}))
 }
 

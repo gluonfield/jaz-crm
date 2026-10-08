@@ -15,6 +15,7 @@ import (
 func registerRecords(r *registry, crm *records.Service, conversations *interactions.Service, pics pictures) {
 	registerFilters(r, crm)
 	registerDates(r, crm)
+	registerTrash(r, crm)
 	add(r, &mcp.Tool{Name: "edit_pipeline_stage", Title: "Edit pipeline stage",
 		Description: "Rename, move or delete a status stage. Move places it before another stage, or last when before is omitted. Delete requires a replacement when records use the stage, and moves them there. At least one stage remains; history is preserved."},
 		func(ctx context.Context, actor auth.Actor, in stageInput) (empty, error) {
@@ -120,7 +121,7 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 			return out, nil
 		})
 	add(r, &mcp.Tool{Name: "delete_record", Title: "Delete record",
-		Description: "Delete a record with its values and links to interactions. A deleted person's addresses and a deleted company's domains are skipped in triage, so sync does not add them back."},
+		Description: "Move a record to Trash, retaining its values, history and links for restore_record. A deleted person's addresses and a deleted company's domains are skipped in triage, so sync does not add them back."},
 		func(ctx context.Context, actor auth.Actor, in recordInput) (empty, error) {
 			return empty{}, crm.Delete(ctx, actor, in.RecordID)
 		})

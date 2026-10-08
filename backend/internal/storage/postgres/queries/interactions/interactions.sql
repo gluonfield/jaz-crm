@@ -92,11 +92,7 @@ WHERE handles.workspace_id = @workspace_id
 
 -- name: SkipRecordHandles :many
 WITH domains AS (
-    SELECT DISTINCT record_values.text AS domain FROM record_values
-    JOIN attributes ON attributes.id = record_values.attribute_id AND attributes.type = 'domain'
-    JOIN records ON records.id = record_values.record_id AND records.workspace_id = @workspace_id
-    JOIN objects ON objects.id = records.object_id AND objects.slug = 'companies'
-    WHERE records.id = @record_id AND record_values.active_until IS NULL
+    SELECT DISTINCT domain FROM record_domains WHERE workspace_id = @workspace_id AND record_id = @record_id
 ), blocked AS (
     INSERT INTO domain_rules (workspace_id, domain, triage, reason)
     SELECT @workspace_id, domain, 'skipped', 'company deleted' FROM domains
@@ -180,12 +176,13 @@ DELETE FROM parts WHERE interaction_id = $1;
 SELECT DISTINCT interaction_id FROM participants WHERE handle_id = ANY(@handle_ids::text[]);
 
 -- name: InteractionsOfObject :many
-SELECT DISTINCT links.interaction_id FROM links
+SELECT DISTINCT links.interaction_id FROM active_links links
 JOIN records ON records.id = links.record_id
 WHERE records.workspace_id = @workspace_id AND records.object_id = @object_id;
 
 -- name: DeleteSyncLinks :exec
-DELETE FROM links WHERE source = 'sync' AND interaction_id = ANY(@ids::text[]);
+DELETE FROM links USING records WHERE source = 'sync' AND links.record_id = records.id
+  AND interaction_id = ANY(@ids::text[]);
 
 -- name: InsertSyncLinks :exec
 -- InsertSyncLinks links interactions to the people behind their kept
@@ -193,12 +190,14 @@ DELETE FROM links WHERE source = 'sync' AND interaction_id = ANY(@ids::text[]);
 WITH people AS (
   SELECT DISTINCT participants.interaction_id, handles.person_id AS record_id FROM participants
   JOIN handles ON handles.id = participants.handle_id AND handles.triage = 'kept' AND handles.person_id IS NOT NULL
+  JOIN records ON records.id = handles.person_id
   JOIN interactions ON interactions.id = participants.interaction_id AND NOT interactions.skipped
   WHERE participants.interaction_id = ANY(@ids::text[])
 ), companies AS (
   SELECT DISTINCT people.interaction_id, record_values.ref_record_id AS record_id FROM people
   JOIN record_values ON record_values.record_id = people.record_id AND record_values.active_until IS NULL AND record_values.ref_record_id IS NOT NULL
   JOIN attributes ON attributes.id = record_values.attribute_id AND attributes.slug = 'company'
+  JOIN records ON records.id = record_values.ref_record_id
 )
 INSERT INTO links (interaction_id, record_id, source)
 SELECT interaction_id, record_id, 'sync' FROM people
@@ -226,7 +225,7 @@ UPDATE interactions SET skipped = true WHERE workspace_id = $1 AND id = $2;
 SELECT parts.id, parts.provider_id::text AS provider_id FROM parts
 JOIN interactions ON interactions.id = parts.interaction_id AND NOT interactions.skipped
 WHERE parts.connection_id = $1 AND parts.kind <> 'draft' AND (parts.content IS NULL OR parts.html IS NULL) AND parts.provider_id IS NOT NULL
-  AND EXISTS (SELECT 1 FROM links WHERE links.interaction_id = interactions.id)
+  AND EXISTS (SELECT 1 FROM active_links links WHERE links.interaction_id = interactions.id)
 ORDER BY parts.at DESC
 LIMIT $2;
 
@@ -240,7 +239,7 @@ SELECT * FROM interactions WHERE workspace_id = @workspace_id AND id = ANY(@ids:
 -- Timeline lists a record's interactions that started by now, newest first,
 -- or the upcoming ones, soonest first.
 SELECT interactions.* FROM interactions
-JOIN links ON links.interaction_id = interactions.id AND links.record_id = @record_id
+JOIN active_links links ON links.interaction_id = interactions.id AND links.record_id = @record_id
 LEFT JOIN interactions cursor ON cursor.id = nullif(@cursor::text, '') AND cursor.workspace_id = @workspace_id AND NOT cursor.skipped
 WHERE interactions.workspace_id = @workspace_id AND NOT interactions.skipped
   AND (interactions.kind <> 'email' OR EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
@@ -257,7 +256,7 @@ LIMIT @row_limit;
 SELECT interactions.* FROM interactions
 WHERE interactions.workspace_id = @workspace_id AND NOT interactions.skipped
   AND (interactions.kind <> 'email' OR EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
-  AND EXISTS (SELECT 1 FROM links WHERE links.interaction_id = interactions.id)
+  AND EXISTS (SELECT 1 FROM active_links links WHERE links.interaction_id = interactions.id)
   AND (@query::text = '' OR interactions.title ILIKE '%' || @query::text || '%' OR EXISTS (
     SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.search @@ websearch_to_tsquery('simple', @query::text)
   ))
@@ -275,7 +274,7 @@ SELECT id, interaction_id, kind, external_id, connection_id, provider_id, author
 WHERE interaction_id = ANY(@ids::text[]) ORDER BY interaction_id, position, at, id;
 
 -- name: InteractionLinks :many
-SELECT links.interaction_id, links.record_id, links.source FROM links
+SELECT links.interaction_id, links.record_id, links.source FROM active_links links
 WHERE links.interaction_id = ANY(@ids::text[])
 ORDER BY links.interaction_id, links.created_at;
 
@@ -286,7 +285,7 @@ SELECT links.record_id, count(*)::int AS interactions, min(interactions.started_
   max(least(coalesce(interactions.ended_at, interactions.started_at), now()))::timestamptz AS last_at,
   (array_agg(interactions.date_only ORDER BY interactions.started_at, interactions.date_only))[1]::boolean AS first_date_only,
   (array_agg(interactions.date_only AND interactions.ended_at IS NULL ORDER BY least(coalesce(interactions.ended_at, interactions.started_at), now()) DESC, (interactions.date_only AND interactions.ended_at IS NULL)))[1]::boolean AS last_date_only
-FROM links
+FROM active_links links
 JOIN interactions ON interactions.id = links.interaction_id AND NOT interactions.skipped
 WHERE interactions.workspace_id = @workspace_id AND links.record_id = ANY(@record_ids::text[]) AND interactions.started_at <= now() AND interactions.kind <> 'note'
   AND (interactions.kind <> 'email' OR EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
@@ -299,7 +298,7 @@ SELECT DISTINCT ON (links.record_id) links.record_id,
   (CASE WHEN interactions.kind = 'email' THEN 'email' ELSE interactions.channel END)::text AS channel,
   parts.at::timestamptz AS at, parts.date_only, parts.author_name, coalesce(parts.content, '')::text AS content, parts.direction,
   coalesce(handles.value, '')::text AS sender_address, coalesce(handles.name, '')::text AS sender_name, handles.person_id
-FROM links
+FROM active_links links
 JOIN interactions ON interactions.id = links.interaction_id AND NOT interactions.skipped
 JOIN parts ON parts.interaction_id = interactions.id AND parts.kind = 'message'
 LEFT JOIN handles ON handles.id = parts.author_handle_id
@@ -328,7 +327,7 @@ SELECT id FROM interactions WHERE workspace_id = $1 AND source = $2 AND external
 SELECT * FROM interactions
 WHERE connection_id = $1 AND kind = 'meeting' AND meet_code <> '' AND NOT skipped AND transcript_checked_at IS NULL
   AND ended_at BETWEEN now() - interval '30 days' AND now() - interval '10 minutes'
-  AND EXISTS (SELECT 1 FROM links WHERE links.interaction_id = interactions.id)
+  AND EXISTS (SELECT 1 FROM active_links links WHERE links.interaction_id = interactions.id)
 ORDER BY ended_at DESC
 LIMIT 20;
 
@@ -350,7 +349,7 @@ WHERE interactions.workspace_id = @workspace_id AND NOT interactions.skipped
   AND (latest.at > coalesce(interactions.followed_up_at, '-infinity')
     OR interactions.drafting_state = 'failed'
     OR (interactions.drafting_state = 'drafting' AND interactions.drafting_started_at < now() - interval '15 minutes'))
-  AND EXISTS (SELECT 1 FROM links WHERE links.interaction_id = interactions.id)
+  AND EXISTS (SELECT 1 FROM active_links links WHERE links.interaction_id = interactions.id)
   AND NOT EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind <> 'draft' AND parts.content IS NULL AND parts.provider_id IS NOT NULL)
 ORDER BY latest.at DESC
 LIMIT @row_limit;

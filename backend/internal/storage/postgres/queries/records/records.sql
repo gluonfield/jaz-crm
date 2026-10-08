@@ -86,7 +86,8 @@ ORDER BY attributes.object_id, attributes.created_at, attributes.slug;
 SELECT * FROM records WHERE workspace_id = $1 AND id = $2 FOR UPDATE;
 
 -- name: DeleteRecord :execrows
-DELETE FROM records WHERE workspace_id = $1 AND id = $2;
+UPDATE retained_records SET deleted_at = clock_timestamp()
+WHERE workspace_id = $1 AND id = $2 AND deleted_at IS NULL;
 
 -- name: CreateRecord :one
 INSERT INTO records (workspace_id, object_id, id) VALUES ($1, $2, sqlc.arg(id)) RETURNING *;
@@ -98,9 +99,10 @@ SELECT * FROM records WHERE workspace_id = $1 AND object_id = $2 AND id = $3 FOR
 SELECT * FROM records WHERE workspace_id = @workspace_id AND id = ANY(@ids::text[]);
 
 -- name: CurrentValues :many
+-- Retained values let parent validation traverse pages in Trash as well.
 SELECT record_values.* FROM record_values
-JOIN records ON records.id = record_values.record_id
-WHERE records.workspace_id = @workspace_id AND record_values.record_id = ANY(@record_ids::text[])
+JOIN retained_records ON retained_records.id = record_values.record_id
+WHERE retained_records.workspace_id = @workspace_id AND record_values.record_id = ANY(@record_ids::text[])
   AND record_values.active_until IS NULL
 ORDER BY record_values.id;
 

@@ -13,6 +13,7 @@ import { PageIconPicker } from '@/components/page-icon'
 import { PersonContext } from '@/components/person-context'
 import { Properties } from '@/components/properties'
 import { Related } from '@/components/related'
+import { RecordDeleteDialog } from '@/components/record-delete-dialog'
 import { SubPages } from '@/components/sub-pages'
 import { Summary } from '@/components/summary'
 import { Timeline } from '@/components/timeline'
@@ -37,6 +38,7 @@ function RecordPage() {
   const { tab } = Route.useSearch()
   const navigate = useNavigate()
   const remove = useAction<object>('delete_record')
+  const [deleting, setDeleting] = useState(false)
   const pages = usePages()
   if (!record || !objects || !object) {
     return <Header />
@@ -85,23 +87,26 @@ function RecordPage() {
             <MoreHorizontal />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
+        <DropdownMenuContent align="end" onCloseAutoFocus={(e) => deleting && e.preventDefault()}>
           <div className="px-2 py-1.5 text-[12px] text-ink-3 md:hidden">Last updated <UpdatedAt at={record.updated_at} /></div>
           {record.object === 'follow_ups' && <DropdownMenuItem onSelect={() => void navigate({ to: '.', search: tab ? {} : { tab: 'activity' } })}>
             <FileText /> {tab ? 'Conversation' : 'Changes'}
           </DropdownMenuItem>}
-          <DropdownMenuItem
-            onSelect={() =>
-              remove.mutate(
-                { record_id: record.id },
-                { onSuccess: () => navigate(!page ? { to: '/o/$object', params: { object: object.slug } } : parent ? { to: '/r/$recordId', params: { recordId: parent } } : { to: '/' }) },
-              )
-            }
-          >
-            <Trash2 /> Delete {object.name.toLowerCase().replace(/s$/, '')}
+          <DropdownMenuItem onSelect={() => setDeleting(true)}>
+            <Trash2 /> Delete…
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      <RecordDeleteDialog
+        open={deleting}
+        onOpenChange={setDeleting}
+        name={name}
+        object={record.object}
+        onConfirm={() => remove.mutate(
+          { record_id: record.id },
+          { onSuccess: () => navigate(!page ? { to: '/o/$object', params: { object: object.slug } } : parent ? { to: '/r/$recordId', params: { recordId: parent } } : { to: '/' }) },
+        )}
+      />
     </Header>
   )
   if (record.object === 'follow_ups' && !tab) {
