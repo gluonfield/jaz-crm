@@ -38,6 +38,10 @@ WHERE attributes.object_id = objects.id AND objects.workspace_id = @workspace_id
 DELETE FROM attributes USING objects
 WHERE attributes.object_id = objects.id AND objects.workspace_id = @workspace_id AND attributes.id = @id;
 
+-- name: SetAttributeArchived :execrows
+UPDATE attributes SET archived = @archived FROM objects
+WHERE attributes.object_id = objects.id AND objects.workspace_id = @workspace_id AND attributes.id = @id;
+
 -- name: DropFilterConditions :exec
 UPDATE saved_filters SET filters = (
   SELECT coalesce(jsonb_agg(condition ORDER BY position), '[]'::jsonb) FROM jsonb_array_elements(filters) WITH ORDINALITY AS conditions(condition, position)
@@ -102,6 +106,7 @@ SELECT * FROM records WHERE workspace_id = @workspace_id AND id = ANY(@ids::text
 -- Retained values let parent validation traverse pages in Trash as well.
 SELECT record_values.* FROM record_values
 JOIN retained_records ON retained_records.id = record_values.record_id
+JOIN attributes ON attributes.id = record_values.attribute_id AND NOT attributes.archived
 WHERE retained_records.workspace_id = @workspace_id AND record_values.record_id = ANY(@record_ids::text[])
   AND record_values.active_until IS NULL
 ORDER BY record_values.id;
@@ -135,8 +140,9 @@ WHERE records.workspace_id = @workspace_id AND record_values.active_until IS NUL
 WITH scoped AS (
   SELECT records.*, workspaces.timezone, conversation.id AS conversation_id,
     (sqlc.narg(query)::text IS NULL OR EXISTS (
-      SELECT 1 FROM record_values
+      SELECT 1 FROM record_values JOIN attributes ON attributes.id = record_values.attribute_id
       WHERE record_values.record_id = records.id AND record_values.active_until IS NULL
+        AND NOT attributes.archived
         AND record_values.text ILIKE '%' || sqlc.narg(query)::text || '%'
     )) AS matches_text
   FROM records

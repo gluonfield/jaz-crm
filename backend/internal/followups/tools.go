@@ -67,7 +67,7 @@ type timelineQuery struct {
 func NewReadTools(crm *records.Service, convs *interactions.Service, actor auth.Actor) ReadTools {
 	return ReadTools{WorkspaceID: actor.WorkspaceID, Tools: []ReadTool{
 		readTool("list_objects", "Discover this workspace's object and attribute schemas, including reference targets. Use these to choose record searches.", func(ctx context.Context, _ struct{}) (any, error) {
-			return crm.Objects(ctx, actor)
+			return crm.Objects(ctx, actor, false)
 		}),
 		readTool("search_records", "Find records and pages anywhere in this workspace, regardless of the configured company knowledge root. Results omit document bodies: use get_record to read them. Use total and offset to page through all matches.", func(ctx context.Context, in recordQuery) (any, error) {
 			filters := make([]records.Filter, 0, len(in.Where))

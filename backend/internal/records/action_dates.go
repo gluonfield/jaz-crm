@@ -16,7 +16,7 @@ func guardFollowUp(sc schema, object storage.Object, current []storage.RecordVal
 	// Derive effective fields through the same source precedence as the write.
 	proposed, _ := plan(current, set, remove, source, "")
 	next := func(slug string) string {
-		attr, _ := sc.attribute(object, slug)
+		attr, _ := sc.attribute(object, slug, false)
 		for _, v := range proposed.Insert {
 			if v.AttributeID == attr.ID && v.Text != nil {
 				return *v.Text
@@ -30,7 +30,7 @@ func guardFollowUp(sc schema, object storage.Object, current []storage.RecordVal
 		return ""
 	}
 	held := func(slug string) *storage.RecordValue {
-		attr, _ := sc.attribute(object, slug)
+		attr, _ := sc.attribute(object, slug, false)
 		for i := range current {
 			if current[i].AttributeID == attr.ID {
 				return &current[i]
@@ -45,7 +45,7 @@ func guardFollowUp(sc schema, object storage.Object, current []storage.RecordVal
 	clear := func(slugs []string) {
 		drop(slugs)
 		for _, slug := range slugs {
-			attr, _ := sc.attribute(object, slug)
+			attr, _ := sc.attribute(object, slug, false)
 			remove = append(remove, change{attr: attr, force: true})
 		}
 	}
@@ -67,7 +67,7 @@ func guardFollowUp(sc schema, object storage.Object, current []storage.RecordVal
 	case dateChanged && source == SourceUser:
 		clear(actionDateParts[1:])
 		remove = slices.DeleteFunc(remove, func(c change) bool { return c.attr.Slug == "action_date_basis" })
-		attr, _ := sc.attribute(object, "action_date_basis")
+		attr, _ := sc.attribute(object, "action_date_basis", false)
 		text := "Manual"
 		set = append(set, change{attr: attr, entries: []entry{{text: &text}}, force: true})
 	case dateChanged && next("action_date") == "":

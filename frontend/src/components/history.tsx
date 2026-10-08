@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { formatDateTime, timeAgo } from '@/lib/format'
 import { useTool } from '@/lib/queries'
-import type { Attribute } from '@/lib/types'
+import type { Attribute, CrmObject } from '@/lib/types'
 import { PageIcon } from './page-icon'
 
 type Change = { attribute: string; value: string; record_id?: string; removed?: boolean; source?: string; actor?: string; at: string }
@@ -11,9 +11,10 @@ const sources: Record<string, string> = { sync: 'Sync', agent: 'An agent' }
 // History lists a record's changes, newest first, ending with its creation.
 export function History({ recordId, createdAt, attributes, object }: { recordId: string; createdAt: string; attributes: Attribute[]; object: string }) {
   const changes = useTool<{ changes: Change[] }>('record_history', { record_id: recordId }).data?.changes
-  const label = (slug: string) => attributes.find((a) => a.slug === slug)?.name ?? slug
+  const all = useTool<{ objects: CrmObject[] }>('list_objects', { include_archived: true }).data?.objects.find((item) => item.slug === object)?.attributes ?? attributes
+  const label = (slug: string) => all.find((a) => a.slug === slug)?.name ?? slug
   // A document's versions are named, not shown in full.
-  const isDocument = (slug: string) => attributes.find((a) => a.slug === slug)?.type === 'markdown'
+  const isDocument = (slug: string) => all.find((a) => a.slug === slug)?.type === 'markdown'
   return (
     <ol className="mt-4 flex flex-col text-[13px]">
       {changes?.map((c, index) => (

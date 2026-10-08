@@ -38,11 +38,11 @@ func guardDraft(sc schema, object storage.Object, current []storage.RecordValue,
 	if object.Slug != FollowUps {
 		return set, remove, nil
 	}
-	status, err := sc.attribute(object, draftStatusAttribute)
+	status, err := sc.attribute(object, draftStatusAttribute, false)
 	if err != nil {
 		return set, remove, nil
 	}
-	draft, _ := sc.attribute(object, draftAttribute)
+	draft, _ := sc.attribute(object, draftAttribute, false)
 	now := ""
 	written := false
 	for _, v := range current {
@@ -76,7 +76,7 @@ func guardDraft(sc schema, object storage.Object, current []storage.RecordValue,
 		}
 		if to == DraftSent {
 			for _, slug := range []string{draftAttribute, "subject"} {
-				attr, _ := sc.attribute(object, slug)
+				attr, _ := sc.attribute(object, slug, false)
 				remove = append(remove, change{attr: attr, force: true})
 			}
 		}

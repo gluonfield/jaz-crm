@@ -118,7 +118,7 @@ func (s *Service) AddOption(ctx context.Context, actor auth.Actor, object, attri
 	if err != nil {
 		return "", err
 	}
-	a, err := sc.attribute(o, attribute)
+	a, err := sc.attribute(o, attribute, false)
 	if err != nil {
 		return "", err
 	}
@@ -129,7 +129,7 @@ func (s *Service) AddOption(ctx context.Context, actor auth.Actor, object, attri
 }
 
 func (s *Service) object(ctx context.Context, actor auth.Actor, slug string) (Object, error) {
-	objects, err := s.Objects(ctx, actor)
+	objects, err := s.Objects(ctx, actor, false)
 	if err != nil {
 		return Object{}, err
 	}
@@ -175,7 +175,6 @@ func (s *Service) EditObject(ctx context.Context, actor auth.Actor, object, acti
 	return errs.Invalidf("action is rename or delete")
 }
 
-// EditAttribute renames an attribute, or deletes one the workspace added.
 func (s *Service) EditAttribute(ctx context.Context, actor auth.Actor, object, attribute, action, name string) error {
 	sc, err := s.schema(ctx, actor.WorkspaceID)
 	if err != nil {
@@ -185,7 +184,7 @@ func (s *Service) EditAttribute(ctx context.Context, actor auth.Actor, object, a
 	if err != nil {
 		return err
 	}
-	a, err := sc.attribute(o, attribute)
+	a, err := sc.attribute(o, attribute, true)
 	if err != nil {
 		return err
 	}
@@ -196,11 +195,18 @@ func (s *Service) EditAttribute(ctx context.Context, actor auth.Actor, object, a
 			return err
 		}
 		return s.store.RenameAttribute(ctx, actor.WorkspaceID, a.ID, name)
-	case "delete":
-		if a.Slug == titleAttribute || a.Type == Markdown || standard(o.Slug, a.Slug) {
+	case "archive", "restore", "delete":
+		if protected(o.Slug, a) {
 			return errs.Invalidf("%s.%s is built in and stays", o.Slug, a.Slug)
+		}
+		if action != "delete" {
+			return s.store.SetAttributeArchived(ctx, actor.WorkspaceID, a.ID, action == "archive")
 		}
 		return s.store.DeleteAttribute(ctx, actor.WorkspaceID, a)
 	}
-	return errs.Invalidf("action is rename or delete")
+	return errs.Invalidf("action is rename, archive, restore or delete")
+}
+
+func protected(object string, attribute storage.Attribute) bool {
+	return attribute.Slug == titleAttribute || attribute.Type == Markdown || standard(object, attribute.Slug)
 }

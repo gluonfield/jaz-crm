@@ -79,6 +79,10 @@ func (s *Store) RenameAttribute(ctx context.Context, workspaceID, id, name strin
 	return affected(s.rec.RenameAttribute(ctx, recdb.RenameAttributeParams{Name: name, WorkspaceID: workspaceID, ID: id}))
 }
 
+func (s *Store) SetAttributeArchived(ctx context.Context, workspaceID, id string, archived bool) error {
+	return affected(s.rec.SetAttributeArchived(ctx, recdb.SetAttributeArchivedParams{WorkspaceID: workspaceID, ID: id, Archived: archived}))
+}
+
 func (s *Store) DeleteAttribute(ctx context.Context, workspaceID string, attr storage.Attribute) error {
 	return s.tx(ctx, func(_ *authdb.Queries, r *recdb.Queries) error {
 		if err := r.DropFilterConditions(ctx, recdb.DropFilterConditionsParams{AttributeIDs: []string{attr.ID}, WorkspaceID: workspaceID}); err != nil {

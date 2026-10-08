@@ -19,6 +19,7 @@ type Attribute struct {
 	TargetObjectID *string
 	CreatedAt      time.Time
 	Options        []string
+	Archived       bool
 }
 
 type Object struct {

@@ -128,7 +128,7 @@ func TestRecordTools(t *testing.T) {
 	e := serve(t)
 	a := e.session(t, e.apiKey(t, "a@jaz.test"))
 	objects := encode(mustCall(t, a, "list_objects", nil))
-	if !strings.Contains(objects, `{"name":"Company","slug":"company","target":"companies","type":"reference"}`) {
+	if !strings.Contains(objects, `{"name":"Company","protected":true,"slug":"company","target":"companies","type":"reference"}`) {
 		t.Fatalf("list_objects: %s", objects)
 	}
 	company := mustCall(t, a, "upsert_record", map[string]any{"object": "companies", "values": map[string]any{"name": "Acme", "domains": "acme.com"}})["record"].(map[string]any)
@@ -374,7 +374,7 @@ func TestCompanyCategories(t *testing.T) {
 	}
 	objects := mustCall(t, a, "list_objects", nil)["objects"].([]any)
 	category := objects[0].(map[string]any)["attributes"].([]any)[1].(map[string]any)
-	if got := encode(category); got != `{"multi":true,"name":"Categories","options":["Manufacturing","B2B"],"slug":"categories","type":"select"}` {
+	if got := encode(category); got != `{"multi":true,"name":"Categories","options":["Manufacturing","B2B"],"protected":true,"slug":"categories","type":"select"}` {
 		t.Fatalf("persisted category schema: %s", got)
 	}
 	company := mustCall(t, a, "upsert_record", map[string]any{"object": "companies", "values": map[string]any{

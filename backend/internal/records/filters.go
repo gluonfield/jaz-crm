@@ -27,6 +27,14 @@ func (s *Service) SavedFilters(ctx context.Context, actor auth.Actor, slug strin
 	if err != nil {
 		return nil, err
 	}
+	filters = slices.DeleteFunc(filters, func(filter storage.SavedFilter) bool {
+		for _, condition := range filter.Filters {
+			if _, err := sc.attribute(object, condition.Attribute, false); err != nil {
+				return true
+			}
+		}
+		return false
+	})
 	order := map[string]int{}
 	for _, standard := range StandardObjects {
 		if standard.Slug == slug {

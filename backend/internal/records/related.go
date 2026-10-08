@@ -21,7 +21,7 @@ func (s *Service) include(ctx context.Context, actor auth.Actor, sc schema, targ
 		if err != nil {
 			return err
 		}
-		attr, err := sc.attribute(object, relation.Attribute)
+		attr, err := sc.attribute(object, relation.Attribute, false)
 		if err != nil {
 			return err
 		}
@@ -77,7 +77,7 @@ func (s *Service) Referenced(ctx context.Context, actor auth.Actor, record Recor
 	}
 	var relations []Relation
 	for _, attr := range sc.attrs {
-		if attr.Type == Reference && *attr.TargetObjectID == target.ID && len(relations) < 8 {
+		if !attr.Archived && attr.Type == Reference && *attr.TargetObjectID == target.ID && len(relations) < 8 {
 			relations = append(relations, Relation{Object: sc.objectByID(attr.ObjectID).Slug, Attribute: attr.Slug, Limit: limit})
 		}
 	}

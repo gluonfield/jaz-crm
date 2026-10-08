@@ -32,7 +32,7 @@ func (s *Service) EditStage(ctx context.Context, actor auth.Actor, object, attri
 	if err != nil {
 		return err
 	}
-	a, err := sc.attribute(o, attribute)
+	a, err := sc.attribute(o, attribute, false)
 	if err != nil {
 		return err
 	}

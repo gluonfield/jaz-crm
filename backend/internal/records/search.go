@@ -68,7 +68,7 @@ func (s *Service) Search(ctx context.Context, actor auth.Actor, q Search) ([]Rec
 	}
 	query.SortUpdatedAt = q.Sort == "updated_at"
 	if q.Sort != "" && !query.SortUpdatedAt {
-		attr, err := sc.attribute(object, q.Sort)
+		attr, err := sc.attribute(object, q.Sort, false)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -113,7 +113,7 @@ func (s *Service) filterQuery(ctx context.Context, actor auth.Actor, sc schema, 
 		return query, errs.Invalidf("at most 32 filter conditions")
 	}
 	for _, f := range filters {
-		attr, err := sc.attribute(object, f.Attribute)
+		attr, err := sc.attribute(object, f.Attribute, false)
 		if err != nil {
 			return query, err
 		}

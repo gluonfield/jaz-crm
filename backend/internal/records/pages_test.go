@@ -136,7 +136,7 @@ func TestEditTables(t *testing.T) {
 	if err := svc.EditObject(ctx, a, "painpoints", "delete", ""); err != nil {
 		t.Fatal(err)
 	}
-	objects, err := svc.Objects(ctx, a)
+	objects, err := svc.Objects(ctx, a, false)
 	if err != nil {
 		t.Fatal(err)
 	}

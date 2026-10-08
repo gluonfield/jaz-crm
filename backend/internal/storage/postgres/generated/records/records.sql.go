@@ -54,7 +54,7 @@ func (q *Queries) CloseValues(ctx context.Context, arg CloseValuesParams) error 
 const createAttribute = `-- name: CreateAttribute :one
 INSERT INTO attributes (object_id, slug, name, type, multi, is_unique, target_object_id, options, id)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-RETURNING id, object_id, slug, name, type, multi, is_unique, target_object_id, created_at, options
+RETURNING id, object_id, slug, name, type, multi, is_unique, target_object_id, created_at, options, archived
 `
 
 type CreateAttributeParams struct {
@@ -93,6 +93,7 @@ func (q *Queries) CreateAttribute(ctx context.Context, arg CreateAttributeParams
 		&i.TargetObjectID,
 		&i.CreatedAt,
 		&i.Options,
+		&i.Archived,
 	)
 	return i, err
 }
@@ -188,6 +189,7 @@ func (q *Queries) CreateSavedFilter(ctx context.Context, arg CreateSavedFilterPa
 const currentValues = `-- name: CurrentValues :many
 SELECT record_values.id, record_values.record_id, record_values.attribute_id, record_values.text, record_values.ref_record_id, record_values.unique_key, record_values.source, record_values.actor_id, record_values.active_from, record_values.active_until FROM record_values
 JOIN retained_records ON retained_records.id = record_values.record_id
+JOIN attributes ON attributes.id = record_values.attribute_id AND NOT attributes.archived
 WHERE retained_records.workspace_id = $1 AND record_values.record_id = ANY($2::text[])
   AND record_values.active_until IS NULL
 ORDER BY record_values.id
@@ -385,7 +387,7 @@ func (q *Queries) InsertValue(ctx context.Context, arg InsertValueParams) error 
 }
 
 const listAttributes = `-- name: ListAttributes :many
-SELECT attributes.id, attributes.object_id, attributes.slug, attributes.name, attributes.type, attributes.multi, attributes.is_unique, attributes.target_object_id, attributes.created_at, attributes.options FROM attributes
+SELECT attributes.id, attributes.object_id, attributes.slug, attributes.name, attributes.type, attributes.multi, attributes.is_unique, attributes.target_object_id, attributes.created_at, attributes.options, attributes.archived FROM attributes
 JOIN objects ON objects.id = attributes.object_id
 WHERE objects.workspace_id = $1
 ORDER BY attributes.object_id, attributes.created_at, attributes.slug
@@ -411,6 +413,7 @@ func (q *Queries) ListAttributes(ctx context.Context, workspaceID string) ([]Att
 			&i.TargetObjectID,
 			&i.CreatedAt,
 			&i.Options,
+			&i.Archived,
 		); err != nil {
 			return nil, err
 		}
@@ -489,7 +492,7 @@ func (q *Queries) ListSavedFilters(ctx context.Context, arg ListSavedFiltersPara
 }
 
 const lockObjectStatuses = `-- name: LockObjectStatuses :many
-SELECT attributes.id, attributes.object_id, attributes.slug, attributes.name, attributes.type, attributes.multi, attributes.is_unique, attributes.target_object_id, attributes.created_at, attributes.options FROM attributes JOIN objects ON objects.id = attributes.object_id
+SELECT attributes.id, attributes.object_id, attributes.slug, attributes.name, attributes.type, attributes.multi, attributes.is_unique, attributes.target_object_id, attributes.created_at, attributes.options, attributes.archived FROM attributes JOIN objects ON objects.id = attributes.object_id
 WHERE objects.workspace_id = $1 AND objects.id = $2 AND attributes.type = 'status'
 ORDER BY attributes.id FOR SHARE OF attributes
 `
@@ -519,6 +522,7 @@ func (q *Queries) LockObjectStatuses(ctx context.Context, arg LockObjectStatuses
 			&i.TargetObjectID,
 			&i.CreatedAt,
 			&i.Options,
+			&i.Archived,
 		); err != nil {
 			return nil, err
 		}
@@ -576,7 +580,7 @@ func (q *Queries) LockRecordForDeletion(ctx context.Context, arg LockRecordForDe
 }
 
 const lockStatus = `-- name: LockStatus :one
-SELECT attributes.id, attributes.object_id, attributes.slug, attributes.name, attributes.type, attributes.multi, attributes.is_unique, attributes.target_object_id, attributes.created_at, attributes.options FROM attributes JOIN objects ON objects.id = attributes.object_id
+SELECT attributes.id, attributes.object_id, attributes.slug, attributes.name, attributes.type, attributes.multi, attributes.is_unique, attributes.target_object_id, attributes.created_at, attributes.options, attributes.archived FROM attributes JOIN objects ON objects.id = attributes.object_id
 WHERE objects.workspace_id = $1 AND attributes.id = $2 AND attributes.type = 'status'
 FOR UPDATE OF attributes
 `
@@ -600,6 +604,7 @@ func (q *Queries) LockStatus(ctx context.Context, arg LockStatusParams) (Attribu
 		&i.TargetObjectID,
 		&i.CreatedAt,
 		&i.Options,
+		&i.Archived,
 	)
 	return i, err
 }
@@ -848,8 +853,9 @@ const searchRecords = `-- name: SearchRecords :many
 WITH scoped AS (
   SELECT records.id, records.workspace_id, records.object_id, records.created_at, records.updated_at, workspaces.timezone, conversation.id AS conversation_id,
     ($5::text IS NULL OR EXISTS (
-      SELECT 1 FROM record_values
+      SELECT 1 FROM record_values JOIN attributes ON attributes.id = record_values.attribute_id
       WHERE record_values.record_id = records.id AND record_values.active_until IS NULL
+        AND NOT attributes.archived
         AND record_values.text ILIKE '%' || $5::text || '%'
     )) AS matches_text
   FROM records
@@ -997,6 +1003,25 @@ func (q *Queries) SearchRecords(ctx context.Context, arg SearchRecordsParams) ([
 		return nil, err
 	}
 	return items, nil
+}
+
+const setAttributeArchived = `-- name: SetAttributeArchived :execrows
+UPDATE attributes SET archived = $1 FROM objects
+WHERE attributes.object_id = objects.id AND objects.workspace_id = $2 AND attributes.id = $3
+`
+
+type SetAttributeArchivedParams struct {
+	Archived    bool
+	WorkspaceID string
+	ID          string
+}
+
+func (q *Queries) SetAttributeArchived(ctx context.Context, arg SetAttributeArchivedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setAttributeArchived, arg.Archived, arg.WorkspaceID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const stageInUse = `-- name: StageInUse :one

@@ -37,7 +37,9 @@ type Attribute struct {
 	// Target is the object a reference points at.
 	Target string
 	// Options are a select's allowed values, or a status's stages in order.
-	Options []string
+	Options   []string
+	Archived  bool
+	Protected bool
 }
 
 type Record struct {
@@ -96,20 +98,23 @@ func (sc schema) objectByID(id string) storage.Object {
 	return sc.objects[i]
 }
 
-func (sc schema) attributes(objectID string) []storage.Attribute {
+func (sc schema) attributes(objectID string, includeArchived bool) []storage.Attribute {
 	var out []storage.Attribute
 	for _, a := range sc.attrs {
-		if a.ObjectID == objectID {
+		if a.ObjectID == objectID && (includeArchived || !a.Archived) {
 			out = append(out, a)
 		}
 	}
 	return out
 }
 
-func (sc schema) attribute(object storage.Object, slug string) (storage.Attribute, error) {
+func (sc schema) attribute(object storage.Object, slug string, includeArchived bool) (storage.Attribute, error) {
 	i := slices.IndexFunc(sc.attrs, func(a storage.Attribute) bool { return a.ObjectID == object.ID && a.Slug == slug })
 	if i < 0 {
 		return storage.Attribute{}, errs.Invalidf("%s has no attribute %q; call list_objects for its attributes", object.Slug, slug)
+	}
+	if sc.attrs[i].Archived && !includeArchived {
+		return storage.Attribute{}, errs.Invalidf("%s.%s is archived; restore it in Settings → Schema to use it", object.Slug, slug)
 	}
 	return sc.attrs[i], nil
 }
@@ -120,7 +125,7 @@ func (sc schema) attributeByID(id string) storage.Attribute {
 }
 
 // Objects describes the workspace's objects and their attributes.
-func (s *Service) Objects(ctx context.Context, actor auth.Actor) ([]Object, error) {
+func (s *Service) Objects(ctx context.Context, actor auth.Actor, includeArchived bool) ([]Object, error) {
 	sc, err := s.schema(ctx, actor.WorkspaceID)
 	if err != nil {
 		return nil, err
@@ -128,8 +133,8 @@ func (s *Service) Objects(ctx context.Context, actor auth.Actor) ([]Object, erro
 	out := []Object{}
 	for _, o := range sc.objects {
 		view := Object{Slug: o.Slug, Name: o.Name, Standard: standard(o.Slug)}
-		for _, a := range sc.attributes(o.ID) {
-			attr := Attribute{Slug: a.Slug, Name: a.Name, Type: a.Type, Multi: a.Multi, Unique: a.IsUnique, Options: a.Options}
+		for _, a := range sc.attributes(o.ID, includeArchived) {
+			attr := Attribute{Slug: a.Slug, Name: a.Name, Type: a.Type, Multi: a.Multi, Unique: a.IsUnique, Options: a.Options, Archived: a.Archived, Protected: protected(o.Slug, a)}
 			if a.TargetObjectID != nil {
 				attr.Target = sc.objectByID(*a.TargetObjectID).Slug
 			}
@@ -207,7 +212,7 @@ func (s *Service) resolve(ctx context.Context, workspaceID string, sc schema, at
 		return raw, nil
 	}
 	var attrIDs, keys []string
-	for _, a := range sc.attributes(target.ID) {
+	for _, a := range sc.attributes(target.ID, false) {
 		if !a.IsUnique {
 			continue
 		}
@@ -261,7 +266,7 @@ func (s *Service) views(ctx context.Context, workspaceID string, sc schema, reco
 	out := make([]Record, len(records))
 	for i, r := range records {
 		view := Record{ID: r.ID, Object: sc.objectByID(r.ObjectID).Slug, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, Fields: []Field{}}
-		for _, attr := range sc.attributes(r.ObjectID) {
+		for _, attr := range sc.attributes(r.ObjectID, false) {
 			if attr.Type == Markdown && !full {
 				continue
 			}

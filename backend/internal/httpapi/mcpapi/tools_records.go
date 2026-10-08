@@ -28,9 +28,9 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 			return optionOutput{Value: value}, err
 		})
 	add(r, &mcp.Tool{Name: "list_objects", Title: "List objects", Annotations: readOnly,
-		Description: "List the objects records belong to with their attributes: the standard people, companies, deals, follow-ups and pages, and the workspace's own tables, whose records are pages too. Pages nest under a parent page."},
-		func(ctx context.Context, actor auth.Actor, _ empty) (objectsOutput, error) {
-			objects, err := crm.Objects(ctx, actor)
+		Description: "List objects and their active attributes. Include archived attributes to inspect or restore them. Pages nest under a parent page."},
+		func(ctx context.Context, actor auth.Actor, in objectsInput) (objectsOutput, error) {
+			objects, err := crm.Objects(ctx, actor, in.IncludeArchived)
 			return objectsOutput{Objects: objectViews(objects)}, err
 		})
 	add(r, &mcp.Tool{Name: "search_records", Title: "Search records", Annotations: readOnly,
@@ -145,7 +145,7 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 			return objectOf(object), err
 		})
 	add(r, &mcp.Tool{Name: "edit_attribute", Title: "Edit attribute",
-		Description: "Rename an attribute, or delete one the workspace added with its values and its conditions in saved filters. Built-in attributes, such as name and content, stay."},
+		Description: "Rename, archive or restore a custom attribute. Archiving removes it from active records and filters while retaining its values and history for restoration. Delete permanently removes its values and saved filter conditions. Built-in attributes stay."},
 		func(ctx context.Context, actor auth.Actor, in attributeEdit) (empty, error) {
 			return empty{}, crm.EditAttribute(ctx, actor, in.Object, in.Attribute, in.Action, in.Name)
 		})
@@ -172,13 +172,19 @@ type optionOutput struct {
 }
 
 type attributeView struct {
-	Slug    string   `json:"slug"`
-	Name    string   `json:"name"`
-	Type    string   `json:"type"`
-	Multi   bool     `json:"multi,omitempty"`
-	Unique  bool     `json:"unique,omitempty"`
-	Target  string   `json:"target,omitempty"`
-	Options []string `json:"options,omitempty"`
+	Slug      string   `json:"slug"`
+	Name      string   `json:"name"`
+	Type      string   `json:"type"`
+	Multi     bool     `json:"multi,omitempty"`
+	Unique    bool     `json:"unique,omitempty"`
+	Target    string   `json:"target,omitempty"`
+	Options   []string `json:"options,omitempty"`
+	Archived  bool     `json:"archived,omitempty"`
+	Protected bool     `json:"protected,omitempty"`
+}
+
+type objectsInput struct {
+	IncludeArchived bool `json:"include_archived,omitempty"`
 }
 
 type objectView struct {
@@ -360,7 +366,7 @@ type objectEdit struct {
 type attributeEdit struct {
 	Object    string `json:"object"`
 	Attribute string `json:"attribute"`
-	Action    string `json:"action" jsonschema:"rename or delete"`
+	Action    string `json:"action" jsonschema:"rename, archive, restore or delete"`
 	Name      string `json:"name,omitempty"`
 }
 

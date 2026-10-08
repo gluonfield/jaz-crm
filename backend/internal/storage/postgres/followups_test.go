@@ -168,7 +168,7 @@ JOIN objects ON objects.id = records.object_id WHERE objects.slug = 'companies';
 		}
 	}
 	actor := auth.Actor{WorkspaceID: workspace}
-	objects, err := svc.Objects(ctx, actor)
+	objects, err := svc.Objects(ctx, actor, false)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -24,6 +24,7 @@ type Attribute struct {
 	TargetObjectID *string
 	CreatedAt      time.Time
 	Options        []string
+	Archived       bool
 }
 
 // AttributeInput creates one attribute on an existing object. Start is the
@@ -190,6 +191,7 @@ type RecordStore interface {
 	// in saved filters.
 	DeleteObject(ctx context.Context, workspaceID, id string) error
 	RenameAttribute(ctx context.Context, workspaceID, id, name string) error
+	SetAttributeArchived(ctx context.Context, workspaceID, id string, archived bool) error
 	// DeleteAttribute removes an attribute with its values and its conditions
 	// in saved filters.
 	DeleteAttribute(ctx context.Context, workspaceID string, attr Attribute) error

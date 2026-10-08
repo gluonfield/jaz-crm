@@ -1,4 +1,4 @@
-import { AlignLeft, ArrowUpRight, AtSign, Calendar, CircleChevronDown, Contrast, Hash, Link2, Pencil, Phone, SquareCheck, Tags, Trash2, UserRound } from 'lucide-react'
+import { AlignLeft, Archive, ArrowUpRight, AtSign, Calendar, CircleChevronDown, Contrast, Hash, Link2, Pencil, Phone, SquareCheck, Tags, Trash2, UserRound } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { slugify } from '@/lib/crm'
 import { useAction } from '@/lib/queries'
@@ -11,8 +11,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { menuItem, menuLabel, menuSeparator } from './ui/menu'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
 
-// ColumnHeader names a table's column and renames or deletes it; the name
-// column stays.
 export function ColumnHeader({ object, attribute, icon, className }: { object: CrmObject; attribute: Attribute; icon?: ReactNode; className?: string }) {
   const edit = useAction<object>('edit_attribute')
   const [renaming, setRenaming] = useState(false)
@@ -33,9 +31,12 @@ export function ColumnHeader({ object, attribute, icon, className }: { object: C
           <DropdownMenuItem onSelect={() => setRenaming(true)}>
             <Pencil /> Rename…
           </DropdownMenuItem>
-          {attribute.slug !== 'name' && (
+          {!attribute.protected && (
             <>
               <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => edit.mutate({ object: object.slug, attribute: attribute.slug, action: 'archive' })}>
+                <Archive /> Archive
+              </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setDeleting(true)}>
                 <Trash2 /> Delete…
               </DropdownMenuItem>

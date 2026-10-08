@@ -98,7 +98,7 @@ func (s *Service) upsert(ctx context.Context, actor auth.Actor, source Source, w
 	}
 	expect := map[string][]string{}
 	for slug, values := range w.Expect {
-		attr, err := sc.attribute(object, slug)
+		attr, err := sc.attribute(object, slug, false)
 		if err != nil {
 			return Record{}, nil, err
 		}
@@ -133,7 +133,7 @@ func (s *Service) upsert(ctx context.Context, actor auth.Actor, source Source, w
 		return Record{}, nil, errs.Invalidf("a new %s record needs at least one value", object.Slug)
 	}
 	if id == "" {
-		set, err = s.defaults(ctx, actor, sc.attributes(object.ID), set)
+		set, err = s.defaults(ctx, actor, sc.attributes(object.ID, false), set)
 		if err != nil {
 			return Record{}, nil, err
 		}
@@ -232,7 +232,7 @@ func (s *Service) changes(ctx context.Context, workspaceID string, sc schema, ob
 	slices.Sort(slugs)
 	var out []change
 	for _, slug := range slugs {
-		attr, err := sc.attribute(object, slug)
+		attr, err := sc.attribute(object, slug, false)
 		if err != nil {
 			return nil, err
 		}

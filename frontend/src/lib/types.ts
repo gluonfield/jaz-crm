@@ -11,6 +11,8 @@ export type Attribute = {
   type: AttributeType
   multi?: boolean
   unique?: boolean
+  archived?: boolean
+  protected?: boolean
   target?: string
   options?: string[]
 }
