@@ -11,7 +11,7 @@ Source: Augustinas, 2026-10-08; Follow-ups screenshot and request for LinkedIn-o
 - [x] Run the requested thermo-nuclear review and reproduce delayed-write behavior.
 - [x] Preserve newer view/editor state when an earlier save or deletion completes.
 - [x] Verify the review fix with delayed real responses and full checks.
-- [ ] Commit, push and verify the review-fix deployment.
+- [x] Commit, push and verify the review-fix deployment.
 
 Reuse the existing filter editor, URL state and saved-filter API. No new dependencies or persistence layer.
 
@@ -20,3 +20,5 @@ Full frontend checks, Go tests/build/vet and strict review pass. A disposable Po
 `575987695d8a4f1b629ebf8a3370fe96fa21c0b8` is pushed and live on Server and Worker, both SUCCESS. CI verification and health pass. The production queue exposes Filter, Channel choices and Save as; closing the editor preserves the current filters and Assigned to me. No production records or presets were changed by verification.
 
 The requested second review found a P2 in the existing shared editor: after closing a pending save and selecting another view, the late response reapplied the old view. The component now detaches mutation callbacks when its view or editor context changes, using React Query reset. The backend write and cache refresh still complete. Real PostgreSQL-backed browser checks reproduce the original defect and verify delayed save/deletion responses preserve the newer selection, saved presets remain readable, newer name/condition edits survive old responses, normal Save as/Save changes work, and fresh navigation still defaults to Assigned to me. Full frontend checks pass with no lint warnings. No new flags, helpers, APIs or dependencies.
+
+Review fix `386613fae65804ffb2949095407b5c9b159d57ce` is pushed and live on Server/Worker, both SUCCESS. CI verification passes; image-publish jobs are separate. Production health, Assigned to me and readback of the served route bundle confirm the new callback reset. No production records or presets were mutated. Review probes and outputs are in the project’s gitignored `runs/follow-up-filter-review/`. No blocking findings remain in the reviewed change.
