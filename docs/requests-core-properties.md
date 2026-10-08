@@ -5,7 +5,7 @@
 - [x] Migrate existing workspaces atomically; adopt compatible property identities/options/values/history and preserve unrelated custom fields.
 - [x] Verify fresh workspace writes, migrated data, property protection and conflict rollback/recovery through production PostgreSQL/storage/HTTP.
 - [x] Run full checks and strict review.
-- [ ] Commit/push and verify deployment and production schema/UI read-only.
+- [x] Commit/push and verify deployment and production schema/UI read-only.
 
 ## Confirmed Findings
 
@@ -31,3 +31,9 @@ Activity-derived fields and a consistent money/currency contract remain separate
 | --- | --- |
 | Short Notes appeared beside job title | Notes stay in Details; identity facts remain in the header |
 | Common fields required workspace extensions | 13 additional protected core fields work in new and existing workspaces |
+
+## Rollout
+
+- Code: `39292486a2a363ab6e78583f65ccf433e7b12fa6`, pushed to main. Both Railway Server (`9d8160c1-e522-49f9-9b69-5bd105127247`) and Worker (`0a87a061-aeba-479c-a011-93fb65949c31`) report SUCCESS for this exact commit. CI run `37853791525` verification passed; image publication is separate.
+- Read-only production checks: all 13 fields present/protected; every pre-existing CAS definition retains its name/type/options/uniqueness/archive state; health returns 200; Person and Schema pages expose the new fields. Deployed stylesheet hash matches the verified local build. The record route matches byte-for-byte after normalizing only its bootstrap-import filename; deployed Notes exclusion is verified.
+- Disposable browser stack stopped successfully and its PostgreSQL cleanup completed. No live record mutations were used for verification.
