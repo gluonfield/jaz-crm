@@ -323,7 +323,7 @@ func TestHistory(t *testing.T) {
 		" email_addresses=ada@example.com removed=true actor=false",
 		"user name=Ada Lovelace removed=false actor=true",
 	}
-	if len(got) != 4 || !slices.Equal(got[:2], want) || !slices.Contains(got, "sync name=Ada removed=false actor=true") {
+	if len(got) != 5 || !slices.Equal(got[:2], want) || !slices.Contains(got, "sync name=Ada removed=false actor=true") || !slices.Contains(got, "sync owner=a@jaz.test removed=false actor=true") {
 		t.Fatalf("history:\n%s", strings.Join(got, "\n"))
 	}
 	if _, err := svc.History(ctx, b, ada.ID); err == nil {

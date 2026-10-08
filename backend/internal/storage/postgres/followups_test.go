@@ -1,60 +1,17 @@
 package postgres_test
 
 import (
-	"context"
-	"database/sql"
-	"net/url"
-	"os"
 	"slices"
 	"testing"
 
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"github.com/gluonfield/jaz-crm/backend/internal/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres"
-	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
-	"github.com/jackc/pgx/v5"
-	"github.com/lithammer/shortuuid/v4"
-	"github.com/pressly/goose/v3"
 )
 
 func TestStandardSchemaUpgradeAndDeletedDefault(t *testing.T) {
-	ctx := context.Background()
-	base := os.Getenv("TEST_DATABASE_URL")
-	if base == "" {
-		base = postgrestest.DefaultURL
-	}
-	admin, err := pgx.Connect(ctx, base)
-	if err != nil {
-		t.Fatal(err)
-	}
-	name := "jazcrm_upgrade_" + shortuuid.New()
-	identifier := pgx.Identifier{name}.Sanitize()
-	if _, err := admin.Exec(ctx, "CREATE DATABASE "+identifier); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		if _, err := admin.Exec(ctx, "DROP DATABASE "+identifier+" WITH (FORCE)"); err != nil {
-			t.Error(err)
-		}
-		_ = admin.Close(ctx)
-	})
-	dsn, err := url.Parse(base)
-	if err != nil {
-		t.Fatal(err)
-	}
-	dsn.Path = "/" + name
-	db, err := sql.Open("pgx", dsn.String())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	old, err := goose.NewProvider(goose.DialectPostgres, db, os.DirFS("migrations"), goose.WithDisableGlobalRegistry(true), goose.WithExcludeNames([]string{"0015_deal_followups.go", "0019_follow_ups.go", "0033_chase_filter.go", "0043_page_icons.go"}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := old.UpTo(ctx, 14); err != nil {
-		t.Fatal(err)
-	}
+	ctx := t.Context()
+	db, dsn := legacy(t, 14)
 	var workspace string
 	if err := db.QueryRowContext(ctx, "INSERT INTO workspaces (name) VALUES ('Existing') RETURNING id").Scan(&workspace); err != nil {
 		t.Fatal(err)
@@ -107,7 +64,7 @@ JOIN objects ON objects.id = records.object_id WHERE objects.slug = 'companies';
 `); err != nil {
 		t.Fatal(err)
 	}
-	store, err := postgres.Open(ctx, dsn.String())
+	store, err := postgres.Open(ctx, dsn)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -206,7 +163,7 @@ JOIN objects ON objects.id = records.object_id WHERE objects.slug = 'companies';
 		t.Fatal(err)
 	}
 	store.Close()
-	store, err = postgres.Open(ctx, dsn.String())
+	store, err = postgres.Open(ctx, dsn)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -7,6 +7,26 @@ import { newQueryClient } from '@/lib/queries'
 import type { CrmObject, CrmRecord } from '@/lib/types'
 import { RecordCard } from './record-card'
 import { Related } from './related'
+import { Summary } from './summary'
+
+test('a person summary keeps short notes and context in their own fields', () => {
+  const object: CrmObject = { slug: 'people', name: 'People', attributes: [
+    { slug: 'name', name: 'Name', type: 'text' },
+    { slug: 'job_title', name: 'Job title', type: 'text' },
+    { slug: 'notes', name: 'Notes', type: 'text' },
+    { slug: 'context', name: 'Context', type: 'text' },
+  ] }
+  const record: CrmRecord = {
+    id: 'ada', object: 'people', created_at: '2026-10-08T12:00:00Z', updated_at: '2026-10-08T12:00:00Z',
+    values: { name: 'Ada', job_title: 'Engineer', notes: 'Introduced by a customer', context: 'Evaluating a factory project' },
+  }
+  const client = newQueryClient()
+  const html = renderToStaticMarkup(<QueryClientProvider client={client}><Summary record={record} object={object} name="Ada" upcoming={[]}><h2>Ada</h2></Summary></QueryClientProvider>)
+  assert.match(html, /Ada/)
+  assert.match(html, /Engineer/)
+  assert.doesNotMatch(html, /Introduced by a customer|Evaluating a factory project/)
+  client.clear()
+})
 
 test('page decorations leave custom Icon fields visible in record cards', () => {
   for (const [object, icon] of [['parts', 'Brand asset #2'], ['companies', 'Brand asset #2'], ['pages', 'icon:rocket'], ['pages', 'icon:Drill:blue'], ['pages', 'image:https://example.com/logo.png']]) {

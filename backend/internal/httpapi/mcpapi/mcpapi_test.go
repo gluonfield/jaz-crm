@@ -136,7 +136,7 @@ func TestRecordTools(t *testing.T) {
 		"name": "Bob", "email_addresses": []any{"bob@acme.com", "Bob@Personal.dev"}, "company": "acme.com",
 	}})["record"].(map[string]any)
 	values := encode(person["values"])
-	want := `{"company":{"id":"` + company["id"].(string) + `","name":"Acme"},"email_addresses":["bob@acme.com","bob@personal.dev"],"name":"Bob"}`
+	want := `{"company":{"id":"` + company["id"].(string) + `","name":"Acme"},"email_addresses":["bob@acme.com","bob@personal.dev"],"name":"Bob","owner":"a@jaz.test"}`
 	if values != want {
 		t.Fatalf("values:\n got %s\nwant %s", values, want)
 	}
@@ -257,7 +257,7 @@ func TestTenantIsolation(t *testing.T) {
 	if _, failure := call(t, b, "delete_record", map[string]any{"record_id": id}); failure == "" {
 		t.Error("delete_record deleted another workspace's record")
 	}
-	if got := mustCall(t, a, "get_record", map[string]any{"record_id": id}); encode(got["values"]) != `{"domains":["acme.com"],"name":"Acme"}` {
+	if got := mustCall(t, a, "get_record", map[string]any{"record_id": id}); encode(got["values"]) != `{"domains":["acme.com"],"name":"Acme","owner":"a@jaz.test"}` {
 		t.Errorf("the owner's record changed: %v", got)
 	}
 }

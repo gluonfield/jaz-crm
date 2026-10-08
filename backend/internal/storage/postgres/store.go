@@ -71,7 +71,7 @@ func migrate(ctx context.Context, pool *pgxpool.Pool) error {
 	if err != nil {
 		return err
 	}
-	provider, err := goose.NewProvider(goose.DialectPostgres, sqlDB, dir, goose.WithDisableGlobalRegistry(true), goose.WithSessionLocker(locker), goose.WithGoMigrations(datamigrations.DealFollowups, datamigrations.FollowUps, datamigrations.ChaseFilter, datamigrations.PageIcons))
+	provider, err := goose.NewProvider(goose.DialectPostgres, sqlDB, dir, goose.WithDisableGlobalRegistry(true), goose.WithSessionLocker(locker), goose.WithGoMigrations(datamigrations.All...))
 	if err != nil {
 		return fmt.Errorf("create migration provider: %w", err)
 	}
