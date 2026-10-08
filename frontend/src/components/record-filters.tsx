@@ -1,6 +1,6 @@
 import { Bookmark, ChevronDown, ListFilter, Plus, Save, Trash2 } from 'lucide-react'
 import { useQueries } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { toolQuery, useAction, useTool } from '@/lib/queries'
 import type { RecordSearchScope } from '@/lib/record-search'
 import type { CrmObject, RecordFilter, SavedFilter } from '@/lib/types'
@@ -28,6 +28,14 @@ export function RecordFilters({ object, filters, query, scope, selected, title =
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [name, setName] = useState('')
+  const contextKey = JSON.stringify([filters, query, selected, scope, draft, name])
+  const { reset: resetSave } = save
+  const { reset: resetRemove } = remove
+  // Changed editor/view context detaches its callbacks; the write still completes.
+  useEffect(() => {
+    resetSave()
+    resetRemove()
+  }, [contextKey, open, saving, deleting, resetSave, resetRemove])
   const changed = active && ((active.query ?? '') !== query.trim() || JSON.stringify(active.filters) !== JSON.stringify(open || saving ? draft : filters))
   const incomplete = draft.some((f) => needsValue(f) && !f.value?.trim())
   const persist = (name: string, id?: string) => save.mutate({ object: object.slug, id, name, query, filters: draft }, { onSuccess: (filter) => {
