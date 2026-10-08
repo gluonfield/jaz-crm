@@ -125,7 +125,7 @@ function ObjectList({ slug }: { slug: string }) {
   // view.
   const controls = (
     <>
-      <div className="flex min-w-0 items-center gap-1">
+      <div className="flex min-w-0 flex-wrap items-center gap-1">
         <div className="-ml-2 mr-auto min-w-0">{recordFilters(true)}</div>
         {sorter(
           <Button variant="ghost" aria-label="Sort records" className="bg-list-hover hover:bg-list-active">

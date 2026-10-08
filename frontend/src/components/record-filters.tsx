@@ -11,9 +11,8 @@ import { Picker } from './picker'
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
 
-// RecordFilters picks a saved filter and edits the conditions. As a list's
-// title it is instead the view's name and count over a menu of views with
-// theirs, where search narrows the view without editing it.
+// RecordFilters edits conditions and selects saved views. The title variant
+// shows each view's count, where search narrows the view without editing it.
 export function RecordFilters({ object, filters, query, scope, selected, title = false, total, onChange, onApply }: { object: CrmObject; filters: RecordFilter[]; query: string; scope: RecordSearchScope; selected?: string; title?: boolean; total?: number; onChange: (filters: RecordFilter[]) => void; onApply: (filter?: SavedFilter) => void }) {
   const saved = useTool<{ filters: SavedFilter[] }>('list_saved_filters', { object: object.slug }, { refetchInterval: 5000 }).data?.filters ?? []
   const active = saved.find((f) => f.id === selected)
@@ -40,7 +39,7 @@ export function RecordFilters({ object, filters, query, scope, selected, title =
   const edited = title ? active && JSON.stringify(active.filters) !== JSON.stringify(filters) : changed
   const label = active ? `${active.name}${edited ? ' · Edited' : ''}` : custom ? 'Custom filter' : `All ${object.name.toLowerCase()}`
   return (
-    <div className="flex min-w-0 shrink-0 items-center gap-1">
+    <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1">
       <Picker
         trigger={title
           ? <button type="button" className="flex min-w-0 items-center gap-2 rounded-[var(--radius-control)] px-2 py-1 text-left outline-none hover:bg-list-hover focus-visible:ring-2 focus-visible:ring-ring">
@@ -60,7 +59,7 @@ export function RecordFilters({ object, filters, query, scope, selected, title =
           setSaving(true)
         } }] : []}
       />
-      {!title && <Popover open={open} onOpenChange={(next) => {
+      <Popover open={open} onOpenChange={(next) => {
         if (next) {
           setDraft(filters)
         }
@@ -99,7 +98,7 @@ export function RecordFilters({ object, filters, query, scope, selected, title =
             {changed && <Button variant="ghost" disabled={incomplete || save.isPending} onClick={() => persist(active.name, active.id)}><Save />Save changes</Button>}
           </div>}
         </PopoverContent>
-      </Popover>}
+      </Popover>
       <Dialog open={saving} onOpenChange={setSaving}>
         <DialogContent className="bg-raised text-ink sm:max-w-sm" aria-describedby={undefined}>
           <DialogTitle className="text-[14px]">Save filter</DialogTitle>
