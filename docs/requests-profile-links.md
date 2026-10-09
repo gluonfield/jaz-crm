@@ -24,3 +24,8 @@ Augustinas questioned the per-network `linkedin_url` and `x_url` fields on 2026-
 - Tests cover link variants finding one person without duplicating the link, a link held by another person being refused, and a migration from version 50: fields renamed in place with history, X values moved, the X field removed, saved filters rewritten, handle kinds collapsed, links found by variant, handles paired with their owners, and no record's last update changed.
 - Negative controls fail without the key rewrite, without moving X values, with plain lower-case URL keys, and without standing down the last-update trigger.
 - Rehearsal on a restored production copy: version 51; 863 People links plus 4 history rows and 29 Companies links under Links with host-and-path keys and none empty; no record's last update changed; Jim Mayer's page shows Links and his follow-up profile shows LinkedIn with its mark.
+
+## Rollout
+
+- `358eed6` pushed to main; Railway Server and Worker report SUCCESS for it.
+- Read-only production checks: migration version 51; People and Companies have Links, multi-valued and identifying, holding 863 and 29 links with no empty keys; no record's last update moved; the live API returns Jim Mayer's LinkedIn under `links`. The production backup taken before the push was deleted after these checks.
