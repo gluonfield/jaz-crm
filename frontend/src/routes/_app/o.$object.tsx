@@ -90,7 +90,7 @@ function ObjectList({ slug }: { slug: string }) {
   const own = !object.standard
   // The CRM's objects show their choices first; the workspace's own tables keep the order columns were added in.
   const columns = object.attributes.filter((a) => a.slug !== 'name' && a.type !== 'markdown' && !(slug === 'follow_ups' && dateMetadata(a.slug))).sort((a, b) => (own ? 0 : Number(b.type === 'select') - Number(a.type === 'select')))
-  const ownerFilter = (compact = false) => slug === 'follow_ups' && <OwnerFilter filters={filters} compact={compact} onChange={(filters) => void navigate({ to: '.', search: (previous) => ({ ...previous, filters }), replace: true })} />
+  const ownerFilter = slug === 'follow_ups' && <OwnerFilter filters={filters} onChange={(filters) => void navigate({ to: '.', search: (previous) => ({ ...previous, filters }), replace: true })} />
   const recordFilters = (title = false) => (
     <RecordFilters key={slug} object={object} filters={filters} defaults={defaults} query={q} scope={scope} selected={saved} title={title} total={total}
       onChange={(filters) => void navigate({ to: '.', search: (previous) => ({ ...previous, filters }), replace: true })}
@@ -126,7 +126,7 @@ function ObjectList({ slug }: { slug: string }) {
     <>
       <div className="flex min-w-0 items-center gap-1">
         <div className="-ml-2 mr-auto min-w-0">{recordFilters(true)}</div>
-        {ownerFilter(true)}
+        {ownerFilter}
         <label title="Search" className={cn('flex h-7 min-w-7 shrink-0 cursor-text items-center gap-2 rounded-[var(--radius-control)] px-1.5 text-ink-2 transition-colors focus-within:bg-list-hover hover:bg-list-hover', q && 'bg-list-hover')}>
           <Search className="size-4 shrink-0" />
           <input
@@ -168,7 +168,7 @@ function ObjectList({ slug }: { slug: string }) {
         )}
         <div className="ml-auto flex max-w-full flex-wrap items-center gap-1 font-normal">
           {recordFilters()}
-          {ownerFilter()}
+          {ownerFilter}
           {sorter(
             <Button variant="ghost" aria-label="Sort records">
               <ArrowDownAZ />

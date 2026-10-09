@@ -12,10 +12,9 @@ import { Picker } from './picker'
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
 
-// RecordFilters edits conditions and selects saved views. The title variant
-// shows each view's count, where search narrows the view without editing it,
-// and counts only the conditions someone added beyond the defaults and the
-// owner, which has its own control.
+// RecordFilters edits conditions and selects saved views, counting only the
+// conditions someone added beyond the view's defaults. The title variant
+// shows each view's count, where search narrows the view without editing it.
 export function RecordFilters({ object, filters, defaults = [], query, scope, selected, title = false, total, onChange, onApply }: { object: CrmObject; filters: RecordFilter[]; defaults?: RecordFilter[]; query: string; scope: RecordSearchScope; selected?: string; title?: boolean; total?: number; onChange: (filters: RecordFilter[]) => void; onApply: (filter?: SavedFilter) => void }) {
   const saved = useTool<{ filters: SavedFilter[] }>('list_saved_filters', { object: object.slug }, { refetchInterval: 5000 }).data?.filters ?? []
   const active = saved.find((f) => f.id === selected)
@@ -46,10 +45,10 @@ export function RecordFilters({ object, filters, defaults = [], query, scope, se
     setSaving(false)
     onApply(filter)
   } })
-  const custom = filters.length > 0 || (!title && !!query.trim())
   const edited = title ? active && JSON.stringify(active.filters) !== JSON.stringify(filters) : changed
-  const label = active ? `${active.name}${edited ? ' · Edited' : ''}` : title ? object.name : custom ? 'Custom filter' : `All ${object.name.toLowerCase()}`
-  const added = title ? filters.filter((f) => f.attribute !== 'owner' && !defaults.some((d) => JSON.stringify(d) === JSON.stringify(f))).length : filters.length
+  const added = filters.filter((f) => !defaults.some((d) => JSON.stringify(d) === JSON.stringify(f))).length
+  const custom = !title && (added > 0 || !!query.trim())
+  const label = active ? `${active.name}${edited ? ' · Edited' : ''}` : custom ? 'Custom filter' : title || defaults.length ? object.name : `All ${object.name.toLowerCase()}`
   return (
     <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1">
       <Picker
@@ -62,7 +61,7 @@ export function RecordFilters({ object, filters, defaults = [], query, scope, se
           : <Button variant="ghost" className="max-w-40 shrink-0"><Bookmark className="shrink-0" /><span className="truncate">{label}</span><ChevronDown className="shrink-0" /></Button>}
         placeholder="Find saved filters…"
         options={[{ value: '', label: `All ${object.name.toLowerCase()}` }, ...saved.map((f) => ({ value: f.id, label: f.name }))].map((option, i) => title ? { ...option, hint: counts[i] ?? '' } : option)}
-        selected={active ? [active.id] : custom ? [] : ['']}
+        selected={active ? [active.id] : filters.length ? [] : ['']}
         onSelect={(id) => onApply(saved.find((f) => f.id === id))}
         onOpenChange={setMenu}
         actions={title && (filters.length > 0 || query.trim()) && (!active || changed) ? [{ label: 'Save current filters as view…', onSelect: () => {

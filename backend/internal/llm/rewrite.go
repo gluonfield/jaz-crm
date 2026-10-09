@@ -74,7 +74,8 @@ func (c *Client) Rewrite(ctx context.Context, input followups.RewriteInput) (fol
 	if out.Draft == "" {
 		return followups.RewriteResult{}, fmt.Errorf("rewrite answer has no message body")
 	}
-	if input.Action != "custom" && (input.Action != "write" || input.Subject != "") {
+	proposesSubject := input.Action == "custom" || input.Action == "write" && input.Subject == ""
+	if !proposesSubject {
 		out.Subject = input.Subject
 	}
 	if !strings.EqualFold(input.Context.Channel, "email") {
