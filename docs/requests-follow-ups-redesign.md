@@ -12,6 +12,7 @@ Source: Augustinas, 2026-10-08 to 2026-10-09. The Follow-ups queue looked confus
 - [x] Keep every linked action of a conversation reviewable and selectable, including done and dismissed ones, on wide and narrow screens.
 - [x] Verify with a seeded full stack (long email thread, LinkedIn chase, skipped draft, meeting task, waiting) in dark, light and narrow layouts; run full checks and strict review.
 
+- [x] Run the requested thermo-nuclear review: one standing model and due rule shared with the server's Chase filter, one text helper, one date-of-today helper, an always-present reply box, one details panel, parallel source loading, and no duplicated recipients in the composer.
 - [ ] Separate Outreach review tab for high-volume first-touch drafts.
 - [ ] Agent work: drafted chase messages, questions instead of a skipped draft, meeting summaries with the agreed next step.
 

@@ -6,9 +6,9 @@ export const statusOf = (record: CrmRecord) => textOf(record, 'status') || 'Open
 
 export type Standing = 'reply' | 'todo' | 'chase' | 'waiting' | 'done' | 'dismissed'
 
-// standing is whose move a follow-up is: ours to reply to or do, theirs
+// standingOf is whose move a follow-up is: ours to reply to or do, theirs
 // until the day to chase them comes, or closed.
-export function standing(record: CrmRecord, zone: string, now = new Date()): Standing {
+export function standingOf(record: CrmRecord, zone: string, now = new Date()): Standing {
   const status = statusOf(record)
   if (status !== 'Open') {
     return status === 'Done' ? 'done' : 'dismissed'

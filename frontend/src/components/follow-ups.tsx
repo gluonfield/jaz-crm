@@ -2,7 +2,7 @@ import { LoaderCircle } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { recordName, textOf, valuesOf } from '@/lib/crm'
 import { dueLabel, formatActionDate } from '@/lib/dates'
-import { type Standing, standing } from '@/lib/follow-ups'
+import { type Standing, standingOf } from '@/lib/follow-ups'
 import { useWorkspace } from '@/lib/queries'
 import { useConnections } from '@/lib/sync'
 import type { CrmRecord, Ref } from '@/lib/types'
@@ -22,8 +22,8 @@ const groupOf: Record<Standing, number> = { reply: 0, todo: 0, chase: 0, waiting
 // byUrgency orders follow-ups by whose move each is, keeping their order
 // within each group.
 export const byUrgency = (records: CrmRecord[], zone: string) => records.map((record) => {
-  const now = standing(record, zone)
-  return { record, standing: now, group: groupOf[now] }
+  const standing = standingOf(record, zone)
+  return { record, standing, group: groupOf[standing] }
 }).sort((a, b) => a.group - b.group)
 
 // FollowUpQueue lists follow-ups as a review queue, grouped by whose move

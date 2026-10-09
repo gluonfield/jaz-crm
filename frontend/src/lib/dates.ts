@@ -37,20 +37,24 @@ export function formatActionDate(value: string, timeZone: string) {
   return `${day}, ${clock}`
 }
 
-export function isOverdue(value: string, zone: string, now = new Date()) {
-  return value.length === 10 ? value < zonedInput(now.toISOString(), zone).slice(0, 10) : Date.parse(value) <= now.getTime()
-}
+// today is the date where the workspace is.
+export const today = (zone: string, now = new Date()) => zonedInput(now.toISOString(), zone).slice(0, 10)
 
 // isDue says whether a date has come, as the server's on_or_before now does:
 // a day once it starts, a moment once it passes.
 export function isDue(value: string, zone: string, now = new Date()) {
-  return value.length === 10 ? value <= zonedInput(now.toISOString(), zone).slice(0, 10) : Date.parse(value) <= now.getTime()
+  return value.length === 10 ? value <= today(zone, now) : Date.parse(value) <= now.getTime()
+}
+
+// isOverdue says whether a date has gone by: a day once it ends.
+export function isOverdue(value: string, zone: string, now = new Date()) {
+  return value.length === 10 ? value < today(zone, now) : isDue(value, zone, now)
 }
 
 // dueLabel says in a word when a next step is due where the workspace is.
 export function dueLabel(value: string, zone: string, now = new Date()) {
   const day = value.length === 10 ? value : zonedInput(value, zone).slice(0, 10)
-  const days = Math.round((Date.parse(day) - Date.parse(zonedInput(now.toISOString(), zone).slice(0, 10))) / 86_400_000)
+  const days = Math.round((Date.parse(day) - Date.parse(today(zone, now))) / 86_400_000)
   if (isOverdue(value, zone, now)) {
     return { label: days < 0 ? `Overdue ${-days}d` : 'Overdue', late: true }
   }

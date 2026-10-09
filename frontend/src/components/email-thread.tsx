@@ -3,7 +3,7 @@ import { ArrowDownLeft, ArrowUpRight, ChevronDown } from 'lucide-react'
 import { type MouseEvent, type ReactNode, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { formatDate, formatDateTime, formatTime, timeAgo } from '@/lib/format'
-import type { Interaction, CrmMessage } from '@/lib/types'
+import type { CrmMessage, Interaction, Party } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { ChannelIcon, RecordIcon } from './icons'
 import { Message } from './message'
@@ -70,10 +70,11 @@ export function MessageThread(props: { interaction: Interaction; messages: CrmMe
   return !props.interaction.channel || props.interaction.channel === 'email' ? <MailThread {...props} /> : <ChatThread {...props} />
 }
 
-type Party = (address?: string) => Interaction['participants'][number] | undefined
+// partyOf finds a conversation's participant by address.
+const partyOf = (interaction: Interaction) => (address?: string) => interaction.participants.find((p) => p.address === address)
 
 // recipientsOf names whom a message went to, leaving out its author.
-const recipientsOf = (message: CrmMessage, party: Party) => [...new Set(message.recipients?.map((address) => party(address)?.name || address))].filter((name) => name !== authorOf(message))
+const recipientsOf = (message: CrmMessage, party: (address?: string) => Party | undefined) => [...new Set(message.recipients?.map((address) => party(address)?.name || address))].filter((name) => name !== authorOf(message))
 
 function MessageBody({ message, className }: { message: CrmMessage; className?: string }) {
   return <>
@@ -90,7 +91,7 @@ function MailThread({ interaction, messages, events = [] }: { interaction: Inter
   const [open, setOpen] = useState<Record<number, boolean>>({})
   const [all, setAll] = useState(false)
   const section = useRef<HTMLElement>(null)
-  const party: Party = (address) => interaction.participants.find((p) => p.address === address)
+  const party = partyOf(interaction)
   const opened = (i: number) => open[i] ?? i >= last - 1
   const folded = (i: number) => !all && last > 4 && i > 0 && i < last - 2
   const toggle = (i: number) => setOpen({ ...open, [i]: !opened(i) })
@@ -151,7 +152,7 @@ function MailThread({ interaction, messages, events = [] }: { interaction: Inter
 function ChatThread({ interaction, messages, events = [], initialVisible = 6 }: { interaction: Interaction; messages: CrmMessage[]; events?: ThreadEvent[]; initialVisible?: number }) {
   const [expanded, setExpanded] = useState(false)
   const start = expanded ? 0 : Math.max(0, messages.length - initialVisible)
-  const party: Party = (address) => interaction.participants.find((p) => p.address === address)
+  const party = partyOf(interaction)
   const channel = interaction.channel ?? ''
   return (
     <section aria-label="Messages" className="flex min-w-0 flex-col gap-3.5">

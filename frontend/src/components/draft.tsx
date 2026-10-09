@@ -2,14 +2,13 @@ import { type Ref as ReactRef, useImperativeHandle, useLayoutEffect, useRef, use
 import { useMutation } from '@tanstack/react-query'
 import { ChevronDown, LoaderCircle, Sparkles } from 'lucide-react'
 import { call } from '@/lib/api'
-import { valueText, valuesOf } from '@/lib/crm'
+import { textOf, valueText, valuesOf } from '@/lib/crm'
 import type { CrmRecord, DraftMessage, DraftProposal, DraftRewriteAction, DraftSender, Interaction, Ref } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { Release } from './draft-release'
 import { DraftRewrite } from './draft-rewrite'
 
 const list = (record: CrmRecord, slug: string) => valuesOf(record, slug).map(valueText)
-const text = (record: CrmRecord, slug: string) => list(record, slug).join(', ')
 const drafted = { drafting: 'Drafting a message…', failed: 'Couldn’t draft a message', skipped: 'No message drafted' }
 type Fields = { draft: string; subject: string; to: string; cc: string; revision?: string }
 const addresses = (value: string) => value.split(/[,;\n]/).map((address) => address.trim()).filter(Boolean)
@@ -20,14 +19,14 @@ const sameFields = (a: Fields, b: Fields) => sameContent(a, b) && a.to === b.to 
 export type DraftHandle = { save: () => Promise<boolean> }
 
 export function Draft({ record, channel, sender, error, drafting, ref }: { record: CrmRecord; channel: string; sender?: DraftSender; error?: string; drafting?: Interaction['drafting']; ref?: ReactRef<DraftHandle> }) {
-  const current: Fields = { draft: text(record, 'draft'), subject: sender?.subject ?? text(record, 'subject'), to: (sender?.to ?? list(record, 'to')).join(', '), cc: (sender?.cc ?? list(record, 'cc')).join(', '), revision: sender?.revision }
+  const current: Fields = { draft: textOf(record, 'draft'), subject: sender?.subject ?? textOf(record, 'subject'), to: (sender?.to ?? list(record, 'to')).join(', '), cc: (sender?.cc ?? list(record, 'cc')).join(', '), revision: sender?.revision }
   const [edited, setEdited] = useState<Fields | null>(null)
   if (edited && sameFields(edited, current) && edited.revision === current.revision) {
     setEdited(null)
   }
   const fields = edited ?? current
   const message = messageOf(fields)
-  const sending = text(record, 'draft_status') === 'Sending'
+  const sending = textOf(record, 'draft_status') === 'Sending'
   const editor = useRef({ fields, current, sending })
   useLayoutEffect(() => {
     editor.current = { fields, current, sending }
@@ -133,20 +132,21 @@ export function Draft({ record, channel, sender, error, drafting, ref }: { recor
   const idle = !(fields.draft || error || status) && 'hidden group-focus-within:flex'
   const recipients = [...message.to, ...message.cc]
   // Send needs recipients and a subject, so a missing one keeps them open.
+  const missing = !recipients.length || !message.subject
   const [opened, setOpened] = useState(false)
-  const details = opened || !recipients.length || !message.subject
+  const details = opened || missing
   return (
     <div className="group rounded-[var(--radius-card)] bg-list-hover transition-colors duration-150 focus-within:bg-list-active" onKeyDown={(event) => event.stopPropagation()}>
       {email && <div className={cn('flex min-w-0 items-center gap-1.5 px-3.5 pt-2.5 text-[12.5px] text-ink-3', idle)}>
-        <span className="shrink-0">{sender?.imported_draft ? 'Gmail draft to' : sender?.reply ? 'Reply to' : 'To'}</span>
-        <button type="button" aria-expanded={details} onClick={() => setOpened(!details)} title="Recipients and subject" className="-mx-1 flex min-w-0 items-center gap-1 rounded-[var(--radius-control)] px-1 py-0.5 text-ink-2 outline-none hover:bg-list-active hover:text-ink focus-visible:bg-list-active">
-          <span className="truncate">{recipients.join(', ') || 'Add recipients'}</span>
-          <ChevronDown aria-hidden="true" className={cn('size-3.5 shrink-0 transition-transform duration-150 motion-reduce:transition-none', details && 'rotate-180')} />
+        <button type="button" aria-expanded={details} disabled={missing} onClick={() => setOpened(!opened)} title="Recipients and subject" className="-mx-1 flex min-w-0 items-center gap-1.5 rounded-[var(--radius-control)] px-1 py-0.5 outline-none enabled:hover:bg-list-active focus-visible:bg-list-active disabled:cursor-default">
+          {details
+            ? <span className="truncate" title={sender?.from}>{sender ? `From ${sender.from}` : 'New email'}</span>
+            : <><span className="shrink-0">{sender?.imported_draft ? 'Gmail draft to' : sender?.reply ? 'Reply to' : 'To'}</span><span className="truncate text-ink-2">{recipients.join(', ')}</span></>}
+          {!missing && <ChevronDown aria-hidden="true" className={cn('size-3.5 shrink-0 transition-transform duration-150 motion-reduce:transition-none', opened && 'rotate-180')} />}
         </button>
         {status?.state === 'completed' && <span className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-full bg-primary-soft px-2 py-px text-[11.5px] font-medium text-primary"><Sparkles aria-hidden="true" className="size-3" />Drafted</span>}
       </div>}
       {email && details && <div className={cn('mx-3.5 mt-2 flex flex-col border-y border-border py-1.5 text-[12.5px] text-ink-3', idle)}>
-        {sender && <p className="flex min-w-0 gap-2 py-1"><span className="w-14 shrink-0">From</span><span className="min-w-0 truncate text-ink-2" title={sender.from}>{sender.from}</span></p>}
         {(['to', 'cc', 'subject'] as const).map((field) => (
           <label key={field} className="flex min-w-0 items-center gap-2">
             <span className="w-14 shrink-0">{{ to: 'To', cc: 'Cc', subject: 'Subject' }[field]}</span>

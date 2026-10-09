@@ -3,9 +3,9 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { Button } from '@jaz/ui/button'
-import { recordName, textOf, valuesOf } from '@/lib/crm'
+import { recordName, textOf, valueText, valuesOf } from '@/lib/crm'
 import { dueLabel, formatActionDate } from '@/lib/dates'
-import { standing, statusOf } from '@/lib/follow-ups'
+import { standingOf, statusOf } from '@/lib/follow-ups'
 import { formatDate, meetingTime } from '@/lib/format'
 import { useRecordPages, useTool, useWorkspace, useWrite } from '@/lib/queries'
 import { readItem, writeItem } from '@/lib/storage'
@@ -130,7 +130,6 @@ export function Conversation({ record: initialRecord, onClose }: { record: CrmRe
   const body = useStickToBottom()
   const steps = actions.records ?? [record]
   const due = textOf(record, 'action_date')
-  const select = (action: CrmRecord) => void selectAction(action)
   return (
     <section data-conversation aria-label={recordName(record)} className="flex min-w-0 flex-1 flex-col">
       <header className="flex shrink-0 items-start gap-3 border-b border-border py-3 pl-6 pr-4">
@@ -171,7 +170,7 @@ export function Conversation({ record: initialRecord, onClose }: { record: CrmRe
               <Context record={context.data} />
             </section>
           )}
-          {steps.length > 1 && <Steps steps={steps} selected={record} pending={switching} zone={zone} onSelect={select} />}
+          {steps.length > 1 && <Steps steps={steps} selected={record} pending={switching} zone={zone} onSelect={(action) => void selectAction(action)} />}
         </aside>
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <div ref={body} className="scrollbar-quiet min-h-0 flex-1 overflow-y-auto px-6 py-5 @4xl:px-8">
@@ -197,7 +196,7 @@ export function Conversation({ record: initialRecord, onClose }: { record: CrmRe
             </div>
           </div>
           <footer className="shrink-0 px-6 pb-5 pt-2 @4xl:px-8">
-            {!loading && standing(record, zone) === 'waiting' && <p className="mb-2 flex min-w-0 items-center gap-2 px-1 text-[12.5px] text-ink-3">
+            {!loading && standingOf(record, zone) === 'waiting' && <p className="mb-2 flex min-w-0 items-center gap-2 px-1 text-[12.5px] text-ink-3">
               <Clock aria-hidden="true" className="size-3.5 shrink-0" />
               <span className="truncate">Waiting for {firstName(person?.name) || 'a reply'}{due && <> · chase {formatActionDate(due, zone)}</>}</span>
             </p>}
@@ -220,7 +219,7 @@ function Heading({ children }: { children: ReactNode }) {
 // them. A narrow screen names them in the header instead.
 function Profile({ subject, details, company }: { subject: { plural: string; ref: Ref }; details?: CrmRecord; company?: Ref }) {
   const role = details && textOf(details, 'job_title')
-  const email = details && valuesOf(details, 'email_addresses')[0]
+  const email = details && valuesOf(details, 'email_addresses').map(valueText)[0]
   const linkedin = details && textOf(details, 'linkedin_url')
   return (
     <section aria-label="Profile" className="hidden flex-col items-start @min-[78rem]:flex">
@@ -228,8 +227,8 @@ function Profile({ subject, details, company }: { subject: { plural: string; ref
       <Link to="/r/$recordId" params={{ recordId: subject.ref.id }} className="mt-3 max-w-full truncate text-[14px] font-semibold text-ink outline-none hover:underline focus-visible:underline">{subject.ref.name || 'Unnamed'}</Link>
       {role && <p className="mt-0.5 max-w-full text-[12px] text-ink-3">{role}</p>}
       {company && <div className="mt-2 max-w-full"><RecordChip object="companies" value={company} /></div>}
-      {(typeof email === 'string' || linkedin) && <div className="mt-3 flex max-w-full flex-wrap gap-1.5 text-[12px]">
-        {typeof email === 'string' && <a href={`mailto:${email}`} title={email} className="flex h-6 max-w-full items-center gap-1.5 rounded-[var(--radius-control)] bg-list-hover px-2 text-ink-2 outline-none hover:bg-list-active hover:text-ink focus-visible:ring-2 focus-visible:ring-ring"><Mail className="size-3.5 shrink-0" /><span className="truncate">{email}</span></a>}
+      {(email || linkedin) && <div className="mt-3 flex max-w-full flex-wrap gap-1.5 text-[12px]">
+        {email && <a href={`mailto:${email}`} title={email} className="flex h-6 max-w-full items-center gap-1.5 rounded-[var(--radius-control)] bg-list-hover px-2 text-ink-2 outline-none hover:bg-list-active hover:text-ink focus-visible:ring-2 focus-visible:ring-ring"><Mail className="size-3.5 shrink-0" /><span className="truncate">{email}</span></a>}
         {linkedin && <ExternalLink href={linkedin} className="flex h-6 items-center gap-1.5 rounded-[var(--radius-control)] bg-list-hover px-2 text-ink-2 hover:bg-list-active hover:text-ink"><ChannelIcon channel="linkedin" className="size-3" />LinkedIn</ExternalLink>}
       </div>}
     </section>
@@ -319,6 +318,7 @@ function useStickToBottom() {
   return ref
 }
 
+// The key keeps its earlier name so people's stored choice carries over.
 const detailsHidden = 'follow-ups:context-hidden'
 
 // Context is what we know of the person, as its markdown says it, to edit in

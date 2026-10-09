@@ -1,18 +1,17 @@
 import { Button } from '@jaz/ui/button'
 import { useRef, useState } from 'react'
-import { valueText, valuesOf } from '@/lib/crm'
+import { textOf, valueText, valuesOf } from '@/lib/crm'
 import { useAction, useWorkspace } from '@/lib/queries'
 import type { CrmRecord, DraftMessage, DraftSender } from '@/lib/types'
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from './ui/dialog'
 import { HTMLContent } from './html-content'
 
 const list = (record: CrmRecord, slug: string) => valuesOf(record, slug).map(valueText)
-const text = (record: CrmRecord, slug: string) => list(record, slug).join(', ')
 
 export function Release({ record, draft, channel, sender, beforeSend, disabled }: { record: CrmRecord; draft: string; channel: string; sender?: DraftSender; beforeSend: (draft: DraftMessage) => Promise<string | undefined>; disabled?: boolean }) {
   const [open, setOpen] = useState(false)
   const workspace = useWorkspace()
-  const state = text(record, 'draft_status')
+  const state = textOf(record, 'draft_status')
   const email = channel === 'Email'
   const unavailable = disabled || !draft.trim() || !channel || (email && (!sender || !sender.subject.trim() || sender.to.length + sender.cc.length + (sender.bcc?.length ?? 0) === 0))
   return (
