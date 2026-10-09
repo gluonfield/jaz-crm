@@ -28,6 +28,21 @@ test('a person summary keeps short notes and context in their own fields', () =>
   client.clear()
 })
 
+test('a teammate in a summary is named with their field', () => {
+  const object: CrmObject = { slug: 'people', name: 'People', attributes: [
+    { slug: 'name', name: 'Name', type: 'text' },
+    { slug: 'owner', name: 'Owner', type: 'member' },
+  ] }
+  const record: CrmRecord = {
+    id: 'andy', object: 'people', created_at: '2026-10-09T12:00:00Z', updated_at: '2026-10-09T12:00:00Z',
+    values: { name: 'Andy', owner: 'august@jaz.test' },
+  }
+  const client = newQueryClient()
+  const html = renderToStaticMarkup(<QueryClientProvider client={client}><Summary record={record} object={object} name="Andy" upcoming={[]}><h2>Andy</h2></Summary></QueryClientProvider>)
+  assert.match(html, />Owner<\/span>.*august@jaz\.test/)
+  client.clear()
+})
+
 test('page decorations leave custom Icon fields visible in record cards', () => {
   for (const [object, icon] of [['parts', 'Brand asset #2'], ['companies', 'Brand asset #2'], ['pages', 'icon:rocket'], ['pages', 'icon:Drill:blue'], ['pages', 'image:https://example.com/logo.png']]) {
     const record: CrmRecord = {

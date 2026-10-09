@@ -53,8 +53,10 @@ function identity(record: CrmRecord, object: CrmObject, members: Member[]) {
       )
     } else if (a.type === 'member') {
       const member = members.find((m) => m.email === text)
+      // A teammate is named with the field, so an owner never reads as a relationship.
       facts.push(
-        <span key={a.slug} className="inline-flex items-center gap-1.5" title={a.name}>
+        <span key={a.slug} className="inline-flex items-center gap-1.5">
+          <span className="text-ink-3">{a.name}</span>
           <RecordIcon object="people" name={member?.name || text} photo={member?.photo} size={16} />
           {member?.name || text}
         </span>,
