@@ -132,3 +132,26 @@ func TestSearchPages(t *testing.T) {
 		t.Fatalf("paged names: %v", names)
 	}
 }
+
+// A name search finds the person named before newer records that only
+// mention them.
+func TestTextSearchRanksNameMatchesFirst(t *testing.T) {
+	svc, a, _ := setup(t)
+	jim, _ := upsert(t, svc, a, records.SourceUser, records.Write{Object: "people", Set: set("name", "Jim Mayer")})
+	pat, _ := upsert(t, svc, a, records.SourceUser, records.Write{Object: "people", Set: set("name", "Pat Lee", "email_addresses", "pat@mayer.test")})
+	var noted records.Record
+	for _, name := range []string{"Roger Atkins", "Lisa Lang", "Laurie Harbour"} {
+		noted, _ = upsert(t, svc, a, records.SourceUser, records.Write{Object: "people", Set: set("name", name, "context", "- Introduced by Jim Mayer")})
+	}
+	found, total, err := svc.Search(ctx, a, records.Search{Object: "people", Query: "mayer", Limit: 3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ids := []string{}
+	for _, record := range found {
+		ids = append(ids, record.ID)
+	}
+	if want := []string{jim.ID, pat.ID, noted.ID}; total != 5 || !slices.Equal(ids, want) {
+		t.Fatalf("got %v of %d, want %v", ids, total, want)
+	}
+}

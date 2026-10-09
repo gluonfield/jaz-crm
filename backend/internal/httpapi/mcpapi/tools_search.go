@@ -31,7 +31,7 @@ const searchPerObject = 3
 // preview target, from OpenAI's MCP extensions, opens it in this server's app.
 func registerSearch(r *registry, crm *records.Service) {
 	add(r, &mcp.Tool{Name: "search", Title: "Search", Annotations: readOnly,
-		Description: "Find people, companies, deals, pages and other records matching a query, the newest few of each object, as names with links. Use search_records to filter one object and read values."},
+		Description: "Find people, companies, deals, pages and other records matching a query, a few of each object with name matches first, as names with links. Use search_records to filter one object and read values."},
 		func(ctx context.Context, actor auth.Actor, in searchQuery) (searchResults, error) {
 			objects, err := crm.Objects(ctx, actor, false)
 			if err != nil {

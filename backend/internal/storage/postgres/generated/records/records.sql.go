@@ -851,15 +851,19 @@ func (q *Queries) ReviseValue(ctx context.Context, arg ReviseValueParams) error 
 
 const searchRecords = `-- name: SearchRecords :many
 WITH scoped AS (
-  SELECT records.id, records.workspace_id, records.object_id, records.created_at, records.updated_at, workspaces.timezone, conversation.id AS conversation_id,
-    ($5::text IS NULL OR EXISTS (
-      SELECT 1 FROM record_values JOIN attributes ON attributes.id = record_values.attribute_id
-      WHERE record_values.record_id = records.id AND record_values.active_until IS NULL
-        AND NOT attributes.archived
-        AND record_values.text ILIKE '%' || $5::text || '%'
-    )) AS matches_text
+  SELECT records.id, records.workspace_id, records.object_id, records.created_at, records.updated_at, workspaces.timezone, conversation.id AS conversation_id, text_match.rank AS match_rank,
+    ($5::text IS NULL OR text_match.rank IS NOT NULL) AS matches_text
   FROM records
   JOIN workspaces ON workspaces.id = records.workspace_id
+  -- Where a text search matched ranks the record: its name, then an
+  -- identifying value such as an email address, then anything else.
+  LEFT JOIN LATERAL (
+    SELECT min(CASE WHEN attributes.slug = 'name' THEN 0 WHEN attributes.is_unique THEN 1 ELSE 2 END) AS rank
+    FROM record_values JOIN attributes ON attributes.id = record_values.attribute_id
+    WHERE record_values.record_id = records.id AND record_values.active_until IS NULL
+      AND NOT attributes.archived
+      AND record_values.text ILIKE '%' || $5::text || '%'
+  ) text_match ON true
   LEFT JOIN LATERAL (
     SELECT min(interactions.id) AS id FROM links
     JOIN interactions ON interactions.id = links.interaction_id
@@ -872,12 +876,12 @@ WITH scoped AS (
   WHERE records.workspace_id = $8 AND records.object_id = $9
     AND ($7::text IS NULL OR conversation.id = $7::text)
 ), matched AS (
-  SELECT scoped.id, scoped.workspace_id, scoped.object_id, scoped.created_at, scoped.updated_at, scoped.timezone, scoped.conversation_id, scoped.matches_text, CASE WHEN $6::boolean
+  SELECT scoped.id, scoped.workspace_id, scoped.object_id, scoped.created_at, scoped.updated_at, scoped.timezone, scoped.conversation_id, scoped.match_rank, scoped.matches_text, CASE WHEN $6::boolean
     THEN bool_or(matches_text) OVER (PARTITION BY coalesce(conversation_id, id))
     ELSE matches_text END AS matches_query
   FROM scoped
 ), ranked AS (
-  SELECT matched.id, matched.conversation_id,
+  SELECT matched.id, matched.conversation_id, matched.match_rank,
     CASE WHEN $6::boolean THEN row_number() OVER (
       PARTITION BY coalesce(matched.conversation_id, matched.id)
       ORDER BY CASE state.status WHEN 'Done' THEN 1 WHEN 'Dismissed' THEN 2 ELSE 0 END,
@@ -939,7 +943,7 @@ ORDER BY CASE WHEN $1::boolean THEN records.updated_at END DESC, (
       ELSE record_values.text END) FROM record_values JOIN attributes ON attributes.id = record_values.attribute_id
     WHERE record_values.record_id = records.id AND record_values.active_until IS NULL
       AND record_values.attribute_id = $2::text
-  ) NULLS LAST, records.created_at DESC, records.id
+  ) NULLS LAST, ranked.match_rank NULLS LAST, records.created_at DESC, records.id
 LIMIT $4 OFFSET $3
 `
 

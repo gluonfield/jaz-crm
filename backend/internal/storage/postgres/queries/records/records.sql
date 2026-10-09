@@ -138,15 +138,19 @@ WHERE records.workspace_id = @workspace_id AND record_values.active_until IS NUL
 
 -- name: SearchRecords :many
 WITH scoped AS (
-  SELECT records.*, workspaces.timezone, conversation.id AS conversation_id,
-    (sqlc.narg(query)::text IS NULL OR EXISTS (
-      SELECT 1 FROM record_values JOIN attributes ON attributes.id = record_values.attribute_id
-      WHERE record_values.record_id = records.id AND record_values.active_until IS NULL
-        AND NOT attributes.archived
-        AND record_values.text ILIKE '%' || sqlc.narg(query)::text || '%'
-    )) AS matches_text
+  SELECT records.*, workspaces.timezone, conversation.id AS conversation_id, text_match.rank AS match_rank,
+    (sqlc.narg(query)::text IS NULL OR text_match.rank IS NOT NULL) AS matches_text
   FROM records
   JOIN workspaces ON workspaces.id = records.workspace_id
+  -- Where a text search matched ranks the record: its name, then an
+  -- identifying value such as an email address, then anything else.
+  LEFT JOIN LATERAL (
+    SELECT min(CASE WHEN attributes.slug = 'name' THEN 0 WHEN attributes.is_unique THEN 1 ELSE 2 END) AS rank
+    FROM record_values JOIN attributes ON attributes.id = record_values.attribute_id
+    WHERE record_values.record_id = records.id AND record_values.active_until IS NULL
+      AND NOT attributes.archived
+      AND record_values.text ILIKE '%' || sqlc.narg(query)::text || '%'
+  ) text_match ON true
   LEFT JOIN LATERAL (
     SELECT min(interactions.id) AS id FROM links
     JOIN interactions ON interactions.id = links.interaction_id
@@ -164,7 +168,7 @@ WITH scoped AS (
     ELSE matches_text END AS matches_query
   FROM scoped
 ), ranked AS (
-  SELECT matched.id, matched.conversation_id,
+  SELECT matched.id, matched.conversation_id, matched.match_rank,
     CASE WHEN @group_by_conversation::boolean THEN row_number() OVER (
       PARTITION BY coalesce(matched.conversation_id, matched.id)
       ORDER BY CASE state.status WHEN 'Done' THEN 1 WHEN 'Dismissed' THEN 2 ELSE 0 END,
@@ -226,7 +230,7 @@ ORDER BY CASE WHEN @sort_updated_at::boolean THEN records.updated_at END DESC, (
       ELSE record_values.text END) FROM record_values JOIN attributes ON attributes.id = record_values.attribute_id
     WHERE record_values.record_id = records.id AND record_values.active_until IS NULL
       AND record_values.attribute_id = sqlc.narg(sort_attribute_id)::text
-  ) NULLS LAST, records.created_at DESC, records.id
+  ) NULLS LAST, ranked.match_rank NULLS LAST, records.created_at DESC, records.id
 LIMIT @row_limit OFFSET @row_offset;
 
 -- name: RelatedRecords :many
