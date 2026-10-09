@@ -41,10 +41,10 @@ func (a *Agent) Rewrite(ctx context.Context, actor auth.Actor, id string, input 
 	input.Subject = strings.TrimSpace(input.Subject)
 	input.From = strings.TrimSpace(input.From)
 	input.Instruction = strings.TrimSpace(input.Instruction)
-	if input.Draft == "" {
+	if input.Draft == "" && input.Action != "write" {
 		return RewriteResult{}, errs.Invalidf("write a draft before editing it with AI")
 	}
-	if !slices.Contains([]string{"shorten", "less_salesy", "one_clear_ask", "warmer", "polish", "custom"}, input.Action) {
+	if !slices.Contains([]string{"write", "shorten", "less_salesy", "one_clear_ask", "warmer", "polish", "custom"}, input.Action) {
 		return RewriteResult{}, errs.Invalidf("choose a drafting action")
 	}
 	if input.Action == "custom" && input.Instruction == "" {

@@ -138,3 +138,15 @@ func TestRewriteCustomSubjectRespectsChannel(t *testing.T) {
 		}
 	}
 }
+
+func TestRewriteWriteProposesSubjectOnlyForNewEmail(t *testing.T) {
+	api := httptest.NewServer(respond(t, "rewrite", followups.RewriteResult{Draft: "Any thoughts on the quote?", Subject: "Following up on the quote"}))
+	t.Cleanup(api.Close)
+	client := llm.New(llm.Config{BaseURL: api.URL, APIKey: "key", Model: "gpt-6-luna", Effort: "medium"}, log.New(io.Discard))
+	for _, test := range []struct{ subject, want string }{{"", "Following up on the quote"}, {"Re: Quote", "Re: Quote"}} {
+		result, err := client.Rewrite(t.Context(), followups.RewriteInput{Subject: test.subject, Action: "write", Context: followups.Conversation{Channel: "Email"}})
+		if err != nil || result.Subject != test.want || result.Draft != "Any thoughts on the quote?" {
+			t.Fatalf("write with subject %q = %+v, error = %v", test.subject, result, err)
+		}
+	}
+}

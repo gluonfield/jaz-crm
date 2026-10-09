@@ -1,6 +1,7 @@
 import { type Ref as ReactRef, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { ChevronDown, LoaderCircle, Sparkles } from 'lucide-react'
+import { Button } from '@jaz/ui/button'
 import { call } from '@/lib/api'
 import { textOf, valueText, valuesOf } from '@/lib/crm'
 import type { CrmRecord, DraftMessage, DraftProposal, DraftRewriteAction, DraftSender, Interaction, Ref } from '@/lib/types'
@@ -169,23 +170,30 @@ export function Draft({ record, channel, sender, error, drafting, ref }: { recor
         <span className={status.state === 'failed' ? 'text-danger' : 'text-ink-2'}>{drafted[status.state]}</span>
         {status.reason && <> · {status.reason}</>}
       </p>}
-      <textarea
-        aria-label="Draft"
-        rows={1}
-        placeholder={person ? `Message ${person}…` : 'Write a message…'}
-        value={fields.draft}
-        onChange={(event) => setEdited({ ...fields, draft: event.target.value })}
-        onBlur={() => void commit().catch(() => {})}
-        onKeyDown={(event) => {
-          if (event.key === 'Escape') {
-            setEdited(null)
-          } else if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
-            event.preventDefault()
-            event.currentTarget.blur()
-          }
-        }}
-        className="field-sizing-content block max-h-[40dvh] min-h-10 w-full resize-none bg-transparent px-3.5 py-2.5 text-[13.5px] leading-[1.55] text-ink outline-none placeholder:text-ink-3"
-      />
+      <div className="flex items-start">
+        <textarea
+          aria-label="Draft"
+          rows={1}
+          placeholder={person ? `Message ${person}…` : 'Write a message…'}
+          value={fields.draft}
+          onChange={(event) => setEdited({ ...fields, draft: event.target.value })}
+          onBlur={() => void commit().catch(() => {})}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') {
+              setEdited(null)
+            } else if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+              event.preventDefault()
+              event.currentTarget.blur()
+            }
+          }}
+          className="field-sizing-content block max-h-[40dvh] min-h-10 w-full resize-none bg-transparent px-3.5 py-2.5 text-[13.5px] leading-[1.55] text-ink outline-none placeholder:text-ink-3"
+        />
+        {/* Taking focus on press would reveal the idle header and move the button from under the pointer. */}
+        {!fields.draft.trim() && channel && !sending && <Button variant="ghost" size="sm" disabled={rewritePending} onMouseDown={(event) => event.preventDefault()} onClick={() => void rewrite('write')} className="m-2 shrink-0">
+          {rewritePending ? <LoaderCircle className="animate-spin motion-reduce:animate-none" /> : <Sparkles />}
+          {rewritePending ? 'Drafting…' : 'Draft with AI'}
+        </Button>}
+      </div>
       {(rewriteError || write.error) && <p role="alert" className="px-3.5 pb-1 text-[12px] text-danger">{rewriteError || write.error?.message}</p>}
       <div className={cn('flex flex-wrap items-center gap-1 p-2', idle)}>
         {(message.draft || rewritePending) && <DraftRewrite pending={rewritePending} disabled={sending} canUndo={!!undo && sameContent(fields, undo.after)} onRewrite={(action, instruction) => void rewrite(action, instruction)} onUndo={undoRewrite} />}

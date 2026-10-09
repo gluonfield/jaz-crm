@@ -122,7 +122,7 @@ export type Connection = {
 export type Connections = { connections: Connection[]; connect_url?: string; since: string }
 
 export type DraftMessage = { draft: string; subject: string; to: string[]; cc: string[]; revision?: string }
-export type DraftRewriteAction = 'shorten' | 'less_salesy' | 'one_clear_ask' | 'warmer' | 'polish' | 'custom'
+export type DraftRewriteAction = 'write' | 'shorten' | 'less_salesy' | 'one_clear_ask' | 'warmer' | 'polish' | 'custom'
 export type DraftProposal = Pick<DraftMessage, 'draft' | 'subject'>
 export type DraftSender = Omit<DraftMessage, 'draft'> & { from: string; signature?: string; reply: boolean; imported_draft?: boolean; draft?: string; bcc?: string[]; attachments?: string[]; html?: string }
 

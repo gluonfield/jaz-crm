@@ -147,4 +147,7 @@ func TestRewriteUsesStoredContextWithoutSaving(t *testing.T) {
 			t.Fatal("invalid rewrite reached the model")
 		}
 	}
+	if _, err := agent.Rewrite(ctx, actor, f.ID, followups.RewriteInput{Action: "write"}); err != nil || len(brain.inputs) != 4 || !slices.ContainsFunc(brain.inputs[3].Context.Records, func(r followups.Record) bool { return r.ID == f.ID }) {
+		t.Fatalf("a first draft must reach the model with its follow-up: %v", err)
+	}
 }
