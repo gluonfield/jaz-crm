@@ -11,10 +11,12 @@ func TestSearchFollowsOpenAIConvention(t *testing.T) {
 	person := mustCall(t, a, "upsert_record", map[string]any{"object": "people", "values": map[string]any{"name": "Bob", "email_addresses": "bob@acme.com"}})["record"].(map[string]any)
 	mustCall(t, b, "upsert_record", map[string]any{"object": "companies", "values": map[string]any{"name": "Acme Other"}})
 	results := mustCall(t, a, "search", map[string]any{"query": "acme"})["results"].([]any)
-	want := []map[string]any{
-		{"id": person["id"], "title": "Bob", "url": "http://crm.test/r/" + person["id"].(string), "text": "People"},
-		{"id": company["id"], "title": "Acme", "url": "http://crm.test/r/" + company["id"].(string), "text": "Companies"},
+	hit := func(record map[string]any, title, text string) map[string]any {
+		id := record["id"].(string)
+		target := map[string]any{"type": "mcp_app_tool", "name": "show_crm", "arguments": map[string]any{"path": "/r/" + id}}
+		return map[string]any{"id": id, "title": title, "url": "http://crm.test/r/" + id, "text": text, "_meta": map[string]any{"openai/preview": map[string]any{"target": target}}}
 	}
+	want := []map[string]any{hit(person, "Bob", "People"), hit(company, "Acme", "Companies")}
 	for _, hit := range want {
 		if !slices.ContainsFunc(results, func(r any) bool { return encode(r) == encode(hit) }) {
 			t.Fatalf("missing %v in %v", hit, results)
