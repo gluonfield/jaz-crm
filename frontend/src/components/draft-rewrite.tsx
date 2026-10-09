@@ -18,7 +18,7 @@ export function DraftRewrite({ pending, disabled, canUndo, onRewrite, onUndo }: 
     onRewrite(action, instruction)
   }
   return (
-    <div className="flex flex-wrap items-center gap-1 px-2 pb-1">
+    <div className="flex flex-wrap items-center gap-1">
       <Button variant="ghost" size="sm" disabled={disabled || pending} onClick={() => run('shorten')}>Shorten</Button>
       <Button variant="ghost" size="sm" disabled={disabled || pending} onClick={() => run('less_salesy')}>Less salesy</Button>
       <DropdownMenu open={open} onOpenChange={setOpen}>

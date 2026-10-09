@@ -9,6 +9,9 @@ export function valuesOf(record: CrmRecord, slug: string): Value[] {
 
 export const valueText = (value: Value) => (typeof value === 'string' ? value : (value.name ?? value.id))
 
+// textOf is an attribute's values as one line of text.
+export const textOf = (record: CrmRecord, slug: string) => valuesOf(record, slug).map(valueText).join(', ')
+
 // valueKey is how a write names a value: its text, or a referenced record's id.
 export const valueKey = (value: Value) => (typeof value === 'string' ? value : value.id)
 

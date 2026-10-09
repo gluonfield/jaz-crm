@@ -1,6 +1,6 @@
 import { Button } from '@jaz/ui/button'
 import { ArrowDownLeft, ArrowUpRight, ChevronDown } from 'lucide-react'
-import { type MouseEvent, type ReactNode, useState } from 'react'
+import { type MouseEvent, type ReactNode, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { formatDate, formatDateTime, formatTime, timeAgo } from '@/lib/format'
 import type { Interaction, CrmMessage } from '@/lib/types'
@@ -64,11 +64,95 @@ export function Happening({ children }: { children: ReactNode }) {
   return <p className="flex items-center gap-2.5 pl-9 text-[12.5px] text-ink-3"><span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-primary" />{children}</p>
 }
 
-export function MessageThread({ interaction, messages, events = [], initialVisible = 6 }: { interaction: Interaction; messages: CrmMessage[]; events?: ThreadEvent[]; initialVisible?: number }) {
+// MessageThread shows email as a mail reader does, one card per message,
+// and other channels as a chat.
+export function MessageThread(props: { interaction: Interaction; messages: CrmMessage[]; events?: ThreadEvent[]; initialVisible?: number }) {
+  return !props.interaction.channel || props.interaction.channel === 'email' ? <MailThread {...props} /> : <ChatThread {...props} />
+}
+
+type Party = (address?: string) => Interaction['participants'][number] | undefined
+
+// recipientsOf names whom a message went to, leaving out its author.
+const recipientsOf = (message: CrmMessage, party: Party) => [...new Set(message.recipients?.map((address) => party(address)?.name || address))].filter((name) => name !== authorOf(message))
+
+function MessageBody({ message, className }: { message: CrmMessage; className?: string }) {
+  return <>
+    <span className="sr-only">{authorOf(message)}: </span>
+    {message.text || message.html ? <Message text={message.text} html={message.html} className={className} /> : <p className="text-[13px] text-ink-3">The text arrives with the next sync.</p>}
+    {message.partial && <p className="mt-2 text-[11.5px] text-ink-3">Message excerpt</p>}
+  </>
+}
+
+// MailThread opens the latest two messages and folds the earlier ones to a
+// line each, folding a long middle away entirely, as mail readers do.
+function MailThread({ interaction, messages, events = [] }: { interaction: Interaction; messages: CrmMessage[]; events?: ThreadEvent[] }) {
+  const last = messages.length - 1
+  const [open, setOpen] = useState<Record<number, boolean>>({})
+  const [all, setAll] = useState(false)
+  const section = useRef<HTMLElement>(null)
+  const party: Party = (address) => interaction.participants.find((p) => p.address === address)
+  const opened = (i: number) => open[i] ?? i >= last - 1
+  const folded = (i: number) => !all && last > 4 && i > 0 && i < last - 2
+  const toggle = (i: number) => setOpen({ ...open, [i]: !opened(i) })
+  const entries = [
+    ...messages.map((message, i) => ({ at: Date.parse(message.at), i })),
+    ...events.map((event) => ({ at: Date.parse(event.at), event: event.label })),
+  ].sort((a, b) => a.at - b.at)
+  return (
+    <section ref={section} aria-label="Messages" className="flex min-w-0 flex-col gap-2">
+      {entries.map((entry, k) => {
+        if ('event' in entry) {
+          return <div key={`e${k}`} className="py-1"><Happening>{entry.event}</Happening></div>
+        }
+        const { i } = entry
+        if (folded(i)) {
+          return i === 1 && (
+            <button key="more" type="button" onClick={() => {
+              setAll(true)
+              requestAnimationFrame(() => section.current?.querySelector<HTMLElement>('[data-message="1"]')?.focus())
+            }} className="group flex items-center gap-3 py-0.5 text-[12px] text-ink-3 outline-none before:h-px before:flex-1 before:bg-border after:h-px after:flex-1 after:bg-border hover:text-ink focus-visible:text-ink">
+              <span className="rounded-full border border-border px-2.5 py-0.5 tabular-nums group-focus-visible:bg-list-active">{last - 3} more messages</span>
+            </button>
+          )
+        }
+        const message = messages[i]
+        const author = authorOf(message)
+        const photo = party(message.sender_address)?.photo
+        if (!opened(i)) {
+          return (
+            <button key={i} data-message={i} type="button" aria-expanded={false} onClick={() => toggle(i)} className="flex h-10 w-full min-w-0 items-center gap-2.5 rounded-[var(--radius-card)] bg-list-hover px-3.5 text-left text-[13px] outline-none transition-colors duration-150 hover:bg-list-active focus-visible:bg-list-active">
+              <RecordIcon object="people" name={author} photo={photo} size={22} />
+              <span className="w-36 shrink-0 truncate font-medium text-ink" title={message.sender_address}>{author}</span>
+              <span className="min-w-0 flex-1 truncate text-ink-3">{message.text.replace(/\s+/g, ' ')}</span>
+              <time dateTime={message.at} className="shrink-0 text-[12px] tabular-nums text-ink-3">{formatDate(message.at)}</time>
+            </button>
+          )
+        }
+        const recipients = recipientsOf(message, party)
+        const heading = <>
+          <RecordIcon object="people" name={author} photo={photo} size={26} />
+          <span className="min-w-0 shrink truncate text-[13px] font-medium text-ink" title={message.sender_address}>{author}</span>
+          {recipients.length > 0 && <span className="min-w-0 flex-1 truncate text-[12px] text-ink-3">to {recipients.join(', ')}</span>}
+          <time dateTime={message.at} className="ml-auto shrink-0 text-[12px] tabular-nums text-ink-3">{formatDateTime(message.at)}</time>
+        </>
+        return (
+          <article key={i} className="rounded-[var(--radius-card)] bg-list-hover px-3.5 py-3">
+            {i === last
+              ? <div className="flex min-w-0 items-center gap-2.5">{heading}</div>
+              : <button type="button" data-message={i} aria-expanded onClick={() => toggle(i)} className="-m-1 flex w-[calc(100%+8px)] min-w-0 items-center gap-2.5 rounded-[var(--radius-control)] p-1 text-left outline-none focus-visible:bg-list-active">{heading}</button>}
+            <div className="mt-2 pl-9"><MessageBody message={message} className="text-ink" /></div>
+          </article>
+        )
+      })}
+    </section>
+  )
+}
+
+function ChatThread({ interaction, messages, events = [], initialVisible = 6 }: { interaction: Interaction; messages: CrmMessage[]; events?: ThreadEvent[]; initialVisible?: number }) {
   const [expanded, setExpanded] = useState(false)
   const start = expanded ? 0 : Math.max(0, messages.length - initialVisible)
-  const participant = (address?: string) => interaction.participants.find((p) => p.address === address)
-  const channel = interaction.channel === 'email' ? '' : interaction.channel ?? ''
+  const party: Party = (address) => interaction.participants.find((p) => p.address === address)
+  const channel = interaction.channel ?? ''
   return (
     <section aria-label="Messages" className="flex min-w-0 flex-col gap-3.5">
       {messages.length > initialVisible && (
@@ -92,7 +176,7 @@ export function MessageThread({ interaction, messages, events = [], initialVisib
           const first = item.messages[0]
           const latest = item.messages[item.messages.length - 1]
           const sent = latest.direction === 'sent'
-          const recipients = [...new Set(latest.recipients?.map((address) => participant(address)?.name || address))].filter((name) => name !== author)
+          const recipients = recipientsOf(latest, party)
           return (
             <li key={i} className="flex min-w-0 flex-col gap-3.5">
               {day}
@@ -102,7 +186,7 @@ export function MessageThread({ interaction, messages, events = [], initialVisib
                   {latest.sender_address !== author && <span>{latest.sender_address}</span>}
                   {recipients.length > 0 && <span>to {recipients.join(', ')}</span>}
                 </>}>
-                  <RecordIcon object="people" name={author} photo={participant(latest.sender_address)?.photo} size={26} />
+                  <RecordIcon object="people" name={author} photo={party(latest.sender_address)?.photo} size={26} />
                 </CursorTip>
                 <div className={cn('flex min-w-0 flex-col gap-1', sent ? 'items-end' : 'items-start')}>
                   <p className="flex min-w-0 max-w-full items-center gap-1.5 text-[12px] text-ink-3">
@@ -112,9 +196,7 @@ export function MessageThread({ interaction, messages, events = [], initialVisib
                   </p>
                   {item.messages.map((message, j) => (
                     <div key={j} title={message.at.length > 10 ? formatDateTime(message.at) : undefined} className={cn('min-w-0 max-w-full rounded-[12px] px-3.5 py-2.5 first-of-type:rounded-tl-[4px]', sent ? 'bg-primary-soft' : 'bg-list-hover')}>
-                      <span className="sr-only">{author}: </span>
-                      {message.text || message.html ? <Message text={message.text} html={message.html} /> : <p className="text-[13px] text-ink-3">The text arrives with the next sync.</p>}
-                      {message.partial && <p className="mt-2 text-[11.5px] text-ink-3">Message excerpt</p>}
+                      <MessageBody message={message} />
                     </div>
                   ))}
                 </div>

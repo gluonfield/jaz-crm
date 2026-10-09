@@ -1,51 +1,33 @@
 import { LoaderCircle } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { recordName, valuesOf } from '@/lib/crm'
-import { isOverdue, zonedInput } from '@/lib/dates'
-import { timeAgo } from '@/lib/format'
+import { recordName, textOf, valuesOf } from '@/lib/crm'
+import { dueLabel, formatActionDate } from '@/lib/dates'
+import { type Standing, standing } from '@/lib/follow-ups'
 import { useWorkspace } from '@/lib/queries'
 import { useConnections } from '@/lib/sync'
 import type { CrmRecord, Ref } from '@/lib/types'
 import { cn } from '@/lib/utils'
-import { DateLabel } from './date-field'
-import { Conversation, Done, refsOf, text } from './follow-up'
-import { ChannelTag, RecordIcon } from './icons'
-
-const oneDay = 86_400_000
+import { Conversation, Done, refsOf } from './follow-up'
+import { RecordIcon } from './icons'
 
 const groups = [
-  { name: 'Overdue', className: 'text-danger' },
-  { name: 'Today', className: 'text-running' },
-  { name: 'Next 7 days', className: 'text-ink-2' },
-  { name: 'Later', className: 'text-ink-2' },
+  { name: 'To do', className: 'text-ink' },
+  { name: 'Waiting on them', className: 'text-ink-3' },
   { name: 'Done', className: 'text-ink-3' },
   { name: 'Dismissed', className: 'text-ink-3' },
 ]
 
-// groupOf places a follow-up by when it is due where the workspace is;
-// one without a date waits until later.
-function groupOf(record: CrmRecord, zone: string) {
-  const status = text(record, 'status')
-  if (status === 'Done' || status === 'Dismissed') {
-    return status === 'Done' ? 4 : 5
-  }
-  const due = text(record, 'action_date')
-  if (!due) {
-    return 3
-  }
-  if (isOverdue(due, zone)) {
-    return 0
-  }
-  const today = zonedInput(new Date().toISOString(), zone).slice(0, 10)
-  const day = due.length === 10 ? due : zonedInput(due, zone).slice(0, 10)
-  return day === today ? 1 : Date.parse(day) - Date.parse(today) <= 7 * oneDay ? 2 : 3
-}
+const groupOf: Record<Standing, number> = { reply: 0, todo: 0, chase: 0, waiting: 1, done: 2, dismissed: 3 }
 
-// byUrgency orders follow-ups by group, keeping their order within each.
-export const byUrgency = (records: CrmRecord[], zone: string) => records.map((record) => ({ record, group: groupOf(record, zone) })).sort((a, b) => a.group - b.group)
+// byUrgency orders follow-ups by whose move each is, keeping their order
+// within each group.
+export const byUrgency = (records: CrmRecord[], zone: string) => records.map((record) => {
+  const now = standing(record, zone)
+  return { record, standing: now, group: groupOf[now] }
+}).sort((a, b) => a.group - b.group)
 
-// FollowUpQueue lists follow-ups as a review queue, grouped by when each is
-// due, under the controls that choose them. Choosing one opens its
+// FollowUpQueue lists follow-ups as a review queue, grouped by whose move
+// each is, under the controls that choose them. Choosing one opens its
 // conversation and draft beside the list, or in its place when the queue is
 // narrow.
 export function FollowUpQueue({ records, focus, onFocus, controls, empty }: { records: CrmRecord[]; focus: number; onFocus: (index: number) => void; controls: ReactNode; empty: ReactNode }) {
@@ -55,7 +37,7 @@ export function FollowUpQueue({ records, focus, onFocus, controls, empty }: { re
   const selected = records[focus]
   return (
     <div className="@container flex min-h-0 flex-1">
-      <div className={cn('relative flex min-h-0 min-w-0 flex-col', selected ? 'hidden w-[340px] shrink-0 border-r border-border @4xl:flex @6xl:w-[400px]' : 'flex-1')}>
+      <div className={cn('relative flex min-h-0 min-w-0 flex-col', selected ? 'hidden w-[340px] shrink-0 border-r border-border @4xl:flex' : 'flex-1')}>
         <div className="shrink-0 border-b border-border">
           <div className={cn('flex flex-col gap-2.5 px-3 pb-2.5 pt-3', !selected && 'mx-auto max-w-[880px]')}>{controls}</div>
         </div>
@@ -71,9 +53,9 @@ export function FollowUpQueue({ records, focus, onFocus, controls, empty }: { re
                     <span className="tabular-nums text-ink-3">{members.length}</span>
                   </h3>
                   <ul className="flex flex-col gap-0.5">
-                    {members.map(({ record }) => {
-                      const index = records.indexOf(record)
-                      return <FollowUp key={record.conversation_id ?? record.id} record={record} zone={zone} index={index} selected={focus === index} onSelect={() => onFocus(index)} />
+                    {members.map((item) => {
+                      const index = records.indexOf(item.record)
+                      return <FollowUp key={item.record.conversation_id ?? item.record.id} record={item.record} standing={item.standing} zone={zone} index={index} selected={focus === index} onSelect={() => onFocus(index)} />
                     })}
                   </ul>
                 </section>
@@ -91,85 +73,39 @@ export function FollowUpQueue({ records, focus, onFocus, controls, empty }: { re
   )
 }
 
-const daysSince = (iso: string) => Math.floor((Date.now() - Date.parse(iso)) / oneDay)
+// tags say what a to-do asks of you when the row alone cannot.
+const tags: Partial<Record<Standing, string>> = { reply: 'Reply', chase: 'Chase' }
 
-// standing says whose move it is, and how long the other side has been
-// waiting or the move has been overdue; a dot on the avatar repeats it.
-function standing(record: CrmRecord, zone: string) {
-  const status = text(record, 'status')
-  if (status === 'Done' || status === 'Dismissed') {
-    return { label: status, tone: 'text-ink-3', dot: undefined }
-  }
-  const move = text(record, 'waiting_on')
-  const due = text(record, 'action_date')
-  const overdue = !!due && isOverdue(due, zone)
-  const activity = record.activity
-  if (move === 'Them') {
-    const since = activity?.last_message?.at ?? activity?.last_at
-    const days = since ? daysSince(since) : 0
-    return { label: days > 0 ? `${days}d waiting` : 'Waiting', tone: overdue ? 'text-running' : 'text-ink-3', dot: overdue ? 'bg-running' : 'bg-ink-3' }
-  }
-  const dot = move === 'Us' ? 'bg-primary' : undefined
-  if (overdue) {
-    const days = daysSince(due.length === 10 ? `${due}T00:00:00Z` : due)
-    return { label: days > 0 ? `Overdue ${days}d` : 'Overdue', tone: 'text-danger', dot }
-  }
-  return move === 'Us' ? { label: 'Your move', tone: 'text-primary', dot } : undefined
-}
-
-// lastLine is who said what last: You for the viewer's own mail, otherwise
-// the sender's first name.
-function lastLine(record: CrmRecord, mine: string[]) {
-  const message = record.activity?.last_message
-  if (!message) {
-    return record.activity?.last_at && `Last contact ${timeAgo(record.activity.last_at)}`
-  }
-  const sender = mine.includes(message.sender_address ?? '') ? 'You' : (message.sender || message.sender_address || '').split(/[\s@]/)[0]
-  return `${sender}: ${message.text}`
-}
-
-function FollowUp({ record, zone, index, selected, onSelect }: { record: CrmRecord; zone: string; index: number; selected: boolean; onSelect: () => void }) {
-  const me = useWorkspace()?.members?.find((m) => m.is_me)
+function FollowUp({ record, standing, zone, index, selected, onSelect }: { record: CrmRecord; standing: Standing; zone: string; index: number; selected: boolean; onSelect: () => void }) {
   const [subject] = refsOf(record)
   const person = valuesOf(record, 'person')[0] as Ref | undefined
   const company = valuesOf(record, 'company')[0] as Ref | undefined
-  const state = standing(record, zone)
-  const open = text(record, 'status') === 'Open'
-  const channel = record.activity?.channel ?? text(record, 'channel').toLowerCase()
-  const due = text(record, 'action_date')
-  const last = lastLine(record, me ? [me.email, ...(me.addresses ?? [])] : [])
+  const waiting = standing === 'waiting'
+  const open = standing !== 'done' && standing !== 'dismissed'
+  const due = textOf(record, 'action_date')
+  const when = due && dueLabel(due, zone)
+  const tag = tags[standing] && <span className={cn('shrink-0 rounded-[4px] px-[5px] text-[10.5px] font-semibold leading-4', standing === 'reply' ? 'bg-primary-soft text-primary' : 'bg-list-active text-ink-2')}>{tags[standing]}</span>
   return (
     <li
       data-row={index}
       aria-current={selected || undefined}
       onClick={onSelect}
-      className={cn('group relative flex cursor-default gap-3 rounded-[8px] p-2.5 hover:bg-list-hover', selected && 'bg-list-active hover:bg-list-active')}
+      className={cn('group relative flex cursor-default gap-2.5 rounded-[8px] px-2.5 py-2 hover:bg-list-hover', selected && 'bg-list-active hover:bg-list-active')}
     >
-      <span className="relative size-8 shrink-0">
-        {subject ? <RecordIcon object={subject.plural} name={subject.ref.name ?? ''} photo={subject.ref.photo} size={32} /> : <span aria-hidden="true" className="block size-8 rounded-full bg-list-active" />}
-        {state?.dot && <span aria-hidden="true" className={cn('absolute -bottom-0.5 -right-0.5 size-3 rounded-full border-2 border-bg', state.dot)} />}
-      </span>
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <div className="flex min-w-0 items-center justify-between gap-2">
-          <div className="flex min-w-0 flex-1 items-center gap-1.5">
-            <span className="max-w-[75%] shrink-0 truncate text-[13px] font-semibold text-ink">{subject?.ref.name || recordName(record)}</span>
-            {person && company && <>
-              <RecordIcon object="companies" name={company.name ?? ''} photo={company.photo} size={14} />
-              <span className="min-w-0 truncate text-[12px] text-ink-3">{company.name}</span>
-            </>}
-          </div>
-          {state && <span className={cn('shrink-0 text-[12px]', open && 'transition-opacity duration-150 group-focus-within:opacity-0 group-hover:opacity-0', state.tone)}>{state.label}</span>}
+      {subject ? <RecordIcon object={subject.plural} name={subject.ref.name ?? ''} photo={subject.ref.photo} size={26} className={cn(waiting && 'opacity-70')} /> : <span aria-hidden="true" className="block size-[26px] shrink-0 rounded-full bg-list-active" />}
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <div className="flex min-w-0 items-center gap-1.5">
+          {!subject && tag}
+          <span className={cn('min-w-0 shrink truncate text-[13px] font-medium', waiting ? 'text-ink-2' : 'text-ink')}>{subject?.ref.name || recordName(record)}</span>
+          {person && company && <span className="min-w-0 flex-1 truncate text-[12px] text-ink-3">{company.name}</span>}
+          {when && <span title={waiting ? `Chase ${formatActionDate(due, zone)}` : undefined} className={cn('ml-auto shrink-0 pl-2 text-[11.5px] tabular-nums', when.late ? 'text-danger' : 'text-ink-3', open && 'transition-opacity duration-150 group-focus-within:opacity-0 group-hover:opacity-0')}>{when.label}</span>}
         </div>
-        {subject && <p className="truncate text-[12.5px] text-ink-2">{recordName(record)}</p>}
-        <div className="flex min-w-0 items-center justify-between gap-2 text-[12px] text-ink-3">
-          <div className="flex min-w-0 items-center gap-1.5">
-            {channel && <ChannelTag channel={channel} />}
-            {last && <span className="truncate">{last}</span>}
-          </div>
-          {due && <span className="shrink-0" title={text(record, 'action_date_basis') === 'Suggested' ? 'Suggested date' : undefined}><DateLabel value={due} /></span>}
-        </div>
+        {subject && <p className="flex min-w-0 items-center gap-1.5 text-[12px] text-ink-3">
+          {tag}
+          <span className="truncate">{recordName(record)}</span>
+        </p>}
       </div>
-      <Done record={record} className="absolute right-1.5 top-1.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100" />
+      <Done record={record} className="absolute right-1.5 top-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100" />
     </li>
   )
 }

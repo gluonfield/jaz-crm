@@ -410,4 +410,10 @@
   font-size: 12.5px;
   line-height: 1.55;
   color: var(--color-ink-2);
+  & h1,
+  & h2,
+  & h3 {
+    font-size: 1em;
+    color: var(--color-ink);
+  }
 }
