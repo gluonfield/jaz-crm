@@ -31,6 +31,7 @@ type EmailMessage struct {
 	Date         time.Time
 	Bulk         bool
 	Labels       []string
+	URL          string
 }
 
 // IngestEmail files a message's metadata under its thread, in one
@@ -107,7 +108,7 @@ func thread(ctx context.Context, store storage.InteractionStore, workspaceID str
 		return "", err
 	}
 	return store.UpsertEmailThread(ctx, storage.EmailThread{
-		WorkspaceID: workspaceID, ExternalID: m.ThreadID, ConnectionID: &m.ConnectionID, UserID: &m.UserID, Title: subject(m.Subject), At: m.Date,
+		WorkspaceID: workspaceID, ExternalID: m.ThreadID, ConnectionID: &m.ConnectionID, UserID: &m.UserID, Title: subject(m.Subject), At: m.Date, URL: m.URL,
 	})
 }
 
@@ -136,6 +137,7 @@ type CalendarEvent struct {
 	End          time.Time
 	MeetCode     string
 	Attendees    []Attendee
+	URL          string
 }
 
 // IngestMeeting files a meeting with its attendees, in one transaction; a
@@ -143,8 +145,8 @@ type CalendarEvent struct {
 func (s *Service) IngestMeeting(ctx context.Context, known Known, e CalendarEvent) error {
 	return s.store.Atomically(ctx, func(store storage.InteractionStore) error {
 		i, err := store.UpsertInteraction(ctx, storage.NewInteraction{
-			WorkspaceID: known.WorkspaceID, Kind: Meeting, Source: "calendar", ExternalID: e.ExternalID, ConnectionID: &e.ConnectionID,
-			UserID: &e.UserID, Title: e.Title, StartedAt: e.Start, EndedAt: &e.End, MeetCode: e.MeetCode,
+			WorkspaceID: known.WorkspaceID, Kind: Meeting, ExternalID: e.ExternalID, ConnectionID: &e.ConnectionID,
+			UserID: &e.UserID, Title: e.Title, StartedAt: e.Start, EndedAt: &e.End, MeetCode: e.MeetCode, URL: e.URL,
 		})
 		if err != nil {
 			return err
@@ -180,7 +182,7 @@ func (s *Service) IngestMeeting(ctx context.Context, known Known, e CalendarEven
 
 // CancelMeeting hides a cancelled meeting, if it was ever seen.
 func (s *Service) CancelMeeting(ctx context.Context, workspaceID, externalID string) error {
-	id, err := s.store.InteractionByExternalID(ctx, workspaceID, "calendar", externalID)
+	id, err := s.store.InteractionByExternalID(ctx, workspaceID, "", externalID)
 	if errors.Is(err, storage.ErrNotFound) {
 		return nil
 	}

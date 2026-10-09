@@ -145,9 +145,17 @@ func (s *Service) relink(ctx context.Context, handleIDs ...string) error {
 // work email; sync never overwrites what an agent or person wrote.
 func (s *Service) person(ctx context.Context, h storage.Handle) (string, error) {
 	actor := auth.Actor{WorkspaceID: h.WorkspaceID}
-	set := map[string][]string{"phone_numbers": {h.Value}}
-	if h.Kind == "email" {
-		set = map[string][]string{"email_addresses": {h.Value}}
+	set := map[string][]string{}
+	name := h.Name
+	switch h.Kind {
+	case "phone":
+		set["phone_numbers"] = []string{h.Value}
+	case "linkedin", "x":
+		set[h.Kind+"_url"] = []string{"https://" + h.Value}
+	case "telegram":
+		name = cmp.Or(name, h.Value)
+	case "email":
+		set["email_addresses"] = []string{h.Value}
 		if domain := workDomain(h.Value); domain != "" {
 			_, _, err := s.records.Upsert(ctx, actor, records.SourceSync, records.Write{Object: "companies", Set: map[string][]string{
 				"domains": {domain}, "name": {companyName(domain)},
@@ -158,8 +166,8 @@ func (s *Service) person(ctx context.Context, h storage.Handle) (string, error) 
 			set["company"] = []string{domain}
 		}
 	}
-	if h.Name != "" && !strings.Contains(h.Name, "@") {
-		set["name"] = []string{h.Name}
+	if name != "" && !strings.Contains(name, "@") {
+		set["name"] = []string{name}
 	}
 	person, _, err := s.records.Upsert(ctx, actor, records.SourceSync, records.Write{Object: "people", Set: set})
 	return person.ID, err
@@ -257,7 +265,7 @@ func (s *Service) decide(ctx context.Context, actor auth.Actor, d Decision) (int
 	}
 	var handles []storage.Handle
 	for _, raw := range d.Addresses {
-		kind, value, err := address(raw)
+		kind, value, err := address(raw, "")
 		if err != nil {
 			return 0, err
 		}
@@ -305,13 +313,33 @@ func (s *Service) decide(ctx context.Context, actor auth.Actor, d Decision) (int
 	return changed, nil
 }
 
-// address normalizes an email or phone number a person typed.
-func address(raw string) (string, string, error) {
+// profileSites are where profile links address people on a channel, the
+// canonical site first.
+var profileSites = map[string][]string{"linkedin": {"linkedin.com/in/"}, "x": {"x.com/", "twitter.com/"}, "telegram": {"t.me/"}}
+
+// address normalizes an address a person typed: an email, a phone number, or
+// a LinkedIn, X or Telegram profile link, which @name gives on its channel.
+func address(raw, channel string) (string, string, error) {
 	raw = strings.TrimSpace(raw)
+	if name, ok := strings.CutPrefix(raw, "@"); ok && (channel == "x" || channel == "telegram") {
+		raw = profileSites[channel][0] + name
+	}
+	link := strings.ToLower(raw)
+	for kind, sites := range profileSites {
+		for _, site := range sites {
+			if i := strings.Index(link, site); i == 0 || i > 0 && strings.ContainsRune("./", rune(link[i-1])) {
+				name, _, _ := strings.Cut(link[i+len(site):], "?")
+				if name = strings.Trim(name, "/"); name == "" || strings.Contains(name, "/") {
+					return "", "", errs.Invalidf("%q is not a profile link", raw)
+				}
+				return kind, sites[0] + name, nil
+			}
+		}
+	}
 	if strings.Contains(raw, "@") {
 		a, err := mail.ParseAddress(raw)
 		if err != nil {
-			return "", "", errs.Invalidf("%q is not an email address", raw)
+			return "", "", errs.Invalidf("%q is not an email address or profile link", raw)
 		}
 		return "email", strings.ToLower(a.Address), nil
 	}
@@ -322,7 +350,7 @@ func address(raw string) (string, string, error) {
 		return -1
 	}, raw)
 	if len(digits) < 6 {
-		return "", "", errs.Invalidf("%q is neither an email address nor a phone number", raw)
+		return "", "", errs.Invalidf("%q is neither an email address, a phone number nor a profile link", raw)
 	}
 	if strings.HasPrefix(raw, "+") {
 		digits = "+" + digits

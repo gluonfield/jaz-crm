@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"net"
+	"slices"
 
 	"github.com/gluonfield/jaz-crm/backend/internal/followups"
+	"github.com/gluonfield/jaz-crm/backend/internal/records"
 	"github.com/openai/openai-go/v3"
 )
 
@@ -24,8 +26,8 @@ You have read-only CRM tools. When web_access is true and the web search tool is
 - When the matter is closed for now but should come back, such as "try again next quarter", create a follow-up waiting on Us with that review date.
 - Create nothing for pleasantries, thanks, automated or bulk mail, or talk only between our own team.
 - Attach each new follow-up to the conversation's records by id: person, company, deal. Leave one empty when it does not apply.
-- reply: a complete message ready to send when our next action needs a message and the facts are available. This can answer an existing message or start a new email following a call or note. Use the conversation's language and tone. Put only the message body here, never a Subject: line. On email, finish after the substantive message; do not add a sign-off, sender name or signature, even if earlier messages include them. The CRM appends the sender's configured email signature when sending. On LinkedIn, write it as a chat message with no sign-off or signature. Never invent facts, prices, dates, attachments or promises; when the answer still needs information after checking the conversation, records, company knowledge and relevant tool reads, leave reply empty and name what is needed in the action. Otherwise reply is empty.
-- channel: Email or LinkedIn when supplying a message. For an existing message use its channel. For a new email after a call or note, use Email only when the context establishes email as the intended channel.
+- reply: a complete message ready to send when our next action needs a message and the facts are available. This can answer an existing message or start a new email following a call or note. Use the conversation's language and tone. Put only the message body here, never a Subject: line. On email, finish after the substantive message; do not add a sign-off, sender name or signature, even if earlier messages include them. The CRM appends the sender's configured email signature when sending. On other channels, write it as a chat message with no sign-off or signature. Never invent facts, prices, dates, attachments or promises; when the answer still needs information after checking the conversation, records, company knowledge and relevant tool reads, leave reply empty and name what is needed in the action. Otherwise reply is empty.
+- channel: the channel a supplied message goes out on. For an existing message use its channel. For a new email after a call or note, use Email only when the context establishes email as the intended channel.
 - subject: for a new email, propose a concise, specific email subject. For an existing email reply leave this empty to inherit the thread subject. For LinkedIn or no message leave it empty.
 - skip_reason: when no new reply is supplied, give one short, specific sentence explaining why for the person reviewing this conversation. Name the missing information, or explain why no reply is needed. Supply this even when no follow-up changes. When supplying a reply, leave skip_reason empty.
 - Status is Open unless closing. Create separate follow-ups when both sides owe distinct actions.
@@ -69,7 +71,7 @@ var plan = object(map[string]any{"skip_reason": text("why no reply was generated
 	"deal":    text("a deal record id from records, or empty"),
 	"reply":   text("the message body ready to send, or empty"),
 	"subject": text("a proposed subject for a new email; empty for an existing reply or no email"),
-	"channel": choice("Email", "LinkedIn", ""),
+	"channel": choice(append(slices.Clone(records.Channels), "")...),
 }))})
 
 // Plan says what a changed conversation means for its follow-ups.

@@ -66,7 +66,7 @@ func TestImportedGmailDraftLifecycle(t *testing.T) {
 			if err := convs.IngestEmail(ctx, known, interactions.EmailMessage{ConnectionID: connection.ID, UserID: connection.UserID, ProviderID: "draft-message-1", ThreadID: "thread", From: interactions.Address{Email: connection.Account}, Date: provider.at, Labels: []string{"DRAFT"}}); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := store.InteractionByExternalID(ctx, actor.WorkspaceID, "gmail", "thread"); !errors.Is(err, storage.ErrNotFound) {
+			if _, err := store.InteractionByExternalID(ctx, actor.WorkspaceID, "email", "thread"); !errors.Is(err, storage.ErrNotFound) {
 				t.Fatalf("new Gmail draft was imported as delivered conversation: %v", err)
 			}
 			thread, err := store.UpsertEmailThread(ctx, storage.EmailThread{WorkspaceID: actor.WorkspaceID, ExternalID: "thread", ConnectionID: &connection.ID, Title: "A prepared email", At: provider.at})
@@ -260,7 +260,7 @@ func TestImportedGmailDraftLifecycle(t *testing.T) {
 				if err := convs.IngestEmail(ctx, known, interactions.EmailMessage{ConnectionID: connection.ID, UserID: connection.UserID, ProviderID: message.ID, ThreadID: message.ThreadID, MessageID: message.MessageID, From: interactions.Address(message.From), Subject: message.Subject, Date: message.Date, Labels: message.Labels}); err != nil {
 					t.Fatal(err)
 				}
-				timeline, err := store.Timeline(ctx, storage.TimelineQuery{WorkspaceID: actor.WorkspaceID, RecordID: legacy.ID, Kinds: []string{interactions.Email}, Limit: 10})
+				timeline, err := store.Timeline(ctx, storage.TimelineQuery{WorkspaceID: actor.WorkspaceID, RecordID: legacy.ID, Kinds: []string{interactions.Message}, Limit: 10})
 				if err != nil || len(timeline) != 1 {
 					t.Fatalf("actual sent message did not become linked history: %+v %v", timeline, err)
 				}

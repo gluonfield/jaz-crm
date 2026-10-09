@@ -17,7 +17,7 @@ func TestConversationSearchTool(t *testing.T) {
 	a := e.session(t, e.apiKey(t, "conversations@jaz.test"))
 	workspace := mustCall(t, a, "get_workspace", nil)["id"].(string)
 	store := e.store.(storage.InteractionStore)
-	thread, err := store.UpsertInteraction(context.Background(), storage.NewInteraction{WorkspaceID: workspace, Kind: "email", Source: "manual", ExternalID: "thread", StartedAt: time.Now().Add(-time.Hour)})
+	thread, err := store.UpsertInteraction(context.Background(), storage.NewInteraction{WorkspaceID: workspace, Kind: "message", Channel: "email", ExternalID: "thread", StartedAt: time.Now().Add(-time.Hour)})
 	if err != nil {
 		t.Fatal(err)
 	}

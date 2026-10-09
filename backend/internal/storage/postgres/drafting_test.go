@@ -33,7 +33,7 @@ func TestInterruptedDraftRetriesWithoutStaleCompletion(t *testing.T) {
 	}
 	service := interactions.NewService(interactions.Params{Store: store, Connections: store, Workspaces: store, Records: crm})
 	latest := time.Now().Add(-time.Hour).UTC().Truncate(time.Microsecond)
-	conversation, err := service.Log(ctx, actor, "manual", interactions.Entry{Kind: "message", Channel: "linkedin", At: latest.Format(time.RFC3339Nano), Sender: "Jane", Recipients: []string{"August"}, Text: "Does this work with CNC?", Records: []string{person.ID}})
+	conversation, err := service.Log(ctx, actor, interactions.Entry{Kind: "message", Channel: "linkedin", At: latest.Format(time.RFC3339Nano), Sender: "Jane", Recipients: []string{"August"}, Text: "Does this work with CNC?", Records: []string{person.ID}})
 	if err != nil {
 		t.Fatal(err)
 	}

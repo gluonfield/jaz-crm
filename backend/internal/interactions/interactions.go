@@ -13,7 +13,6 @@ import (
 
 // Interaction kinds.
 const (
-	Email   = "email"
 	Message = "message"
 	Meeting = "meeting"
 	Call    = "call"

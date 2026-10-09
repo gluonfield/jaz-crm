@@ -67,11 +67,12 @@ type UnassessedHandle struct {
 }
 
 type Interaction struct {
-	ID                  string
-	WorkspaceID         string
-	Kind                string
-	Source              string
-	ExternalID          string
+	ID          string
+	WorkspaceID string
+	Kind        string
+	ExternalID  string
+	// ConnectionID is the account a synced conversation came from; logged
+	// conversations have none.
 	ConnectionID        *string
 	UserID              *string
 	Title               string
@@ -82,19 +83,20 @@ type Interaction struct {
 	Skipped             bool
 	CreatedAt           time.Time
 	Channel             string
-	Provenance          string
 	DateOnly            bool
 	// FollowedUpAt is the newest content the follow-up agent has read.
 	FollowedUpAt      *time.Time
 	DraftingState     string
 	DraftingReason    string
 	DraftingStartedAt *time.Time
+	// URL opens the original: a Gmail thread, calendar event or chat thread.
+	URL string
 }
 
 type NewInteraction struct {
 	WorkspaceID  string
 	Kind         string
-	Source       string
+	Channel      string
 	ExternalID   string
 	ConnectionID *string
 	UserID       *string
@@ -103,8 +105,7 @@ type NewInteraction struct {
 	EndedAt      *time.Time
 	MeetCode     string
 	Skipped      bool
-	Channel      string
-	Provenance   string
+	URL          string
 	DateOnly     bool
 	ID           string
 }
@@ -117,6 +118,7 @@ type EmailThread struct {
 	UserID       *string
 	Title        string
 	At           time.Time
+	URL          string
 	ID           string
 }
 
@@ -232,8 +234,9 @@ type InteractionStore interface {
 	SetDomainRule(ctx context.Context, workspaceID, domain, triage, reason string) error
 	DomainRules(ctx context.Context, workspaceID string) ([]DomainRule, error)
 	DeleteDomainRule(ctx context.Context, workspaceID, domain string) error
-	// InteractionByExternalID returns ErrNotFound when the source never sent it.
-	InteractionByExternalID(ctx context.Context, workspaceID, source, externalID string) (string, error)
+	// InteractionByExternalID returns ErrNotFound when no conversation on the
+	// channel has the id.
+	InteractionByExternalID(ctx context.Context, workspaceID, channel, externalID string) (string, error)
 	// UpsertHandle creates a handle with its first verdict, or returns the
 	// existing one, filling in a missing name.
 	UpsertHandle(ctx context.Context, h NewHandle) (Handle, error)
@@ -264,7 +267,9 @@ type InteractionStore interface {
 	ClearParticipants(ctx context.Context, interactionID string) error
 	AddParticipant(ctx context.Context, interactionID, handleID, role string) error
 	UpsertPart(ctx context.Context, p NewPart) error
-	ClearParts(ctx context.Context, interactionID string) error
+	ClearParts(ctx context.Context, interactionID, kind string) error
+	// SpanMessages stretches a conversation over its messages.
+	SpanMessages(ctx context.Context, interactionID string) error
 	// Relink rebuilds the interactions' sync links from their kept
 	// participants and forgets provider content no record links.
 	Relink(ctx context.Context, interactionIDs []string) error

@@ -44,4 +44,12 @@ export function joinURL(interaction: Interaction) {
   return interaction.meet_url ?? interaction.invitation?.match(joinLink)?.[0]
 }
 
-export const channelNames: Record<string, string> = { email: 'Email', linkedin: 'LinkedIn', whatsapp: 'WhatsApp', telegram: 'Telegram' }
+export const channelNames: Record<string, string> = { email: 'Email', linkedin: 'LinkedIn', whatsapp: 'WhatsApp', x: 'X', telegram: 'Telegram', sms: 'SMS' }
+
+const origins: Record<string, string> = { 'mail.google.com': 'Gmail', 'google.com': 'Google Calendar', 'calendar.google.com': 'Google Calendar', 'linkedin.com': 'LinkedIn', 'x.com': 'X', 'notes.granola.ai': 'Granola' }
+
+// originName names the service that holds a conversation's original.
+export function originName(url: string) {
+  const host = new URL(url).hostname.replace(/^www\./, '')
+  return origins[host] ?? host
+}

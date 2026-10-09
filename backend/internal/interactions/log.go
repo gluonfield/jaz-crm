@@ -3,7 +3,10 @@ package interactions
 import (
 	"cmp"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -11,27 +14,29 @@ import (
 
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"github.com/gluonfield/jaz-crm/backend/internal/errs"
+	"github.com/gluonfield/jaz-crm/backend/internal/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 	"github.com/lithammer/shortuuid/v4"
 )
 
 type Entry struct {
-	Kind       string     `json:"kind" jsonschema:"note, message, call or meeting"`
-	Title      string     `json:"title,omitempty"`
-	At         string     `json:"at,omitempty" jsonschema:"original date as YYYY-MM-DD or RFC3339 timestamp; required for messages; now for other kinds when omitted"`
-	End        *time.Time `json:"end,omitempty"`
-	People     []string   `json:"people,omitempty" jsonschema:"participant email addresses or phone numbers"`
-	Records    []string   `json:"records,omitempty" jsonschema:"linked CRM record IDs"`
-	Text       string     `json:"text,omitempty" jsonschema:"note body, message text or call/meeting notes; keep import explanations in provenance"`
-	Transcript []Speech   `json:"transcript,omitempty" jsonschema:"speaker turns, only for a call or meeting"`
-	Channel    string     `json:"channel,omitempty" jsonschema:"message channel, for example linkedin, whatsapp or email"`
-	Sender     string     `json:"sender,omitempty" jsonschema:"message sender's name or address"`
-	Recipients []string   `json:"recipients,omitempty" jsonschema:"message recipients' names or addresses"`
-	Direction  string     `json:"direction,omitempty" jsonschema:"sent or received, relative to the workspace"`
-	Partial    bool       `json:"partial,omitempty" jsonschema:"true when only a message preview or excerpt is available"`
-	Messages   []Said     `json:"messages,omitempty" jsonschema:"a whole message conversation, oldest first, in place of one message's text, at, sender, recipients, direction and partial"`
-	Provenance string     `json:"provenance,omitempty" jsonschema:"source links, capture details or import audit; kept separate from text"`
-	ExternalID string     `json:"external_id,omitempty" jsonschema:"stable import ID; repeating it updates the same entry"`
+	InteractionID string     `json:"interaction_id,omitempty" jsonschema:"an existing conversation of the same kind to add to, such as the calendar meeting a transcript belongs to"`
+	Kind          string     `json:"kind" jsonschema:"note, message, call or meeting"`
+	Channel       string     `json:"channel,omitempty" jsonschema:"a message's channel: email, linkedin, whatsapp, x, telegram or sms"`
+	URL           string     `json:"url,omitempty" jsonschema:"link to the original, such as the LinkedIn or X thread or the Granola note; logging the same url again adds to that conversation"`
+	Title         string     `json:"title,omitempty"`
+	At            string     `json:"at,omitempty" jsonschema:"original date as YYYY-MM-DD or RFC3339 timestamp; required for messages; now for other kinds when omitted"`
+	End           *time.Time `json:"end,omitempty"`
+	People        []string   `json:"people,omitempty" jsonschema:"participants: email addresses, phone numbers, or profiles such as linkedin.com/in/name, x.com/name, t.me/name or @name on the message's channel"`
+	Records       []string   `json:"records,omitempty" jsonschema:"linked CRM record IDs"`
+	Text          string     `json:"text,omitempty" jsonschema:"note body, message text or call/meeting notes, with any sources they cite"`
+	Transcript    []Speech   `json:"transcript,omitempty" jsonschema:"speaker turns, only for a call or meeting; replaces its transcript"`
+	Sender        string     `json:"sender,omitempty" jsonschema:"message sender's name or address"`
+	Recipients    []string   `json:"recipients,omitempty" jsonschema:"message recipients' names or addresses"`
+	Direction     string     `json:"direction,omitempty" jsonschema:"sent or received, relative to the workspace"`
+	Partial       bool       `json:"partial,omitempty" jsonschema:"true when only a message preview or excerpt is available"`
+	Messages      []Said     `json:"messages,omitempty" jsonschema:"a whole message conversation, oldest first, in place of one message's text, at, sender, recipients, direction and partial; messages already logged are updated, not repeated"`
+	ExternalID    string     `json:"external_id,omitempty" jsonschema:"stable import ID for an entry without a url; repeating it updates the same entry"`
 }
 
 // Said is one message of a logged conversation.
@@ -44,15 +49,19 @@ type Said struct {
 	Partial    bool     `json:"partial,omitempty" jsonschema:"true when only a preview or excerpt is available"`
 }
 
-func (s *Service) Log(ctx context.Context, actor auth.Actor, source string, e Entry) (Interaction, error) {
+// Log saves a conversation someone reports. Logging adds to a conversation
+// found by interaction_id, url or external_id: it keeps the messages and
+// participants there and replaces notes or a transcript given anew.
+func (s *Service) Log(ctx context.Context, actor auth.Actor, e Entry) (Interaction, error) {
 	if !slices.Contains([]string{Call, Meeting, Note, Message}, e.Kind) {
 		return Interaction{}, errs.Invalidf("kind is note, message, call or meeting")
 	}
+	e.InteractionID = strings.TrimSpace(e.InteractionID)
 	e.Title = strings.TrimSpace(e.Title)
 	e.Text = strings.TrimSpace(e.Text)
 	e.Channel = strings.ToLower(strings.TrimSpace(e.Channel))
+	e.URL = strings.TrimRight(strings.TrimSpace(e.URL), "/")
 	e.Sender = strings.TrimSpace(e.Sender)
-	e.Provenance = strings.TrimSpace(e.Provenance)
 	e.At = strings.TrimSpace(e.At)
 	e.ExternalID = strings.TrimSpace(e.ExternalID)
 	single := e.Text != "" || e.At != "" || e.Sender != "" || len(e.Recipients) > 0 || e.Direction != "" || e.Partial
@@ -68,11 +77,14 @@ func (s *Service) Log(ctx context.Context, actor auth.Actor, source string, e En
 	if len(e.Transcript) > 0 && e.Kind != Call && e.Kind != Meeting {
 		return Interaction{}, errs.Invalidf("transcripts belong to calls or meetings")
 	}
-	if e.Kind == Message && e.Channel == "" {
-		return Interaction{}, errs.Invalidf("a message needs a channel")
+	if e.Kind == Message && records.ChannelName(e.Channel) == "" {
+		return Interaction{}, errs.Invalidf("a message's channel is one of %s", strings.ToLower(strings.Join(records.Channels, ", ")))
 	}
 	if e.Kind != Message && (e.Channel != "" || e.Sender != "" || len(e.Recipients) > 0 || e.Direction != "" || e.Partial) {
 		return Interaction{}, errs.Invalidf("channel, sender, recipients, direction and partial belong to messages")
+	}
+	if link, err := url.Parse(e.URL); e.URL != "" && (err != nil || link.Host == "" || link.Scheme != "http" && link.Scheme != "https") {
+		return Interaction{}, errs.Invalidf("url %q is not a web link", e.URL)
 	}
 	at, dateOnly, err := parseAt(e.At)
 	if err != nil {
@@ -100,25 +112,7 @@ func (s *Service) Log(ctx context.Context, actor auth.Actor, source string, e En
 		if n == 0 {
 			at, dateOnly = sent, day
 		}
-		parts = append(parts, storage.NewPart{Kind: "message", ExternalID: "message-" + strconv.Itoa(n), AuthorName: m.Sender, At: &sent, DateOnly: day, Content: &m.Text, Recipients: m.Recipients, Direction: m.Direction, Partial: m.Partial, Position: int32(n + 1)})
-	}
-	// A conversation lasts until its latest message, as synced threads do.
-	if len(parts) > 1 && e.End == nil {
-		e.End = parts[len(parts)-1].At
-	}
-	if e.End != nil && e.End.Before(at) {
-		return Interaction{}, errs.Invalidf("end precedes at")
-	}
-	if e.Kind != Message && e.Text != "" {
-		author := "Agent"
-		if !actor.Agent {
-			user, err := s.workspaces.UserByID(ctx, actor.UserID)
-			if err != nil {
-				return Interaction{}, err
-			}
-			author = cmp.Or(user.Name, user.Email)
-		}
-		parts = append(parts, storage.NewPart{Kind: "note", ExternalID: "body", AuthorName: author, At: &at, DateOnly: dateOnly, Content: &e.Text})
+		parts = append(parts, storage.NewPart{Kind: "message", ExternalID: messageKey(m.Direction, sent, m.Text), AuthorName: m.Sender, At: &sent, DateOnly: day, Content: &m.Text, Recipients: m.Recipients, Direction: m.Direction, Partial: m.Partial})
 	}
 	for n, turn := range e.Transcript {
 		turn.Speaker = strings.TrimSpace(turn.Speaker)
@@ -138,11 +132,24 @@ func (s *Service) Log(ctx context.Context, actor auth.Actor, source string, e En
 		}
 		parts = append(parts, storage.NewPart{Kind: "transcript", ExternalID: "turn-" + strconv.Itoa(n), AuthorName: turn.Speaker, At: spoken, DateOnly: day, Content: &turn.Text, Position: int32(n + 1)})
 	}
-	if e.Title == "" {
-		e.Title = strings.ToUpper(e.Kind[:1]) + e.Kind[1:]
+	if e.End != nil && e.End.Before(at) {
+		return Interaction{}, errs.Invalidf("end precedes at")
 	}
-	if e.ExternalID == "" {
-		e.ExternalID = shortuuid.New()
+	var people []storage.NewHandle
+	for _, raw := range e.People {
+		kind, value, err := address(raw, e.Channel)
+		if err != nil {
+			return Interaction{}, err
+		}
+		people = append(people, storage.NewHandle{Kind: kind, Value: value})
+	}
+	author := "Agent"
+	if !actor.Agent {
+		user, err := s.workspaces.UserByID(ctx, actor.UserID)
+		if err != nil {
+			return Interaction{}, err
+		}
+		author = cmp.Or(user.Name, user.Email)
 	}
 	labels, err := s.records.Labels(ctx, actor.WorkspaceID, e.Records)
 	if err != nil {
@@ -157,41 +164,61 @@ func (s *Service) Log(ctx context.Context, actor auth.Actor, source string, e En
 	if err != nil {
 		return Interaction{}, err
 	}
+	key := cmp.Or(e.URL, e.ExternalID)
 	var i storage.Interaction
-	var engaged []storage.Handle
+	var engaged, profiles []string
 	err = s.store.Atomically(ctx, func(store storage.InteractionStore) error {
-		i, err = store.UpsertInteraction(ctx, storage.NewInteraction{
-			WorkspaceID: actor.WorkspaceID, Kind: e.Kind, Source: source, ExternalID: e.ExternalID, UserID: &actor.UserID,
-			Title: e.Title, StartedAt: at, EndedAt: e.End, Channel: e.Channel, Provenance: e.Provenance, DateOnly: dateOnly,
-		})
-		if err != nil {
+		if i, err = existing(ctx, store, actor.WorkspaceID, e, key); err != nil {
 			return err
 		}
-		if err := store.ClearParticipants(ctx, i.ID); err != nil {
-			return err
+		if i.ID != "" && e.At == "" {
+			at, dateOnly = i.StartedAt, i.DateOnly
 		}
-		if err := store.ClearParts(ctx, i.ID); err != nil {
-			return err
-		}
-		for _, raw := range e.People {
-			kind, value, err := address(raw)
+		e.End = cmp.Or(e.End, i.EndedAt)
+		if i.ConnectionID == nil {
+			title := e.Title
+			if i.ID == "" {
+				title = cmp.Or(title, strings.ToUpper(e.Kind[:1])+e.Kind[1:])
+			}
+			i, err = store.UpsertInteraction(ctx, storage.NewInteraction{
+				WorkspaceID: actor.WorkspaceID, Kind: e.Kind, Channel: e.Channel, ExternalID: cmp.Or(i.ExternalID, key, shortuuid.New()), UserID: &actor.UserID,
+				Title: title, StartedAt: at, EndedAt: e.End, URL: e.URL, DateOnly: dateOnly,
+			})
 			if err != nil {
 				return err
 			}
-			h, err := store.UpsertHandle(ctx, known.verdict(kind, value))
+		}
+		for _, p := range people {
+			h, err := store.UpsertHandle(ctx, known.verdict(p.Kind, p.Value))
 			if err != nil {
 				return err
 			}
 			if err := store.AddParticipant(ctx, i.ID, h.ID, "attendee"); err != nil {
 				return err
 			}
-			if e.Kind != Note && (h.Triage == Pending || h.Triage == Skipped && deref(h.DecidedBy) != ByUser) {
-				engaged = append(engaged, h)
+			switch {
+			case h.Kind != "email" && h.Kind != "phone":
+				profiles = append(profiles, h.ID)
+			case e.Kind != Note && (h.Triage == Pending || h.Triage == Skipped && deref(h.DecidedBy) != ByUser):
+				engaged = append(engaged, h.ID)
 			}
+		}
+		if len(e.Transcript) > 0 {
+			if err := store.ClearParts(ctx, i.ID, "transcript"); err != nil {
+				return err
+			}
+		}
+		if e.Kind != Message && e.Text != "" {
+			parts = append(parts, storage.NewPart{Kind: "note", ExternalID: "body", AuthorName: author, At: &at, DateOnly: dateOnly, Content: &e.Text})
 		}
 		for _, part := range parts {
 			part.InteractionID = i.ID
 			if err := store.UpsertPart(ctx, part); err != nil {
+				return err
+			}
+		}
+		if e.Kind == Message {
+			if err := store.SpanMessages(ctx, i.ID); err != nil {
 				return err
 			}
 		}
@@ -205,12 +232,66 @@ func (s *Service) Log(ctx context.Context, actor auth.Actor, source string, e En
 	if err != nil {
 		return Interaction{}, err
 	}
-	for _, h := range engaged {
-		if err := s.keepByID(ctx, actor.WorkspaceID, h.ID, "", "you logged a conversation with them"); err != nil {
+	for _, id := range engaged {
+		if err := s.keepByID(ctx, actor.WorkspaceID, id, "", "you logged a conversation with them"); err != nil {
 			return Interaction{}, err
 		}
 	}
+	if len(profiles) > 0 && e.Kind != Note {
+		owners, err := s.store.HandlesOnRecords(ctx, actor.WorkspaceID)
+		if err != nil {
+			return Interaction{}, err
+		}
+		for _, pair := range owners {
+			if slices.Contains(profiles, pair.ID) {
+				if err := s.keepByID(ctx, actor.WorkspaceID, pair.ID, pair.RecordID, "you logged a conversation with them"); err != nil {
+					return Interaction{}, err
+				}
+			}
+		}
+	}
 	return s.Get(ctx, actor, i.ID)
+}
+
+// existing finds the conversation an entry adds to, by its id or by its
+// channel and key, or none. A synced conversation takes notes and a
+// transcript; its messages come from its account.
+func existing(ctx context.Context, store storage.InteractionStore, workspaceID string, e Entry, key string) (storage.Interaction, error) {
+	id := e.InteractionID
+	if id == "" && key != "" {
+		found, err := store.InteractionByExternalID(ctx, workspaceID, e.Channel, key)
+		if errors.Is(err, storage.ErrNotFound) {
+			return storage.Interaction{}, nil
+		}
+		if err != nil {
+			return storage.Interaction{}, err
+		}
+		id = found
+	}
+	if id == "" {
+		return storage.Interaction{}, nil
+	}
+	found, err := store.Interactions(ctx, workspaceID, []string{id})
+	switch {
+	case err != nil:
+		return storage.Interaction{}, err
+	case len(found) == 0 || found[0].Skipped:
+		return storage.Interaction{}, errs.Invalidf("no interaction %q", id)
+	case found[0].Kind != e.Kind || found[0].Channel != e.Channel:
+		return storage.Interaction{}, errs.Invalidf("interaction %q is a %s, not a %s", id, strings.TrimSpace(found[0].Channel+" "+found[0].Kind), strings.TrimSpace(e.Channel+" "+e.Kind))
+	case found[0].ConnectionID != nil && e.Kind == Message:
+		return storage.Interaction{}, errs.Invalidf("interaction %q syncs its messages from its account", id)
+	}
+	return found[0], nil
+}
+
+// messageKey identifies a logged message by its side, day and opening words,
+// so logging a conversation again updates the messages it holds, and a full
+// message replaces its preview.
+func messageKey(direction string, at time.Time, text string) string {
+	opening := []rune(strings.Join(strings.Fields(text), " "))
+	sum := sha256.Sum256([]byte(direction + "\n" + at.UTC().Format(time.DateOnly) + "\n" + string(opening[:min(len(opening), 32)])))
+	return "message:" + hex.EncodeToString(sum[:16])
 }
 
 func parseAt(raw string) (time.Time, bool, error) {

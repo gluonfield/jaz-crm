@@ -156,7 +156,7 @@ func (s *Service) importGmailDraft(ctx context.Context, connection storage.Conne
 		} else if !errors.Is(err, storage.ErrNotFound) {
 			return err
 		}
-		if thread, err := store.InteractionByExternalID(ctx, connection.WorkspaceID, "gmail", m.ThreadID); err == nil {
+		if thread, err := store.InteractionByExternalID(ctx, connection.WorkspaceID, "email", m.ThreadID); err == nil {
 			affected = append(affected, thread)
 		} else if !errors.Is(err, storage.ErrNotFound) {
 			return err

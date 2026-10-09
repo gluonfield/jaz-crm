@@ -46,6 +46,9 @@ INSERT INTO sessions(token_hash,user_id,expires_at) SELECT 'legacy'::bytea,id,no
 			if table == "attributes" {
 				value += " - 'archived'"
 			}
+			if table == "interactions" {
+				value += " - 'kind' - 'channel' - 'source' - 'provenance' - 'url'"
+			}
 			if err := db.QueryRowContext(ctx, "SELECT jsonb_agg("+value+" ORDER BY to_jsonb(t)::text)::text FROM "+table+" t").Scan(&row); err != nil {
 				t.Fatal(err)
 			}

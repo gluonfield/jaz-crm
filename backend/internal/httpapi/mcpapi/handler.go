@@ -33,9 +33,10 @@ action_date (YYYY-MM-DD or RFC3339 with offset) and an optional draft: get_recor
 follow_ups with Needs attention shows open actions waiting on Us or with Waiting on unset, regardless of date; Chase shows open, overdue actions waiting on Them.
 An agent setting action_date must also set action_date_basis (Stated or Suggested) and
 action_date_reason with evidence or the scheduling convention. Manual dates and explicit clears
-are preserved by automatic drafting. Waiting on Them never gets an automatic draft. To send an approved LinkedIn draft,
-set its draft_status to Sending, send it, log the sent message with log_interaction (kind message,
-channel linkedin, direction sent), then set Sent. Call list_objects to learn each object's
+are preserved by automatic drafting. Waiting on Them never gets an automatic draft. To send an approved draft on a
+chat channel such as LinkedIn or X, set its draft_status to Sending, send it, log the sent message with log_interaction
+(kind message, its channel, direction sent, the thread's url), then set Sent. A person's linkedin_url and x_url
+link their LinkedIn and X profiles, which identify them in chats. Call list_objects to learn each object's
 attributes and options. Emails, domains and phone numbers identify records: upsert_record with an
 email or domain updates the record that holds it instead of creating a duplicate. Values you write
 are marked as written by an agent; apart from context, a value a person set is never overwritten,

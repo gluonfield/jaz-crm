@@ -118,7 +118,7 @@ func (h *Handler) Interactions(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON body"})
 		return
 	}
-	i, err := h.convs.Log(r.Context(), actor, "webhook", e)
+	i, err := h.convs.Log(r.Context(), actor, e)
 	switch {
 	case errors.As(err, new(errs.Invalid)):
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})

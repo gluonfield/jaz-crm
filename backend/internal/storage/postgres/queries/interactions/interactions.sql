@@ -32,7 +32,7 @@ SELECT sqlc.embed(handles), count(DISTINCT interactions.id)::int AS interactions
 FROM handles
 LEFT JOIN participants ON participants.handle_id = handles.id
 LEFT JOIN interactions ON interactions.id = participants.interaction_id
-  AND (interactions.kind <> 'email' OR EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
+  AND (interactions.kind <> 'message' OR EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
 WHERE handles.workspace_id = @workspace_id AND handles.triage = @triage
   AND (sqlc.narg(query)::text IS NULL OR handles.value ILIKE '%' || sqlc.narg(query)::text || '%' OR handles.name ILIKE '%' || sqlc.narg(query)::text || '%')
 GROUP BY handles.id
@@ -74,21 +74,32 @@ WHERE handles.workspace_id = @workspace_id
   AND EXISTS (
     SELECT 1 FROM participants own
     JOIN handles internal ON internal.id = own.handle_id AND internal.triage = 'internal'
-    WHERE own.interaction_id = interactions.id AND ((@auto_keep_email::boolean AND interactions.kind = 'email' AND own.role = 'from'
+    WHERE own.interaction_id = interactions.id AND ((@auto_keep_email::boolean AND interactions.channel = 'email' AND own.role = 'from'
       AND EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
       OR (@auto_keep_meetings::boolean AND interactions.kind = 'meeting' AND interactions.ended_at <= now() AND own.role IN ('organizer', 'attendee')))
   );
 
 -- name: HandlesOnRecords :many
 -- HandlesOnRecords pairs undecided handles, and kept ones that lost their
--- person, with the record that holds their address.
-SELECT DISTINCT ON (handles.id) handles.id, record_values.record_id FROM handles
-JOIN record_values ON record_values.unique_key = handles.value AND record_values.active_until IS NULL
-JOIN attributes ON attributes.id = record_values.attribute_id AND attributes.type IN ('email', 'phone')
-JOIN records ON records.id = record_values.record_id AND records.workspace_id = handles.workspace_id
-WHERE handles.workspace_id = @workspace_id
-  AND (handles.triage IN ('pending', 'kept') AND handles.person_id IS NULL
-    OR handles.triage = 'skipped' AND handles.decided_by IN ('rule', 'agent'));
+-- person, with the record that holds their address, or with the person whose
+-- profile field (linkedin_url, x_url) links to their LinkedIn or X handle.
+WITH undecided AS (
+  SELECT * FROM handles WHERE workspace_id = @workspace_id
+    AND (triage IN ('pending', 'kept') AND person_id IS NULL OR triage = 'skipped' AND decided_by IN ('rule', 'agent'))
+)
+SELECT DISTINCT ON (pairs.id) pairs.id, pairs.record_id FROM (
+  SELECT undecided.id, record_values.record_id FROM undecided
+  JOIN record_values ON record_values.unique_key = undecided.value AND record_values.active_until IS NULL
+  JOIN attributes ON attributes.id = record_values.attribute_id AND attributes.type IN ('email', 'phone')
+  JOIN records ON records.id = record_values.record_id AND records.workspace_id = @workspace_id
+  UNION ALL
+  SELECT undecided.id, record_values.record_id FROM undecided
+  JOIN objects ON objects.workspace_id = @workspace_id AND objects.slug = 'people'
+  JOIN attributes ON attributes.object_id = objects.id AND attributes.slug = undecided.kind || '_url'
+  JOIN record_values ON record_values.attribute_id = attributes.id AND record_values.active_until IS NULL
+  JOIN records ON records.id = record_values.record_id
+  WHERE lower(substring(record_values.text FROM '([^/?#]+)/*(?:[?#].*)?$')) = regexp_replace(undecided.value, '^.*/', '')
+) AS pairs;
 
 -- name: SkipRecordHandles :many
 WITH domains AS (
@@ -112,7 +123,7 @@ SELECT * FROM handles WHERE workspace_id = $1 AND triage = 'kept' AND person_id 
 SELECT handles.id, handles.value, handles.name,
   array(SELECT interactions.title FROM participants JOIN interactions ON interactions.id = participants.interaction_id
     WHERE participants.handle_id = handles.id
-      AND (interactions.kind <> 'email' OR EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
+      AND (interactions.kind <> 'message' OR EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
     ORDER BY interactions.started_at DESC LIMIT 3)::text[] AS titles
 FROM handles
 WHERE handles.workspace_id = $1 AND handles.triage = 'pending' AND handles.decided_by IS NULL
@@ -122,13 +133,13 @@ LIMIT $2;
 -- name: EmailInteractionByMessageIDs :one
 SELECT interactions.id FROM parts
 JOIN interactions ON interactions.id = parts.interaction_id
-WHERE interactions.workspace_id = @workspace_id AND interactions.kind = 'email' AND parts.external_id = ANY(@message_ids::text[])
+WHERE interactions.workspace_id = @workspace_id AND interactions.channel = 'email' AND parts.external_id = ANY(@message_ids::text[])
 LIMIT 1;
 
 -- name: UpsertEmailThread :one
-INSERT INTO interactions (workspace_id, kind, source, external_id, connection_id, user_id, title, started_at, ended_at, id)
-VALUES (@workspace_id, 'email', 'gmail', @external_id, @connection_id, @user_id, @title, @at, @at, sqlc.arg(id))
-ON CONFLICT (workspace_id, source, external_id) DO UPDATE
+INSERT INTO interactions (workspace_id, kind, channel, external_id, connection_id, user_id, title, started_at, ended_at, url, id)
+VALUES (@workspace_id, 'message', 'email', @external_id, @connection_id, @user_id, @title, @at, @at, @url, sqlc.arg(id))
+ON CONFLICT (workspace_id, channel, external_id) DO UPDATE
 SET started_at = LEAST(interactions.started_at, EXCLUDED.started_at),
     ended_at = GREATEST(interactions.ended_at, EXCLUDED.ended_at),
     title = CASE WHEN interactions.title = '' THEN EXCLUDED.title ELSE interactions.title END
@@ -141,12 +152,15 @@ SET started_at = LEAST(started_at, @at), ended_at = GREATEST(ended_at, @at),
 WHERE id = @id;
 
 -- name: UpsertInteraction :one
-INSERT INTO interactions (workspace_id, kind, source, external_id, connection_id, user_id, title, started_at, ended_at, meet_code, skipped, channel, provenance, date_only, id)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, sqlc.arg(id))
-ON CONFLICT (workspace_id, source, external_id) DO UPDATE
-SET kind = EXCLUDED.kind, title = EXCLUDED.title, started_at = EXCLUDED.started_at, ended_at = EXCLUDED.ended_at,
+-- UpsertInteraction leaves a synced conversation to its sync and a logged one
+-- to its logger: neither updates the other's.
+INSERT INTO interactions (workspace_id, kind, channel, external_id, connection_id, user_id, title, started_at, ended_at, meet_code, skipped, url, date_only, id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, sqlc.arg(id))
+ON CONFLICT (workspace_id, channel, external_id) DO UPDATE
+SET kind = EXCLUDED.kind, title = coalesce(nullif(EXCLUDED.title, ''), interactions.title), started_at = EXCLUDED.started_at, ended_at = EXCLUDED.ended_at,
     meet_code = EXCLUDED.meet_code, skipped = interactions.skipped OR EXCLUDED.skipped,
-    channel = EXCLUDED.channel, provenance = EXCLUDED.provenance, date_only = EXCLUDED.date_only
+    url = coalesce(nullif(EXCLUDED.url, ''), interactions.url), date_only = EXCLUDED.date_only
+WHERE (interactions.connection_id IS NULL) = (EXCLUDED.connection_id IS NULL)
 RETURNING *;
 
 -- name: ClearParticipants :exec
@@ -156,7 +170,8 @@ DELETE FROM participants WHERE interaction_id = $1;
 INSERT INTO participants (interaction_id, handle_id, role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING;
 
 -- name: UpsertPart :exec
--- A sent copy of a retained draft must fetch its content from the sent provider message.
+-- A sent copy of a retained draft must fetch its content from the sent provider
+-- message. A preview never replaces the full message.
 INSERT INTO parts (interaction_id, kind, external_id, connection_id, provider_id, author_handle_id, author_name, at, content, recipients, direction, date_only, partial, position)
 VALUES (@interaction_id, @kind, @external_id, @connection_id, @provider_id, @author_handle_id, @author_name, @at, @content, coalesce(@recipients::text[], '{}'), @direction, @date_only, @partial, @position)
 ON CONFLICT (interaction_id, external_id) DO UPDATE
@@ -167,10 +182,22 @@ SET kind = EXCLUDED.kind,
     provider_id = CASE WHEN parts.kind = 'draft' THEN EXCLUDED.provider_id ELSE parts.provider_id END,
     author_handle_id = CASE WHEN parts.kind = 'draft' THEN EXCLUDED.author_handle_id ELSE parts.author_handle_id END,
     author_name = EXCLUDED.author_name, at = EXCLUDED.at,
-    recipients = EXCLUDED.recipients, direction = EXCLUDED.direction, date_only = EXCLUDED.date_only, partial = EXCLUDED.partial, position = EXCLUDED.position;
+    recipients = EXCLUDED.recipients, direction = EXCLUDED.direction, date_only = EXCLUDED.date_only, partial = EXCLUDED.partial, position = EXCLUDED.position
+WHERE NOT (EXCLUDED.partial AND NOT parts.partial);
 
 -- name: ClearParts :exec
-DELETE FROM parts WHERE interaction_id = $1;
+DELETE FROM parts WHERE interaction_id = $1 AND kind = $2;
+
+-- name: SpanMessages :exec
+-- SpanMessages stretches a conversation from its first message to its last.
+UPDATE interactions SET started_at = span.first_at, date_only = span.first_date_only,
+  ended_at = CASE WHEN span.messages > 1 THEN span.last_at END
+FROM (
+  SELECT min(at) AS first_at, max(at) AS last_at, count(*) AS messages,
+    (array_agg(date_only ORDER BY at, position))[1]::boolean AS first_date_only
+  FROM parts WHERE interaction_id = @id AND kind = 'message'
+) AS span
+WHERE interactions.id = @id AND span.messages > 0;
 
 -- name: InteractionsOfHandles :many
 SELECT DISTINCT interaction_id FROM participants WHERE handle_id = ANY(@handle_ids::text[]);
@@ -242,8 +269,8 @@ SELECT interactions.* FROM interactions
 JOIN active_links links ON links.interaction_id = interactions.id AND links.record_id = @record_id
 LEFT JOIN interactions cursor ON cursor.id = nullif(@cursor::text, '') AND cursor.workspace_id = @workspace_id AND NOT cursor.skipped
 WHERE interactions.workspace_id = @workspace_id AND NOT interactions.skipped
-  AND (interactions.kind <> 'email' OR EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
-  AND (cardinality(@kinds::text[]) = 0 OR interactions.kind = ANY(@kinds::text[]))
+  AND (interactions.kind <> 'message' OR EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
+  AND (coalesce(cardinality(@kinds::text[]), 0) = 0 OR interactions.kind = ANY(@kinds::text[]))
   AND (@cursor::text = '' OR CASE WHEN @upcoming::bool
     THEN (interactions.started_at, interactions.id) > (cursor.started_at, cursor.id)
     ELSE (interactions.started_at, interactions.id) < (cursor.started_at, cursor.id) END)
@@ -255,7 +282,7 @@ LIMIT @row_limit;
 -- name: SearchInteractions :many
 SELECT interactions.* FROM interactions
 WHERE interactions.workspace_id = @workspace_id AND NOT interactions.skipped
-  AND (interactions.kind <> 'email' OR EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
+  AND (interactions.kind <> 'message' OR EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
   AND EXISTS (SELECT 1 FROM active_links links WHERE links.interaction_id = interactions.id)
   AND (@query::text = '' OR interactions.title ILIKE '%' || @query::text || '%' OR EXISTS (
     SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.search @@ websearch_to_tsquery('simple', @query::text)
@@ -288,14 +315,14 @@ SELECT links.record_id, count(*)::int AS interactions, min(interactions.started_
 FROM active_links links
 JOIN interactions ON interactions.id = links.interaction_id AND NOT interactions.skipped
 WHERE interactions.workspace_id = @workspace_id AND links.record_id = ANY(@record_ids::text[]) AND interactions.started_at <= now() AND interactions.kind <> 'note'
-  AND (interactions.kind <> 'email' OR EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
+  AND (interactions.kind <> 'message' OR EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
 GROUP BY links.record_id;
 
 -- name: RecordLastMessages :many
 -- RecordLastMessages finds each record's latest message by now, with its
 -- conversation's channel and its sender's address.
 SELECT DISTINCT ON (links.record_id) links.record_id,
-  (CASE WHEN interactions.kind = 'email' THEN 'email' ELSE interactions.channel END)::text AS channel,
+  interactions.channel,
   parts.at::timestamptz AS at, parts.date_only, parts.author_name, coalesce(parts.content, '')::text AS content, parts.direction,
   coalesce(handles.value, '')::text AS sender_address, coalesce(handles.name, '')::text AS sender_name, handles.person_id
 FROM active_links links
@@ -319,7 +346,7 @@ SELECT * FROM domain_rules WHERE workspace_id = $1 ORDER BY domain;
 DELETE FROM domain_rules WHERE workspace_id = $1 AND domain = $2;
 
 -- name: InteractionByExternalID :one
-SELECT id FROM interactions WHERE workspace_id = $1 AND source = $2 AND external_id = $3;
+SELECT id FROM interactions WHERE workspace_id = $1 AND channel = $2 AND external_id = $3;
 
 -- name: DueMeetings :many
 -- DueMeetings are a connection's linked Meet meetings that ended in the last

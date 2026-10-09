@@ -22,7 +22,7 @@ func registerInteractions(r *registry, svc *interactions.Service) {
 			return empty{}, svc.ForgetDomainRule(ctx, actor, in.Domain)
 		})
 	add(r, &mcp.Tool{Name: "list_interactions", Title: "List interactions", Annotations: readOnly,
-		Description: "A record's emails, meetings, calls and notes up to now, newest first; with upcoming, its future ones, soonest first."},
+		Description: "A record's message conversations, meetings, calls and notes up to now, newest first; with upcoming, its future ones, soonest first."},
 		func(ctx context.Context, actor auth.Actor, in timelineInput) (interactionsOutput, error) {
 			list, err := svc.Timeline(ctx, actor, in.RecordID, in.Kinds, in.Cursor, in.Upcoming, in.Limit)
 			return interactionsOutput{Interactions: list}, err
@@ -40,9 +40,9 @@ func registerInteractions(r *registry, svc *interactions.Service) {
 			return interactionsOutput{Interactions: list}, err
 		})
 	add(r, &mcp.Tool{Annotations: &mcp.ToolAnnotations{DestructiveHint: new(false)}, Name: "log_interaction", Title: "Log interaction",
-		Description: "Save a note, an original message, or a call/meeting with attributed speaker turns. Put readable content in text and source/audit information in provenance. Messages require their channel, sender, recipients and original date; date-only values preserve unknown time. Log a whole conversation, such as a LinkedIn thread, as one message entry with messages oldest first. external_id makes repeated imports update the same entry."},
+		Description: "Save a note, an original message, or a call/meeting with attributed speaker turns. Messages require their channel, sender, recipients and original date; date-only values preserve unknown time. Pass the thread's url: logging it again adds new messages to the same conversation, so a whole thread or one new message both work. To add a transcript or notes to a synced meeting, pass its interaction_id."},
 		func(ctx context.Context, actor auth.Actor, in interactions.Entry) (interactions.Interaction, error) {
-			i, err := svc.Log(ctx, actor, "manual", in)
+			i, err := svc.Log(ctx, actor, in)
 			return i, err
 		})
 	add(r, &mcp.Tool{Name: "link_interaction", Title: "Link interaction",

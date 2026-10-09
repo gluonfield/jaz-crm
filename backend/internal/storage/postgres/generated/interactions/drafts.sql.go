@@ -257,7 +257,7 @@ func (q *Queries) LockGmailDraft(ctx context.Context, arg LockGmailDraftParams) 
 
 const migrateDraftMessage = `-- name: MigrateDraftMessage :many
 UPDATE parts p SET kind = 'draft' FROM interactions i
-WHERE i.id = p.interaction_id AND i.source = 'gmail' AND p.kind = 'message'
+WHERE i.id = p.interaction_id AND p.kind = 'message'
   AND p.connection_id = $1 AND p.provider_id = $2
 RETURNING p.interaction_id
 `

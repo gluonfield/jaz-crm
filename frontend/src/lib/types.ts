@@ -63,14 +63,14 @@ export type Speech = { speaker: string; text: string; at?: string }
 export type Interaction = {
   id: string
   kind: Kind
-  source: string
+  channel?: string
+  url?: string
   title: string
   started_at: string
   ended_at?: string
   participants: Party[]
   records: RecordRef[]
   preview?: string
-  channel?: string
   author?: string
   text?: string
   invitation?: string
@@ -78,7 +78,6 @@ export type Interaction = {
   transcript?: Speech[]
   messages?: CrmMessage[]
   drafts?: { follow_up_id: string; subject: string; state: 'draft' | 'missing' | 'sent' }[]
-  provenance?: string
   last_message?: CrmMessage
   drafting?: { state: 'drafting' | 'completed' | 'failed' | 'skipped'; reason?: string; started_at?: string }
 }

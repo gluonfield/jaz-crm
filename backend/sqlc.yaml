@@ -21,6 +21,7 @@ overrides:
       row_offset: Offset
       avatar_url: AvatarURL
       photo_url: PhotoURL
+      url: URL
       html: HTML
       png: PNG
       redirect_uris: RedirectURIs

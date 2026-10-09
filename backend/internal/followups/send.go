@@ -250,7 +250,7 @@ type outgoing struct {
 // linked to, and the mailbox a reply to it goes from: the one holding it when
 // the actor may send from it, else their own. New emails use the assigned owner.
 func (s *Service) sender(ctx context.Context, actor auth.Actor, f records.Record) (storage.Part, storage.Connection, error) {
-	threads, err := s.store.Timeline(ctx, storage.TimelineQuery{RecordID: f.ID, WorkspaceID: actor.WorkspaceID, Kinds: []string{interactions.Email}, Limit: 20})
+	threads, err := s.store.Timeline(ctx, storage.TimelineQuery{RecordID: f.ID, WorkspaceID: actor.WorkspaceID, Kinds: []string{interactions.Message}, Limit: 20})
 	if err != nil {
 		return storage.Part{}, storage.Connection{}, err
 	}

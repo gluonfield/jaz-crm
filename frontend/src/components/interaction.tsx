@@ -8,7 +8,7 @@ import { KindIcon, RecordIcon } from '@/components/icons'
 import { ExternalLink } from '@/components/external-link'
 import { Message } from '@/components/message'
 import { Picker } from '@/components/picker'
-import { channelNames, joinURL, recordName } from '@/lib/crm'
+import { channelNames, joinURL, originName, recordName } from '@/lib/crm'
 import { formatDateTime, meetingTime } from '@/lib/format'
 import { useDebounced } from '@/lib/hooks'
 import { useAction, useRecordSearch, useTool } from '@/lib/queries'
@@ -56,6 +56,7 @@ export function InteractionDetails({ interactionId, onClose, onNavigate }: { int
           {interaction.title !== kindNames[interaction.kind] && <h1 className="text-[22px] font-semibold leading-tight tracking-[-0.015em] text-ink [overflow-wrap:anywhere]">{interaction.title || 'No subject'}</h1>}
           <p className="mt-1.5 text-[13px] text-ink-2">
             {interaction.author && <>{interaction.author} · </>}{interaction.kind === 'meeting' ? meetingTime(interaction.started_at, interaction.ended_at) : formatDateTime(interaction.started_at)}
+            {interaction.url && <> · <ExternalLink href={interaction.url}>Open in {originName(interaction.url)}</ExternalLink></>}
           </p>
           {join && (
             <ExternalLink
@@ -137,12 +138,6 @@ function Content({ interaction, onNavigate }: { interaction: Interaction; onNavi
       {interaction.text && <Message text={interaction.text} />}
       {interaction.messages && <MessageThread interaction={interaction} messages={interaction.messages} />}
       {interaction.transcript && <Transcript lines={interaction.transcript} />}
-      {interaction.provenance && (
-        <details className="text-[12px] text-ink-3">
-          <summary className="w-fit cursor-pointer hover:text-ink-2">Source details</summary>
-          <div className="mt-3"><Message text={interaction.provenance} /></div>
-        </details>
-      )}
     </div>
   )
 }

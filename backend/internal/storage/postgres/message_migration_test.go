@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"net/url"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
@@ -130,11 +129,11 @@ func TestMessageMigration(t *testing.T) {
 			t.Fatalf("migrated message, pass %d: %+v %v", pass, message, err)
 		}
 		part := message.Messages[0]
-		if part.Sender != "Ada" || part.At != "2026-09-20" || len(part.Recipients) != 1 || part.Recipients[0] != "August" || part.Text != "A connected factory preview" || !part.Partial || part.Direction != "received" || !strings.Contains(message.Provenance, captured) || !strings.Contains(message.Provenance, preamble) {
-			t.Fatalf("migration lost message metadata or provenance: %+v", message)
+		if part.Sender != "Ada" || part.At != "2026-09-20" || len(part.Recipients) != 1 || part.Recipients[0] != "August" || part.Text != "A connected factory preview" || !part.Partial || part.Direction != "received" {
+			t.Fatalf("migration lost message metadata: %+v", message)
 		}
 		note, err := svc.Get(ctx, actor, noteID)
-		if err != nil || note.Text != "Hardware operator." || note.Provenance != "https://example.com/bio" || note.Author != "Imported" || len(note.Messages) != 0 || len(note.Transcript) != 0 {
+		if err != nil || note.Text != "Hardware operator.\n\nhttps://example.com/bio" || note.Author != "Imported" || len(note.Messages) != 0 || len(note.Transcript) != 0 {
 			t.Fatalf("migrated research note: %+v %v", note, err)
 		}
 		other, err := svc.Get(ctx, actor, otherNoteID)

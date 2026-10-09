@@ -48,7 +48,7 @@ WHERE d.connection_id = @connection_id AND d.draft_id = @draft_id
 
 -- name: MigrateDraftMessage :many
 UPDATE parts p SET kind = 'draft' FROM interactions i
-WHERE i.id = p.interaction_id AND i.source = 'gmail' AND p.kind = 'message'
+WHERE i.id = p.interaction_id AND p.kind = 'message'
   AND p.connection_id = @connection_id AND p.provider_id = @provider_id
 RETURNING p.interaction_id;
 

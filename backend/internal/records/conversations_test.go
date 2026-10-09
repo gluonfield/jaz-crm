@@ -33,7 +33,7 @@ func TestConversationQueue(t *testing.T) {
 	person, _ := upsert(t, svc, a, records.SourceUser, records.Write{Object: "people", Set: set("name", "Same Person")})
 	conversation := func(actor auth.Actor, kind, name string, at time.Time, skipped bool) string {
 		t.Helper()
-		i, err := store.UpsertInteraction(ctx, storage.NewInteraction{WorkspaceID: actor.WorkspaceID, Kind: kind, Source: "manual", ExternalID: name, Title: name, StartedAt: at, Skipped: skipped})
+		i, err := store.UpsertInteraction(ctx, storage.NewInteraction{WorkspaceID: actor.WorkspaceID, Kind: kind, Channel: map[string]string{"message": "email"}[kind], ExternalID: name, Title: name, StartedAt: at, Skipped: skipped})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -77,7 +77,7 @@ func TestConversationQueue(t *testing.T) {
 		return rows
 	}
 	old := time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
-	thread := conversation(a, "email", "RFQ", old, false)
+	thread := conversation(a, "message", "RFQ", old, false)
 	var history []string
 	for i := range 5 {
 		r := add(a, thread, fmt.Sprintf("Historical reply %d statukai", i), "Done", "Us", "")
@@ -126,7 +126,7 @@ func TestConversationQueue(t *testing.T) {
 	q.Query = "no-match"
 	search(a, q, 0)
 	q.Query = "statukai"
-	private := conversation(b, "email", "Private", old, false)
+	private := conversation(b, "message", "Private", old, false)
 	privateAction := add(b, private, "Private statukai", "Open", "Us", "")
 	link(privateAction.ID, thread)
 	link(standalone.ID, private)
@@ -141,10 +141,10 @@ func TestConversationQueue(t *testing.T) {
 		t.Fatal("invalid interaction ID accepted")
 	}
 
-	newer := conversation(a, "email", "Newer draft-only thread", old.Add(2*time.Hour), false)
+	newer := conversation(a, "message", "Newer draft-only thread", old.Add(2*time.Hour), false)
 	link(separate.ID, newer)
 	newerAction := add(a, newer, "Newest statukai action", "Open", "Us", "")
-	skipped := conversation(a, "email", "Skipped", old.Add(3*time.Hour), true)
+	skipped := conversation(a, "message", "Skipped", old.Add(3*time.Hour), true)
 	link(newerAction.ID, skipped)
 	meeting := conversation(a, "meeting", "Later meeting", old.Add(4*time.Hour), false)
 	link(newerAction.ID, meeting)

@@ -2,9 +2,23 @@ package records
 
 import (
 	"slices"
+	"strings"
 
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 )
+
+// Channels name where messages are exchanged. A conversation's channel is a
+// name in lower case; a follow-up's channel is the name.
+var Channels = []string{"Email", "LinkedIn", "WhatsApp", "X", "Telegram", "SMS"}
+
+// ChannelName names a conversation channel, empty when it is none.
+func ChannelName(channel string) string {
+	i := slices.IndexFunc(Channels, func(name string) bool { return strings.ToLower(name) == channel })
+	if i < 0 {
+		return ""
+	}
+	return Channels[i]
+}
 
 // StandardObjects is the schema every workspace starts with, listed in this
 // order.
@@ -34,6 +48,7 @@ var StandardObjects = []storage.NewObject{
 		{Slug: "company", Name: "Company", Type: Reference, Target: "companies"},
 		{Slug: "job_title", Name: "Job title", Type: Text},
 		{Slug: "linkedin_url", Name: "LinkedIn", Type: URL},
+		{Slug: "x_url", Name: "X", Type: URL},
 		{Slug: "owner", Name: "Owner", Type: Member},
 		{Slug: "notes", Name: "Notes", Type: Text},
 		{Slug: ContextAttribute, Name: "Context", Type: Text},
@@ -67,7 +82,7 @@ var StandardObjects = []storage.NewObject{
 		{Slug: "deal", Name: "Deal", Type: Reference, Target: "deals"},
 		{Slug: "subject", Name: "Subject", Type: Text},
 		{Slug: draftAttribute, Name: "Draft", Type: Text},
-		{Slug: "channel", Name: "Channel", Type: Select, Options: []string{"Email", "LinkedIn"}},
+		{Slug: "channel", Name: "Channel", Type: Select, Options: Channels},
 		{Slug: "to", Name: "To", Type: Email, Multi: true},
 		{Slug: "cc", Name: "Cc", Type: Email, Multi: true},
 		{Slug: draftStatusAttribute, Name: "Draft status", Type: Select, Options: []string{DraftWritten, DraftApproved, DraftSending, DraftSent}},

@@ -18,7 +18,7 @@ func TestEvents(t *testing.T) {
 			case "":
 				wantQuery(t, r.URL, url.Values{"singleEvents": {"true"}, "showDeleted": {"true"}, "maxResults": {"250"}, "timeMin": {"2026-01-01T00:00:00Z"}})
 				io.WriteString(w, `{"nextPageToken":"p2","items":[
-					{"id":"e1","iCalUID":"e1@google.com","status":"confirmed","summary":"Sync","description":"<b>Weekly</b><br><ul><li>Numbers</li><li>Hiring</li></ul><a href=\"https://x.test/doc\">Notes</a>","recurringEventId":"e0",
+					{"id":"e1","iCalUID":"e1@google.com","status":"confirmed","summary":"Sync","htmlLink":"https://www.google.com/calendar/event?eid=ZTE","description":"<b>Weekly</b><br><ul><li>Numbers</li><li>Hiring</li></ul><a href=\"https://x.test/doc\">Notes</a>","recurringEventId":"e0",
 					 "start":{"dateTime":"2026-02-02T10:00:00Z"},"end":{"dateTime":"2026-02-02T10:30:00Z"},
 					 "organizer":{"email":"Ann@X.com","displayName":"Ann","self":true},
 					 "attendees":[{"email":"Ann@X.com","displayName":"Ann","responseStatus":"accepted","self":true,"organizer":true},
@@ -57,6 +57,7 @@ func TestEvents(t *testing.T) {
 			},
 			MeetCode:  "abc-mnop-xyz",
 			Recurring: true,
+			URL:       "https://www.google.com/calendar/event?eid=ZTE",
 		},
 		{
 			ID:       "e2",

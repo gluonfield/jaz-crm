@@ -437,10 +437,10 @@ func TestInteractionTools(t *testing.T) {
 		t.Fatalf("activity: %v", activity)
 	}
 	note := mustCall(t, a, "log_interaction", map[string]any{
-		"kind": "note", "text": "Research about Acme.", "records": []any{company["id"]}, "provenance": "https://acme.com/about",
+		"kind": "note", "text": "Research about Acme. Source: https://acme.com/about", "records": []any{company["id"]},
 	})
-	if note["text"] != "Research about Acme." || note["author"] != "Agent" || note["provenance"] != "https://acme.com/about" || note["parts"] != nil || note["messages"] != nil {
-		t.Fatalf("note must have one body and its author/source outside it: %v", note)
+	if note["text"] != "Research about Acme. Source: https://acme.com/about" || note["author"] != "Agent" || note["parts"] != nil || note["messages"] != nil {
+		t.Fatalf("note must have one body with its author outside it: %v", note)
 	}
 	record = mustCall(t, a, "get_record", map[string]any{"record_id": company["id"]})
 	if activity := record["activity"].(map[string]any); activity["interactions"] != float64(1) {

@@ -60,20 +60,19 @@ type EmailDraft struct {
 type Interaction struct {
 	ID           string        `json:"id"`
 	Kind         string        `json:"kind"`
-	Source       string        `json:"source"`
+	Channel      string        `json:"channel,omitempty"`
+	URL          string        `json:"url,omitempty"`
 	Title        string        `json:"title"`
 	StartedAt    string        `json:"started_at"`
 	EndedAt      *time.Time    `json:"ended_at,omitempty"`
 	Participants []Party       `json:"participants"`
 	Records      []Ref         `json:"records"`
-	Channel      string        `json:"channel,omitempty"`
 	Author       string        `json:"author,omitempty"`
 	Text         string        `json:"text,omitempty"`
 	Invitation   string        `json:"invitation,omitempty"`
 	MeetURL      string        `json:"meet_url,omitempty"`
 	Transcript   []Speech      `json:"transcript,omitempty"`
 	Messages     []MessageView `json:"messages,omitempty"`
-	Provenance   string        `json:"provenance,omitempty"`
 	Preview      string        `json:"preview,omitempty"`
 	LastMessage  *MessageView  `json:"last_message,omitempty"`
 	Drafting     *Drafting     `json:"drafting,omitempty"`
@@ -90,10 +89,6 @@ func limitOf(limit int) int32 {
 // Timeline lists a record's interactions that started by now, newest first,
 // or its upcoming ones, soonest first.
 func (s *Service) Timeline(ctx context.Context, actor auth.Actor, recordID string, kinds []string, cursor string, upcoming bool, limit int) ([]Interaction, error) {
-	kinds = append([]string{}, kinds...)
-	if slices.Contains(kinds, Message) {
-		kinds = append(kinds, Email)
-	}
 	list, err := s.store.Timeline(ctx, storage.TimelineQuery{
 		RecordID: recordID, WorkspaceID: actor.WorkspaceID, Kinds: kinds, Cursor: cursor, Upcoming: upcoming, Limit: limitOf(limit),
 	})
@@ -254,7 +249,7 @@ func (s *Service) views(ctx context.Context, workspaceID string, list []storage.
 	index := map[string]int{}
 	for i, it := range list {
 		index[it.ID] = i
-		out[i] = Interaction{ID: it.ID, Kind: it.Kind, Source: it.Source, Title: it.Title, StartedAt: formatAt(it.StartedAt, it.DateOnly), EndedAt: it.EndedAt, Channel: it.Channel, Participants: []Party{}, Records: []Ref{}}
+		out[i] = Interaction{ID: it.ID, Kind: it.Kind, Channel: it.Channel, URL: it.URL, Title: it.Title, StartedAt: formatAt(it.StartedAt, it.DateOnly), EndedAt: it.EndedAt, Participants: []Party{}, Records: []Ref{}}
 		if it.DraftingState != "" {
 			out[i].Drafting = &Drafting{State: it.DraftingState, Reason: it.DraftingReason, StartedAt: it.DraftingStartedAt}
 			if it.DraftingState == "drafting" && it.DraftingStartedAt != nil && time.Since(*it.DraftingStartedAt) > 15*time.Minute {
@@ -264,12 +259,6 @@ func (s *Service) views(ctx context.Context, workspaceID string, list []storage.
 		}
 		if it.MeetCode != "" {
 			out[i].MeetURL = "https://meet.google.com/" + it.MeetCode
-		}
-		if it.Kind == Email {
-			out[i].Kind, out[i].Channel = Message, "email"
-		}
-		if full {
-			out[i].Provenance = it.Provenance
 		}
 	}
 	for _, p := range participants {

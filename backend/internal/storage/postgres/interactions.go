@@ -135,8 +135,12 @@ func (s *Store) UpsertPart(ctx context.Context, p storage.NewPart) error {
 	return mapError(s.in.UpsertPart(ctx, intdb.UpsertPartParams(p)))
 }
 
-func (s *Store) ClearParts(ctx context.Context, interactionID string) error {
-	return mapError(s.in.ClearParts(ctx, interactionID))
+func (s *Store) ClearParts(ctx context.Context, interactionID, kind string) error {
+	return mapError(s.in.ClearParts(ctx, intdb.ClearPartsParams{InteractionID: interactionID, Kind: kind}))
+}
+
+func (s *Store) SpanMessages(ctx context.Context, interactionID string) error {
+	return mapError(s.in.SpanMessages(ctx, interactionID))
 }
 
 func (s *Store) inTx(ctx context.Context, fn func(q *intdb.Queries) error) error {
@@ -261,8 +265,8 @@ func (s *Store) DeleteDomainRule(ctx context.Context, workspaceID, domain string
 	return affected(s.in.DeleteDomainRule(ctx, intdb.DeleteDomainRuleParams{WorkspaceID: workspaceID, Domain: domain}))
 }
 
-func (s *Store) InteractionByExternalID(ctx context.Context, workspaceID, source, externalID string) (string, error) {
-	id, err := s.in.InteractionByExternalID(ctx, intdb.InteractionByExternalIDParams{WorkspaceID: workspaceID, Source: source, ExternalID: externalID})
+func (s *Store) InteractionByExternalID(ctx context.Context, workspaceID, channel, externalID string) (string, error) {
+	id, err := s.in.InteractionByExternalID(ctx, intdb.InteractionByExternalIDParams{WorkspaceID: workspaceID, Channel: channel, ExternalID: externalID})
 	return id, mapError(err)
 }
 

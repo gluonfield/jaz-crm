@@ -9,10 +9,12 @@ import (
 	"github.com/pressly/goose/v3"
 )
 
-var CoreProperties = goose.NewGoMigration(47, &goose.GoFunc{RunTx: coreProperties}, nil)
+var CoreProperties = goose.NewGoMigration(47, &goose.GoFunc{RunTx: coreProperties(corePropertyDefinitions)}, nil)
+
+type coreProperty struct{ object, slug, name, kind string }
 
 // This snapshot stays fixed so future catalog edits cannot alter old migrations.
-var corePropertyDefinitions = []struct{ object, slug, name, kind string }{
+var corePropertyDefinitions = []coreProperty{
 	{"companies", "website", "Website", "url"},
 	{"companies", "linkedin_url", "LinkedIn", "url"},
 	{"companies", "industry", "Industry", "select"},
@@ -28,7 +30,15 @@ var corePropertyDefinitions = []struct{ object, slug, name, kind string }{
 	{"deals", "expected_close_date", "Expected close date", "date"},
 }
 
-func coreProperties(ctx context.Context, tx *sql.Tx) error {
+// coreProperties gives every workspace the properties, adopting a compatible
+// one it already has.
+func coreProperties(definitions []coreProperty) func(context.Context, *sql.Tx) error {
+	return func(ctx context.Context, tx *sql.Tx) error {
+		return adopt(ctx, tx, definitions)
+	}
+}
+
+func adopt(ctx context.Context, tx *sql.Tx, definitions []coreProperty) error {
 	rows, err := tx.QueryContext(ctx, `SELECT id, slug FROM objects WHERE slug IN ('companies', 'people', 'deals') ORDER BY id`)
 	if err != nil {
 		return err
@@ -46,7 +56,7 @@ func coreProperties(ctx context.Context, tx *sql.Tx) error {
 		return err
 	}
 	for _, object := range objects {
-		for _, property := range corePropertyDefinitions {
+		for _, property := range definitions {
 			if property.object != object.slug {
 				continue
 			}

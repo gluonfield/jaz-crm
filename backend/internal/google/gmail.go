@@ -44,6 +44,11 @@ type Message struct {
 	DeliveredTo []string
 }
 
+// ThreadURL opens a mailbox's thread in Gmail.
+func ThreadURL(account, threadID string) string {
+	return "https://mail.google.com/mail/u/" + account + "/#all/" + threadID
+}
+
 type HistoryPage struct {
 	MessageIDs      []string
 	Next, HistoryID string

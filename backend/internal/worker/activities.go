@@ -264,6 +264,7 @@ func emailOf(c storage.Connection, m google.Message) interactions.EmailMessage {
 		ConnectionID: c.ID, UserID: c.UserID, ProviderID: m.ID, ThreadID: m.ThreadID, MessageID: m.MessageID,
 		InReplyTo: m.InReplyTo, References: m.References, From: interactions.Address(m.From),
 		To: addresses(m.To), Cc: addresses(m.Cc), Subject: m.Subject, Date: m.Date, Bulk: m.Bulk, Labels: m.Labels,
+		URL: google.ThreadURL(c.Account, m.ThreadID),
 	}
 }
 
@@ -329,7 +330,7 @@ func (a *Activities) meeting(ctx context.Context, s session, e google.Event) err
 	}
 	return a.Interactions.IngestMeeting(ctx, s.known, interactions.CalendarEvent{
 		ConnectionID: s.conn.ID, UserID: s.conn.UserID, ExternalID: e.ID, Title: e.Summary, Description: e.Description,
-		Start: e.Start, End: e.End, MeetCode: e.MeetCode, Attendees: attendees,
+		Start: e.Start, End: e.End, MeetCode: e.MeetCode, Attendees: attendees, URL: e.URL,
 	})
 }
 

@@ -397,7 +397,7 @@ func TestLogLinkAndSkip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	call, err := e.svc.Log(ctx, e.a, "manual", interactions.Entry{Kind: interactions.Call, People: []string{"+44 7598 490355"}, Records: []string{acme.ID}, Text: "Wants a quote by Friday."})
+	call, err := e.svc.Log(ctx, e.a, interactions.Entry{Kind: interactions.Call, People: []string{"+44 7598 490355"}, Records: []string{acme.ID}, Text: "Wants a quote by Friday."})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -415,7 +415,7 @@ func TestLogLinkAndSkip(t *testing.T) {
 		t.Fatalf("listed another workspace's conversations: %+v %v", latest, err)
 	}
 	half := interactions.Entry{Kind: interactions.Call, Title: "Half", Text: "An attempted call", People: []string{"bo@x.io", "nobody"}, Records: []string{acme.ID}}
-	if _, err := e.svc.Log(ctx, e.a, "manual", half); err == nil || e.contacts(t, interactions.Pending)["bo@x.io"].Address != "" {
+	if _, err := e.svc.Log(ctx, e.a, half); err == nil || e.contacts(t, interactions.Pending)["bo@x.io"].Address != "" {
 		t.Fatalf("a rejected log must leave nothing behind: %v", err)
 	}
 	if _, err := e.svc.Get(ctx, e.b, call.ID); err == nil {
@@ -427,7 +427,7 @@ func TestLogLinkAndSkip(t *testing.T) {
 	if err := e.svc.Skip(ctx, e.b, call.ID); err == nil {
 		t.Error("skipped another workspace's call")
 	}
-	if _, err := e.svc.Log(ctx, e.b, "manual", interactions.Entry{Kind: interactions.Note, Text: "x", Records: []string{acme.ID}}); err == nil {
+	if _, err := e.svc.Log(ctx, e.b, interactions.Entry{Kind: interactions.Note, Text: "x", Records: []string{acme.ID}}); err == nil {
 		t.Error("linked a log to another workspace's record")
 	}
 	if err := e.svc.Unlink(ctx, e.a, call.ID, acme.ID); err != nil || len(e.timeline(t, acme.ID)) != 0 {
@@ -447,12 +447,12 @@ func TestLogWholeConversation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	thread := interactions.Entry{Kind: interactions.Message, Channel: "LinkedIn", ExternalID: "linkedin:t1", Records: []string{ada.ID}, Messages: []interactions.Said{
+	thread := interactions.Entry{Kind: interactions.Message, Channel: "LinkedIn", URL: "https://www.linkedin.com/messaging/thread/t1/", Records: []string{ada.ID}, Messages: []interactions.Said{
 		{At: "2026-09-19T16:55:00Z", Sender: "Owner", Recipients: []string{"Ada"}, Direction: "sent", Text: "Hi Ada, thanks for connecting."},
 		{At: "2026-09-20T15:40:00Z", Sender: "Ada", Recipients: []string{"Owner"}, Direction: "received", Text: "Connected equipment is the hard part."},
 		{At: "2026-09-30", Sender: "Owner", Recipients: []string{"Ada"}, Direction: "sent", Text: "Thanks! Here is a demo."},
 	}}
-	logged, err := e.svc.Log(ctx, e.a, "manual", thread)
+	logged, err := e.svc.Log(ctx, e.a, thread)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -461,7 +461,7 @@ func TestLogWholeConversation(t *testing.T) {
 		got = append(got, m.Direction+" "+m.Sender+" "+m.At)
 	}
 	want := []string{"sent Owner 2026-09-19T16:55:00Z", "received Ada 2026-09-20T15:40:00Z", "sent Owner 2026-09-30"}
-	if logged.Channel != "linkedin" || !slices.Equal(got, want) || logged.LastMessage == nil || logged.LastMessage.Text != "Thanks! Here is a demo." {
+	if logged.Channel != "linkedin" || logged.URL != "https://www.linkedin.com/messaging/thread/t1" || !slices.Equal(got, want) || logged.LastMessage == nil || logged.LastMessage.Text != "Thanks! Here is a demo." {
 		t.Fatalf("logged conversation: %q, channel %q, last %+v", got, logged.Channel, logged.LastMessage)
 	}
 	activity, err := e.svc.Activities(ctx, e.a, []string{ada.ID})
@@ -469,20 +469,25 @@ func TestLogWholeConversation(t *testing.T) {
 		t.Fatalf("the conversation runs from its first to its latest message: %+v %+v %v", a, a.LastMessage, err)
 	}
 	thread.Messages = append(thread.Messages, interactions.Said{At: "2026-10-01", Sender: "Ada", Recipients: []string{"Owner"}, Direction: "received", Text: "Looks useful."})
-	again, err := e.svc.Log(ctx, e.a, "manual", thread)
+	again, err := e.svc.Log(ctx, e.a, thread)
 	if err != nil || again.ID != logged.ID || len(again.Messages) != 4 || len(e.timeline(t, ada.ID)) != 1 {
 		t.Fatalf("a repeated import updates the one conversation: %+v %v", again, err)
 	}
+	reply := interactions.Entry{Kind: interactions.Message, Channel: "linkedin", URL: thread.URL, At: "2026-10-02T09:00:00Z", Sender: "Owner", Recipients: []string{"Ada"}, Direction: "sent", Text: "Great, talk soon."}
+	added, err := e.svc.Log(ctx, e.a, reply)
+	if err != nil || added.ID != logged.ID || len(added.Messages) != 5 || added.Messages[0].Text != "Hi Ada, thanks for connecting." || added.StartedAt != "2026-09-19T16:55:00Z" || added.LastMessage.Text != reply.Text {
+		t.Fatalf("logging one message to the thread's url adds it to the conversation: %+v %v", added, err)
+	}
 	mixed := thread
 	mixed.Text = "one message too"
-	if _, err := e.svc.Log(ctx, e.a, "manual", mixed); err == nil {
+	if _, err := e.svc.Log(ctx, e.a, mixed); err == nil {
 		t.Error("accepted messages beside one message's fields")
 	}
 	broken := interactions.Entry{Kind: interactions.Message, Channel: "linkedin", Records: []string{ada.ID}, Messages: []interactions.Said{
 		{At: "2026-09-19", Sender: "Owner", Recipients: []string{"Ada"}, Text: "Hello"},
 		{At: "2026-09-20", Sender: "Ada", Text: "No recipients"},
 	}}
-	if _, err := e.svc.Log(ctx, e.a, "manual", broken); err == nil || len(e.timeline(t, ada.ID)) != 1 {
+	if _, err := e.svc.Log(ctx, e.a, broken); err == nil || len(e.timeline(t, ada.ID)) != 1 {
 		t.Fatalf("a rejected conversation must leave nothing behind: %v", err)
 	}
 }
@@ -556,8 +561,8 @@ func TestManualMessageAndTranscript(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	entry := interactions.Entry{Kind: interactions.Message, Channel: "linkedin", Sender: "Ada", Recipients: []string{"August"}, At: "2026-09-20", Text: "A captured preview\nOn Monday Ada wrote:\n> The original wording\nSent from my iPhone", Partial: true, Direction: "received", Records: []string{person.ID}, ExternalID: "capture-1", Provenance: "Original capture source"}
-	logged, err := e.svc.Log(ctx, e.a, "manual", entry)
+	entry := interactions.Entry{Kind: interactions.Message, Channel: "linkedin", Sender: "Ada", Recipients: []string{"August"}, At: "2026-09-20", Text: "A captured preview\nOn Monday Ada wrote:\n> The original wording\nSent from my iPhone", Partial: true, Direction: "received", Records: []string{person.ID}, ExternalID: "capture-1"}
+	logged, err := e.svc.Log(ctx, e.a, entry)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -565,25 +570,30 @@ func TestManualMessageAndTranscript(t *testing.T) {
 		t.Fatalf("message shape: %+v", logged)
 	}
 	message := logged.Messages[0]
-	if message.Sender != "Ada" || message.At != "2026-09-20" || message.Text != entry.Text || message.Direction != "received" || !message.Partial || !slices.Equal(message.Recipients, entry.Recipients) || logged.Provenance != entry.Provenance {
+	if message.Sender != "Ada" || message.At != "2026-09-20" || message.Text != entry.Text || message.Direction != "received" || !message.Partial || !slices.Equal(message.Recipients, entry.Recipients) {
 		t.Fatalf("message metadata: %+v", logged)
 	}
-	entry.Text = "Updated capture"
+	preview := entry
+	entry.Text += "\nand the rest of the message"
 	entry.Partial = false
-	updated, err := e.svc.Log(ctx, e.a, "manual", entry)
+	updated, err := e.svc.Log(ctx, e.a, entry)
 	if err != nil || updated.ID != logged.ID || len(updated.Messages) != 1 || updated.Messages[0].Text != entry.Text || updated.Messages[0].Partial {
-		t.Fatalf("reimport must replace one message: %+v %v", updated, err)
+		t.Fatalf("the full message must replace its preview: %+v %v", updated, err)
+	}
+	again, err := e.svc.Log(ctx, e.a, preview)
+	if err != nil || len(again.Messages) != 1 || again.Messages[0].Text != entry.Text || again.Messages[0].Partial {
+		t.Fatalf("a preview logged again must not cut the full message: %+v %v", again, err)
 	}
 	entry.At = " "
-	if _, err := e.svc.Log(ctx, e.a, "manual", entry); err == nil {
+	if _, err := e.svc.Log(ctx, e.a, entry); err == nil {
 		t.Fatal("a missing message date silently became the import time")
 	}
 	entry.At = "2026-02-30"
-	if _, err := e.svc.Log(ctx, e.a, "manual", entry); err == nil {
+	if _, err := e.svc.Log(ctx, e.a, entry); err == nil {
 		t.Fatal("an invalid original date was accepted")
 	}
 	call := interactions.Entry{Kind: interactions.Call, Text: "Discussed production", Records: []string{person.ID}, ExternalID: "call-1", At: "2026-09-21T12:00:00Z", Transcript: []interactions.Speech{{Speaker: "Ada", Text: "First turn", At: "2026-09-21T12:01:00Z"}, {Speaker: "August", Text: "Second turn"}, {Speaker: "Cara", Text: "Third turn", At: "2026-09-21T12:02:00Z"}}}
-	spoken, err := e.svc.Log(ctx, e.a, "webhook", call)
+	spoken, err := e.svc.Log(ctx, e.a, call)
 	if err != nil || spoken.Text != call.Text || len(spoken.Transcript) != 3 || spoken.Transcript[0].Speaker != "Ada" || spoken.Transcript[1].Speaker != "August" || spoken.Transcript[2].Speaker != "Cara" {
 		t.Fatalf("speaker turns: %+v %v", spoken, err)
 	}
@@ -592,12 +602,12 @@ func TestManualMessageAndTranscript(t *testing.T) {
 	}
 	call.Text = "Revised notes"
 	call.Transcript = call.Transcript[:1]
-	revised, err := e.svc.Log(ctx, e.a, "webhook", call)
+	revised, err := e.svc.Log(ctx, e.a, call)
 	if err != nil || revised.ID != spoken.ID || len(revised.Transcript) != 1 || revised.Text != call.Text {
 		t.Fatalf("reimport retained old notes or turns: %+v %v", revised, err)
 	}
 	note := interactions.Entry{Kind: interactions.Note, Text: "Research only", Records: []string{person.ID}}
-	if _, err := e.svc.Log(ctx, e.a, "manual", note); err != nil {
+	if _, err := e.svc.Log(ctx, e.a, note); err != nil {
 		t.Fatal(err)
 	}
 	activity, err := e.svc.Activities(ctx, e.a, []string{person.ID})
@@ -605,15 +615,15 @@ func TestManualMessageAndTranscript(t *testing.T) {
 		t.Fatalf("notes changed contact statistics: %+v %v", activity, err)
 	}
 	note.Transcript = []interactions.Speech{{Speaker: "Ada", Text: "Something said"}}
-	if _, err := e.svc.Log(ctx, e.a, "manual", note); err == nil {
+	if _, err := e.svc.Log(ctx, e.a, note); err == nil {
 		t.Fatal("a note accepted a transcript")
 	}
 	call.Transcript[0].Speaker = ""
-	if _, err := e.svc.Log(ctx, e.a, "webhook", call); err == nil {
+	if _, err := e.svc.Log(ctx, e.a, call); err == nil {
 		t.Fatal("a transcript accepted an unattributed turn")
 	}
 	recent := time.Now().UTC().Add(-time.Hour).Truncate(time.Microsecond)
-	untimed, err := e.svc.Log(ctx, e.a, "webhook", interactions.Entry{Kind: interactions.Call, At: recent.Format(time.RFC3339Nano), Records: []string{person.ID}, Transcript: []interactions.Speech{{Speaker: "Ada", Text: "An untimed transcript"}}})
+	untimed, err := e.svc.Log(ctx, e.a, interactions.Entry{Kind: interactions.Call, At: recent.Format(time.RFC3339Nano), Records: []string{person.ID}, Transcript: []interactions.Speech{{Speaker: "Ada", Text: "An untimed transcript"}}})
 	if err != nil || len(untimed.Transcript) != 1 || untimed.Transcript[0].At != "" {
 		t.Fatalf("untimed transcript: %+v %v", untimed, err)
 	}
@@ -621,5 +631,66 @@ func TestManualMessageAndTranscript(t *testing.T) {
 	i := slices.IndexFunc(candidates, func(c storage.FollowUpCandidate) bool { return c.ID == untimed.ID })
 	if err != nil || i < 0 || !candidates[i].LatestAt.Equal(recent) {
 		t.Fatalf("untimed transcript disappeared from follow-up discovery: %+v %v", candidates, err)
+	}
+}
+
+// Chats name people by profile: a handle joins the person whose profile
+// field links to it, and a stranger waits in triage. A synced meeting takes
+// a transcript and notes from a recorder, but its messages and details stay
+// with sync.
+func TestLogProfilesAndSyncedConversations(t *testing.T) {
+	e := setup(t, nil)
+	caleb, _, err := e.crm.Upsert(ctx, e.a, records.SourceUser, records.Write{Object: "people", Set: map[string][]string{"name": {"Caleb"}, "x_url": {"https://x.com/OSHBuilt"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dm := interactions.Entry{Kind: interactions.Message, Channel: "x", URL: "https://x.com/messages/1-2", People: []string{"@OSHBuilt"}, Records: []string{caleb.ID}, At: "2026-10-08", Sender: "Caleb", Recipients: []string{"Owner"}, Direction: "received", Text: "Happy to chat."}
+	logged, err := e.svc.Log(ctx, e.a, dm)
+	if err != nil || len(logged.Participants) != 1 || logged.Participants[0].Address != "x.com/oshbuilt" || logged.Participants[0].PersonID != caleb.ID {
+		t.Fatalf("an X handle joins the person with that profile: %+v %v", logged.Participants, err)
+	}
+	stranger := interactions.Entry{Kind: interactions.Message, Channel: "x", People: []string{"https://twitter.com/Stranger"}, At: "2026-10-08", Sender: "Stranger", Recipients: []string{"Owner"}, Text: "Hello"}
+	if _, err := e.svc.Log(ctx, e.a, stranger); err != nil || e.contacts(t, interactions.Pending)["x.com/stranger"].Address == "" {
+		t.Fatalf("a handle nobody's profile links to waits in triage: %v %v", err, e.contacts(t, interactions.Pending))
+	}
+	stranger.URL = "linkedin thread"
+	if _, err := e.svc.Log(ctx, e.a, stranger); err == nil {
+		t.Fatal("logged a conversation whose url is not a link")
+	}
+	stranger.URL, stranger.Channel = "", "fax"
+	if _, err := e.svc.Log(ctx, e.a, stranger); err == nil {
+		t.Fatal("logged a message on an unknown channel")
+	}
+	known, err := e.svc.Known(ctx, e.a.WorkspaceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = e.svc.IngestMeeting(ctx, known, interactions.CalendarEvent{
+		ConnectionID: e.conn.ID, UserID: e.conn.UserID, ExternalID: "ev1", Title: "Line review", Start: start, End: start.Add(time.Hour), URL: "https://calendar.example/ev1",
+		Attendees: []interactions.Attendee{{Email: "owner@cas.dev", Organizer: true}, {Email: "ada@customer.io", Name: "Ada"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	meeting, err := e.store.InteractionByExternalID(ctx, e.a.WorkspaceID, "", "ev1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	recorded, err := e.svc.Log(ctx, e.a, interactions.Entry{Kind: interactions.Meeting, InteractionID: meeting, URL: "https://notes.example/1", Text: "Ada wants 200 a week.", Transcript: []interactions.Speech{{Speaker: "Ada", Text: "Can you do 200 a week?"}}})
+	if err != nil || recorded.ID != meeting || recorded.Title != "Line review" || recorded.URL != "https://calendar.example/ev1" || len(recorded.Participants) != 2 || len(recorded.Transcript) != 1 || recorded.Text != "Ada wants 200 a week." {
+		t.Fatalf("a recorder adds to the synced meeting and leaves its details: %+v %v", recorded, err)
+	}
+	thread := message(e.conn, "m1", "t1", "ada@customer.io", "owner@cas.dev")
+	thread.URL = "https://mail.example/t1"
+	e.ingest(t, thread)
+	email, err := e.store.InteractionByExternalID(ctx, e.a.WorkspaceID, "email", "t1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := e.svc.Get(ctx, e.a, email); err != nil || got.Kind != interactions.Message || got.Channel != "email" || got.URL != thread.URL {
+		t.Fatalf("an email thread is a message on the email channel with its link: %+v %v", got, err)
+	}
+	if _, err := e.svc.Log(ctx, e.a, interactions.Entry{Kind: interactions.Message, Channel: "email", InteractionID: email, At: "2026-10-08", Sender: "Owner", Recipients: []string{"Ada"}, Text: "Logged by hand"}); err == nil {
+		t.Fatal("logged a message into a synced email thread")
 	}
 }

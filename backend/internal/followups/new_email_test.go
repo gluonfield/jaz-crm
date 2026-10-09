@@ -54,7 +54,7 @@ func TestNewEmailAfterCall(t *testing.T) {
 				t.Fatal(err)
 			}
 			convs := interactions.NewService(interactions.Params{Store: store, Connections: store, Workspaces: store, Records: crm})
-			if _, err := convs.Log(ctx, actor, "manual", interactions.Entry{Kind: "call", Text: "Jane asked us to email her the demo link, https://example.com/demo.", Records: []string{person.ID}}); err != nil {
+			if _, err := convs.Log(ctx, actor, interactions.Entry{Kind: "call", Text: "Jane asked us to email her the demo link, https://example.com/demo.", Records: []string{person.ID}}); err != nil {
 				t.Fatal(err)
 			}
 			body, subject := "Hi Jane, here is the demo: https://example.com/demo.", "Your quotation demo"

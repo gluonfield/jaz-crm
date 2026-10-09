@@ -55,7 +55,6 @@ type Interaction struct {
 	ID                  string
 	WorkspaceID         string
 	Kind                string
-	Source              string
 	ExternalID          string
 	ConnectionID        *string
 	UserID              *string
@@ -67,10 +66,10 @@ type Interaction struct {
 	Skipped             bool
 	CreatedAt           time.Time
 	Channel             string
-	Provenance          string
 	DateOnly            bool
 	FollowedUpAt        *time.Time
 	DraftingState       string
 	DraftingReason      string
 	DraftingStartedAt   *time.Time
+	URL                 string
 }

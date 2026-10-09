@@ -73,11 +73,16 @@ func (q *Queries) ClearParticipants(ctx context.Context, interactionID string) e
 }
 
 const clearParts = `-- name: ClearParts :exec
-DELETE FROM parts WHERE interaction_id = $1
+DELETE FROM parts WHERE interaction_id = $1 AND kind = $2
 `
 
-func (q *Queries) ClearParts(ctx context.Context, interactionID string) error {
-	_, err := q.db.Exec(ctx, clearParts, interactionID)
+type ClearPartsParams struct {
+	InteractionID string
+	Kind          string
+}
+
+func (q *Queries) ClearParts(ctx context.Context, arg ClearPartsParams) error {
+	_, err := q.db.Exec(ctx, clearParts, arg.InteractionID, arg.Kind)
 	return err
 }
 
@@ -177,7 +182,7 @@ func (q *Queries) DomainRules(ctx context.Context, workspaceID string) ([]Domain
 }
 
 const dueMeetings = `-- name: DueMeetings :many
-SELECT id, workspace_id, kind, source, external_id, connection_id, user_id, title, started_at, ended_at, meet_code, transcript_checked_at, skipped, created_at, channel, provenance, date_only, followed_up_at, drafting_state, drafting_reason, drafting_started_at FROM interactions
+SELECT id, workspace_id, kind, external_id, connection_id, user_id, title, started_at, ended_at, meet_code, transcript_checked_at, skipped, created_at, channel, date_only, followed_up_at, drafting_state, drafting_reason, drafting_started_at, url FROM interactions
 WHERE connection_id = $1 AND kind = 'meeting' AND meet_code <> '' AND NOT skipped AND transcript_checked_at IS NULL
   AND ended_at BETWEEN now() - interval '30 days' AND now() - interval '10 minutes'
   AND EXISTS (SELECT 1 FROM active_links links WHERE links.interaction_id = interactions.id)
@@ -200,7 +205,6 @@ func (q *Queries) DueMeetings(ctx context.Context, connectionID *string) ([]Inte
 			&i.ID,
 			&i.WorkspaceID,
 			&i.Kind,
-			&i.Source,
 			&i.ExternalID,
 			&i.ConnectionID,
 			&i.UserID,
@@ -212,12 +216,12 @@ func (q *Queries) DueMeetings(ctx context.Context, connectionID *string) ([]Inte
 			&i.Skipped,
 			&i.CreatedAt,
 			&i.Channel,
-			&i.Provenance,
 			&i.DateOnly,
 			&i.FollowedUpAt,
 			&i.DraftingState,
 			&i.DraftingReason,
 			&i.DraftingStartedAt,
+			&i.URL,
 		); err != nil {
 			return nil, err
 		}
@@ -232,7 +236,7 @@ func (q *Queries) DueMeetings(ctx context.Context, connectionID *string) ([]Inte
 const emailInteractionByMessageIDs = `-- name: EmailInteractionByMessageIDs :one
 SELECT interactions.id FROM parts
 JOIN interactions ON interactions.id = parts.interaction_id
-WHERE interactions.workspace_id = $1 AND interactions.kind = 'email' AND parts.external_id = ANY($2::text[])
+WHERE interactions.workspace_id = $1 AND interactions.channel = 'email' AND parts.external_id = ANY($2::text[])
 LIMIT 1
 `
 
@@ -258,7 +262,7 @@ WHERE handles.workspace_id = $1
   AND EXISTS (
     SELECT 1 FROM participants own
     JOIN handles internal ON internal.id = own.handle_id AND internal.triage = 'internal'
-    WHERE own.interaction_id = interactions.id AND (($3::boolean AND interactions.kind = 'email' AND own.role = 'from'
+    WHERE own.interaction_id = interactions.id AND (($3::boolean AND interactions.channel = 'email' AND own.role = 'from'
       AND EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
       OR ($4::boolean AND interactions.kind = 'meeting' AND interactions.ended_at <= now() AND own.role IN ('organizer', 'attendee')))
   )
@@ -439,7 +443,7 @@ func (q *Queries) GetHandles(ctx context.Context, arg GetHandlesParams) ([]Handl
 }
 
 const getInteractions = `-- name: GetInteractions :many
-SELECT id, workspace_id, kind, source, external_id, connection_id, user_id, title, started_at, ended_at, meet_code, transcript_checked_at, skipped, created_at, channel, provenance, date_only, followed_up_at, drafting_state, drafting_reason, drafting_started_at FROM interactions WHERE workspace_id = $1 AND id = ANY($2::text[])
+SELECT id, workspace_id, kind, external_id, connection_id, user_id, title, started_at, ended_at, meet_code, transcript_checked_at, skipped, created_at, channel, date_only, followed_up_at, drafting_state, drafting_reason, drafting_started_at, url FROM interactions WHERE workspace_id = $1 AND id = ANY($2::text[])
 `
 
 type GetInteractionsParams struct {
@@ -460,7 +464,6 @@ func (q *Queries) GetInteractions(ctx context.Context, arg GetInteractionsParams
 			&i.ID,
 			&i.WorkspaceID,
 			&i.Kind,
-			&i.Source,
 			&i.ExternalID,
 			&i.ConnectionID,
 			&i.UserID,
@@ -472,12 +475,12 @@ func (q *Queries) GetInteractions(ctx context.Context, arg GetInteractionsParams
 			&i.Skipped,
 			&i.CreatedAt,
 			&i.Channel,
-			&i.Provenance,
 			&i.DateOnly,
 			&i.FollowedUpAt,
 			&i.DraftingState,
 			&i.DraftingReason,
 			&i.DraftingStartedAt,
+			&i.URL,
 		); err != nil {
 			return nil, err
 		}
@@ -572,13 +575,23 @@ func (q *Queries) HandlesByValue(ctx context.Context, arg HandlesByValueParams) 
 }
 
 const handlesOnRecords = `-- name: HandlesOnRecords :many
-SELECT DISTINCT ON (handles.id) handles.id, record_values.record_id FROM handles
-JOIN record_values ON record_values.unique_key = handles.value AND record_values.active_until IS NULL
-JOIN attributes ON attributes.id = record_values.attribute_id AND attributes.type IN ('email', 'phone')
-JOIN records ON records.id = record_values.record_id AND records.workspace_id = handles.workspace_id
-WHERE handles.workspace_id = $1
-  AND (handles.triage IN ('pending', 'kept') AND handles.person_id IS NULL
-    OR handles.triage = 'skipped' AND handles.decided_by IN ('rule', 'agent'))
+WITH undecided AS (
+  SELECT id, workspace_id, kind, value, name, person_id, triage, decided_by, reason, created_at, photo_url FROM handles WHERE workspace_id = $1
+    AND (triage IN ('pending', 'kept') AND person_id IS NULL OR triage = 'skipped' AND decided_by IN ('rule', 'agent'))
+)
+SELECT DISTINCT ON (pairs.id) pairs.id, pairs.record_id FROM (
+  SELECT undecided.id, record_values.record_id FROM undecided
+  JOIN record_values ON record_values.unique_key = undecided.value AND record_values.active_until IS NULL
+  JOIN attributes ON attributes.id = record_values.attribute_id AND attributes.type IN ('email', 'phone')
+  JOIN records ON records.id = record_values.record_id AND records.workspace_id = $1
+  UNION ALL
+  SELECT undecided.id, record_values.record_id FROM undecided
+  JOIN objects ON objects.workspace_id = $1 AND objects.slug = 'people'
+  JOIN attributes ON attributes.object_id = objects.id AND attributes.slug = undecided.kind || '_url'
+  JOIN record_values ON record_values.attribute_id = attributes.id AND record_values.active_until IS NULL
+  JOIN records ON records.id = record_values.record_id
+  WHERE lower(substring(record_values.text FROM '([^/?#]+)/*(?:[?#].*)?$')) = regexp_replace(undecided.value, '^.*/', '')
+) AS pairs
 `
 
 type HandlesOnRecordsRow struct {
@@ -587,7 +600,8 @@ type HandlesOnRecordsRow struct {
 }
 
 // HandlesOnRecords pairs undecided handles, and kept ones that lost their
-// person, with the record that holds their address.
+// person, with the record that holds their address, or with the person whose
+// profile field (linkedin_url, x_url) links to their LinkedIn or X handle.
 func (q *Queries) HandlesOnRecords(ctx context.Context, workspaceID string) ([]HandlesOnRecordsRow, error) {
 	rows, err := q.db.Query(ctx, handlesOnRecords, workspaceID)
 	if err != nil {
@@ -636,17 +650,17 @@ func (q *Queries) InsertSyncLinks(ctx context.Context, ids []string) error {
 }
 
 const interactionByExternalID = `-- name: InteractionByExternalID :one
-SELECT id FROM interactions WHERE workspace_id = $1 AND source = $2 AND external_id = $3
+SELECT id FROM interactions WHERE workspace_id = $1 AND channel = $2 AND external_id = $3
 `
 
 type InteractionByExternalIDParams struct {
 	WorkspaceID string
-	Source      string
+	Channel     string
 	ExternalID  string
 }
 
 func (q *Queries) InteractionByExternalID(ctx context.Context, arg InteractionByExternalIDParams) (string, error) {
-	row := q.db.QueryRow(ctx, interactionByExternalID, arg.WorkspaceID, arg.Source, arg.ExternalID)
+	row := q.db.QueryRow(ctx, interactionByExternalID, arg.WorkspaceID, arg.Channel, arg.ExternalID)
 	var id string
 	err := row.Scan(&id)
 	return id, err
@@ -888,7 +902,7 @@ SELECT handles.id, handles.workspace_id, handles.kind, handles.value, handles.na
 FROM handles
 LEFT JOIN participants ON participants.handle_id = handles.id
 LEFT JOIN interactions ON interactions.id = participants.interaction_id
-  AND (interactions.kind <> 'email' OR EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
+  AND (interactions.kind <> 'message' OR EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
 WHERE handles.workspace_id = $1 AND handles.triage = $2
   AND ($3::text IS NULL OR handles.value ILIKE '%' || $3::text || '%' OR handles.name ILIKE '%' || $3::text || '%')
 GROUP BY handles.id
@@ -1022,7 +1036,7 @@ SELECT links.record_id, count(*)::int AS interactions, min(interactions.started_
 FROM active_links links
 JOIN interactions ON interactions.id = links.interaction_id AND NOT interactions.skipped
 WHERE interactions.workspace_id = $1 AND links.record_id = ANY($2::text[]) AND interactions.started_at <= now() AND interactions.kind <> 'note'
-  AND (interactions.kind <> 'email' OR EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
+  AND (interactions.kind <> 'message' OR EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
 GROUP BY links.record_id
 `
 
@@ -1071,7 +1085,7 @@ func (q *Queries) RecordActivity(ctx context.Context, arg RecordActivityParams) 
 
 const recordLastMessages = `-- name: RecordLastMessages :many
 SELECT DISTINCT ON (links.record_id) links.record_id,
-  (CASE WHEN interactions.kind = 'email' THEN 'email' ELSE interactions.channel END)::text AS channel,
+  interactions.channel,
   parts.at::timestamptz AS at, parts.date_only, parts.author_name, coalesce(parts.content, '')::text AS content, parts.direction,
   coalesce(handles.value, '')::text AS sender_address, coalesce(handles.name, '')::text AS sender_name, handles.person_id
 FROM active_links links
@@ -1134,9 +1148,9 @@ func (q *Queries) RecordLastMessages(ctx context.Context, arg RecordLastMessages
 }
 
 const searchInteractions = `-- name: SearchInteractions :many
-SELECT interactions.id, interactions.workspace_id, interactions.kind, interactions.source, interactions.external_id, interactions.connection_id, interactions.user_id, interactions.title, interactions.started_at, interactions.ended_at, interactions.meet_code, interactions.transcript_checked_at, interactions.skipped, interactions.created_at, interactions.channel, interactions.provenance, interactions.date_only, interactions.followed_up_at, interactions.drafting_state, interactions.drafting_reason, interactions.drafting_started_at FROM interactions
+SELECT interactions.id, interactions.workspace_id, interactions.kind, interactions.external_id, interactions.connection_id, interactions.user_id, interactions.title, interactions.started_at, interactions.ended_at, interactions.meet_code, interactions.transcript_checked_at, interactions.skipped, interactions.created_at, interactions.channel, interactions.date_only, interactions.followed_up_at, interactions.drafting_state, interactions.drafting_reason, interactions.drafting_started_at, interactions.url FROM interactions
 WHERE interactions.workspace_id = $1 AND NOT interactions.skipped
-  AND (interactions.kind <> 'email' OR EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
+  AND (interactions.kind <> 'message' OR EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
   AND EXISTS (SELECT 1 FROM active_links links WHERE links.interaction_id = interactions.id)
   AND ($2::text = '' OR interactions.title ILIKE '%' || $2::text || '%' OR EXISTS (
     SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.search @@ websearch_to_tsquery('simple', $2::text)
@@ -1164,7 +1178,6 @@ func (q *Queries) SearchInteractions(ctx context.Context, arg SearchInteractions
 			&i.ID,
 			&i.WorkspaceID,
 			&i.Kind,
-			&i.Source,
 			&i.ExternalID,
 			&i.ConnectionID,
 			&i.UserID,
@@ -1176,12 +1189,12 @@ func (q *Queries) SearchInteractions(ctx context.Context, arg SearchInteractions
 			&i.Skipped,
 			&i.CreatedAt,
 			&i.Channel,
-			&i.Provenance,
 			&i.DateOnly,
 			&i.FollowedUpAt,
 			&i.DraftingState,
 			&i.DraftingReason,
 			&i.DraftingStartedAt,
+			&i.URL,
 		); err != nil {
 			return nil, err
 		}
@@ -1349,13 +1362,30 @@ func (q *Queries) SkipRecordHandles(ctx context.Context, arg SkipRecordHandlesPa
 	return items, nil
 }
 
+const spanMessages = `-- name: SpanMessages :exec
+UPDATE interactions SET started_at = span.first_at, date_only = span.first_date_only,
+  ended_at = CASE WHEN span.messages > 1 THEN span.last_at END
+FROM (
+  SELECT min(at) AS first_at, max(at) AS last_at, count(*) AS messages,
+    (array_agg(date_only ORDER BY at, position))[1]::boolean AS first_date_only
+  FROM parts WHERE interaction_id = $1 AND kind = 'message'
+) AS span
+WHERE interactions.id = $1 AND span.messages > 0
+`
+
+// SpanMessages stretches a conversation from its first message to its last.
+func (q *Queries) SpanMessages(ctx context.Context, id string) error {
+	_, err := q.db.Exec(ctx, spanMessages, id)
+	return err
+}
+
 const timeline = `-- name: Timeline :many
-SELECT interactions.id, interactions.workspace_id, interactions.kind, interactions.source, interactions.external_id, interactions.connection_id, interactions.user_id, interactions.title, interactions.started_at, interactions.ended_at, interactions.meet_code, interactions.transcript_checked_at, interactions.skipped, interactions.created_at, interactions.channel, interactions.provenance, interactions.date_only, interactions.followed_up_at, interactions.drafting_state, interactions.drafting_reason, interactions.drafting_started_at FROM interactions
+SELECT interactions.id, interactions.workspace_id, interactions.kind, interactions.external_id, interactions.connection_id, interactions.user_id, interactions.title, interactions.started_at, interactions.ended_at, interactions.meet_code, interactions.transcript_checked_at, interactions.skipped, interactions.created_at, interactions.channel, interactions.date_only, interactions.followed_up_at, interactions.drafting_state, interactions.drafting_reason, interactions.drafting_started_at, interactions.url FROM interactions
 JOIN active_links links ON links.interaction_id = interactions.id AND links.record_id = $1
 LEFT JOIN interactions cursor ON cursor.id = nullif($2::text, '') AND cursor.workspace_id = $3 AND NOT cursor.skipped
 WHERE interactions.workspace_id = $3 AND NOT interactions.skipped
-  AND (interactions.kind <> 'email' OR EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
-  AND (cardinality($4::text[]) = 0 OR interactions.kind = ANY($4::text[]))
+  AND (interactions.kind <> 'message' OR EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
+  AND (coalesce(cardinality($4::text[]), 0) = 0 OR interactions.kind = ANY($4::text[]))
   AND ($2::text = '' OR CASE WHEN $5::bool
     THEN (interactions.started_at, interactions.id) > (cursor.started_at, cursor.id)
     ELSE (interactions.started_at, interactions.id) < (cursor.started_at, cursor.id) END)
@@ -1396,7 +1426,6 @@ func (q *Queries) Timeline(ctx context.Context, arg TimelineParams) ([]Interacti
 			&i.ID,
 			&i.WorkspaceID,
 			&i.Kind,
-			&i.Source,
 			&i.ExternalID,
 			&i.ConnectionID,
 			&i.UserID,
@@ -1408,12 +1437,12 @@ func (q *Queries) Timeline(ctx context.Context, arg TimelineParams) ([]Interacti
 			&i.Skipped,
 			&i.CreatedAt,
 			&i.Channel,
-			&i.Provenance,
 			&i.DateOnly,
 			&i.FollowedUpAt,
 			&i.DraftingState,
 			&i.DraftingReason,
 			&i.DraftingStartedAt,
+			&i.URL,
 		); err != nil {
 			return nil, err
 		}
@@ -1429,7 +1458,7 @@ const unassessedHandles = `-- name: UnassessedHandles :many
 SELECT handles.id, handles.value, handles.name,
   array(SELECT interactions.title FROM participants JOIN interactions ON interactions.id = participants.interaction_id
     WHERE participants.handle_id = handles.id
-      AND (interactions.kind <> 'email' OR EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
+      AND (interactions.kind <> 'message' OR EXISTS (SELECT 1 FROM parts WHERE parts.interaction_id = interactions.id AND parts.kind = 'message'))
     ORDER BY interactions.started_at DESC LIMIT 3)::text[] AS titles
 FROM handles
 WHERE handles.workspace_id = $1 AND handles.triage = 'pending' AND handles.decided_by IS NULL
@@ -1516,9 +1545,9 @@ func (q *Queries) UnfetchedParts(ctx context.Context, arg UnfetchedPartsParams) 
 }
 
 const upsertEmailThread = `-- name: UpsertEmailThread :one
-INSERT INTO interactions (workspace_id, kind, source, external_id, connection_id, user_id, title, started_at, ended_at, id)
-VALUES ($1, 'email', 'gmail', $2, $3, $4, $5, $6, $6, $7)
-ON CONFLICT (workspace_id, source, external_id) DO UPDATE
+INSERT INTO interactions (workspace_id, kind, channel, external_id, connection_id, user_id, title, started_at, ended_at, url, id)
+VALUES ($1, 'message', 'email', $2, $3, $4, $5, $6, $6, $7, $8)
+ON CONFLICT (workspace_id, channel, external_id) DO UPDATE
 SET started_at = LEAST(interactions.started_at, EXCLUDED.started_at),
     ended_at = GREATEST(interactions.ended_at, EXCLUDED.ended_at),
     title = CASE WHEN interactions.title = '' THEN EXCLUDED.title ELSE interactions.title END
@@ -1532,6 +1561,7 @@ type UpsertEmailThreadParams struct {
 	UserID       *string
 	Title        string
 	At           time.Time
+	URL          string
 	ID           string
 }
 
@@ -1543,6 +1573,7 @@ func (q *Queries) UpsertEmailThread(ctx context.Context, arg UpsertEmailThreadPa
 		arg.UserID,
 		arg.Title,
 		arg.At,
+		arg.URL,
 		arg.ID,
 	)
 	var id string
@@ -1604,19 +1635,20 @@ func (q *Queries) UpsertHandle(ctx context.Context, arg UpsertHandleParams) (Han
 }
 
 const upsertInteraction = `-- name: UpsertInteraction :one
-INSERT INTO interactions (workspace_id, kind, source, external_id, connection_id, user_id, title, started_at, ended_at, meet_code, skipped, channel, provenance, date_only, id)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-ON CONFLICT (workspace_id, source, external_id) DO UPDATE
-SET kind = EXCLUDED.kind, title = EXCLUDED.title, started_at = EXCLUDED.started_at, ended_at = EXCLUDED.ended_at,
+INSERT INTO interactions (workspace_id, kind, channel, external_id, connection_id, user_id, title, started_at, ended_at, meet_code, skipped, url, date_only, id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+ON CONFLICT (workspace_id, channel, external_id) DO UPDATE
+SET kind = EXCLUDED.kind, title = coalesce(nullif(EXCLUDED.title, ''), interactions.title), started_at = EXCLUDED.started_at, ended_at = EXCLUDED.ended_at,
     meet_code = EXCLUDED.meet_code, skipped = interactions.skipped OR EXCLUDED.skipped,
-    channel = EXCLUDED.channel, provenance = EXCLUDED.provenance, date_only = EXCLUDED.date_only
-RETURNING id, workspace_id, kind, source, external_id, connection_id, user_id, title, started_at, ended_at, meet_code, transcript_checked_at, skipped, created_at, channel, provenance, date_only, followed_up_at, drafting_state, drafting_reason, drafting_started_at
+    url = coalesce(nullif(EXCLUDED.url, ''), interactions.url), date_only = EXCLUDED.date_only
+WHERE (interactions.connection_id IS NULL) = (EXCLUDED.connection_id IS NULL)
+RETURNING id, workspace_id, kind, external_id, connection_id, user_id, title, started_at, ended_at, meet_code, transcript_checked_at, skipped, created_at, channel, date_only, followed_up_at, drafting_state, drafting_reason, drafting_started_at, url
 `
 
 type UpsertInteractionParams struct {
 	WorkspaceID  string
 	Kind         string
-	Source       string
+	Channel      string
 	ExternalID   string
 	ConnectionID *string
 	UserID       *string
@@ -1625,17 +1657,18 @@ type UpsertInteractionParams struct {
 	EndedAt      *time.Time
 	MeetCode     string
 	Skipped      bool
-	Channel      string
-	Provenance   string
+	URL          string
 	DateOnly     bool
 	ID           string
 }
 
+// UpsertInteraction leaves a synced conversation to its sync and a logged one
+// to its logger: neither updates the other's.
 func (q *Queries) UpsertInteraction(ctx context.Context, arg UpsertInteractionParams) (Interaction, error) {
 	row := q.db.QueryRow(ctx, upsertInteraction,
 		arg.WorkspaceID,
 		arg.Kind,
-		arg.Source,
+		arg.Channel,
 		arg.ExternalID,
 		arg.ConnectionID,
 		arg.UserID,
@@ -1644,8 +1677,7 @@ func (q *Queries) UpsertInteraction(ctx context.Context, arg UpsertInteractionPa
 		arg.EndedAt,
 		arg.MeetCode,
 		arg.Skipped,
-		arg.Channel,
-		arg.Provenance,
+		arg.URL,
 		arg.DateOnly,
 		arg.ID,
 	)
@@ -1654,7 +1686,6 @@ func (q *Queries) UpsertInteraction(ctx context.Context, arg UpsertInteractionPa
 		&i.ID,
 		&i.WorkspaceID,
 		&i.Kind,
-		&i.Source,
 		&i.ExternalID,
 		&i.ConnectionID,
 		&i.UserID,
@@ -1666,12 +1697,12 @@ func (q *Queries) UpsertInteraction(ctx context.Context, arg UpsertInteractionPa
 		&i.Skipped,
 		&i.CreatedAt,
 		&i.Channel,
-		&i.Provenance,
 		&i.DateOnly,
 		&i.FollowedUpAt,
 		&i.DraftingState,
 		&i.DraftingReason,
 		&i.DraftingStartedAt,
+		&i.URL,
 	)
 	return i, err
 }
@@ -1688,6 +1719,7 @@ SET kind = EXCLUDED.kind,
     author_handle_id = CASE WHEN parts.kind = 'draft' THEN EXCLUDED.author_handle_id ELSE parts.author_handle_id END,
     author_name = EXCLUDED.author_name, at = EXCLUDED.at,
     recipients = EXCLUDED.recipients, direction = EXCLUDED.direction, date_only = EXCLUDED.date_only, partial = EXCLUDED.partial, position = EXCLUDED.position
+WHERE NOT (EXCLUDED.partial AND NOT parts.partial)
 `
 
 type UpsertPartParams struct {
@@ -1707,7 +1739,8 @@ type UpsertPartParams struct {
 	Position       int32
 }
 
-// A sent copy of a retained draft must fetch its content from the sent provider message.
+// A sent copy of a retained draft must fetch its content from the sent provider
+// message. A preview never replaces the full message.
 func (q *Queries) UpsertPart(ctx context.Context, arg UpsertPartParams) error {
 	_, err := q.db.Exec(ctx, upsertPart,
 		arg.InteractionID,

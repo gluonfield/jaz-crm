@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { Button } from '@jaz/ui/button'
-import { recordName, textOf, valueText, valuesOf } from '@/lib/crm'
+import { channelNames, recordName, textOf, valueText, valuesOf } from '@/lib/crm'
 import { dueLabel, formatActionDate } from '@/lib/dates'
 import { standingOf, statusOf } from '@/lib/follow-ups'
 import { formatDate, meetingTime } from '@/lib/format'
@@ -21,7 +21,6 @@ import { ContextEditor } from './person-context'
 import { Draft, type DraftHandle } from './draft'
 
 const subjects = { person: 'people', company: 'companies', deal: 'deals' }
-const channels: Record<string, string> = { email: 'Email', linkedin: 'LinkedIn' }
 
 // refsOf lists whom a follow-up concerns, its person first.
 export const refsOf = (record: CrmRecord) => Object.entries(subjects).flatMap(([object, plural]) => (valuesOf(record, object) as Ref[]).map((ref) => ({ plural, ref })))
@@ -121,7 +120,7 @@ export function Conversation({ record: initialRecord, onClose }: { record: CrmRe
       void client.invalidateQueries({ queryKey: ['search_records'] })
     }
   }, [draftingState, draftingStartedAt, client])
-  const channel = textOf(record, 'channel') || channels[source?.channel ?? ''] || (written ? '' : 'Email')
+  const channel = textOf(record, 'channel') || channelNames[source?.channel ?? ''] || (written ? '' : 'Email')
   const sender = useTool<DraftSender>('get_draft_sender', { record_id: record.id }, { enabled: channel === 'Email' })
   const error = sourceError ?? actions.error
   // Whether details show on a narrow screen is one choice for every follow-up.
@@ -221,15 +220,17 @@ function Profile({ subject, details, company }: { subject: { plural: string; ref
   const role = details && textOf(details, 'job_title')
   const email = details && valuesOf(details, 'email_addresses').map(valueText)[0]
   const linkedin = details && textOf(details, 'linkedin_url')
+  const x = details && textOf(details, 'x_url')
   return (
     <section aria-label="Profile" className="hidden flex-col items-start @min-[78rem]:flex">
       <RecordIcon object={subject.plural} name={subject.ref.name ?? ''} photo={subject.ref.photo} size={40} />
       <Link to="/r/$recordId" params={{ recordId: subject.ref.id }} className="mt-3 max-w-full truncate text-[14px] font-semibold text-ink outline-none hover:underline focus-visible:underline">{subject.ref.name || 'Unnamed'}</Link>
       {role && <p className="mt-0.5 max-w-full text-[12px] text-ink-3">{role}</p>}
       {company && <div className="mt-2 max-w-full"><RecordChip object="companies" value={company} /></div>}
-      {(email || linkedin) && <div className="mt-3 flex max-w-full flex-wrap gap-1.5 text-[12px]">
+      {(email || linkedin || x) && <div className="mt-3 flex max-w-full flex-wrap gap-1.5 text-[12px]">
         {email && <a href={`mailto:${email}`} title={email} className="flex h-6 max-w-full items-center gap-1.5 rounded-[var(--radius-control)] bg-list-hover px-2 text-ink-2 outline-none hover:bg-list-active hover:text-ink focus-visible:ring-2 focus-visible:ring-ring"><Mail className="size-3.5 shrink-0" /><span className="truncate">{email}</span></a>}
         {linkedin && <ExternalLink href={linkedin} className="flex h-6 items-center gap-1.5 rounded-[var(--radius-control)] bg-list-hover px-2 text-ink-2 hover:bg-list-active hover:text-ink"><ChannelIcon channel="linkedin" className="size-3" />LinkedIn</ExternalLink>}
+        {x && <ExternalLink href={x} className="flex h-6 items-center gap-1.5 rounded-[var(--radius-control)] bg-list-hover px-2 text-ink-2 hover:bg-list-active hover:text-ink"><ChannelIcon channel="x" className="size-3" />X</ExternalLink>}
       </div>}
     </section>
   )

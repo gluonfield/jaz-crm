@@ -66,7 +66,7 @@ func TestWorkspaceDeletion(t *testing.T) {
 	if err := store.SetCursor(ctx, connection.ID, "gmail_history", "123"); err != nil {
 		t.Fatal(err)
 	}
-	interaction, err := store.UpsertInteraction(ctx, storage.NewInteraction{WorkspaceID: actor.WorkspaceID, Kind: "email", Source: "gmail", ExternalID: "thread", ConnectionID: &connection.ID, StartedAt: time.Now()})
+	interaction, err := store.UpsertInteraction(ctx, storage.NewInteraction{WorkspaceID: actor.WorkspaceID, Kind: "message", Channel: "email", ExternalID: "thread", ConnectionID: &connection.ID, StartedAt: time.Now()})
 	if err != nil {
 		t.Fatal(err)
 	}

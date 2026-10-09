@@ -1,6 +1,7 @@
 package followups
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"slices"
@@ -174,11 +175,8 @@ func (a *Agent) replyTarget(ctx context.Context, actor auth.Actor, conversationI
 // draft sets a reply's text and channel; an email reply goes to everyone on
 // the latest message, except the sending mailbox and its aliases.
 func (a *Agent) draft(ctx context.Context, actor auth.Actor, conv interactions.Interaction, c Change, set map[string][]string) error {
-	channel := c.Channel
-	if channel == "" {
-		channel = map[string]string{"email": "Email", "linkedin": "LinkedIn"}[conv.Channel]
-	}
-	if channel != "Email" && channel != "LinkedIn" {
+	channel := cmp.Or(c.Channel, records.ChannelName(conv.Channel))
+	if !slices.Contains(records.Channels, channel) {
 		return nil
 	}
 	set["draft"] = []string{plain(c.Reply)}

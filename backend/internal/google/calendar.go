@@ -24,6 +24,7 @@ type Event struct {
 	Attendees                                 []Attendee
 	MeetCode                                  string
 	Recurring                                 bool
+	URL                                       string `json:"htmlLink"`
 }
 
 type EventPage struct {
