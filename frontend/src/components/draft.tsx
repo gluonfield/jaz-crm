@@ -1,13 +1,12 @@
 import { type Ref as ReactRef, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { ChevronDown, LoaderCircle, Sparkles } from 'lucide-react'
-import { Button } from '@jaz/ui/button'
 import { call } from '@/lib/api'
 import { textOf, valueText, valuesOf } from '@/lib/crm'
 import type { CrmRecord, DraftMessage, DraftProposal, DraftRewriteAction, DraftSender, Interaction, Ref } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { Release } from './draft-release'
-import { DraftRewrite } from './draft-rewrite'
+import { DraftRewrite, DraftWrite } from './draft-rewrite'
 
 const list = (record: CrmRecord, slug: string) => valuesOf(record, slug).map(valueText)
 const drafted = { drafting: 'Drafting a message…', failed: 'Couldn’t draft a message', skipped: 'No message drafted' }
@@ -188,11 +187,7 @@ export function Draft({ record, channel, sender, error, drafting, ref }: { recor
           }}
           className="field-sizing-content block max-h-[40dvh] min-h-10 w-full resize-none bg-transparent px-3.5 py-2.5 text-[13.5px] leading-[1.55] text-ink outline-none placeholder:text-ink-3"
         />
-        {/* Taking focus on press would reveal the idle header and move the button from under the pointer. */}
-        {!fields.draft.trim() && channel && !sending && <Button variant="ghost" size="sm" disabled={rewritePending} onMouseDown={(event) => event.preventDefault()} onClick={() => void rewrite('write')} className="m-2 shrink-0">
-          {rewritePending ? <LoaderCircle className="animate-spin motion-reduce:animate-none" /> : <Sparkles />}
-          {rewritePending ? 'Drafting…' : 'Draft with AI'}
-        </Button>}
+        {!fields.draft.trim() && channel && !sending && <DraftWrite pending={rewritePending} onWrite={(action, instruction) => void rewrite(action, instruction)} />}
       </div>
       {(rewriteError || write.error) && <p role="alert" className="px-3.5 pb-1 text-[12px] text-danger">{rewriteError || write.error?.message}</p>}
       <div className={cn('flex flex-wrap items-center gap-1 p-2', idle)}>
