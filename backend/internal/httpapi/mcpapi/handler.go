@@ -35,10 +35,10 @@ An agent setting action_date must also set action_date_basis (Stated or Suggeste
 action_date_reason with evidence or the scheduling convention. Manual dates and explicit clears
 are preserved by automatic drafting. Waiting on Them never gets an automatic draft. To send an approved draft on a
 chat channel such as LinkedIn or X, set its draft_status to Sending, send it, log the sent message with log_interaction
-(kind message, its channel, direction sent, the thread's url), then set Sent. A person's linkedin_url and x_url
-link their LinkedIn and X profiles, which identify them in chats. Call list_objects to learn each object's
-attributes and options. Emails, domains and phone numbers identify records: upsert_record with an
-email or domain updates the record that holds it instead of creating a duplicate. Values you write
+(kind message, its channel, direction sent, the thread's url), then set Sent. Links hold the pages a person or
+company is on, such as LinkedIn and X profiles. Call list_objects to learn each object's
+attributes and options. Emails, domains, phone numbers and links identify records: upsert_record with one
+updates the record that holds it instead of creating a duplicate. Values you write
 are marked as written by an agent; apart from context, a value a person set is never overwritten,
 and the write reports it as skipped. Tools act in your default workspace; to work in another, pass
 its name as the workspace argument (list_workspaces).`

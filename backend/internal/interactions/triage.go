@@ -146,14 +146,11 @@ func (s *Service) relink(ctx context.Context, handleIDs ...string) error {
 func (s *Service) person(ctx context.Context, h storage.Handle) (string, error) {
 	actor := auth.Actor{WorkspaceID: h.WorkspaceID}
 	set := map[string][]string{}
-	name := h.Name
 	switch h.Kind {
 	case "phone":
 		set["phone_numbers"] = []string{h.Value}
-	case "linkedin", "x":
-		set[h.Kind+"_url"] = []string{"https://" + h.Value}
-	case "telegram":
-		name = cmp.Or(name, h.Value)
+	case "link":
+		set[records.LinksAttribute] = []string{"https://" + h.Value}
 	case "email":
 		set["email_addresses"] = []string{h.Value}
 		if domain := workDomain(h.Value); domain != "" {
@@ -166,8 +163,8 @@ func (s *Service) person(ctx context.Context, h storage.Handle) (string, error) 
 			set["company"] = []string{domain}
 		}
 	}
-	if name != "" && !strings.Contains(name, "@") {
-		set["name"] = []string{name}
+	if h.Name != "" && !strings.Contains(h.Name, "@") {
+		set["name"] = []string{h.Name}
 	}
 	person, _, err := s.records.Upsert(ctx, actor, records.SourceSync, records.Write{Object: "people", Set: set})
 	return person.ID, err
@@ -313,28 +310,22 @@ func (s *Service) decide(ctx context.Context, actor auth.Actor, d Decision) (int
 	return changed, nil
 }
 
-// profileSites are where profile links address people on a channel, the
-// canonical site first.
-var profileSites = map[string][]string{"linkedin": {"linkedin.com/in/"}, "x": {"x.com/", "twitter.com/"}, "telegram": {"t.me/"}}
+// handleSites are where an @name lives on a channel.
+var handleSites = map[string]string{"x": "x.com/", "telegram": "t.me/"}
 
 // address normalizes an address a person typed: an email, a phone number, or
-// a LinkedIn, X or Telegram profile link, which @name gives on its channel.
+// a profile link, which @name gives on X and Telegram.
 func address(raw, channel string) (string, string, error) {
 	raw = strings.TrimSpace(raw)
-	if name, ok := strings.CutPrefix(raw, "@"); ok && (channel == "x" || channel == "telegram") {
-		raw = profileSites[channel][0] + name
+	if name, ok := strings.CutPrefix(raw, "@"); ok && handleSites[channel] != "" {
+		raw = handleSites[channel] + name
 	}
-	link := strings.ToLower(raw)
-	for kind, sites := range profileSites {
-		for _, site := range sites {
-			if i := strings.Index(link, site); i == 0 || i > 0 && strings.ContainsRune("./", rune(link[i-1])) {
-				name, _, _ := strings.Cut(link[i+len(site):], "?")
-				if name = strings.Trim(name, "/"); name == "" || strings.Contains(name, "/") {
-					return "", "", errs.Invalidf("%q is not a profile link", raw)
-				}
-				return kind, sites[0] + name, nil
-			}
+	if strings.Contains(raw, "/") {
+		key := records.LinkKey(raw)
+		if !strings.Contains(key, "/") {
+			return "", "", errs.Invalidf("%q is not a profile link", raw)
 		}
+		return "link", key, nil
 	}
 	if strings.Contains(raw, "@") {
 		a, err := mail.ParseAddress(raw)

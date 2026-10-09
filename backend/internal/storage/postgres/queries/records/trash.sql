@@ -37,6 +37,6 @@ JOIN objects ON objects.id = retained_records.object_id
 JOIN record_values ON record_values.record_id = retained_records.id AND record_values.active_until IS NULL
 JOIN attributes ON attributes.id = record_values.attribute_id
 WHERE retained_records.workspace_id = @workspace_id AND retained_records.deleted_at IS NOT NULL
-  AND (objects.slug = 'people' AND attributes.type IN ('email', 'phone') AND record_values.unique_key = @address
+  AND (objects.slug = 'people' AND attributes.type IN ('email', 'phone', 'url') AND record_values.unique_key = @address
     OR objects.slug = 'companies' AND attributes.type = 'domain' AND record_values.unique_key = @domain)
 ORDER BY retained_records.id;

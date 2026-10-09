@@ -115,8 +115,4 @@ func TestInteractionChannelsMigration(t *testing.T) {
 	if err := json.Unmarshal(raw, &options); err != nil || !slices.Equal(options, []string{"Email", "LinkedIn", "WhatsApp", "X", "Telegram", "SMS", "Pigeon"}) {
 		t.Fatalf("follow-up channels: %v %v", options, err)
 	}
-	var name string
-	if err := db.QueryRowContext(ctx, `SELECT name FROM attributes WHERE object_id = $1 AND slug = 'x_url' AND type = 'url'`, people).Scan(&name); err != nil || name != "X" {
-		t.Fatalf("people have an X profile: %q %v", name, err)
-	}
 }

@@ -46,10 +46,11 @@ export function joinURL(interaction: Interaction) {
 
 export const channelNames: Record<string, string> = { email: 'Email', linkedin: 'LinkedIn', whatsapp: 'WhatsApp', x: 'X', telegram: 'Telegram', sms: 'SMS' }
 
-const origins: Record<string, string> = { 'mail.google.com': 'Gmail', 'google.com': 'Google Calendar', 'calendar.google.com': 'Google Calendar', 'linkedin.com': 'LinkedIn', 'x.com': 'X', 'notes.granola.ai': 'Granola' }
+const sites: Record<string, string> = { 'mail.google.com': 'Gmail', 'google.com': 'Google Calendar', 'calendar.google.com': 'Google Calendar', 'linkedin.com': 'LinkedIn', 'x.com': 'X', 'twitter.com': 'X', 't.me': 'Telegram', 'notes.granola.ai': 'Granola' }
 
-// originName names the service that holds a conversation's original.
-export function originName(url: string) {
-  const host = new URL(url).hostname.replace(/^www\./, '')
-  return origins[host] ?? host
+// siteName names the site a link points to, such as LinkedIn for a profile or
+// Gmail for a thread.
+export function siteName(url: string) {
+  const host = new URL(url).hostname.replace(/^www\./, '').replace(/^[a-z]{2}\.linkedin\.com$/, 'linkedin.com')
+  return sites[host] ?? host
 }

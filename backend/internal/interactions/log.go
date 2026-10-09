@@ -27,7 +27,7 @@ type Entry struct {
 	Title         string     `json:"title,omitempty"`
 	At            string     `json:"at,omitempty" jsonschema:"original date as YYYY-MM-DD or RFC3339 timestamp; required for messages; now for other kinds when omitted"`
 	End           *time.Time `json:"end,omitempty"`
-	People        []string   `json:"people,omitempty" jsonschema:"participants: email addresses, phone numbers, or profiles such as linkedin.com/in/name, x.com/name, t.me/name or @name on the message's channel"`
+	People        []string   `json:"people,omitempty" jsonschema:"participants: email addresses, phone numbers, or profile links such as linkedin.com/in/name, with @name on X or Telegram"`
 	Records       []string   `json:"records,omitempty" jsonschema:"linked CRM record IDs"`
 	Text          string     `json:"text,omitempty" jsonschema:"note body, message text or call/meeting notes, with any sources they cite"`
 	Transcript    []Speech   `json:"transcript,omitempty" jsonschema:"speaker turns, only for a call or meeting; replaces its transcript"`
@@ -231,10 +231,10 @@ func (s *Service) Log(ctx context.Context, actor auth.Actor, e Entry) (Interacti
 }
 
 // keepLogged keeps the people someone logged a conversation with. Each joins
-// the record holding their address or profile; an email address or phone
-// number nobody holds becomes a new person, while a chat profile nobody's
-// record links to waits in triage, since a handle alone cannot tell whether
-// that person is already in the CRM.
+// the person holding their address or link; an email address or phone number
+// nobody holds becomes a new person, while a link nobody holds waits in
+// triage, since a profile alone cannot tell whether that person is already in
+// the CRM.
 func (s *Service) keepLogged(ctx context.Context, workspaceID string, handles []storage.Handle) error {
 	if len(handles) == 0 {
 		return nil

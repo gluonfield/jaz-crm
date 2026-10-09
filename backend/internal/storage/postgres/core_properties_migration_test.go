@@ -97,11 +97,11 @@ func TestCorePropertiesMigrationAdoptsExistingData(t *testing.T) {
 	}
 	for _, write := range []records.Write{
 		{Object: "companies", RecordID: record, Set: map[string][]string{
-			"website": {"https://acme.test"}, "linkedin_url": {"https://linkedin.com/company/acme"}, "industry": {"Fabrication"},
+			"website": {"https://acme.test"}, "links": {"https://linkedin.com/company/acme"}, "industry": {"Fabrication"},
 			"hq_city": {"Cambridge"}, "hq_state": {"Cambridgeshire"}, "hq_country": {"United Kingdom"}, "employee_count": {"42"},
 			"owner": {"owner@jaz.test"}, "notes": {"Updated note"},
 		}},
-		{Object: "people", Set: map[string][]string{"name": {"Ada"}, "linkedin_url": {"https://linkedin.com/in/ada"}, "owner": {"owner@jaz.test"}, "notes": {"Introduced by a customer"}}},
+		{Object: "people", Set: map[string][]string{"name": {"Ada"}, "links": {"https://linkedin.com/in/ada"}, "owner": {"owner@jaz.test"}, "notes": {"Introduced by a customer"}}},
 		{Object: "deals", Set: map[string][]string{"name": {"Project"}, "expected_close_date": {"2026-11-30"}}},
 	} {
 		written, _, err := crm.Upsert(ctx, actor, records.SourceUser, write)

@@ -1,6 +1,6 @@
-import { Building2, CalendarDays, CornerUpRight, FileText, Handshake, MessageCircle, MessageSquare, NotebookPen, Phone, Table2, Users } from 'lucide-react'
+import { Building2, CalendarDays, CornerUpRight, FileText, Handshake, Link2, MessageCircle, MessageSquare, NotebookPen, Phone, Table2, Users } from 'lucide-react'
 import { useState } from 'react'
-import { channelNames } from '@/lib/crm'
+import { channelNames, siteName } from '@/lib/crm'
 import type { Kind } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { PageIcon } from './page-icon'
@@ -85,4 +85,10 @@ export function ChannelIcon({ channel, className }: { channel: string; className
       {marks[channel] ? <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor" className="size-full"><path d={marks[channel]} /></svg> : <MessageCircle aria-hidden="true" className="size-full" />}
     </span>
   )
+}
+
+// SiteIcon marks a link with its site's mark where we draw one, else a link.
+export function SiteIcon({ url, className }: { url: string; className?: string }) {
+  const mark = marks[siteName(url).toLowerCase()]
+  return mark ? <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor" className={cn('shrink-0', className)}><path d={mark} /></svg> : <Link2 aria-hidden="true" className={cn('shrink-0', className)} />
 }

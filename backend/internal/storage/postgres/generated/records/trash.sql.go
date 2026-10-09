@@ -135,7 +135,7 @@ JOIN objects ON objects.id = retained_records.object_id
 JOIN record_values ON record_values.record_id = retained_records.id AND record_values.active_until IS NULL
 JOIN attributes ON attributes.id = record_values.attribute_id
 WHERE retained_records.workspace_id = $1 AND retained_records.deleted_at IS NOT NULL
-  AND (objects.slug = 'people' AND attributes.type IN ('email', 'phone') AND record_values.unique_key = $2
+  AND (objects.slug = 'people' AND attributes.type IN ('email', 'phone', 'url') AND record_values.unique_key = $2
     OR objects.slug = 'companies' AND attributes.type = 'domain' AND record_values.unique_key = $3)
 ORDER BY retained_records.id
 `

@@ -8,7 +8,7 @@ import { KindIcon, RecordIcon } from '@/components/icons'
 import { ExternalLink } from '@/components/external-link'
 import { Message } from '@/components/message'
 import { Picker } from '@/components/picker'
-import { channelNames, joinURL, originName, recordName } from '@/lib/crm'
+import { channelNames, joinURL, recordName, siteName } from '@/lib/crm'
 import { formatDateTime, meetingTime } from '@/lib/format'
 import { useDebounced } from '@/lib/hooks'
 import { useAction, useRecordSearch, useTool } from '@/lib/queries'
@@ -56,7 +56,7 @@ export function InteractionDetails({ interactionId, onClose, onNavigate }: { int
           {interaction.title !== kindNames[interaction.kind] && <h1 className="text-[22px] font-semibold leading-tight tracking-[-0.015em] text-ink [overflow-wrap:anywhere]">{interaction.title || 'No subject'}</h1>}
           <p className="mt-1.5 text-[13px] text-ink-2">
             {interaction.author && <>{interaction.author} · </>}{interaction.kind === 'meeting' ? meetingTime(interaction.started_at, interaction.ended_at) : formatDateTime(interaction.started_at)}
-            {interaction.url && <> · <ExternalLink href={interaction.url}>Open in {originName(interaction.url)}</ExternalLink></>}
+            {interaction.url && <> · <ExternalLink href={interaction.url}>Open in {siteName(interaction.url)}</ExternalLink></>}
           </p>
           {join && (
             <ExternalLink

@@ -81,25 +81,14 @@ WHERE handles.workspace_id = @workspace_id
 
 -- name: HandlesOnRecords :many
 -- HandlesOnRecords pairs undecided handles, and kept ones that lost their
--- person, with the record that holds their address, or with the person whose
--- profile field (linkedin_url, x_url) links to their LinkedIn or X handle.
-WITH undecided AS (
-  SELECT * FROM handles WHERE workspace_id = @workspace_id
-    AND (triage IN ('pending', 'kept') AND person_id IS NULL OR triage = 'skipped' AND decided_by IN ('rule', 'agent'))
-)
-SELECT DISTINCT ON (pairs.id) pairs.id, pairs.record_id FROM (
-  SELECT undecided.id, record_values.record_id FROM undecided
-  JOIN record_values ON record_values.unique_key = undecided.value AND record_values.active_until IS NULL
-  JOIN attributes ON attributes.id = record_values.attribute_id AND attributes.type IN ('email', 'phone')
-  JOIN records ON records.id = record_values.record_id AND records.workspace_id = @workspace_id
-  UNION ALL
-  SELECT undecided.id, record_values.record_id FROM undecided
-  JOIN objects ON objects.workspace_id = @workspace_id AND objects.slug = 'people'
-  JOIN attributes ON attributes.object_id = objects.id AND attributes.slug = undecided.kind || '_url'
-  JOIN record_values ON record_values.attribute_id = attributes.id AND record_values.active_until IS NULL
-  JOIN records ON records.id = record_values.record_id
-  WHERE lower(substring(record_values.text FROM '([^/?#]+)/*(?:[?#].*)?$')) = regexp_replace(undecided.value, '^.*/', '')
-) AS pairs;
+-- person, with the record that holds their address or link.
+SELECT DISTINCT ON (handles.id) handles.id, record_values.record_id FROM handles
+JOIN record_values ON record_values.unique_key = handles.value AND record_values.active_until IS NULL
+JOIN attributes ON attributes.id = record_values.attribute_id AND attributes.type IN ('email', 'phone', 'url')
+JOIN records ON records.id = record_values.record_id AND records.workspace_id = handles.workspace_id
+WHERE handles.workspace_id = @workspace_id
+  AND (handles.triage IN ('pending', 'kept') AND handles.person_id IS NULL
+    OR handles.triage = 'skipped' AND handles.decided_by IN ('rule', 'agent'));
 
 -- name: SkipRecordHandles :many
 WITH domains AS (

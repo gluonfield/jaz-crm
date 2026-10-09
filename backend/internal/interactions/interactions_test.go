@@ -640,7 +640,7 @@ func TestManualMessageAndTranscript(t *testing.T) {
 // with sync.
 func TestLogProfilesAndSyncedConversations(t *testing.T) {
 	e := setup(t, nil)
-	caleb, _, err := e.crm.Upsert(ctx, e.a, records.SourceUser, records.Write{Object: "people", Set: map[string][]string{"name": {"Caleb"}, "x_url": {"https://x.com/OSHBuilt"}}})
+	caleb, _, err := e.crm.Upsert(ctx, e.a, records.SourceUser, records.Write{Object: "people", Set: map[string][]string{"name": {"Caleb"}, "links": {"https://x.com/OSHBuilt"}}})
 	if err != nil {
 		t.Fatal(err)
 	}

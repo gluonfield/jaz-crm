@@ -50,7 +50,7 @@ func TestPagesMigration(t *testing.T) {
 			slugs[o.Slug] = append(slugs[o.Slug], a.Slug+":"+a.Type)
 		}
 	}
-	if !slices.Equal(slugs["pages"], []string{"name:text", "parent:reference", "content:markdown", "icon:text"}) || !slices.Equal(slugs["quotes"], []string{"name:text", "content:markdown"}) || !slices.Equal(slugs["people"], []string{"name:text", "linkedin_url:url", "owner:member", "notes:text", "x_url:url"}) {
+	if !slices.Equal(slugs["pages"], []string{"name:text", "parent:reference", "content:markdown", "icon:text"}) || !slices.Equal(slugs["quotes"], []string{"name:text", "content:markdown"}) || !slices.Equal(slugs["people"], []string{"name:text", "links:url", "owner:member", "notes:text"}) {
 		t.Fatalf("migrated schema: %v", slugs)
 	}
 	if _, _, err := crm.Upsert(ctx, actor, records.SourceUser, records.Write{Object: "quotes", RecordID: quote, Set: map[string][]string{"content": {"# Terms"}}}); err != nil {

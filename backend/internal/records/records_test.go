@@ -95,6 +95,23 @@ func TestUpsertMatchesByUniqueValue(t *testing.T) {
 	}
 }
 
+// Links identify people the way emails do: variants of one profile are the
+// same link, wherever the profile was copied from.
+func TestLinksIdentifyRecords(t *testing.T) {
+	svc, a, _ := setup(t)
+	jim, _ := upsert(t, svc, a, records.SourceAgent, records.Write{Object: "people", Set: set("name", "Jim", "links", "https://uk.linkedin.com/in/Jim-Mayer/?trk=profile", "links", "https://twitter.com/JimMayer")})
+	for _, variant := range []string{"linkedin.com/in/jim-mayer", "https://www.linkedin.com/in/JIM-MAYER", "x.com/jimmayer/"} {
+		again, _ := upsert(t, svc, a, records.SourceAgent, records.Write{Object: "people", Set: set("links", variant)})
+		if again.ID != jim.ID || len(values(again, "links")) != 2 {
+			t.Fatalf("%s found another record or added a duplicate: %+v", variant, again)
+		}
+	}
+	other, _ := upsert(t, svc, a, records.SourceAgent, records.Write{Object: "people", Set: set("name", "Other", "links", "https://jim.example/about")})
+	if _, _, err := svc.Upsert(ctx, a, records.SourceAgent, records.Write{Object: "people", RecordID: other.ID, Set: set("links", "https://x.com/jimmayer")}); err == nil || !strings.Contains(err.Error(), jim.ID) {
+		t.Fatalf("a link held by another person: %v", err)
+	}
+}
+
 // A write replaces only values from its own or a lower-ranked source.
 func TestSourcePrecedence(t *testing.T) {
 	svc, a, _ := setup(t)

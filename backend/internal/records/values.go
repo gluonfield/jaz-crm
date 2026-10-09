@@ -43,6 +43,10 @@ const titleAttribute = "name"
 // current context with what they learned, and its history keeps each version.
 const ContextAttribute = "context"
 
+// LinksAttribute holds the pages a person or company is on, such as their
+// LinkedIn and X profiles; like an email address, a link identifies them.
+const LinksAttribute = "links"
+
 // ContentAttribute is the markdown body of a page and of every record of a
 // workspace's own tables. A link to /r/<record id> mentions that record.
 const ContentAttribute = "content"
@@ -98,8 +102,11 @@ func normalize(attr storage.Attribute, raw string) (entry, error) {
 	e := entry{text: &text}
 	if attr.IsUnique {
 		key := strings.ToLower(text)
-		if attr.Type == Phone {
+		switch attr.Type {
+		case Phone:
 			key = phoneKey(raw)
+		case URL:
+			key = LinkKey(text)
 		}
 		e.key = &key
 	}
@@ -176,6 +183,28 @@ func domain(raw string) (string, bool) {
 	}
 	host = strings.TrimPrefix(host, "www.")
 	return host, strings.Contains(host, ".") && !strings.ContainsAny(host, " @")
+}
+
+// LinkKey is what makes two links to one page the same: host and path in
+// lower case, without scheme, www, query, fragment or trailing slash, with
+// LinkedIn's country hosts and twitter.com folded into linkedin.com and
+// x.com. It is empty for anything without a web host.
+func LinkKey(raw string) string {
+	if !strings.Contains(raw, "://") {
+		raw = "https://" + raw
+	}
+	u, err := url.Parse(raw)
+	if err != nil || !strings.Contains(u.Hostname(), ".") {
+		return ""
+	}
+	host := strings.TrimPrefix(strings.ToLower(u.Hostname()), "www.")
+	switch {
+	case strings.HasSuffix(host, ".linkedin.com"):
+		host = "linkedin.com"
+	case host == "twitter.com" || host == "mobile.twitter.com":
+		host = "x.com"
+	}
+	return host + strings.ToLower(strings.TrimRight(u.Path, "/"))
 }
 
 func phoneKey(raw string) string {
