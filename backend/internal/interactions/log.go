@@ -166,7 +166,7 @@ func (s *Service) Log(ctx context.Context, actor auth.Actor, e Entry) (Interacti
 	}
 	key := cmp.Or(e.URL, e.ExternalID)
 	var i storage.Interaction
-	var engaged, profiles []string
+	var engaged []storage.Handle
 	err = s.store.Atomically(ctx, func(store storage.InteractionStore) error {
 		if i, err = existing(ctx, store, actor.WorkspaceID, e, key); err != nil {
 			return err
@@ -174,15 +174,10 @@ func (s *Service) Log(ctx context.Context, actor auth.Actor, e Entry) (Interacti
 		if i.ID != "" && e.At == "" {
 			at, dateOnly = i.StartedAt, i.DateOnly
 		}
-		e.End = cmp.Or(e.End, i.EndedAt)
 		if i.ConnectionID == nil {
-			title := e.Title
-			if i.ID == "" {
-				title = cmp.Or(title, strings.ToUpper(e.Kind[:1])+e.Kind[1:])
-			}
 			i, err = store.UpsertInteraction(ctx, storage.NewInteraction{
 				WorkspaceID: actor.WorkspaceID, Kind: e.Kind, Channel: e.Channel, ExternalID: cmp.Or(i.ExternalID, key, shortuuid.New()), UserID: &actor.UserID,
-				Title: title, StartedAt: at, EndedAt: e.End, URL: e.URL, DateOnly: dateOnly,
+				Title: cmp.Or(e.Title, i.Title, strings.ToUpper(e.Kind[:1])+e.Kind[1:]), StartedAt: at, EndedAt: cmp.Or(e.End, i.EndedAt), URL: cmp.Or(e.URL, i.URL), DateOnly: dateOnly,
 			})
 			if err != nil {
 				return err
@@ -196,11 +191,8 @@ func (s *Service) Log(ctx context.Context, actor auth.Actor, e Entry) (Interacti
 			if err := store.AddParticipant(ctx, i.ID, h.ID, "attendee"); err != nil {
 				return err
 			}
-			switch {
-			case h.Kind != "email" && h.Kind != "phone":
-				profiles = append(profiles, h.ID)
-			case e.Kind != Note && (h.Triage == Pending || h.Triage == Skipped && deref(h.DecidedBy) != ByUser):
-				engaged = append(engaged, h.ID)
+			if e.Kind != Note && (h.Triage == Pending || h.Triage == Skipped && deref(h.DecidedBy) != ByUser) {
+				engaged = append(engaged, h)
 			}
 		}
 		if len(e.Transcript) > 0 {
@@ -232,25 +224,38 @@ func (s *Service) Log(ctx context.Context, actor auth.Actor, e Entry) (Interacti
 	if err != nil {
 		return Interaction{}, err
 	}
-	for _, id := range engaged {
-		if err := s.keepByID(ctx, actor.WorkspaceID, id, "", "you logged a conversation with them"); err != nil {
-			return Interaction{}, err
-		}
-	}
-	if len(profiles) > 0 && e.Kind != Note {
-		owners, err := s.store.HandlesOnRecords(ctx, actor.WorkspaceID)
-		if err != nil {
-			return Interaction{}, err
-		}
-		for _, pair := range owners {
-			if slices.Contains(profiles, pair.ID) {
-				if err := s.keepByID(ctx, actor.WorkspaceID, pair.ID, pair.RecordID, "you logged a conversation with them"); err != nil {
-					return Interaction{}, err
-				}
-			}
-		}
+	if err := s.keepLogged(ctx, actor.WorkspaceID, engaged); err != nil {
+		return Interaction{}, err
 	}
 	return s.Get(ctx, actor, i.ID)
+}
+
+// keepLogged keeps the people someone logged a conversation with. Each joins
+// the record holding their address or profile; an email address or phone
+// number nobody holds becomes a new person, while a chat profile nobody's
+// record links to waits in triage, since a handle alone cannot tell whether
+// that person is already in the CRM.
+func (s *Service) keepLogged(ctx context.Context, workspaceID string, handles []storage.Handle) error {
+	if len(handles) == 0 {
+		return nil
+	}
+	owners, err := s.store.HandlesOnRecords(ctx, workspaceID)
+	if err != nil {
+		return err
+	}
+	for _, h := range handles {
+		i := slices.IndexFunc(owners, func(o storage.HandleRecord) bool { return o.ID == h.ID })
+		switch {
+		case i >= 0:
+			err = s.keepByID(ctx, workspaceID, h.ID, owners[i].RecordID, "you logged a conversation with them")
+		case h.Kind == "email" || h.Kind == "phone":
+			err = s.keepByID(ctx, workspaceID, h.ID, "", "you logged a conversation with them")
+		}
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // existing finds the conversation an entry adds to, by its id or by its

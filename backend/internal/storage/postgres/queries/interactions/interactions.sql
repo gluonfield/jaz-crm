@@ -157,9 +157,9 @@ WHERE id = @id;
 INSERT INTO interactions (workspace_id, kind, channel, external_id, connection_id, user_id, title, started_at, ended_at, meet_code, skipped, url, date_only, id)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, sqlc.arg(id))
 ON CONFLICT (workspace_id, channel, external_id) DO UPDATE
-SET kind = EXCLUDED.kind, title = coalesce(nullif(EXCLUDED.title, ''), interactions.title), started_at = EXCLUDED.started_at, ended_at = EXCLUDED.ended_at,
+SET kind = EXCLUDED.kind, title = EXCLUDED.title, started_at = EXCLUDED.started_at, ended_at = EXCLUDED.ended_at,
     meet_code = EXCLUDED.meet_code, skipped = interactions.skipped OR EXCLUDED.skipped,
-    url = coalesce(nullif(EXCLUDED.url, ''), interactions.url), date_only = EXCLUDED.date_only
+    url = EXCLUDED.url, date_only = EXCLUDED.date_only
 WHERE (interactions.connection_id IS NULL) = (EXCLUDED.connection_id IS NULL)
 RETURNING *;
 

@@ -1,6 +1,6 @@
-// Package interactions owns a workspace's conversations: email threads,
-// meetings, calls and notes, the addresses in them, and triage, which decides
-// whose conversations the CRM keeps.
+// Package interactions owns a workspace's conversations: messages on any
+// channel, meetings, calls and notes, the addresses in them, and triage,
+// which decides whose conversations the CRM keeps.
 package interactions
 
 import (

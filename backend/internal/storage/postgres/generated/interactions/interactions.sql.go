@@ -1638,9 +1638,9 @@ const upsertInteraction = `-- name: UpsertInteraction :one
 INSERT INTO interactions (workspace_id, kind, channel, external_id, connection_id, user_id, title, started_at, ended_at, meet_code, skipped, url, date_only, id)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 ON CONFLICT (workspace_id, channel, external_id) DO UPDATE
-SET kind = EXCLUDED.kind, title = coalesce(nullif(EXCLUDED.title, ''), interactions.title), started_at = EXCLUDED.started_at, ended_at = EXCLUDED.ended_at,
+SET kind = EXCLUDED.kind, title = EXCLUDED.title, started_at = EXCLUDED.started_at, ended_at = EXCLUDED.ended_at,
     meet_code = EXCLUDED.meet_code, skipped = interactions.skipped OR EXCLUDED.skipped,
-    url = coalesce(nullif(EXCLUDED.url, ''), interactions.url), date_only = EXCLUDED.date_only
+    url = EXCLUDED.url, date_only = EXCLUDED.date_only
 WHERE (interactions.connection_id IS NULL) = (EXCLUDED.connection_id IS NULL)
 RETURNING id, workspace_id, kind, external_id, connection_id, user_id, title, started_at, ended_at, meet_code, transcript_checked_at, skipped, created_at, channel, date_only, followed_up_at, drafting_state, drafting_reason, drafting_started_at, url
 `

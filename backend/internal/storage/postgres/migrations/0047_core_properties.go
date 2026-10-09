@@ -9,12 +9,14 @@ import (
 	"github.com/pressly/goose/v3"
 )
 
-var CoreProperties = goose.NewGoMigration(47, &goose.GoFunc{RunTx: coreProperties(corePropertyDefinitions)}, nil)
+var CoreProperties = goose.NewGoMigration(47, &goose.GoFunc{RunTx: corePropertyDefinitions.adopt}, nil)
 
-type coreProperty struct{ object, slug, name, kind string }
+// coreProperties are properties every workspace has, as object, slug, name
+// and type.
+type coreProperties []struct{ object, slug, name, kind string }
 
 // This snapshot stays fixed so future catalog edits cannot alter old migrations.
-var corePropertyDefinitions = []coreProperty{
+var corePropertyDefinitions = coreProperties{
 	{"companies", "website", "Website", "url"},
 	{"companies", "linkedin_url", "LinkedIn", "url"},
 	{"companies", "industry", "Industry", "select"},
@@ -30,15 +32,9 @@ var corePropertyDefinitions = []coreProperty{
 	{"deals", "expected_close_date", "Expected close date", "date"},
 }
 
-// coreProperties gives every workspace the properties, adopting a compatible
-// one it already has.
-func coreProperties(definitions []coreProperty) func(context.Context, *sql.Tx) error {
-	return func(ctx context.Context, tx *sql.Tx) error {
-		return adopt(ctx, tx, definitions)
-	}
-}
-
-func adopt(ctx context.Context, tx *sql.Tx, definitions []coreProperty) error {
+// adopt gives every workspace the properties, adopting a compatible one it
+// already has.
+func (definitions coreProperties) adopt(ctx context.Context, tx *sql.Tx) error {
 	rows, err := tx.QueryContext(ctx, `SELECT id, slug FROM objects WHERE slug IN ('companies', 'people', 'deals') ORDER BY id`)
 	if err != nil {
 		return err
