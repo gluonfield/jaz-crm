@@ -85,13 +85,15 @@ The existing MCP server and embedded app can be connected to ChatGPT using OAuth
 
 `list_interactions` pages with `cursor`, the last interaction ID from the previous page. Dates retain their original precision; transcript turns keep their supplied order and include a time only when one was provided.
 
-`search_records` returns `records` and a `resource_uri` with the same text, attribute filters and limit. MCP Apps hosts render only compact record rows inline, sized to their content. Selecting a row opens its record in the full CRM through the host's app link. `show_crm` also accepts the URI to reopen the results. The `ui://jaz-crm/o/{object}{?q,where,limit,view}` resource template serves the app at that filtered view:
+`search_records` returns `records` and a `resource_uri` with the same text, attribute filters and limit. MCP Apps hosts render only compact record rows inline, sized to their content. Selecting a row opens its record in the full CRM through the host's app link. `show_crm` also accepts the URI to reopen the results. The `ui://jaz-crm/o/{object}` resource template, like the web app's `/o/{object}` pages, takes its filters as URL keys:
 
 ```text
-ui://jaz-crm/o/deals?where=%7B%22stage%22%3A%22Lead%22%7D&view=table
+ui://jaz-crm/o/deals?stage=Lead&view=table
+/o/people?tags=Advisor+Candidate&updated_at.after=2026-10-01
+/o/people?saved=<saved view id>
 ```
 
-This URL shows only Lead deals. `q` searches text, `where` is a URL-encoded JSON object mapping attribute slugs to matching values, `limit` is at most 100, and `view=table` selects a table instead of a pipeline. Reference filters accept a record ID or its unique value, such as a company's domain. Every request uses the connected workspace's permissions.
+`attribute=value` matches a value, and `attribute.operator=value` applies another operator: `is_not`, `contains`, `not_contains`, `before`, `on_or_before`, `after` or `on_or_after`; `attribute.is_empty` and `attribute.is_not_empty` take no value. Repeat a key for several values; every condition must match. `q` searches text, `saved` opens a saved view, `limit` is at most 100, and `view=table` selects a table instead of a pipeline. Keys that name no attribute, such as tracking parameters, are ignored, and older links with a JSON `filters` or `where` still open. Reference filters accept a record ID or its unique value, such as a company's domain. Every request uses the connected workspace's permissions.
 
 ## Develop
 

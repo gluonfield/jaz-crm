@@ -2,7 +2,6 @@ package mcpapi_test
 
 import (
 	"context"
-	"encoding/json"
 	"net/url"
 	"reflect"
 	"slices"
@@ -116,9 +115,8 @@ func TestSavedPeopleFiltersRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var roundTrip []any
-	if err := json.Unmarshal([]byte(uri.Query().Get("filters")), &roundTrip); err != nil || !reflect.DeepEqual(roundTrip, conditions) {
-		t.Fatalf("resource lost conditions: %s %v", uri, err)
+	if !slices.Equal(uri.Query()["tags"], []string{"Founder", "Manufacturing"}) || uri.Query().Get("q") != "Stone" || uri.Query().Has("filters") {
+		t.Fatalf("resource must read its conditions as plain keys: %s", uri)
 	}
 	resource, err := a.ReadResource(context.Background(), &mcp.ReadResourceParams{URI: uri.String()})
 	if err != nil || len(resource.Contents) != 1 || resource.Contents[0].MIMEType != "text/html;profile=mcp-app" {

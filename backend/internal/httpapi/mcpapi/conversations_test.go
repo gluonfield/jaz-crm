@@ -52,13 +52,7 @@ func TestConversationSearchTool(t *testing.T) {
 		if args["group_by_conversation"] != grouped || !reflect.DeepEqual(args["filters"], []any{}) {
 			t.Fatalf("resource added filtering or lost grouping: %s", uri)
 		}
-		if query := params.Get("q"); query != "" {
-			var argsQuery string
-			if err := json.Unmarshal([]byte(query), &argsQuery); err != nil {
-				t.Fatal(err)
-			}
-			args["query"] = argsQuery
-		}
+		args["query"] = params.Get("q")
 		args["conversation_id"] = params.Get("conversation_id")
 		again := mustCall(t, a, "search_records", args)
 		if !reflect.DeepEqual(again["records"], result["records"]) || again["total"] != result["total"] {

@@ -7,8 +7,10 @@ import (
 	"encoding/json"
 	"html"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -76,15 +78,15 @@ func registerApp(r *registry, publicURL string) {
 	}
 	r.server.AddResource(&mcp.Resource{URI: appURI, Name: "jaz-crm", Title: "Jaz CRM", MIMEType: appMIME}, readApp)
 	r.server.AddResourceTemplate(&mcp.ResourceTemplate{
-		URITemplate: "ui://jaz-crm/o/{object}{?q,filters,where,limit,view,group_by_conversation,conversation_id}", Name: "crm-records", Title: "CRM records", MIMEType: appMIME,
-		Description: `Render an object's records with URL filters. q is text; filters is a JSON array of attribute/operator/value conditions, all of which must match; where maps attribute slugs to exact values. limit is at most 100; view=table selects a table. For follow_ups, group_by_conversation selects one row per conversation and conversation_id limits actions to that conversation. URL-encode query values.`,
+		URITemplate: "ui://jaz-crm/o/{object}{?q,saved,limit,view,group_by_conversation,conversation_id}", Name: "crm-records", Title: "CRM records", MIMEType: appMIME,
+		Description: `Render an object's records with URL filters. q is text and saved is a saved view's id. Every other key filters by an attribute, all of which must match: stage=Lead for an exact value, attribute.operator=value for is_not, contains, not_contains, before, on_or_before, after or on_or_after, and attribute.is_empty or attribute.is_not_empty; repeat a key for several values. limit is at most 100; view=table selects a table. For follow_ups, group_by_conversation selects one row per conversation and conversation_id limits actions to that conversation. URL-encode query values.`,
 	}, readApp)
 	r.server.AddResourceTemplate(&mcp.ResourceTemplate{
 		URITemplate: "ui://jaz-crm/r/{record_id}", Name: "crm-record", Title: "CRM record", MIMEType: appMIME,
 		Description: "Render a compact person, company, deal or custom record card. Clicking it opens the full CRM record. Requires access to the record's workspace.",
 	}, readApp)
 	addUnscoped(r, &mcp.Tool{Name: "show_crm", Title: "Customers", Annotations: readOnly, Icons: []mcp.Icon{{Source: icon("currentColor"), MIMEType: "image/svg+xml", Sizes: []string{"any"}}},
-		Description: "Open the CRM app at a page: /o/people, /o/companies, /o/deals, /o/<table>, /r/<record id> for a record or page (with ?tab=activity for its changes), /i/<interaction id>, /triage, /connections or /settings. Also accepts ui://jaz-crm/r/<record id> for a record card, or a filtered ui://jaz-crm/o/<object> resource URL. Record lists accept q for text, filters as a JSON array of conditions, where as a JSON object of exact attribute values, limit up to 100, and view=table. get_record and search_records return the matching resource_uri and open it automatically.",
+		Description: "Open the CRM app at a page: /o/people, /o/companies, /o/deals, /o/<table>, /r/<record id> for a record or page (with ?tab=activity for its changes), /i/<interaction id>, /triage, /connections or /settings. Also accepts ui://jaz-crm/r/<record id> for a record card, or a filtered ui://jaz-crm/o/<object> resource URL. Record lists accept q for text, saved for a saved view's id, attribute=value or attribute.operator=value filters such as ?tags=Lead or ?updated_at.after=2026-10-01, limit up to 100, and view=table. get_record and search_records return the matching resource_uri and open it automatically.",
 		Meta: mcp.Meta{
 			"ui":             map[string]any{"resourceUri": appURI},
 			"ui/resourceUri": appURI,
@@ -99,12 +101,16 @@ func registerApp(r *registry, publicURL string) {
 }
 
 type showInput struct {
-	Path string `json:"path,omitempty" jsonschema:"the page or filtered resource URL to open, such as /r/<record id> or ui://jaz-crm/o/deals?where=%7B%22stage%22%3A%22Lead%22%7D"`
+	Path string `json:"path,omitempty" jsonschema:"the page or filtered resource URL to open, such as /r/<record id> or ui://jaz-crm/o/deals?stage=Lead"`
 }
 
 type showOutput struct {
 	Path string `json:"path"`
 }
+
+// listKeys are a record list's own URL keys. Every other key is a filter:
+// attribute=value, or attribute.operator=value for any other operator.
+var listKeys = []string{"q", "sort", "view", "limit", "saved", "filters", "where", "category", "group_by_conversation", "conversation_id"}
 
 func recordSearchURI(in searchInput) string {
 	params := url.Values{}
@@ -112,24 +118,33 @@ func recordSearchURI(in searchInput) string {
 		params.Set("sort", in.Sort)
 	}
 	if in.Query != "" {
-		query, _ := json.Marshal(in.Query)
-		params.Set("q", string(query))
+		params.Set("q", searchValue(in.Query))
 	}
-	if len(in.Where) > 0 {
-		where, _ := json.Marshal(in.Where)
-		params.Set("where", string(where))
+	conditions := slices.Clone(in.Filters)
+	for _, attribute := range slices.Sorted(maps.Keys(in.Where)) {
+		conditions = append(conditions, records.Filter{Attribute: attribute, Operator: "is", Value: in.Where[attribute]})
 	}
-	if len(in.Filters) > 0 {
-		filters, _ := json.Marshal(in.Filters)
+	rest := []records.Filter{}
+	for _, f := range conditions {
+		if slices.Contains(listKeys, f.Attribute) || strings.Contains(f.Attribute, ".") {
+			rest = append(rest, f)
+			continue
+		}
+		key := f.Attribute
+		if f.Operator != "is" {
+			key += "." + f.Operator
+		}
+		params.Add(key, searchValue(f.Value))
+	}
+	// Follow-ups list open ones by default; an empty list shows them all.
+	if len(rest) > 0 || in.Object == records.FollowUps && len(conditions) == 0 {
+		filters, _ := json.Marshal(rest)
 		params.Set("filters", string(filters))
 	}
 	if in.Object == records.FollowUps {
 		params.Set("group_by_conversation", strconv.FormatBool(in.GroupByConversation))
 		if !in.GroupByConversation {
 			params.Set("view", "table")
-		}
-		if len(in.Filters) == 0 {
-			params.Set("filters", "[]")
 		}
 	}
 	if in.ConversationID != "" {
@@ -141,4 +156,15 @@ func recordSearchURI(in searchInput) string {
 		params.Set("limit", "20")
 	}
 	return "ui://jaz-crm/o/" + url.PathEscape(in.Object) + "?" + strings.ReplaceAll(params.Encode(), "+", "%20")
+}
+
+// searchValue writes text the app reads back as the same text; the app reads
+// a value as JSON when it can, so text that is valid JSON, such as 42, is
+// quoted.
+func searchValue(text string) string {
+	if json.Valid([]byte(text)) {
+		quoted, _ := json.Marshal(text)
+		return string(quoted)
+	}
+	return text
 }

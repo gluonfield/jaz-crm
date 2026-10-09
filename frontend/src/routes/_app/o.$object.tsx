@@ -27,14 +27,19 @@ import { useDebounced, useFlip, useInView, useListKeys } from '@/lib/hooks'
 import { DateLabel, dateMetadata } from '@/components/date-field'
 import { useObjects, useRecordPages, useTool, useWorkspace } from '@/lib/queries'
 import { useColumnWidths } from '@/lib/use-column-widths'
-import { validateRecordSearch } from '@/lib/record-search'
+import { filterKeys, validateRecordSearch } from '@/lib/record-search'
 import { statusOf } from '@/lib/stages'
 import { useMail } from '@/lib/sync'
-import type { Attribute, CrmObject, CrmRecord, RecordFilter } from '@/lib/types'
+import type { Attribute, CrmObject, CrmRecord, RecordFilter, SavedFilter } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 export const Route = createFileRoute('/_app/o/$object')({
   validateSearch: validateRecordSearch,
+  // Filters read as their own keys in the URL, such as ?tags=Lead.
+  search: { middlewares: [({ search, next }) => {
+    const { filters, ...rest } = next(search)
+    return { ...rest, ...filterKeys(filters) }
+  }] },
   component: ObjectPage,
 })
 
@@ -60,7 +65,17 @@ function ObjectList({ slug }: { slug: string }) {
     { attribute: 'status', operator: 'is', value: 'Open' },
     ...(me ? [{ attribute: 'owner', operator: 'is' as const, value: me.email }] : []),
   ] : []
-  const { sort, view, q = '', filters = defaults, saved, limit = 100, conversation_id } = search
+  const { sort, view, saved, limit = 100, conversation_id } = search
+  // A saved view's link shows the view; changing its filters or search edits it.
+  const views = useTool<{ filters: SavedFilter[] }>('list_saved_filters', { object: slug }, { refetchInterval: 5000 })
+  const chosen = views.data?.filters.find((f) => f.id === saved)
+  // A key naming no attribute, such as a link's tracking parameter, neither
+  // filters nor replaces a saved view.
+  const linked = search.filters?.filter((f) => object?.attributes.some((a) => a.slug === f.attribute))
+  const filters = (search.filters?.length && !linked?.length ? undefined : linked) ?? chosen?.filters ?? defaults
+  const q = search.q ?? chosen?.query ?? ''
+  // A list's defaults stay out of its URL; a saved view keeps every change.
+  const urlFilters = (next: RecordFilter[]) => (!saved && JSON.stringify(next) === JSON.stringify(defaults) ? undefined : next)
   const query = useDebounced(q.trim())
   const queue = slug === 'follow_ups' && (view ? view !== 'table' : search.group_by_conversation !== false)
   const scope = { group_by_conversation: slug === 'follow_ups' ? queue : undefined, conversation_id }
@@ -68,7 +83,7 @@ function ObjectList({ slug }: { slug: string }) {
   // The workspace's own tables open as tables, the CRM's pipelines as boards.
   const board = slug !== 'follow_ups' && (view ?? (object?.standard ? 'board' : 'table')) === 'board' ? status : undefined
   const everything = !!board || queue
-  const result = useRecordPages({ object: slug, ...scope, query, filters, include: slug === 'companies' ? [{ object: 'people', attribute: 'company', limit: 4 }] : undefined, sort: sort ?? (slug === 'follow_ups' ? 'action_date' : undefined), limit }, { all: everything })
+  const result = useRecordPages({ object: slug, ...scope, query, filters, include: slug === 'companies' ? [{ object: 'people', attribute: 'company', limit: 4 }] : undefined, sort: sort ?? (slug === 'follow_ups' ? 'action_date' : undefined), limit }, { all: everything, enabled: !!object && (!saved || !!views.data) })
   const { total, hasNextPage, isFetchingNextPage, fetchNextPage } = result
   const zone = useWorkspace()?.timezone ?? 'UTC'
   // A queue reads in the order it shows, most urgent first.
@@ -90,11 +105,11 @@ function ObjectList({ slug }: { slug: string }) {
   const own = !object.standard
   // The CRM's objects show their choices first; the workspace's own tables keep the order columns were added in.
   const columns = object.attributes.filter((a) => a.slug !== 'name' && a.type !== 'markdown' && !(slug === 'follow_ups' && dateMetadata(a.slug))).sort((a, b) => (own ? 0 : Number(b.type === 'select') - Number(a.type === 'select')))
-  const ownerFilter = slug === 'follow_ups' && <OwnerFilter filters={filters} onChange={(filters) => void navigate({ to: '.', search: (previous) => ({ ...previous, filters }), replace: true })} />
+  const ownerFilter = slug === 'follow_ups' && <OwnerFilter filters={filters} onChange={(filters) => void navigate({ to: '.', search: (previous) => ({ ...previous, filters: urlFilters(filters) }), replace: true })} />
   const recordFilters = (title = false) => (
     <RecordFilters key={slug} object={object} filters={filters} defaults={defaults} query={q} scope={scope} selected={saved} title={title} total={total}
-      onChange={(filters) => void navigate({ to: '.', search: (previous) => ({ ...previous, filters }), replace: true })}
-      onApply={(saved) => void navigate({ to: '.', search: (previous) => ({ ...previous, filters: saved?.filters ?? [], q: saved?.query, saved: saved?.id }), replace: true })}
+      onChange={(filters) => void navigate({ to: '.', search: (previous) => ({ ...previous, filters: urlFilters(filters) }), replace: true })}
+      onApply={(picked) => void navigate({ to: '.', search: (previous) => ({ ...previous, filters: picked || !defaults.length ? undefined : [], q: undefined, saved: picked?.id }), replace: true })}
     />
   )
   const conversationFilter = conversation_id && <Button variant="ghost" aria-label="Clear conversation filter" title="Show all conversations" onClick={() => void navigate({ to: '.', search: (previous) => ({ ...previous, conversation_id: undefined }), replace: true })}>This conversation<X /></Button>

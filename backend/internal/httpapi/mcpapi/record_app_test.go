@@ -2,7 +2,6 @@ package mcpapi_test
 
 import (
 	"context"
-	"encoding/json"
 	"html"
 	"net/url"
 	"strings"
@@ -51,15 +50,8 @@ func TestRecordApp(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var query string
-	var filters map[string]string
-	if err := json.Unmarshal([]byte(path.Query().Get("q")), &query); err != nil {
-		t.Fatal(err)
-	}
-	if err := json.Unmarshal([]byte(path.Query().Get("where")), &filters); err != nil {
-		t.Fatal(err)
-	}
-	if path.Scheme != "ui" || path.Host != "jaz-crm" || path.Path != "/o/deals" || query != name || filters["stage"] != "Lead" || filters["company"] != "acme.example" || path.Query().Get("limit") != "100" {
+	params := path.Query()
+	if path.Scheme != "ui" || path.Host != "jaz-crm" || path.Path != "/o/deals" || params.Get("q") != name || params.Get("stage") != "Lead" || params.Get("company") != "acme.example" || params.Get("limit") != "100" {
 		t.Fatalf("the app opens a different search: %s", path)
 	}
 	for _, resource := range resources {

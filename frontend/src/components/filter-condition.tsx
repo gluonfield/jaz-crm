@@ -2,6 +2,7 @@ import { ChevronDown, X } from 'lucide-react'
 import { recordName } from '@/lib/crm'
 import { useDebounced } from '@/lib/hooks'
 import { useTool, useWorkspace } from '@/lib/queries'
+import { needsValue } from '@/lib/record-search'
 import { filterOperators, type Attribute, type CrmObject, type CrmRecord, type RecordFilter } from '@/lib/types'
 import { useState } from 'react'
 import { Button } from '@jaz/ui/button'
@@ -13,7 +14,6 @@ export const operatorNames: Record<RecordFilter['operator'], string> = {
   before: 'is before', on_or_before: 'is on or before', after: 'is after', on_or_after: 'is on or after',
 }
 
-export const needsValue = (filter: RecordFilter) => !['is_empty', 'is_not_empty'].includes(filter.operator)
 
 export function FilterCondition({ object, filter, onChange, onRemove }: { object: CrmObject; filter: RecordFilter; onChange: (filter: RecordFilter) => void; onRemove: () => void }) {
   const attribute = object.attributes.find((a) => a.slug === filter.attribute)
