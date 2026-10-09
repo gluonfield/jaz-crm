@@ -13,11 +13,10 @@ import { RecordIcon } from './icons'
 import { Picker } from './picker'
 import { Stage, StageDot } from './stage'
 import { DateField } from './date-field'
-import { ExternalLink } from './external-link'
+import { valueLinks } from './external-link'
 import { SelectField } from './select-field'
 
 const inputType: Partial<Record<Attribute['type'], string>> = { number: 'number', date: 'date', email: 'email', url: 'url', phone: 'tel' }
-const linkTo: Partial<Record<Attribute['type'], (text: string) => string>> = { url: (text) => text, domain: (text) => `https://${text}` }
 
 // Field shows and edits one attribute of a record in the way its type needs;
 // a limit shows that many of its values until the rest are asked for.
@@ -65,14 +64,14 @@ export function Field({ record, attribute, limit }: { record: CrmRecord; attribu
   if (attribute.type === 'reference') {
     return <ReferenceField record={record} attribute={attribute} values={values} limit={limit} />
   }
-  const link = linkTo[attribute.type]
-  if (attribute.multi || link) {
+  const ValueLink = valueLinks[attribute.type]
+  if (attribute.multi || ValueLink) {
     return (
       <div className="flex min-w-0 flex-wrap items-center gap-1">
         <Capped limit={limit}>
           {values.map((v) => (
             <Chip key={valueKey(v)} onRemove={() => write.remove(slug, [valueKey(v)])}>
-              {link ? <ExternalLink href={link(valueText(v))} className="truncate" /> : valueText(v)}
+              {ValueLink ? <ValueLink value={valueText(v)} className="truncate" /> : valueText(v)}
             </Chip>
           ))}
         </Capped>

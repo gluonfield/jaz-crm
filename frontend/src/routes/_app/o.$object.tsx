@@ -11,7 +11,7 @@ import { Header, Loading } from '@/components/controls'
 import { AddColumn, ColumnHeader } from '@/components/columns'
 import { CreateRecord } from '@/components/create-record'
 import { Field } from '@/components/fields'
-import { ExternalLink } from '@/components/external-link'
+import { valueLinks } from '@/components/external-link'
 import { ConnectGoogle, EmptyState } from '@/components/empty-state'
 import { ObjectIcon, RecordIcon } from '@/components/icons'
 import { Picker } from '@/components/picker'
@@ -320,8 +320,9 @@ function cell(record: CrmRecord, attribute: Attribute) {
   if (attribute.type === 'status' && values[0]) {
     return <Stage stage={values[0]} />
   }
-  if (attribute.type === 'domain' || attribute.type === 'url') {
-    return <div className="flex flex-col gap-1">{values.map((value) => <ExternalLink key={value} href={attribute.type === 'domain' ? `https://${value}` : value} className="block truncate">{value}</ExternalLink>)}</div>
+  const ValueLink = valueLinks[attribute.type]
+  if (ValueLink) {
+    return <div className="flex flex-col gap-1">{values.map((value) => <ValueLink key={value} value={value} className="block truncate" />)}</div>
   }
   if (attribute.type === 'datetime') {
     return values.map((value) => <DateLabel key={value} value={value} suggested={attribute.slug === 'action_date' && record.values.action_date_basis === 'Suggested'} />)

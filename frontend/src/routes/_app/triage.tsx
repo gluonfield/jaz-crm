@@ -5,7 +5,7 @@ import { Button } from '@jaz/ui/button'
 import { Header, Tab, inputClass } from '@/components/controls'
 import { ConnectGoogle, EmptyState } from '@/components/empty-state'
 import { RecordIcon } from '@/components/icons'
-import { DomainLink } from '@/components/domain-link'
+import { DomainLink } from '@/components/external-link'
 import { Kbd } from '@/components/kbd'
 import { timeAgo } from '@/lib/format'
 import { useDebounced, useListKeys } from '@/lib/hooks'
@@ -133,7 +133,7 @@ function Address({ address, domain }: { address: string; domain?: string }) {
   return domain ? (
     <>
       {address.slice(0, -domain.length)}
-      <DomainLink domain={domain} />
+      <DomainLink value={domain} />
     </>
   ) : (
     address

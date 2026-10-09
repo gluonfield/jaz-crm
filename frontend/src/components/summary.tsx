@@ -6,8 +6,7 @@ import { formatDate, formatNumber, timeAgo } from '@/lib/format'
 import { useWorkspace } from '@/lib/queries'
 import type { CrmObject, CrmRecord, Interaction, Member, Ref } from '@/lib/types'
 import { cn } from '@/lib/utils'
-import { DomainLink } from './domain-link'
-import { ExternalLink } from './external-link'
+import { DomainLink, ExternalLink } from './external-link'
 import { RecordIcon } from './icons'
 import { Stage } from './stage'
 import { InteractionDialog } from './interaction-dialog'
@@ -48,7 +47,7 @@ function identity(record: CrmRecord, object: CrmObject, members: Member[]) {
     } else if (a.type === 'domain') {
       facts.push(
         ...values.map((v) => (
-          <DomainLink key={valueText(v)} domain={valueText(v)} className="text-ink" />
+          <DomainLink key={valueText(v)} value={valueText(v)} className="text-ink" />
         )),
       )
     } else if (a.type === 'member') {

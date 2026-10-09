@@ -47,7 +47,7 @@ test('a teammate in a summary is named with their field', () => {
 test('link fields open their pages from a record', () => {
   const record: CrmRecord = {
     id: 'irwin', object: 'people', created_at: '2026-10-09T12:00:00Z', updated_at: '2026-10-09T12:00:00Z',
-    values: { links: ['https://www.linkedin.com/in/irwin-zaid/'], website: 'https://oxfordedge.ox.ac.uk/', domains: ['ox.ac.uk'] },
+    values: { links: ['https://www.linkedin.com/in/irwin-zaid/'], website: 'https://oxfordedge.ox.ac.uk/', domains: ['müller.de'] },
   }
   const client = newQueryClient()
   const render = (attribute: CrmObject['attributes'][number]) => renderToStaticMarkup(<QueryClientProvider client={client}><Field record={record} attribute={attribute} /></QueryClientProvider>)
@@ -57,7 +57,7 @@ test('link fields open their pages from a record', () => {
   const website = render({ slug: 'website', name: 'Website', type: 'url' })
   assert.match(website, /<a href="https:\/\/oxfordedge\.ox\.ac\.uk\/"[^>]*>oxfordedge\.ox\.ac\.uk<\/a>/)
   assert.doesNotMatch(website, /<input/)
-  assert.match(render({ slug: 'domains', name: 'Domains', type: 'domain', multi: true }), /<a href="https:\/\/ox\.ac\.uk"[^>]*>ox\.ac\.uk<\/a>/)
+  assert.match(render({ slug: 'domains', name: 'Domains', type: 'domain', multi: true }), /<a href="https:\/\/müller\.de"[^>]*>müller\.de<\/a>/)
   client.clear()
 })
 

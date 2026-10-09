@@ -1,6 +1,7 @@
-import type { ReactNode } from 'react'
+import type { ComponentType, ReactNode } from 'react'
 import { embedded } from '@/lib/api'
 import { app } from '@/lib/mcp-app'
+import type { Attribute } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 export function ExternalLink({ href, children, className }: { href: string; children?: ReactNode; className?: string }) {
@@ -23,6 +24,20 @@ export function ExternalLink({ href, children, className }: { href: string; chil
       {children ?? shortLink(href)}
     </a>
   )
+}
+
+export function DomainLink({ value, className }: { value: string; className?: string }) {
+  return (
+    <ExternalLink href={`https://${value}`} className={className}>
+      {value}
+    </ExternalLink>
+  )
+}
+
+// valueLinks show values of the link types as links to the pages they name.
+export const valueLinks: Partial<Record<Attribute['type'], ComponentType<{ value: string; className?: string }>>> = {
+  url: ({ value, className }) => <ExternalLink href={value} className={className} />,
+  domain: DomainLink,
 }
 
 function shortLink(href: string) {
