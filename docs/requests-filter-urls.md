@@ -20,3 +20,8 @@ Augustinas found the CRM's filter links unreadable on 2026-10-09: `/o/people?fil
 - Frontend tests cover the readable round trip, the exact links the backend writes (repeated keys, quoted numbers), the JSON fallback, the router's merge of URL keys with the validated search (a filter neither doubles nor survives removal, including operators without a value), and the original JSON link opening the same list. Negative controls fail without reading URL keys, without the duplicate-key fallback, without clearing read keys, and without skipping cleared keys.
 - MCP tests assert `resource_uri` carries `q=Stone&tags=Founder&tags=Manufacturing` and `stage=Lead&company=acme.example`, and that reloading a resource URI reproduces its search.
 - On a scratch server: the plain link, the saved-view link and the original JSON link each show the two Advisor Candidates; the JSON link rewrites itself to `?tags=Advisor+Candidate`; `utm_source` is ignored; choosing the view writes `?saved=<id>`; typing a search adds `&q=Gr`; removing a condition through the filter dialog leaves `?links.is_not_empty=`; Follow-ups keeps its defaults with a clean URL.
+
+## Rollout
+
+- `c32deda` pushed to main; Railway Server and Worker report SUCCESS for it.
+- Production: `search_records` returns `ui://jaz-crm/o/people?limit=2&tags=Advisor%20Candidate`; in the CAS workspace `/o/people?tags=Advisor+Candidate` lists 70 people with one filter, and `/o/people?saved=Yf2twQu9DQRJCTEzJQXarv` opens the Advisor Candidates view unedited with the same 70.
