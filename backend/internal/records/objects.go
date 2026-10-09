@@ -36,7 +36,6 @@ var StandardObjects = []storage.NewObject{
 		{Slug: "hq_country", Name: "Headquarters country", Type: Select},
 		{Slug: "employee_count", Name: "Employee count", Type: Number},
 		{Slug: "owner", Name: "Owner", Type: Member},
-		{Slug: "notes", Name: "Notes", Type: Text},
 		{Slug: "founded_year", Name: "Founded year", Type: Number},
 		{Slug: "size", Name: "Size", Type: Select, Options: []string{"1-10", "11-50", "51-200", "201-500", "501-1,000", "1,001-5,000", "5,001-10,000", "10,001+"}},
 	}},
@@ -49,7 +48,6 @@ var StandardObjects = []storage.NewObject{
 		{Slug: "job_title", Name: "Job title", Type: Text},
 		{Slug: LinksAttribute, Name: "Links", Type: URL, Multi: true, IsUnique: true},
 		{Slug: "owner", Name: "Owner", Type: Member},
-		{Slug: "notes", Name: "Notes", Type: Text},
 		{Slug: ContextAttribute, Name: "Context", Type: Text},
 	}},
 	{Slug: "deals", Name: "Deals", Attributes: []storage.NewAttribute{

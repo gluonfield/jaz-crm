@@ -10,22 +10,21 @@ import { RecordCard } from './record-card'
 import { Related } from './related'
 import { Summary } from './summary'
 
-test('a person summary keeps short notes and context in their own fields', () => {
+test('a person summary keeps context in its own field', () => {
   const object: CrmObject = { slug: 'people', name: 'People', attributes: [
     { slug: 'name', name: 'Name', type: 'text' },
     { slug: 'job_title', name: 'Job title', type: 'text' },
-    { slug: 'notes', name: 'Notes', type: 'text' },
     { slug: 'context', name: 'Context', type: 'text' },
   ] }
   const record: CrmRecord = {
     id: 'ada', object: 'people', created_at: '2026-10-08T12:00:00Z', updated_at: '2026-10-08T12:00:00Z',
-    values: { name: 'Ada', job_title: 'Engineer', notes: 'Introduced by a customer', context: 'Evaluating a factory project' },
+    values: { name: 'Ada', job_title: 'Engineer', context: 'Evaluating a factory project' },
   }
   const client = newQueryClient()
   const html = renderToStaticMarkup(<QueryClientProvider client={client}><Summary record={record} object={object} name="Ada" upcoming={[]}><h2>Ada</h2></Summary></QueryClientProvider>)
   assert.match(html, /Ada/)
   assert.match(html, /Engineer/)
-  assert.doesNotMatch(html, /Introduced by a customer|Evaluating a factory project/)
+  assert.doesNotMatch(html, /Evaluating a factory project/)
   client.clear()
 })
 

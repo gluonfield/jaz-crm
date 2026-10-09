@@ -17,10 +17,10 @@ func TestCorePropertiesWorkWithoutCustomSchema(t *testing.T) {
 	}
 	companyValues := set("name", "Acme", "website", "https://acme.test", "links", "https://linkedin.com/company/acme",
 		"industry", "Manufacturing", "hq_city", "Cambridge", "hq_state", "Cambridgeshire", "hq_country", "United Kingdom",
-		"employee_count", "42", "owner", "a@jaz.test", "notes", "Factory visit requested")
+		"employee_count", "42", "owner", "a@jaz.test")
 	company, _ := upsert(t, svc, actor, records.SourceUser, records.Write{Object: "companies", Set: companyValues})
 	personValues := set("name", "Ada", "company", company.ID, "links", "https://linkedin.com/in/ada",
-		"owner", "a@jaz.test", "notes", "Introduced by a customer")
+		"owner", "a@jaz.test")
 	person, _ := upsert(t, svc, actor, records.SourceUser, records.Write{Object: "people", Set: personValues})
 	dealValues := set("name", "Factory project", "company", company.ID, "people", person.ID, "owner", "a@jaz.test",
 		"value", "1200", "expected_close_date", "2026-11-30")
