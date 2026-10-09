@@ -1,4 +1,4 @@
-import { type MouseEvent, type ReactNode, useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import { ArrowUp, BellRing, Check, ChevronDown, LoaderCircle, Phone, Smile, Sparkles, Target, Undo2, WandSparkles, X } from 'lucide-react'
 import { Button } from '@jaz/ui/button'
 import type { DraftRewriteAction } from '@/lib/types'
@@ -30,21 +30,19 @@ export function DraftRewrite({ pending, disabled, canUndo, onRewrite, onUndo }: 
   )
 }
 
-// Pressing keeps focus where it is: focus would reveal the composer's idle
-// rows and move the button from under the pointer before the click lands.
-const keepFocus = (event: MouseEvent) => event.preventDefault()
-
 // DraftWrite asks AI for a first draft: whatever the follow-up needs, or a
-// chosen kind of reply.
+// chosen kind of reply. Pressing it keeps focus where it is: focus would
+// reveal the composer's idle rows and move the button from under the
+// pointer before the click lands. The menu's trigger opens on press.
 export function DraftWrite({ pending, onWrite }: { pending: boolean; onWrite: Run }) {
   return (
     <div className="m-2 flex shrink-0 items-center">
-      <Button variant="ghost" size="sm" disabled={pending} onMouseDown={keepFocus} onClick={() => onWrite('write')} className="rounded-r-none">
+      <Button variant="ghost" size="sm" disabled={pending} onMouseDown={(event) => event.preventDefault()} onClick={() => onWrite('write')} className="rounded-r-none">
         {pending ? <LoaderCircle className="animate-spin motion-reduce:animate-none" /> : <Sparkles />}
         {pending ? 'Drafting…' : 'Draft with AI'}
       </Button>
       <AiMenu
-        trigger={<Button variant="ghost" size="sm" disabled={pending} onMouseDown={keepFocus} aria-label="Choose what to draft" className="rounded-l-none px-1"><ChevronDown /></Button>}
+        trigger={<Button variant="ghost" size="sm" disabled={pending} aria-label="Choose what to draft" className="rounded-l-none px-1"><ChevronDown /></Button>}
         presets={[{ action: 'nudge', label: 'Nudge', icon: <BellRing /> }, { action: 'accept', label: 'Accept', icon: <Check /> }, { action: 'decline', label: 'Decline', icon: <X /> }, { action: 'call', label: 'Suggest a call', icon: <Phone /> }]}
         custom="write"
         placeholder="Tell AI what to write…"
@@ -76,7 +74,7 @@ function AiMenu({ trigger, presets, custom, placeholder, align = 'start', onRun 
             setInstruction('')
           }
         }}>
-          <input aria-label={placeholder.replace('…', '')} placeholder={placeholder} value={instruction} onChange={(event) => setInstruction(event.target.value)} onKeyDown={(event) => {
+          <input aria-label={placeholder} placeholder={placeholder} value={instruction} onChange={(event) => setInstruction(event.target.value)} onKeyDown={(event) => {
             event.stopPropagation()
             if (event.key === 'Escape') {
               setOpen(false)

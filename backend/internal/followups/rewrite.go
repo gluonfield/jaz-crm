@@ -33,9 +33,13 @@ type Rewriter interface {
 	Rewrite(context.Context, RewriteInput) (RewriteResult, error)
 }
 
+// actions are the drafting actions, each true when it writes a first draft
+// rather than editing one.
+var actions = map[string]bool{"write": true, "nudge": true, "accept": true, "decline": true, "call": true, "shorten": false, "less_salesy": false, "one_clear_ask": false, "warmer": false, "polish": false, "custom": false}
+
 // Composes says whether an action writes a first draft rather than editing one.
 func Composes(action string) bool {
-	return slices.Contains([]string{"write", "nudge", "accept", "decline", "call"}, action)
+	return actions[action]
 }
 
 func (a *Agent) Rewrite(ctx context.Context, actor auth.Actor, id string, input RewriteInput) (RewriteResult, error) {
@@ -46,11 +50,12 @@ func (a *Agent) Rewrite(ctx context.Context, actor auth.Actor, id string, input 
 	input.Subject = strings.TrimSpace(input.Subject)
 	input.From = strings.TrimSpace(input.From)
 	input.Instruction = strings.TrimSpace(input.Instruction)
-	if input.Draft == "" && !Composes(input.Action) {
-		return RewriteResult{}, errs.Invalidf("write a draft before editing it with AI")
-	}
-	if !Composes(input.Action) && !slices.Contains([]string{"shorten", "less_salesy", "one_clear_ask", "warmer", "polish", "custom"}, input.Action) {
+	composes, known := actions[input.Action]
+	if !known {
 		return RewriteResult{}, errs.Invalidf("choose a drafting action")
+	}
+	if input.Draft == "" && !composes {
+		return RewriteResult{}, errs.Invalidf("write a draft before editing it with AI")
 	}
 	if input.Action == "custom" && input.Instruction == "" {
 		return RewriteResult{}, errs.Invalidf("describe how to edit the draft")
