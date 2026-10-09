@@ -73,6 +73,7 @@ The existing MCP server and embedded app can be connected to ChatGPT using OAuth
 | `add_attribute_option` | reusable select choices, including company categories |
 | `edit_pipeline_stage` | rename, reorder or delete stages, preserving records and history |
 | `search_records`, `get_record`, `upsert_record`, `delete_record` | records; `get_record` includes how often and when last they were in touch |
+| `search` | the newest few records of each object matching a query as `{results: [{id, title, url, text}]}`, [OpenAI's search convention](https://developers.openai.com/api/docs/mcp), for host search such as Jaz's command palette |
 | `list_interactions`, `get_interaction`, `search_interactions` | timelines, full conversations, full-text search |
 | `log_interaction`, `link_interaction`, `unlink_interaction`, `skip_interaction` | notes, messages and calls/meetings, links to records, removal |
 | `list_triage`, `decide_triage` | who is kept, skipped or waiting, and decisions by address or domain |

@@ -69,6 +69,7 @@ func NewHandler(svc Services, keys *auth.Service, logger *log.Logger) *Handler {
 	}, &mcp.ServerOptions{Instructions: instructions})
 	r := &registry{server: server, logger: logger.WithPrefix("tools"), publicURL: keys.Issuer(), members: svc.Workspaces, ops: map[string]func(context.Context, auth.Actor, json.RawMessage) (any, error){}}
 	registerRecords(r, svc.Records, svc.Interactions, pictures{svc.Interactions, svc.Logos, keys.Issuer()})
+	registerSearch(r, svc.Records)
 	registerWorkspace(r, svc.Workspaces, keys)
 	registerInteractions(r, svc.Interactions)
 	registerConnections(r, svc.Connections, keys.Issuer())
