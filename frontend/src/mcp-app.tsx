@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import type { McpUiHostContext } from '@modelcontextprotocol/ext-apps'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createMemoryHistory, createRouter } from '@tanstack/react-router'
@@ -29,6 +30,25 @@ const router = createRouter({
   context: { queryClient },
 })
 
+function reportNavigation(replace: boolean, delta?: number) {
+  if (!app.getHostCapabilities()?.experimental?.['jaz/navigation'] || app.getHostContext()?.displayMode !== 'fullscreen') return
+  const path = router.history.location.href
+  void app.notification({ method: 'jaz/notifications/navigation', params: { path, replace, ...(delta && { delta }) } }).catch(console.error)
+}
+
+// Subscribe after RouterProvider mounts: the router treats history subscribers as its loading adapter.
+function AppRouter() {
+  useEffect(() => {
+    reportNavigation(true)
+    return router.history.subscribe(({ location, action }) => {
+      const delta = action.type === 'BACK' ? -1 : action.type === 'FORWARD' ? 1 : action.type === 'GO' ? action.index : undefined
+      const target = (app.getHostContext()?.['jaz/navigation'] as { path?: string } | undefined)?.path
+      if (delta || location.href !== target) reportNavigation(action.type !== 'PUSH', delta)
+    })
+  }, [])
+  return <RouterProvider router={router} />
+}
+
 function render() {
   if (!ready) {
     return
@@ -45,8 +65,8 @@ function render() {
       </QueryClientProvider>,
     )
   } else {
-    renderer.render(<RouterProvider router={router} />)
-    void router.navigate({ href: page })
+    renderer.render(<AppRouter />)
+    void router.navigate({ href: page }).then(() => reportNavigation(true))
   }
 }
 
@@ -74,13 +94,19 @@ app.ontoolresult = (result) => {
     } else if ('id' in content && typeof content.id === 'string') {
       queryClient.setQueryData(toolQuery('get_record', { record_id: content.id }).queryKey, content)
     }
-    open(content.resource_uri)
+    if (!app.getHostCapabilities()?.experimental?.['jaz/navigation'] || app.getHostContext()?.displayMode === 'inline') open(content.resource_uri)
   }
 }
 
 // A host's deep link opens the app at a page, at start and whenever the host
 // changes it.
 function follow(context?: McpUiHostContext) {
+  const path = (context?.['jaz/navigation'] as { path?: unknown } | undefined)?.path
+  if (typeof path === 'string' && path.startsWith('/')) {
+    page = path
+    if (router.history.location.href !== path) void router.navigate({ href: path, replace: true })
+    return
+  }
   open((context?.['openai/deepLink'] as { url?: unknown } | undefined)?.url)
 }
 app.addEventListener('hostcontextchanged', follow)
