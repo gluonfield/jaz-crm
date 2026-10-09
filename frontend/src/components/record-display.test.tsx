@@ -5,6 +5,7 @@ import { createMemoryHistory, createRootRoute, createRouter, RouterProvider } fr
 import { renderToStaticMarkup } from 'react-dom/server'
 import { newQueryClient } from '@/lib/queries'
 import type { CrmObject, CrmRecord } from '@/lib/types'
+import { Field } from './fields'
 import { RecordCard } from './record-card'
 import { Related } from './related'
 import { Summary } from './summary'
@@ -40,6 +41,23 @@ test('a teammate in a summary is named with their field', () => {
   const client = newQueryClient()
   const html = renderToStaticMarkup(<QueryClientProvider client={client}><Summary record={record} object={object} name="Andy" upcoming={[]}><h2>Andy</h2></Summary></QueryClientProvider>)
   assert.match(html, />Owner<\/span>.*august@jaz\.test/)
+  client.clear()
+})
+
+test('link fields open their pages from a record', () => {
+  const record: CrmRecord = {
+    id: 'irwin', object: 'people', created_at: '2026-10-09T12:00:00Z', updated_at: '2026-10-09T12:00:00Z',
+    values: { links: ['https://www.linkedin.com/in/irwin-zaid/'], website: 'https://oxfordedge.ox.ac.uk/', domains: ['ox.ac.uk'] },
+  }
+  const client = newQueryClient()
+  const render = (attribute: CrmObject['attributes'][number]) => renderToStaticMarkup(<QueryClientProvider client={client}><Field record={record} attribute={attribute} /></QueryClientProvider>)
+  const links = render({ slug: 'links', name: 'Links', type: 'url', multi: true })
+  assert.match(links, /<a href="https:\/\/www\.linkedin\.com\/in\/irwin-zaid\/"[^>]*target="_blank"[^>]*>linkedin\.com\/in\/irwin-zaid\/<\/a>/)
+  assert.match(links, /<input/)
+  const website = render({ slug: 'website', name: 'Website', type: 'url' })
+  assert.match(website, /<a href="https:\/\/oxfordedge\.ox\.ac\.uk\/"[^>]*>oxfordedge\.ox\.ac\.uk<\/a>/)
+  assert.doesNotMatch(website, /<input/)
+  assert.match(render({ slug: 'domains', name: 'Domains', type: 'domain', multi: true }), /<a href="https:\/\/ox\.ac\.uk"[^>]*>ox\.ac\.uk<\/a>/)
   client.clear()
 })
 
