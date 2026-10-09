@@ -1,11 +1,10 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
-import { ArrowDownAZ, ArrowUp, Kanban, ListChecks, Plus, Search, Table2, X } from 'lucide-react'
+import { ArrowDownAZ, Kanban, ListChecks, Plus, Search, Table2, X } from 'lucide-react'
 import { type ReactNode, useMemo, useRef, useState } from 'react'
 import { Board } from '@/components/board'
 import { CompanyPeople } from '@/components/company-people'
 import { editDraft } from '@/components/follow-up'
 import { byUrgency, FollowUpQueue } from '@/components/follow-ups'
-import { Kbd } from '@/components/kbd'
 import { Stage } from '@/components/stage'
 import { Button } from '@jaz/ui/button'
 import { Header, Loading } from '@/components/controls'
@@ -31,7 +30,7 @@ import { useColumnWidths } from '@/lib/use-column-widths'
 import { validateRecordSearch } from '@/lib/record-search'
 import { statusOf } from '@/lib/stages'
 import { useMail } from '@/lib/sync'
-import type { Attribute, CrmObject, CrmRecord } from '@/lib/types'
+import type { Attribute, CrmObject, CrmRecord, RecordFilter } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 export const Route = createFileRoute('/_app/o/$object')({
@@ -57,10 +56,11 @@ function ObjectList({ slug }: { slug: string }) {
   const object = objects?.find((o) => o.slug === slug)
   const me = useWorkspace()?.members?.find((m) => m.is_me)
   const search = Route.useSearch()
-  const { sort, view, q = '', filters = slug === 'follow_ups' ? [
+  const defaults: RecordFilter[] = slug === 'follow_ups' ? [
     { attribute: 'status', operator: 'is', value: 'Open' },
     ...(me ? [{ attribute: 'owner', operator: 'is' as const, value: me.email }] : []),
-  ] : [], saved, limit = 100, conversation_id } = search
+  ] : []
+  const { sort, view, q = '', filters = defaults, saved, limit = 100, conversation_id } = search
   const query = useDebounced(q.trim())
   const queue = slug === 'follow_ups' && (view ? view !== 'table' : search.group_by_conversation !== false)
   const scope = { group_by_conversation: slug === 'follow_ups' ? queue : undefined, conversation_id }
@@ -90,9 +90,9 @@ function ObjectList({ slug }: { slug: string }) {
   const own = !object.standard
   // The CRM's objects show their choices first; the workspace's own tables keep the order columns were added in.
   const columns = object.attributes.filter((a) => a.slug !== 'name' && a.type !== 'markdown' && !(slug === 'follow_ups' && dateMetadata(a.slug))).sort((a, b) => (own ? 0 : Number(b.type === 'select') - Number(a.type === 'select')))
-  const ownerFilter = slug === 'follow_ups' && <OwnerFilter filters={filters} onChange={(filters) => void navigate({ to: '.', search: (previous) => ({ ...previous, filters }), replace: true })} />
+  const ownerFilter = (compact = false) => slug === 'follow_ups' && <OwnerFilter filters={filters} compact={compact} onChange={(filters) => void navigate({ to: '.', search: (previous) => ({ ...previous, filters }), replace: true })} />
   const recordFilters = (title = false) => (
-    <RecordFilters key={slug} object={object} filters={filters} query={q} scope={scope} selected={saved} title={title} total={total}
+    <RecordFilters key={slug} object={object} filters={filters} defaults={defaults} query={q} scope={scope} selected={saved} title={title} total={total}
       onChange={(filters) => void navigate({ to: '.', search: (previous) => ({ ...previous, filters }), replace: true })}
       onApply={(saved) => void navigate({ to: '.', search: (previous) => ({ ...previous, filters: saved?.filters ?? [], q: saved?.query, saved: saved?.id }), replace: true })}
     />
@@ -106,7 +106,6 @@ function ObjectList({ slug }: { slug: string }) {
       options={[{ value: '', label: slug === 'follow_ups' ? 'Action date' : 'Recently added' }, { value: 'updated_at', label: 'Last updated' }, { value: 'name', label: 'Name' }]}
       selected={[sort ?? '']}
       onSelect={(value) => void navigate({ to: '.', search: { ...search, sort: value === 'name' || value === 'updated_at' ? value : undefined }, replace: true })}
-      align={queue ? 'end' : 'start'}
     />
   )
   const searching = {
@@ -120,25 +119,16 @@ function ObjectList({ slug }: { slug: string }) {
     'aria-label': `Search ${object.name.toLowerCase()}`,
     'data-page-search': true,
   }
-  // The queue has no page header: its own column holds what chooses its
-  // records, the view as its title, the order and a search that narrows the
-  // view.
+  // The queue has no page header: one row of its column holds the view as
+  // its title, a filter, whose follow-ups show and a search that narrows the
+  // view, which opens from its icon or with /.
   const controls = (
     <>
-      <div className="flex min-w-0 flex-wrap items-center gap-1">
+      <div className="flex min-w-0 items-center gap-1">
         <div className="-ml-2 mr-auto min-w-0">{recordFilters(true)}</div>
-        {sorter(
-          <Button variant="ghost" aria-label="Sort records" className="bg-list-hover hover:bg-list-active">
-            {sortName}
-            <ArrowUp className="text-ink-3" />
-          </Button>,
-        )}
-      </div>
-      {conversationFilter && <div>{conversationFilter}</div>}
-      <div className="flex min-w-0 flex-wrap items-center gap-2">
-        {ownerFilter}
-        <label className="flex h-8 min-w-0 flex-1 basis-32 items-center gap-2 rounded-[8px] bg-list-hover px-2.5 text-ink-3 transition-colors focus-within:bg-list-active">
-          <Search className="size-3.5 shrink-0" />
+        {ownerFilter(true)}
+        <label title="Search" className={cn('flex h-7 min-w-7 shrink-0 cursor-text items-center gap-2 rounded-[var(--radius-control)] px-1.5 text-ink-2 transition-colors focus-within:bg-list-hover hover:bg-list-hover', q && 'bg-list-hover')}>
+          <Search className="size-4 shrink-0" />
           <input
             {...searching}
             onKeyDown={(e) => {
@@ -147,12 +137,12 @@ function ObjectList({ slug }: { slug: string }) {
                 e.currentTarget.blur()
               }
             }}
-            placeholder="Search people, companies, emails"
-            className="min-w-0 flex-1 bg-transparent text-[12.5px] text-ink outline-none placeholder:text-ink-3 [&::-webkit-search-cancel-button]:hidden"
+            placeholder="Search"
+            className={cn('w-0 min-w-0 bg-transparent text-[12.5px] text-ink outline-none transition-[width] duration-150 placeholder:text-ink-3 focus:w-40 motion-reduce:transition-none [&::-webkit-search-cancel-button]:hidden', q && 'w-40')}
           />
-          {!q && <Kbd className="ml-0">/</Kbd>}
         </label>
       </div>
+      {conversationFilter && <div>{conversationFilter}</div>}
       {query && <p className="flex items-center justify-between px-1 text-[12px] text-ink-3">
         <span className="tabular-nums">Showing {total ?? 0} of {unsearched ?? '…'}</span>
         <button type="button" className="text-primary outline-none hover:underline focus-visible:underline" onClick={() => void navigate({ to: '.', search: (previous) => ({ ...previous, q: undefined }), replace: true })}>Clear</button>
@@ -178,7 +168,7 @@ function ObjectList({ slug }: { slug: string }) {
         )}
         <div className="ml-auto flex max-w-full flex-wrap items-center gap-1 font-normal">
           {recordFilters()}
-          {ownerFilter}
+          {ownerFilter()}
           {sorter(
             <Button variant="ghost" aria-label="Sort records">
               <ArrowDownAZ />

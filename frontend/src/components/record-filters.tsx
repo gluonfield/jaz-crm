@@ -5,6 +5,7 @@ import { toolQuery, useAction, useTool } from '@/lib/queries'
 import type { RecordSearchScope } from '@/lib/record-search'
 import type { CrmObject, RecordFilter, SavedFilter } from '@/lib/types'
 import { Button } from '@jaz/ui/button'
+import { cn } from '@/lib/utils'
 import { inputClass } from './controls'
 import { FilterCondition, needsValue } from './filter-condition'
 import { Picker } from './picker'
@@ -12,8 +13,10 @@ import { Dialog, DialogContent, DialogTitle } from './ui/dialog'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
 
 // RecordFilters edits conditions and selects saved views. The title variant
-// shows each view's count, where search narrows the view without editing it.
-export function RecordFilters({ object, filters, query, scope, selected, title = false, total, onChange, onApply }: { object: CrmObject; filters: RecordFilter[]; query: string; scope: RecordSearchScope; selected?: string; title?: boolean; total?: number; onChange: (filters: RecordFilter[]) => void; onApply: (filter?: SavedFilter) => void }) {
+// shows each view's count, where search narrows the view without editing it,
+// and counts only the conditions someone added beyond the defaults and the
+// owner, which has its own control.
+export function RecordFilters({ object, filters, defaults = [], query, scope, selected, title = false, total, onChange, onApply }: { object: CrmObject; filters: RecordFilter[]; defaults?: RecordFilter[]; query: string; scope: RecordSearchScope; selected?: string; title?: boolean; total?: number; onChange: (filters: RecordFilter[]) => void; onApply: (filter?: SavedFilter) => void }) {
   const saved = useTool<{ filters: SavedFilter[] }>('list_saved_filters', { object: object.slug }, { refetchInterval: 5000 }).data?.filters ?? []
   const active = saved.find((f) => f.id === selected)
   const [menu, setMenu] = useState(false)
@@ -45,7 +48,8 @@ export function RecordFilters({ object, filters, query, scope, selected, title =
   } })
   const custom = filters.length > 0 || (!title && !!query.trim())
   const edited = title ? active && JSON.stringify(active.filters) !== JSON.stringify(filters) : changed
-  const label = active ? `${active.name}${edited ? ' · Edited' : ''}` : custom ? 'Custom filter' : `All ${object.name.toLowerCase()}`
+  const label = active ? `${active.name}${edited ? ' · Edited' : ''}` : title ? object.name : custom ? 'Custom filter' : `All ${object.name.toLowerCase()}`
+  const added = title ? filters.filter((f) => f.attribute !== 'owner' && !defaults.some((d) => JSON.stringify(d) === JSON.stringify(f))).length : filters.length
   return (
     <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1">
       <Picker
@@ -73,7 +77,7 @@ export function RecordFilters({ object, filters, query, scope, selected, title =
         }
         setOpen(next)
       }}>
-        <PopoverTrigger asChild><Button variant="ghost"><ListFilter />Filter{filters.length > 0 && <span className="tabular-nums text-ink-3">{filters.length}</span>}</Button></PopoverTrigger>
+        <PopoverTrigger asChild><Button variant="ghost" size={title && !added ? 'icon' : 'default'} aria-label="Filter" title="Filter" className={cn(title && added > 0 && 'bg-list-hover text-ink')}><ListFilter />{!title && 'Filter'}{added > 0 && <span className="tabular-nums text-ink-3">{added}</span>}</Button></PopoverTrigger>
         <PopoverContent align="start" collisionPadding={8} className="w-[520px] max-w-[calc(100vw-2rem)] p-3" onKeyDown={(e) => e.stopPropagation()}>
           <div className="mb-2 flex items-center justify-between gap-2">
             <span className="text-[12px] text-ink-3">Match all conditions</span>

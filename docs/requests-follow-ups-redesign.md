@@ -13,7 +13,7 @@ Source: Augustinas, 2026-10-08 to 2026-10-09. The Follow-ups queue looked confus
 - [x] Verify with a seeded full stack (long email thread, LinkedIn chase, skipped draft, meeting task, waiting) in dark, light and narrow layouts; run full checks and strict review.
 
 - [x] Run the requested thermo-nuclear review: one standing model and due rule shared with the server's Chase filter, one text helper, one date-of-today helper, an always-present reply box, one details panel, parallel source loading, and no duplicated recipients in the composer.
-- [ ] Separate Outreach review tab for high-volume first-touch drafts.
+- [x] Reduce the queue header to one row: the view as its title, a filter icon that counts only added conditions, a one-word owner switch and a search icon that expands on click or /. Sorting stays in the table view.
 - [ ] Agent work: drafted chase messages, questions instead of a skipped draft, meeting summaries with the agreed next step.
 
 The seeded stack is a disposable PostgreSQL workspace driven through the real tools API and a headless Chrome over CDP, because the side browser could not capture this page. Checks covered folding and expanding mail without the view jumping, focus moving to revealed messages, Enter focusing the reply box on waiting and task follow-ups, switching to done and dismissed steps, the narrow details panel and the standalone conversation page. Sending was not exercised: the harness has no Gmail connection, and send logic is unchanged.
