@@ -42,9 +42,11 @@ export class ListMotion extends Component<Props, object, Map<string, Row> | null
     }
     const bounds = root.getBoundingClientRect()
     for (const element of rows) {
-      const was = before.get(element.dataset.flip!)
       element.getAnimations().filter((animation) => this.animations.has(animation)).forEach((animation) => animation.cancel())
-      const rect = element.getBoundingClientRect()
+    }
+    const after = rows.map((element) => ({ element, rect: element.getBoundingClientRect() }))
+    for (const { element, rect } of after) {
+      const was = before.get(element.dataset.flip!)
       if (was && Math.abs(was.rect.width - rect.width) < 1) {
         const x = was.rect.left - rect.left
         const y = was.rect.top - rect.top
