@@ -46,12 +46,14 @@ function ContextMenuSubTrigger({
 
 function ContextMenuSubContent({
   className,
+  collisionPadding = 8,
   ...props
 }: React.ComponentProps<typeof ContextMenuPrimitive.SubContent>) {
   return (
     <ContextMenuPrimitive.Portal>
       <ContextMenuPrimitive.SubContent
         data-slot="context-menu-sub-content"
+        collisionPadding={collisionPadding}
         className={cn(menuContent, className)}
         {...props}
       />
@@ -61,12 +63,14 @@ function ContextMenuSubContent({
 
 function ContextMenuContent({
   className,
+  collisionPadding = 8,
   ...props
 }: React.ComponentProps<typeof ContextMenuPrimitive.Content>) {
   return (
     <ContextMenuPrimitive.Portal>
       <ContextMenuPrimitive.Content
         data-slot="context-menu-content"
+        collisionPadding={collisionPadding}
         className={cn(menuContent, className)}
         {...props}
       />
@@ -181,7 +185,7 @@ function ContextMenuOptions({
               items()[0]?.focus()
             }
           }}
-          className="h-8 w-full bg-transparent px-2 text-[13px] text-ink outline-none placeholder:text-ink-3"
+          className="h-8 w-full bg-transparent px-2 text-[13px] text-ink outline-none placeholder:text-ink-3 pointer-coarse:text-[16px]"
         />
         {(shown.length > 0 || (text && onCreate)) && <ContextMenuSeparator />}
         {shown.map((option, index) =>
