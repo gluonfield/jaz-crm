@@ -18,8 +18,10 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 
 const openedKey = 'crm-opened-pages'
 
+// Row buttons show on hover, and always on touch screens, where their tap
+// area reaches the row's height.
 const rowButton =
-  'absolute top-1 flex size-5 items-center justify-center rounded-[4px] text-ink-3 opacity-0 outline-none transition-opacity duration-100 hover:bg-list-active hover:text-ink focus-visible:opacity-100 group-hover/row:opacity-100 [&_svg]:size-3.5'
+  'absolute top-1 flex size-5 items-center justify-center rounded-[4px] text-ink-3 opacity-0 outline-none transition-opacity duration-100 hover:bg-list-active hover:text-ink focus-visible:opacity-100 group-hover/row:opacity-100 pointer-coarse:top-2.5 pointer-coarse:opacity-100 pointer-coarse:before:absolute pointer-coarse:before:-inset-2.5 [&_svg]:size-3.5'
 
 // useNewPage creates an untitled page, inside a parent when given, and opens it.
 export function useNewPage() {
@@ -70,7 +72,7 @@ export function DataNav() {
         <DropdownMenu>
           <DropdownMenuTrigger
             aria-label="New page or table"
-            className="flex size-5 items-center justify-center rounded-[4px] outline-none hover:bg-list-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-list-active [&_svg]:size-3.5"
+            className="relative flex size-5 items-center justify-center rounded-[4px] outline-none hover:bg-list-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-list-active pointer-coarse:before:absolute pointer-coarse:before:-inset-2.5 [&_svg]:size-3.5"
           >
             <Plus />
           </DropdownMenuTrigger>
@@ -157,8 +159,8 @@ function PageItem({ page, pages, depth, opened, toggle, drag }: { page: Page; pa
   return (
     <>
       <PageMenu page={page} pages={pages}>
-        <div {...drag.from(page.id)} {...drag.onto(page.id)} className={cn('group/row relative rounded-[var(--radius-control)] [&>a]:cursor-grab', drag.dragging === page.id && 'opacity-50', drag.target === page.id && 'bg-primary-soft [&>a]:bg-transparent [&>a]:text-primary')}>
-          <NavItem to={`/r/${page.id}`} depth={depth} icon={<PageIcon value={page.icon} className={cn(inside.length > 0 && 'group-hover/row:invisible')} />}>
+        <div {...drag.from(page.id)} {...drag.onto(page.id)} className={cn('group/row relative rounded-[var(--radius-control)] [&>a]:cursor-grab pointer-coarse:[&>a]:pr-8', drag.dragging === page.id && 'opacity-50', drag.target === page.id && 'bg-primary-soft [&>a]:bg-transparent [&>a]:text-primary')}>
+          <NavItem to={`/r/${page.id}`} depth={depth} icon={<PageIcon value={page.icon} className={cn(inside.length > 0 && 'group-hover/row:invisible pointer-coarse:invisible')} />}>
             {page.name}
           </NavItem>
           {inside.length > 0 && (

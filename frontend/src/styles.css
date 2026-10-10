@@ -86,6 +86,8 @@
 
 :root {
   color-scheme: light;
+  /* An MCP host sets this from its safeAreaInsets. */
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
   --page-icon-gray: #787774;
   --page-icon-brown: #9f6b53;
   --page-icon-orange: #d9730d;
@@ -415,5 +417,15 @@
   & h3 {
     font-size: 1em;
     color: var(--color-ink);
+  }
+}
+
+/* Safari zooms into a focused field set smaller than 16px. */
+@media (pointer: coarse) {
+  input,
+  textarea,
+  select,
+  [contenteditable='true'] {
+    font-size: max(16px, 1em);
   }
 }

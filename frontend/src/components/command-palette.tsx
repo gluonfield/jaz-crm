@@ -107,7 +107,7 @@ function Item({ value, icon, shortcut, onSelect, children }: { value?: string; i
     <CommandPrimitive.Item
       value={value}
       onSelect={onSelect}
-      className="flex h-9 cursor-default items-center gap-3 rounded-[7px] px-2.5 text-[13.5px] text-ink outline-none data-[selected=true]:bg-list-active [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-ink-2"
+      className="flex h-9 cursor-default items-center gap-3 rounded-[7px] px-2.5 text-[13.5px] text-ink outline-none data-[selected=true]:bg-list-active pointer-coarse:h-10 [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-ink-2"
     >
       {icon}
       <span className="flex min-w-0 flex-1 items-center truncate">{children}</span>

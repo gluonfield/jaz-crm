@@ -4,6 +4,7 @@ import { Toaster } from 'sonner'
 import { isTyping } from '@/lib/hooks'
 import { getUI, setUI } from '@/lib/ui'
 import { CommandPalette } from './command-palette'
+import { NavDrawer } from './nav-drawer'
 import { Sidebar } from './sidebar'
 import { useLiveSync } from '@/lib/sync'
 import { useWorkspaceChanges } from '@/lib/workspaces'
@@ -53,22 +54,25 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [navigate])
 
   return (
-    <div className="flex h-full min-h-0">
-      <Sidebar />
-      <main className="my-2 mr-2 flex min-w-0 flex-1 flex-col overflow-hidden rounded-[var(--radius-card)] bg-bg">{children}</main>
-      <CommandPalette />
-      <Toaster
-        position="bottom-left"
-        toastOptions={{
-          unstyled: true,
-          classNames: {
-            toast:
-              'flex w-[340px] items-center gap-2.5 rounded-[var(--radius-card)] border border-border bg-raised px-3.5 py-3 text-[13px] text-ink shadow-[var(--shadow-raised)]',
-            title: 'font-medium',
-            description: 'text-ink-3',
-          },
-        }}
-      />
-    </div>
+    <NavDrawer>
+      <div className="flex h-full min-h-0">
+        <Sidebar className="max-md:hidden" />
+        <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-bg pb-[var(--safe-area-bottom)] md:my-2 md:mr-2 md:rounded-[var(--radius-card)]">{children}</main>
+        <CommandPalette />
+        <Toaster
+          position="bottom-left"
+          mobileOffset={{ bottom: 'calc(16px + var(--safe-area-bottom))' }}
+          toastOptions={{
+            unstyled: true,
+            classNames: {
+              toast:
+                'flex w-[340px] items-center gap-2.5 rounded-[var(--radius-card)] border border-border bg-raised px-3.5 py-3 text-[13px] text-ink shadow-[var(--shadow-raised)]',
+              title: 'font-medium',
+              description: 'text-ink-3',
+            },
+          }}
+        />
+      </div>
+    </NavDrawer>
   )
 }

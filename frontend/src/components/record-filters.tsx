@@ -50,7 +50,7 @@ export function RecordFilters({ object, filters, defaults = [], query, scope, se
   const custom = !title && (added > 0 || !!query.trim())
   const label = active ? `${active.name}${edited ? ' · Edited' : ''}` : custom ? 'Custom filter' : title || defaults.length ? object.name : `All ${object.name.toLowerCase()}`
   return (
-    <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1">
+    <div className="flex min-w-0 max-w-full items-center gap-1 md:flex-wrap">
       <Picker
         trigger={title
           ? <button type="button" className="flex min-w-0 items-center gap-2 rounded-[var(--radius-control)] px-2 py-1 text-left outline-none hover:bg-list-hover focus-visible:ring-2 focus-visible:ring-ring">
@@ -58,7 +58,7 @@ export function RecordFilters({ object, filters, defaults = [], query, scope, se
             <span className="text-[13px] tabular-nums text-ink-3">{total}</span>
             <ChevronDown className="size-3.5 shrink-0 text-ink-3" />
           </button>
-          : <Button variant="ghost" className="max-w-40 shrink-0"><Bookmark className="shrink-0" /><span className="truncate">{label}</span><ChevronDown className="shrink-0" /></Button>}
+          : <Button variant="ghost" className={cn('max-w-40 shrink-0 max-md:px-1.5', active && 'max-md:bg-list-hover max-md:text-ink')}><Bookmark className="shrink-0" /><span className="truncate max-md:sr-only">{label}</span><ChevronDown className="shrink-0 max-md:hidden" /></Button>}
         placeholder="Find saved filters…"
         options={[{ value: '', label: `All ${object.name.toLowerCase()}` }, ...saved.map((f) => ({ value: f.id, label: f.name }))].map((option, i) => title ? { ...option, hint: counts[i] ?? '' } : option)}
         selected={active ? [active.id] : filters.length ? [] : ['']}
@@ -76,7 +76,7 @@ export function RecordFilters({ object, filters, defaults = [], query, scope, se
         }
         setOpen(next)
       }}>
-        <PopoverTrigger asChild><Button variant="ghost" size={title && !added ? 'icon' : 'default'} aria-label="Filter" title="Filter" className={cn(title && added > 0 && 'bg-list-hover text-ink')}><ListFilter />{!title && 'Filter'}{added > 0 && <span className="tabular-nums text-ink-3">{added}</span>}</Button></PopoverTrigger>
+        <PopoverTrigger asChild><Button variant="ghost" size={title && !added ? 'icon' : 'default'} aria-label="Filter" title="Filter" className={cn(title && added > 0 && 'bg-list-hover text-ink', !title && 'max-md:px-1.5')}><ListFilter />{!title && <span className="max-md:hidden">Filter</span>}{added > 0 && <span className="tabular-nums text-ink-3">{added}</span>}</Button></PopoverTrigger>
         <PopoverContent align="start" collisionPadding={8} className="w-[520px] max-w-[calc(100vw-2rem)] p-3" onKeyDown={(e) => e.stopPropagation()}>
           <div className="mb-2 flex items-center justify-between gap-2">
             <span className="text-[12px] text-ink-3">Match all conditions</span>

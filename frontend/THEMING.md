@@ -54,6 +54,7 @@ The host themes it through the initialize and host-context-changed messages:
 
 - `hostContext.theme` (`light` or `dark`) toggles the scheme.
 - `hostContext.styles.variables` sets standard variables on `:root`, which feed the tokens as above. Send only standard keys: the SDK rejects the whole context if it contains any other name. Jaz maps its own tokens onto them as in the table.
+- `hostContext.safeAreaInsets.bottom` sets `--safe-area-bottom`, which pads scrolling pages and the navigation drawer so their last row clears a home indicator. The web app reads `env(safe-area-inset-bottom)` instead.
 
 ## Overriding from a web host
 

@@ -17,7 +17,7 @@ export function SubPages({ page }: { page: string }) {
           key={p.id}
           to="/r/$recordId"
           params={{ recordId: p.id }}
-          className="-mx-2 flex h-8 items-center gap-2 rounded-[var(--radius-control)] px-2 text-[15px] text-ink outline-none transition-colors duration-100 hover:bg-list-hover focus-visible:bg-list-hover"
+          className="-mx-2 flex h-8 items-center gap-2 rounded-[var(--radius-control)] px-2 text-[15px] text-ink outline-none transition-colors duration-100 hover:bg-list-hover focus-visible:bg-list-hover pointer-coarse:h-10"
         >
           <PageIcon value={p.icon} />
           <span className="truncate underline decoration-ink-3/50 underline-offset-[3px]">{p.name}</span>

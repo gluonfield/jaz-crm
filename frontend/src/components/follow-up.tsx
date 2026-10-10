@@ -130,12 +130,13 @@ export function Conversation({ record: initialRecord, onClose }: { record: CrmRe
   const steps = actions.records ?? [record]
   const due = textOf(record, 'action_date')
   return (
-    <section data-conversation aria-label={recordName(record)} className="flex min-w-0 flex-1 flex-col">
-      <header className="flex shrink-0 items-start gap-3 border-b border-border py-3 pl-6 pr-4">
+    <section data-conversation aria-label={recordName(record)} className="group/conversation flex min-w-0 flex-1 flex-col">
+      {/* A phone lays the header out as a toolbar of back and actions over the title. */}
+      <header className="flex shrink-0 items-start gap-3 border-b border-border py-3 pl-6 pr-4 max-md:flex-wrap max-md:gap-y-2 max-md:pl-4">
         <Button variant="ghost" size="icon-sm" aria-label="Back" title="Back" className="-ml-2 mt-0.5 @4xl:hidden" onClick={onClose}>
           <ArrowLeft />
         </Button>
-        <div className="min-w-0 flex-1 py-0.5">
+        <div className="min-w-0 flex-1 py-0.5 max-md:order-last max-md:basis-full">
           <h2 className="text-[15px] font-semibold leading-[1.35] text-ink [text-wrap:balance]">{recordName(record)}</h2>
           <p className="mt-1 flex min-w-0 items-center gap-1.5 text-[12px] text-ink-3">
             {subject && <span className="flex min-w-0 shrink items-center gap-1.5 @min-[78rem]:hidden">
@@ -149,7 +150,7 @@ export function Conversation({ record: initialRecord, onClose }: { record: CrmRe
             </>}
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-1.5">
+        <div className="flex shrink-0 items-center gap-1.5 max-md:ml-auto">
           <DateField record={record} prefix="Due" />
           <Done record={record} labelled className="bg-list-hover hover:bg-list-active" />
           <Button variant="ghost" size="icon-sm" aria-label="Details" title={showDetails ? 'Hide details' : 'Show details'} aria-pressed={showDetails} className={cn('shrink-0 @min-[78rem]:hidden', showDetails && 'bg-list-active text-ink hover:bg-list-active')} onClick={() => {
@@ -161,7 +162,8 @@ export function Conversation({ record: initialRecord, onClose }: { record: CrmRe
         </div>
       </header>
       <div className="flex min-h-0 flex-1 flex-col @min-[78rem]:flex-row">
-        <aside aria-label="Details" className={cn('scrollbar-quiet flex max-h-[40%] shrink-0 flex-col gap-5 overflow-y-auto border-b border-border bg-surface px-6 py-4 @min-[78rem]:order-last @min-[78rem]:max-h-none @min-[78rem]:w-[288px] @min-[78rem]:gap-7 @min-[78rem]:border-b-0 @min-[78rem]:border-l @min-[78rem]:bg-transparent @min-[78rem]:px-5 @min-[78rem]:py-5', !showDetails && 'hidden @min-[78rem]:flex')}>
+        {/* While a reply is written on a phone, its keyboard needs the details' room. */}
+        <aside aria-label="Details" className={cn('scrollbar-quiet flex max-h-[40%] shrink-0 flex-col gap-5 overflow-y-auto border-b border-border bg-surface px-6 py-4 @min-[78rem]:order-last @min-[78rem]:max-h-none @min-[78rem]:w-[288px] @min-[78rem]:gap-7 @min-[78rem]:border-b-0 @min-[78rem]:border-l @min-[78rem]:bg-transparent @min-[78rem]:px-5 @min-[78rem]:py-5 max-md:group-has-[footer:focus-within]/conversation:hidden', !showDetails && 'hidden @min-[78rem]:flex')}>
           {subject && <Profile subject={subject} details={context.data} company={person ? company : undefined} />}
           {context.data && (
             <section aria-label="About">

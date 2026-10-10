@@ -18,6 +18,9 @@ export function applyHostContext(context: McpUiHostContext | undefined) {
   if (context?.styles?.variables) {
     applyHostStyleVariables(context.styles.variables)
   }
+  if (context?.safeAreaInsets) {
+    document.documentElement.style.setProperty('--safe-area-bottom', `${context.safeAreaInsets.bottom}px`)
+  }
 }
 
 export async function connect() {

@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { Trash2 } from 'lucide-react'
 import { Button } from '@jaz/ui/button'
 import { Header } from '@/components/controls'
+import { NavButton } from '@/components/nav-drawer'
 import { ObjectIcon } from '@/components/icons'
 import { PageIcon } from '@/components/page-icon'
 import { formatDate, timeAgo } from '@/lib/format'
@@ -14,7 +15,7 @@ function TrashPage() {
   const trash = useTool<{ records: TrashedRecord[] }>('list_trash')
   return (
     <>
-      <Header><Trash2 /> Trash</Header>
+      <Header><NavButton /><Trash2 /> Trash</Header>
       <div className="scrollbar-quiet min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-[760px] px-6 py-8">
           {trash.isError && <p className="text-[13px] text-danger">Couldn’t load Trash.</p>}

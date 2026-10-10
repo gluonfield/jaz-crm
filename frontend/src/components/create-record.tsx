@@ -171,7 +171,7 @@ function Form({ object, initial = {}, record, openCreated, close }: { object: Cr
           aria-label="Name"
           onChange={(e) => setName(e.target.value)}
           placeholder={singular(object) === 'person' ? 'Full name' : `${capitalized(singular(object))} name`}
-          className="w-full bg-transparent text-[18px] font-semibold text-ink outline-none placeholder:text-ink-3"
+          className="w-full bg-transparent text-[18px] font-semibold text-ink outline-none placeholder:text-ink-3 pointer-coarse:text-[18px]!"
         />
         {identity && (
           <input
@@ -196,7 +196,7 @@ function Form({ object, initial = {}, record, openCreated, close }: { object: Cr
           variant="primary" size="lg"
         >
           {record ? 'Save' : `Create ${singular(object)}`}
-          <span className="flex items-center gap-0.5 opacity-70">
+          <span className="flex items-center gap-0.5 opacity-70 pointer-coarse:hidden">
             <Kbd className="ml-0 border-on-primary/25 bg-on-primary/15 text-on-primary">⌘</Kbd>
             <Kbd className="ml-0 border-on-primary/25 bg-on-primary/15 text-on-primary">↵</Kbd>
           </span>
@@ -215,7 +215,7 @@ const Chip = forwardRef<HTMLButtonElement, { icon?: ReactNode; label: ReactNode;
   ref,
 ) {
   return (
-    <Button ref={ref} {...props} size="sm" className={cn('max-w-56', empty ? 'text-ink-3' : 'text-ink-2', className)}>
+    <Button ref={ref} {...props} size="sm" className={cn('max-w-56 pointer-coarse:h-8 pointer-coarse:text-[16px]', empty ? 'text-ink-3' : 'text-ink-2', className)}>
       {icon}
       <span className="min-w-0 truncate">{label}</span>
     </Button>
@@ -358,7 +358,7 @@ const inputMode: Partial<Record<Attribute['type'], 'decimal' | 'email' | 'tel' |
 // until something is typed, then what was typed.
 function TextProperty({ attribute, value, onChange }: { attribute: Attribute; value: string; onChange: (text: string) => void }) {
   return (
-    <label className="inline-flex h-6 items-center rounded-full border border-border px-2.5 text-[12px] transition-colors focus-within:border-ink-3/60 hover:bg-list-hover">
+    <label className="inline-flex h-6 items-center rounded-full border border-border px-2.5 text-[12px] transition-colors focus-within:border-ink-3/60 hover:bg-list-hover pointer-coarse:h-8">
       <span className="sr-only">{attribute.name}</span>
       {attribute.type === 'number' && attribute.slug === 'value' && <span className="mr-1 text-ink-2">$</span>}
       <input

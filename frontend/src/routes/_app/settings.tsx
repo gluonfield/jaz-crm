@@ -1,6 +1,7 @@
 import { Link, Outlet, createFileRoute } from '@tanstack/react-router'
 import { Settings } from 'lucide-react'
 import { Header } from '@/components/controls'
+import { NavButton } from '@/components/nav-drawer'
 
 export const Route = createFileRoute('/_app/settings')({ component: SettingsPage })
 
@@ -16,7 +17,7 @@ const pages = [
 function SettingsPage() {
   return (
     <>
-      <Header><Settings /> Settings</Header>
+      <Header><NavButton /><Settings /> Settings</Header>
       <nav aria-label="Settings" className="scrollbar-quiet flex shrink-0 gap-1 overflow-x-auto border-b border-border px-3">
         {pages.map(({ to, label }) => (
           <Link key={to} to={to} activeOptions={{ exact: true }}

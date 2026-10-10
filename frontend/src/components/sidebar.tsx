@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { Check, ChevronDown, Inbox, LogOut, Monitor, Moon, PlugZap, Plus, Search, Settings, Sun, Trash2 } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
+import { DialogClose } from '@/components/ui/dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,6 +21,7 @@ import { steps, syncing, useConnections } from '@/lib/sync'
 import { setSchemePreference } from '@/lib/theme'
 import type { Contact, CrmObject, TrashedRecord } from '@/lib/types'
 import { setUI } from '@/lib/ui'
+import { cn } from '@/lib/utils'
 import { useMoveWorkspace, useWorkspaces } from '@/lib/workspaces'
 import { DataNav } from './data-nav'
 import { ObjectIcon, RecordIcon } from './icons'
@@ -27,7 +29,7 @@ import { NavItem } from './nav-item'
 import { Kbd } from './kbd'
 import { NameDialog } from './prompt-dialog'
 
-export function Sidebar() {
+export function Sidebar({ className }: { className?: string }) {
   const objects = useObjects() ?? []
   const pending = useTool<{ contacts: Contact[] }>('list_triage', { status: 'pending', limit: 200 }).data?.contacts.length ?? 0
   const trash = useTool<{ records: TrashedRecord[] }>('list_trash').data?.records.length ?? 0
@@ -39,18 +41,21 @@ export function Sidebar() {
     </NavItem>
   )
   return (
-    <aside className="flex w-[232px] shrink-0 flex-col gap-px px-2.5 pb-3 pt-2.5 text-[13px]">
+    <aside className={cn('flex w-[232px] shrink-0 flex-col gap-px px-2.5 pb-3 pt-2.5 text-[13px]', className)}>
       <div className="mb-2 flex items-center gap-1">
         <WorkspaceMenu />
         <Tooltip>
           <TooltipTrigger asChild>
-            <button
-              onClick={() => setUI({ paletteOpen: true })}
-              aria-label="Search"
-              className="flex size-7 shrink-0 items-center justify-center rounded-[var(--radius-control)] text-ink-2 outline-none transition-colors hover:bg-list-hover hover:text-ink"
-            >
-              <Search className="size-4" />
-            </button>
+            {/* Opening search from the navigation drawer closes the drawer. */}
+            <DialogClose asChild>
+              <button
+                onClick={() => setUI({ paletteOpen: true })}
+                aria-label="Search"
+                className="flex size-7 shrink-0 items-center justify-center rounded-[var(--radius-control)] text-ink-2 outline-none transition-colors hover:bg-list-hover hover:text-ink pointer-coarse:size-10"
+              >
+                <Search className="size-4" />
+              </button>
+            </DialogClose>
           </TooltipTrigger>
           <TooltipContent side="bottom">
             Search <Kbd>⌘K</Kbd>
@@ -95,7 +100,7 @@ function WorkspaceMenu() {
   return (
     <>
       <DropdownMenu>
-        <DropdownMenuTrigger className="flex h-7 min-w-0 flex-1 select-none items-center gap-2 rounded-[var(--radius-control)] px-1.5 font-semibold text-ink outline-none hover:bg-list-hover data-[state=open]:bg-list-active">
+        <DropdownMenuTrigger className="flex h-7 min-w-0 flex-1 select-none items-center gap-2 rounded-[var(--radius-control)] px-1.5 font-semibold text-ink outline-none hover:bg-list-hover data-[state=open]:bg-list-active pointer-coarse:h-10">
           {name && <RecordIcon object="companies" name={name} />}
           <span className="truncate">{name}</span>
           <ChevronDown className="size-3 shrink-0 text-ink-3" />

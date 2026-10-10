@@ -14,6 +14,7 @@ import { PersonContext } from '@/components/person-context'
 import { Properties } from '@/components/properties'
 import { Related } from '@/components/related'
 import { RecordDeleteDialog } from '@/components/record-delete-dialog'
+import { NavButton } from '@/components/nav-drawer'
 import { SubPages } from '@/components/sub-pages'
 import { Summary } from '@/components/summary'
 import { Timeline } from '@/components/timeline'
@@ -50,6 +51,7 @@ function RecordPage() {
   const ancestors = page && pages ? path(pages, record.id).slice(0, -1) : []
   const header = (
     <Header className={page ? 'mb-8 border-b-0 px-0' : undefined}>
+      <NavButton />
       {page ? (
         <nav aria-label="Breadcrumbs" className="min-w-0 flex-1">
           <ol className="flex items-center gap-1.5">

@@ -5,6 +5,7 @@ import { Button } from '@jaz/ui/button'
 import { Header, Tab, inputClass } from '@/components/controls'
 import { ConnectGoogle, EmptyState } from '@/components/empty-state'
 import { RecordIcon } from '@/components/icons'
+import { NavButton } from '@/components/nav-drawer'
 import { DomainLink } from '@/components/external-link'
 import { Kbd } from '@/components/kbd'
 import { timeAgo } from '@/lib/format'
@@ -52,9 +53,10 @@ function TriagePage() {
   return (
     <>
       <Header>
+        <NavButton />
         <Inbox />
         Triage
-        <div className="ml-3 flex gap-1.5">
+        <div className="scrollbar-quiet ml-3 flex gap-1.5 max-md:min-w-0 max-md:overflow-x-auto">
           {tabs.map((t) => (
             <Tab key={t.status} active={status === t.status} onClick={() => setStatus(t.status)}>
               {t.label}
@@ -62,10 +64,10 @@ function TriagePage() {
           ))}
         </div>
         <label className="relative ml-auto flex items-center">
-          <Search className="pointer-events-none absolute left-2 size-3.5 text-ink-3" />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search" aria-label="Search addresses" className={cn(inputClass, 'w-56 pl-7')} />
+          <Search className="pointer-events-none absolute left-2 size-3.5 text-ink-3 max-md:left-[11px]" />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search" aria-label="Search addresses" className={cn(inputClass, 'w-56 pl-7 max-md:w-9 max-md:pl-8 max-md:focus:w-36', search && 'max-md:w-36')} />
         </label>
-        <Link to="/settings/triage" className="flex items-center gap-1.5 px-2 text-ink-2 hover:text-ink"><Settings className="size-3.5" />Settings</Link>
+        <Link to="/settings/triage" aria-label="Triage settings" className="flex items-center gap-1.5 px-2 text-ink-2 hover:text-ink max-md:-mr-2 max-md:h-10"><Settings className="size-3.5" /><span className="max-md:hidden">Settings</span></Link>
       </Header>
       {listed?.length === 0 ? (
         <Empty status={status} query={query} />
@@ -79,7 +81,7 @@ function TriagePage() {
               <li
                 key={c.address}
                 data-row={index}
-                className={cn('leavable group flex h-12 items-center gap-3 border-b border-border/50 px-4 text-[13px]', index < 0 && 'leaving', focused && 'bg-list-hover')}
+                className={cn('leavable group flex h-12 items-center gap-3 border-b border-border/50 px-4 text-[13px] max-md:h-auto max-md:flex-wrap max-md:py-2.5 max-md:[&.leaving]:py-0', index < 0 && 'leaving', focused && 'bg-list-hover')}
               >
                 <RecordIcon object="people" name={c.name || c.address} photo={c.photo} size={24} />
                 <div className="min-w-0 flex-1">
@@ -92,17 +94,18 @@ function TriagePage() {
                       <span className="truncate font-medium text-ink">{c.name || <Address address={c.address} domain={domain} />}</span>
                     )}
                     {c.name && (
-                      <span className="truncate text-ink-3">
+                      <span className="truncate text-ink-3 max-md:hidden">
                         <Address address={c.address} domain={domain} />
                       </span>
                     )}
                   </div>
                   <div className="truncate text-[12px] text-ink-3">
+                    {c.name && <span className="md:hidden">{c.address} · </span>}
                     {c.interactions} conversation{c.interactions === 1 ? '' : 's'} · {timeAgo(c.last_seen)}
                     {(c.decided_by || c.reason) && ` · ${[deciders[c.decided_by ?? ''], c.reason].filter(Boolean).join(': ')}`}
                   </div>
                 </div>
-                <div className="flex items-center gap-1.5 opacity-60 group-hover:opacity-100">
+                <div className="flex items-center gap-1.5 opacity-60 group-hover:opacity-100 max-md:min-w-0 max-md:basis-full max-md:pl-9 pointer-coarse:opacity-100">
                   {status !== 'kept' && (
                     <Button onClick={() => choose(c, 'keep')}>
                       <Check /> Keep {focused && <Kbd>Y</Kbd>}
@@ -114,8 +117,8 @@ function TriagePage() {
                     </Button>
                   )}
                   {domain && status !== 'skipped' && (
-                    <Button onClick={() => leave(domain, { domains: [domain], decision: 'skip' })} title={`Skip everyone at ${domain}, now and later`}>
-                      Skip {domain}
+                    <Button onClick={() => leave(domain, { domains: [domain], decision: 'skip' })} title={`Skip everyone at ${domain}, now and later`} className="max-md:min-w-0 max-md:shrink">
+                      <span className="truncate">Skip {domain}</span>
                     </Button>
                   )}
                 </div>

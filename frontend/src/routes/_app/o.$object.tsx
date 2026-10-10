@@ -18,12 +18,13 @@ import { Picker } from '@/components/picker'
 import { OwnerFilter } from '@/components/owner-filter'
 import { RecordFilters } from '@/components/record-filters'
 import { RecordMenu } from '@/components/record-menu'
+import { NavButton } from '@/components/nav-drawer'
 import { SelectField } from '@/components/select-field'
 import { UpdatedAt } from '@/components/updated-at'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
 import { pageIcon } from '@/lib/pages'
 import { formatDay, formatNumber } from '@/lib/format'
-import { useDebounced, useFlip, useInView, useListKeys } from '@/lib/hooks'
+import { useDebounced, useFlip, useInView, useListKeys, usePhone } from '@/lib/hooks'
 import { DateLabel, dateMetadata } from '@/components/date-field'
 import { useObjects, useRecordPages, useTool, useWorkspace } from '@/lib/queries'
 import { useColumnWidths } from '@/lib/use-column-widths'
@@ -99,8 +100,11 @@ function ObjectList({ slug }: { slug: string }) {
   const [creating, setCreating] = useState(false)
   const rows = useRef<HTMLTableSectionElement>(null)
   useFlip(rows)
+  const list = useRef<HTMLUListElement>(null)
+  useFlip(list)
+  const phone = usePhone()
   if (!object) {
-    return objects ? <Header>{slug}</Header> : <Loading />
+    return objects ? <Header><NavButton />{slug}</Header> : <Loading />
   }
   const own = !object.standard
   // The CRM's objects show their choices first; the workspace's own tables keep the order columns were added in.
@@ -140,7 +144,8 @@ function ObjectList({ slug }: { slug: string }) {
   const controls = (
     <>
       <div className="flex min-w-0 items-center gap-1">
-        <div className="-ml-2 mr-auto min-w-0">{recordFilters(true)}</div>
+        <NavButton />
+        <div className="mr-auto min-w-0 md:-ml-2">{recordFilters(true)}</div>
         {ownerFilter}
         <label title="Search" className={cn('flex h-7 min-w-7 shrink-0 cursor-text items-center gap-2 rounded-[var(--radius-control)] px-1.5 text-ink-2 transition-colors focus-within:bg-list-hover hover:bg-list-hover', q && 'bg-list-hover')}>
           <Search className="size-4 shrink-0" />
@@ -166,9 +171,10 @@ function ObjectList({ slug }: { slug: string }) {
   )
   return (
     <>
-      {!queue && <Header className="h-auto min-h-11 flex-wrap py-2">
+      {!queue && <Header className="h-auto min-h-11 py-2 md:flex-wrap">
+        <NavButton />
         <ObjectIcon slug={slug} />
-        <span className="whitespace-nowrap">{object.name}</span>
+        <span className="whitespace-nowrap max-md:min-w-0 max-md:truncate">{object.name}</span>
         {total !== undefined && <span className="font-normal tabular-nums text-ink-3">{total}</span>}
         {conversationFilter}
         {status && (
@@ -181,21 +187,21 @@ function ObjectList({ slug }: { slug: string }) {
             </ViewButton>
           </div>
         )}
-        <div className="ml-auto flex max-w-full flex-wrap items-center gap-1 font-normal">
+        <div className="ml-auto flex max-w-full items-center gap-1 font-normal md:flex-wrap">
           {recordFilters()}
           {ownerFilter}
           {sorter(
-            <Button variant="ghost" aria-label="Sort records">
+            <Button variant="ghost" aria-label="Sort records" className="max-md:px-1.5">
               <ArrowDownAZ />
               <span className="hidden xl:inline">{sortName}</span>
             </Button>,
           )}
           <label className="group flex h-7 shrink-0 items-center gap-1.5 rounded-[var(--radius-control)] px-2 text-ink-3 transition-colors focus-within:bg-list-hover hover:bg-list-hover">
             <Search className="size-3.5 shrink-0" />
-            <input {...searching} onKeyDown={(e) => e.stopPropagation()} placeholder="Search" className="w-20 min-w-0 bg-transparent text-[12.5px] text-ink outline-none transition-[width] duration-150 placeholder:text-ink-3 focus:w-40" />
+            <input {...searching} onKeyDown={(e) => e.stopPropagation()} placeholder="Search" className={cn('w-20 min-w-0 bg-transparent text-[12.5px] text-ink outline-none transition-[width] duration-150 placeholder:text-ink-3 focus:w-40 max-md:w-0 max-md:focus:w-28', q && 'max-md:w-28')} />
           </label>
-          <Button className="ml-1" onClick={() => setCreating(true)}>
-            <Plus /> New
+          <Button className="ml-1 max-md:w-7 max-md:px-0" onClick={() => setCreating(true)}>
+            <Plus /> <span className="max-md:sr-only">New</span>
           </Button>
         </div>
       </Header>}
@@ -204,8 +210,27 @@ function ObjectList({ slug }: { slug: string }) {
         records && <Board object={object} status={board} records={records} />
       ) : queue ? (
         <FollowUpQueue records={records ?? []} focus={focus} onFocus={setFocus} controls={controls} empty={records?.length === 0 && <Empty object={object} query={query} filtered={filters.length > 0} />} />
-      ) : records?.length === 0 && (!own || query || filters.length > 0) ? (
+      ) : records?.length === 0 && (!own || query || filters.length > 0 || phone) ? (
         <Empty object={object} query={query} filtered={filters.length > 0} />
+      ) : phone ? (
+        <div className="scrollbar-quiet min-h-0 flex-1 overflow-y-auto">
+          <ul ref={list} className="py-1">
+            {records?.map((r, index) => (
+              <li key={r.id} data-flip={r.id}>
+                <RecordMenu object={object} record={r}>
+                  <Link to="/r/$recordId" params={{ recordId: r.id }} data-row={index} className={cn('flex h-13 items-center gap-3 px-4 outline-none hover:bg-list-hover focus-visible:bg-list-hover data-[state=open]:bg-list-hover', focus === index && 'bg-list-hover')}>
+                    <RecordIcon object={slug} name={recordName(r)} photo={r.photo} icon={pageIcon(r)} size={28} />
+                    <span className="flex min-w-0 flex-col">
+                      <span className="truncate font-medium text-ink">{recordName(r)}</span>
+                      <span className="truncate text-[12px] text-ink-3">{glance(r, object)}</span>
+                    </span>
+                  </Link>
+                </RecordMenu>
+              </li>
+            ))}
+          </ul>
+          <div ref={end} aria-hidden className="h-px" />
+        </div>
       ) : (
         <div className="scrollbar-quiet min-h-0 flex-1 overflow-auto">
           <table className="w-full table-fixed border-collapse text-[13px]">
@@ -313,6 +338,20 @@ function ViewButton({ active, label, onClick, children }: { active: boolean; lab
       {children}
     </Button>
   )
+}
+
+// glance is the one value a record's row shows under its name at phone
+// width: its stage, the record it belongs to, or what identifies it.
+function glance(record: CrmRecord, object: CrmObject) {
+  const held = (a: Attribute) => valuesOf(record, a.slug).length > 0
+  const attribute = object.attributes.find((a) => a.type === 'status' && held(a))
+    ?? object.attributes.find((a) => a.type === 'reference' && !a.multi && held(a))
+    ?? object.attributes.find((a) => a.unique && held(a))
+  if (!attribute) {
+    return null
+  }
+  const text = valueText(valuesOf(record, attribute.slug)[0])
+  return attribute.type === 'status' ? <Stage stage={text} /> : text
 }
 
 function cell(record: CrmRecord, attribute: Attribute) {

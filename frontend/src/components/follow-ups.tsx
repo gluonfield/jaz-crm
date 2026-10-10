@@ -105,7 +105,8 @@ function FollowUp({ record, standing, zone, index, selected, onSelect }: { recor
           <span className="truncate">{recordName(record)}</span>
         </p>}
       </div>
-      <Done record={record} className="absolute right-1.5 top-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100" />
+      {/* On a touch screen, Done is in the opened follow-up rather than an invisible tap target here. */}
+      <Done record={record} className="absolute right-1.5 top-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 pointer-coarse:hidden" />
     </li>
   )
 }

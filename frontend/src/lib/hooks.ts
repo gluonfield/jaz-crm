@@ -1,4 +1,4 @@
-import { type RefObject, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { type RefObject, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 
 export function isTyping(e: KeyboardEvent) {
   const target = e.target as HTMLElement
@@ -60,6 +60,21 @@ export function useListKeys(ids: string[], keys: Record<string, (index: number) 
   }
   useKeys(bound)
   return [focus, select] as const
+}
+
+// Phone width is below Tailwind's md breakpoint.
+const phoneQuery = '(width < 48rem)'
+
+function onPhoneChange(listener: () => void) {
+  const query = matchMedia(phoneQuery)
+  query.addEventListener('change', listener)
+  return () => query.removeEventListener('change', listener)
+}
+
+// usePhone reports whether the app has phone width, where the sidebar is a
+// drawer and tables are lists.
+export function usePhone() {
+  return useSyncExternalStore(onPhoneChange, () => matchMedia(phoneQuery).matches)
 }
 
 export function useDebounced<T>(value: T, ms = 200) {

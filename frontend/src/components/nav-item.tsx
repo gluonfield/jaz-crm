@@ -12,7 +12,7 @@ export function NavItem({ to, icon, count, busy, depth = 0, children }: { to: st
       to={to}
       style={depth ? { paddingLeft: 8 + depth * 14 } : undefined}
       className={cn(
-        'flex h-7 items-center gap-2.5 rounded-[var(--radius-control)] px-2 font-medium text-ink-2 outline-none transition-colors duration-100 hover:bg-list-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-4 [&_svg]:shrink-0',
+        'flex h-7 items-center gap-2.5 rounded-[var(--radius-control)] px-2 font-medium text-ink-2 outline-none transition-colors duration-100 hover:bg-list-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:h-10 [&_svg]:size-4 [&_svg]:shrink-0',
         active && 'bg-list-active text-ink hover:bg-list-active',
       )}
     >

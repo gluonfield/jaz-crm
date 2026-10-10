@@ -185,7 +185,7 @@ export function Draft({ record, channel, sender, error, drafting, ref }: { recor
               event.currentTarget.blur()
             }
           }}
-          className="field-sizing-content block max-h-[40dvh] min-h-10 w-full resize-none bg-transparent px-3.5 py-2.5 text-[13.5px] leading-[1.55] text-ink outline-none placeholder:text-ink-3"
+          className="field-sizing-content block max-h-[40dvh] min-h-10 max-md:max-h-[30dvh] w-full resize-none bg-transparent px-3.5 py-2.5 text-[13.5px] leading-[1.55] text-ink outline-none placeholder:text-ink-3"
         />
         {!fields.draft.trim() && channel && !sending && <DraftWrite pending={rewritePending} onWrite={(action, instruction) => void rewrite(action, instruction)} />}
       </div>

@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { PlugZap } from 'lucide-react'
 import { Button } from '@jaz/ui/button'
 import { Header, Row, Section } from '@/components/controls'
+import { NavButton } from '@/components/nav-drawer'
 import { formatDate, timeAgo } from '@/lib/format'
 import { useAction, useTool } from '@/lib/queries'
 import { steps, useConnect, useConnections } from '@/lib/sync'
@@ -38,6 +39,7 @@ function ConnectionsPage() {
   return (
     <>
       <Header>
+        <NavButton />
         <PlugZap />
         Connections
         {connect && (
@@ -47,7 +49,7 @@ function ConnectionsPage() {
         )}
       </Header>
       <div className="scrollbar-quiet min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-[680px] px-10 pt-9">
+        <div className="mx-auto max-w-[680px] px-4 pt-9 md:px-10">
           {error && <p className="mb-6 rounded-[var(--radius-card)] border border-danger/40 bg-danger-soft px-4 py-3 text-[13px] text-danger">{error}</p>}
           <Section title="Google accounts">
             {data?.connections.length === 0 && (
