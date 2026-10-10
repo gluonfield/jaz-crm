@@ -127,6 +127,9 @@ function ObjectList({ slug }: { slug: string }) {
       onSelect={(value) => void navigate({ to: '.', search: { ...search, sort: value === 'name' || value === 'updated_at' ? value : undefined }, replace: true })}
     />
   )
+  // On a phone an open search takes the header row; the title and the
+  // other controls step aside until it closes.
+  const phoneSearch = q ? 'max-md:hidden' : 'max-md:group-has-[[data-page-search]:focus]/header:hidden'
   const searching = {
     type: 'search',
     autoComplete: 'off',
@@ -171,14 +174,14 @@ function ObjectList({ slug }: { slug: string }) {
   )
   return (
     <>
-      {!queue && <Header className="h-auto min-h-11 py-2 md:flex-wrap">
+      {!queue && <Header className="group/header h-auto min-h-11 py-2 md:flex-wrap">
         <NavButton />
         <ObjectIcon slug={slug} />
-        <span className="whitespace-nowrap max-md:min-w-0 max-md:truncate">{object.name}</span>
-        {total !== undefined && <span className="font-normal tabular-nums text-ink-3">{total}</span>}
+        <span className={cn('whitespace-nowrap max-md:min-w-0 max-md:truncate', phoneSearch)}>{object.name}</span>
+        {total !== undefined && <span className={cn('font-normal tabular-nums text-ink-3', phoneSearch)}>{total}</span>}
         {conversationFilter}
         {status && (
-          <div role="group" aria-label="View" className="ml-2 flex h-7 items-center rounded-full bg-list-hover p-0.5">
+          <div role="group" aria-label="View" className={cn('ml-2 flex h-7 items-center rounded-full bg-list-hover p-0.5', phoneSearch)}>
             <ViewButton active={!!board} label={slug === 'follow_ups' ? 'Queue' : 'Board'} onClick={() => void navigate({ to: '.', search: { ...search, view: own ? 'board' : undefined, group_by_conversation: slug === 'follow_ups' ? true : undefined }, replace: true })}>
               {slug === 'follow_ups' ? <ListChecks /> : <Kanban />}
             </ViewButton>
@@ -187,18 +190,20 @@ function ObjectList({ slug }: { slug: string }) {
             </ViewButton>
           </div>
         )}
-        <div className="ml-auto flex max-w-full items-center gap-1 font-normal md:flex-wrap">
-          {recordFilters()}
-          {ownerFilter}
-          {sorter(
-            <Button variant="ghost" aria-label="Sort records" className="max-md:px-1.5">
-              <ArrowDownAZ />
-              <span className="hidden xl:inline">{sortName}</span>
-            </Button>,
-          )}
-          <label className="group flex h-7 shrink-0 items-center gap-1.5 rounded-[var(--radius-control)] px-2 text-ink-3 transition-colors focus-within:bg-list-hover hover:bg-list-hover">
+        <div className={cn('ml-auto flex max-w-full items-center gap-1 font-normal md:flex-wrap', q ? 'max-md:flex-1' : 'max-md:group-has-[[data-page-search]:focus]/header:flex-1')}>
+          <span className={cn('contents', phoneSearch)}>
+            {recordFilters()}
+            {ownerFilter}
+            {sorter(
+              <Button variant="ghost" aria-label="Sort records" className="max-md:px-1.5">
+                <ArrowDownAZ />
+                <span className="hidden xl:inline">{sortName}</span>
+              </Button>,
+            )}
+          </span>
+          <label className={cn('group flex h-7 shrink-0 items-center gap-1.5 rounded-[var(--radius-control)] px-2 text-ink-3 transition-colors focus-within:bg-list-hover hover:bg-list-hover', q ? 'max-md:flex-1' : 'max-md:group-has-[[data-page-search]:focus]/header:flex-1')}>
             <Search className="size-3.5 shrink-0" />
-            <input {...searching} onKeyDown={(e) => e.stopPropagation()} placeholder="Search" className={cn('w-20 min-w-0 bg-transparent text-[12.5px] text-ink outline-none transition-[width] duration-150 placeholder:text-ink-3 focus:w-40 max-md:w-0 max-md:focus:w-28', q && 'max-md:w-28')} />
+            <input {...searching} onKeyDown={(e) => e.stopPropagation()} placeholder="Search" className={cn('w-20 min-w-0 bg-transparent text-[12.5px] text-ink outline-none transition-[width] duration-150 placeholder:text-ink-3 focus:w-40 max-md:w-0 max-md:focus:w-full', q && 'max-md:w-full')} />
           </label>
           <Button className="ml-1 max-md:w-7 max-md:px-0" onClick={() => setCreating(true)}>
             <Plus /> <span className="max-md:sr-only">New</span>
