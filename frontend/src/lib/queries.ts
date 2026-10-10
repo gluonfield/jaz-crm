@@ -32,10 +32,8 @@ export function useTool<T>(tool: string, args: object = {}, options: Omit<UseQue
   return useQuery({ ...toolQuery<T>(tool, args), ...options })
 }
 
-// useAction runs a tool. A removal passes how long its exit animation runs, so
-// the refetch that drops the element cannot cut the animation short.
-export function useAction<A extends object, T = unknown>(tool: string, settleAfter = 0) {
-  return useMutation({ mutationKey: [tool], mutationFn: async (args: A) => (await Promise.all([call<T>(tool, args), new Promise((done) => setTimeout(done, settleAfter))]))[0] })
+export function useAction<A extends object, T = unknown>(tool: string) {
+  return useMutation({ mutationKey: [tool], mutationFn: (args: A) => call<T>(tool, args) })
 }
 
 export function useObjects() {

@@ -48,7 +48,7 @@ export function FollowUpQueue({ records, focus, onFocus, controls, empty }: { re
               const members = queue.filter((item) => item.group === g)
               return members.length > 0 && (
                 <section key={group.name} aria-label={group.name} className="flex flex-col gap-0.5">
-                  <h3 className="flex justify-between px-2.5 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-[0.04em]">
+                  <h3 data-flip={`group:${group.name}`} className="flex justify-between px-2.5 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-[0.04em]">
                     <span className={group.className}>{group.name}</span>
                     <span className="tabular-nums text-ink-3">{members.length}</span>
                   </h3>
@@ -87,6 +87,7 @@ function FollowUp({ record, standing, zone, index, selected, onSelect }: { recor
   const tag = tags[standing] && <span className={cn('shrink-0 rounded-[4px] px-[5px] text-[10.5px] font-semibold leading-4', standing === 'reply' ? 'bg-primary-soft text-primary' : 'bg-list-active text-ink-2')}>{tags[standing]}</span>
   return (
     <li
+      data-flip={record.conversation_id ?? record.id}
       data-row={index}
       aria-current={selected || undefined}
       onClick={onSelect}

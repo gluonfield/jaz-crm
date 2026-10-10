@@ -19,12 +19,13 @@ import { OwnerFilter } from '@/components/owner-filter'
 import { RecordFilters } from '@/components/record-filters'
 import { RecordMenu } from '@/components/record-menu'
 import { NavButton } from '@/components/nav-drawer'
+import { ListMotion } from '@/components/list-motion'
 import { SelectField } from '@/components/select-field'
 import { UpdatedAt } from '@/components/updated-at'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
 import { pageIcon } from '@/lib/pages'
 import { formatDay, formatNumber } from '@/lib/format'
-import { useDebounced, useFlip, useInView, useListKeys, usePhone } from '@/lib/hooks'
+import { useDebounced, useInView, useListKeys, usePhone } from '@/lib/hooks'
 import { DateLabel, dateMetadata } from '@/components/date-field'
 import { useObjects, useRecordPages, useTool, useWorkspace } from '@/lib/queries'
 import { useColumnWidths } from '@/lib/use-column-widths'
@@ -98,10 +99,6 @@ function ObjectList({ slug }: { slug: string }) {
   const openRecord = (index: number) => records && navigate({ to: '/r/$recordId', params: { recordId: records[index].id } })
   const [focus, setFocus] = useListKeys(records?.map((r) => queue ? r.conversation_id ?? r.id : r.id) ?? [], queue ? { Enter: editDraft, Escape: () => setFocus(-1) } : { Enter: openRecord, o: openRecord })
   const [creating, setCreating] = useState(false)
-  const rows = useRef<HTMLTableSectionElement>(null)
-  useFlip(rows)
-  const list = useRef<HTMLUListElement>(null)
-  useFlip(list)
   const phone = usePhone()
   if (!object) {
     return objects ? <Header><NavButton />{slug}</Header> : <Loading />
@@ -211,120 +208,122 @@ function ObjectList({ slug }: { slug: string }) {
         </div>
       </Header>}
       <CreateRecord object={object} open={creating} onOpenChange={setCreating} openCreated />
-      {result.isError ? <EmptyState title={result.error.message} icon={<Search />} /> : board ? (
-        records && <Board object={object} status={board} records={records} />
-      ) : queue ? (
-        <FollowUpQueue records={records ?? []} focus={focus} onFocus={setFocus} controls={controls} empty={records?.length === 0 && <Empty object={object} query={query} filtered={filters.length > 0} />} />
-      ) : records?.length === 0 && (!own || query || filters.length > 0 || phone) ? (
-        <Empty object={object} query={query} filtered={filters.length > 0} />
-      ) : phone ? (
-        <div className="scrollbar-quiet min-h-0 flex-1 overflow-y-auto">
-          <ul ref={list} className="py-1">
-            {records?.map((r, index) => (
-              <li key={r.id} data-flip={r.id}>
-                <RecordMenu object={object} record={r}>
-                  <Link to="/r/$recordId" params={{ recordId: r.id }} data-row={index} className={cn('flex h-13 items-center gap-3 px-4 outline-none hover:bg-list-hover focus-visible:bg-list-hover data-[state=open]:bg-list-hover', focus === index && 'bg-list-hover')}>
-                    <RecordIcon object={slug} name={recordName(r)} photo={r.photo} icon={pageIcon(r)} size={28} />
-                    <span className="flex min-w-0 flex-col">
-                      <span className="truncate font-medium text-ink">{recordName(r)}</span>
-                      <span className="truncate text-[12px] text-ink-3">{glance(r, object)}</span>
-                    </span>
-                  </Link>
-                </RecordMenu>
-              </li>
-            ))}
-          </ul>
-          <div ref={end} aria-hidden className="h-px" />
-        </div>
-      ) : (
-        <div className="scrollbar-quiet min-h-0 flex-1 overflow-auto">
-          <table className="w-full table-fixed border-collapse text-[13px]">
-            <colgroup>
-              <col style={{ width: width('name', 280) }} />
-              {slug === 'companies' && <col style={{ width: width('people', 240) }} />}
-              <col style={{ width: width('updated_at', 140) }} />
-              {columns.map((a) => (
-                <col key={a.slug} style={{ width: width(a.slug, defaultWidth(a)) }} />
-              ))}
-              {own && <col style={{ width: 48 }} />}
-              <col />
-            </colgroup>
-            <thead className="sticky top-0 z-10 bg-bg">
-              <tr className="h-9 border-b border-border text-left text-[12px] text-ink-3">
-                <th className="sticky left-0 z-20 bg-bg px-4 font-medium">
-                  {own ? <ColumnHeader object={object} attribute={object.attributes.find((a) => a.slug === 'name')!} /> : slug === 'companies' ? 'Company' : 'Name'}
-                  <Resizer onPointerDown={resize('name', 280)} />
-                </th>
-                {slug === 'companies' && (
-                  <th className="relative px-3 font-medium">
-                    People
-                    <Resizer onPointerDown={resize('people', 240)} />
-                  </th>
-                )}
-                <th className="relative px-3 font-medium">
-                  Last updated
-                  <Resizer onPointerDown={resize('updated_at', 140)} />
-                </th>
-                {columns.map((a) => (
-                  <th key={a.slug} className="relative px-3 font-medium">
-                    {own ? <ColumnHeader object={object} attribute={a} /> : <span className="block truncate">{a.name}</span>}
-                    <Resizer onPointerDown={resize(a.slug, defaultWidth(a))} />
-                  </th>
-                ))}
-                {own && (
-                  <th className="px-1">
-                    <AddColumn object={object} objects={objects ?? []}>
-                      <Button variant="ghost" size="icon-sm" aria-label="Add column">
-                        <Plus />
-                      </Button>
-                    </AddColumn>
-                  </th>
-                )}
-                <th />
-              </tr>
-            </thead>
-            <tbody ref={rows}>
+      <ListMotion className="flex min-h-0 flex-1 flex-col" scope={JSON.stringify([query, filters, view, sort, conversation_id])}>
+        {result.isError ? <EmptyState title={result.error.message} icon={<Search />} /> : board ? (
+          records && <Board object={object} status={board} records={records} />
+        ) : queue ? (
+          <FollowUpQueue records={records ?? []} focus={focus} onFocus={setFocus} controls={controls} empty={records?.length === 0 && <Empty object={object} query={query} filtered={filters.length > 0} />} />
+        ) : records?.length === 0 && (!own || query || filters.length > 0 || phone) ? (
+          <Empty object={object} query={query} filtered={filters.length > 0} />
+        ) : phone ? (
+          <div className="scrollbar-quiet min-h-0 flex-1 overflow-y-auto">
+            <ul className="py-1">
               {records?.map((r, index) => (
-                <RecordMenu key={r.id} object={object} record={r}>
-                  <tr
-                    data-row={index}
-                    data-flip={r.id}
-                    onClick={() => openRecord(index)}
-                    className={cn('group h-10 cursor-default border-b border-border/50 hover:bg-list-hover data-[state=open]:bg-list-hover', focus === index && 'bg-list-hover')}
-                  >
-                    <td className={cn('sticky left-0 z-10 bg-bg px-4 group-hover:bg-list-hover group-data-[state=open]:bg-list-hover', focus === index && 'bg-list-hover')}>
-                      <Link to="/r/$recordId" params={{ recordId: r.id }} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} className="flex min-w-0 items-center gap-2.5 font-medium text-ink">
-                        <RecordIcon object={slug} name={recordName(r)} photo={r.photo} icon={pageIcon(r)} />
-                        <span className="min-w-0 truncate">{recordName(r)}</span>
-                      </Link>
-                    </td>
-                    {slug === 'companies' && <td className="overflow-hidden px-3 text-ink-2"><CompanyPeople company={r} /></td>}
-                    <td className="px-3 text-[12px] text-ink-3"><UpdatedAt at={r.updated_at} /></td>
-                    {columns.map((a) => (
-                      <td key={a.slug} className="overflow-hidden px-3 py-1 text-ink-2">
-                        {own ? (
-                          <div onClick={(e) => e.stopPropagation()}>
-                            <Field record={r} attribute={a} limit={5} />
-                          </div>
-                        ) : a.type === 'select' ? (
-                          <div onClick={(e) => e.stopPropagation()}>
-                            <SelectField record={r} attribute={a} />
-                          </div>
-                        ) : (
-                          cell(r, a)
-                        )}
-                      </td>
-                    ))}
-                    {own && <td />}
-                    <td />
-                  </tr>
-                </RecordMenu>
+                <li key={r.id} data-flip={r.id}>
+                  <RecordMenu object={object} record={r}>
+                    <Link to="/r/$recordId" params={{ recordId: r.id }} data-row={index} className={cn('flex h-13 items-center gap-3 px-4 outline-none hover:bg-list-hover focus-visible:bg-list-hover data-[state=open]:bg-list-hover', focus === index && 'bg-list-hover')}>
+                      <RecordIcon object={slug} name={recordName(r)} photo={r.photo} icon={pageIcon(r)} size={28} />
+                      <span className="flex min-w-0 flex-col">
+                        <span className="truncate font-medium text-ink">{recordName(r)}</span>
+                        <span className="truncate text-[12px] text-ink-3">{glance(r, object)}</span>
+                      </span>
+                    </Link>
+                  </RecordMenu>
+                </li>
               ))}
-            </tbody>
-          </table>
-          <div ref={end} aria-hidden className="h-px" />
-        </div>
-      )}
+            </ul>
+            <div ref={end} aria-hidden className="h-px" />
+          </div>
+        ) : (
+          <div className="scrollbar-quiet min-h-0 flex-1 overflow-auto">
+            <table className="w-full table-fixed border-collapse text-[13px]">
+              <colgroup>
+                <col style={{ width: width('name', 280) }} />
+                {slug === 'companies' && <col style={{ width: width('people', 240) }} />}
+                <col style={{ width: width('updated_at', 140) }} />
+                {columns.map((a) => (
+                  <col key={a.slug} style={{ width: width(a.slug, defaultWidth(a)) }} />
+                ))}
+                {own && <col style={{ width: 48 }} />}
+                <col />
+              </colgroup>
+              <thead className="sticky top-0 z-10 bg-bg">
+                <tr className="h-9 border-b border-border text-left text-[12px] text-ink-3">
+                  <th className="sticky left-0 z-20 bg-bg px-4 font-medium">
+                    {own ? <ColumnHeader object={object} attribute={object.attributes.find((a) => a.slug === 'name')!} /> : slug === 'companies' ? 'Company' : 'Name'}
+                    <Resizer onPointerDown={resize('name', 280)} />
+                  </th>
+                  {slug === 'companies' && (
+                    <th className="relative px-3 font-medium">
+                      People
+                      <Resizer onPointerDown={resize('people', 240)} />
+                    </th>
+                  )}
+                  <th className="relative px-3 font-medium">
+                    Last updated
+                    <Resizer onPointerDown={resize('updated_at', 140)} />
+                  </th>
+                  {columns.map((a) => (
+                    <th key={a.slug} className="relative px-3 font-medium">
+                      {own ? <ColumnHeader object={object} attribute={a} /> : <span className="block truncate">{a.name}</span>}
+                      <Resizer onPointerDown={resize(a.slug, defaultWidth(a))} />
+                    </th>
+                  ))}
+                  {own && (
+                    <th className="px-1">
+                      <AddColumn object={object} objects={objects ?? []}>
+                        <Button variant="ghost" size="icon-sm" aria-label="Add column">
+                          <Plus />
+                        </Button>
+                      </AddColumn>
+                    </th>
+                  )}
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {records?.map((r, index) => (
+                  <RecordMenu key={r.id} object={object} record={r}>
+                    <tr
+                      data-row={index}
+                      data-flip={r.id}
+                      onClick={() => openRecord(index)}
+                      className={cn('group h-10 cursor-default border-b border-border/50 hover:bg-list-hover data-[state=open]:bg-list-hover', focus === index && 'bg-list-hover')}
+                    >
+                      <td className={cn('sticky left-0 z-10 bg-bg px-4 group-hover:bg-list-hover group-data-[state=open]:bg-list-hover', focus === index && 'bg-list-hover')}>
+                        <Link to="/r/$recordId" params={{ recordId: r.id }} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} className="flex min-w-0 items-center gap-2.5 font-medium text-ink">
+                          <RecordIcon object={slug} name={recordName(r)} photo={r.photo} icon={pageIcon(r)} />
+                          <span className="min-w-0 truncate">{recordName(r)}</span>
+                        </Link>
+                      </td>
+                      {slug === 'companies' && <td className="overflow-hidden px-3 text-ink-2"><CompanyPeople company={r} /></td>}
+                      <td className="px-3 text-[12px] text-ink-3"><UpdatedAt at={r.updated_at} /></td>
+                      {columns.map((a) => (
+                        <td key={a.slug} className="overflow-hidden px-3 py-1 text-ink-2">
+                          {own ? (
+                            <div onClick={(e) => e.stopPropagation()}>
+                              <Field record={r} attribute={a} limit={5} />
+                            </div>
+                          ) : a.type === 'select' ? (
+                            <div onClick={(e) => e.stopPropagation()}>
+                              <SelectField record={r} attribute={a} />
+                            </div>
+                          ) : (
+                            cell(r, a)
+                          )}
+                        </td>
+                      ))}
+                      {own && <td />}
+                      <td />
+                    </tr>
+                  </RecordMenu>
+                ))}
+              </tbody>
+            </table>
+            <div ref={end} aria-hidden className="h-px" />
+          </div>
+        )}
+      </ListMotion>
     </>
   )
 }

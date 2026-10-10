@@ -35,7 +35,7 @@ export function Done({ record, labelled = false, className }: { record: CrmRecor
     return labelled ? <span className="text-[12px] text-ink-3">{status}</span> : null
   }
   return (
-    <Button variant="ghost" size={labelled ? 'default' : 'icon-sm'} aria-label="Done" title="Done" className={className} onClick={(e) => {
+    <Button variant="ghost" size={labelled ? 'default' : 'icon-sm'} aria-label="Done" title="Done" disabled={write.pending} className={className} onClick={(e) => {
       e.stopPropagation()
       write.set('status', 'Done')
     }}>
