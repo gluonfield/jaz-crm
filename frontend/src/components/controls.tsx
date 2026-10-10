@@ -33,7 +33,7 @@ export function Tab({ active, children, onClick }: { active: boolean; children: 
   )
 }
 
-const chip = 'inline-flex h-[22px] min-w-0 max-w-full items-center gap-1.5 rounded-full border border-border bg-raised px-2 text-[12px] text-ink-2'
+const chip = 'inline-flex min-h-[22px] min-w-0 max-w-full items-center gap-1.5 rounded-full border border-border bg-raised px-2 py-px text-[12px] text-ink-2'
 
 export function Chip({ children, onRemove }: { children: ReactNode; onRemove?: () => void }) {
   const id = useId()

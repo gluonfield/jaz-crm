@@ -420,12 +420,17 @@
   }
 }
 
-/* Safari zooms into a focused field set smaller than 16px. */
+/* Safari zooms into a focused field set smaller than 16px, so on a touch
+   screen fields are 16px, and the values shown beside them match. */
 @media (pointer: coarse) {
   input,
   textarea,
   select,
   [contenteditable='true'] {
     font-size: max(16px, 1em);
+  }
+  [data-value],
+  [data-value] * {
+    font-size: 16px;
   }
 }

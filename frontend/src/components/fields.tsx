@@ -184,7 +184,7 @@ function Capped({ limit, children }: { limit?: number; children: ReactNode[] }) 
           e.stopPropagation()
           setAll(!all)
         }}
-        className="h-[22px] rounded-full px-2 text-[12px] text-ink-3 outline-none hover:bg-list-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-ring"
+        className="min-h-[22px] rounded-full px-2 text-[12px] text-ink-3 outline-none hover:bg-list-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-ring"
       >
         {all ? 'Show less' : `+${children.length - limit} more`}
       </button>

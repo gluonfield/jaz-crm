@@ -18,7 +18,7 @@ const colourOf = (value: string) => colours[[...value.toLowerCase()].reduce((has
 
 export function ValueTag({ value }: { value: string }) {
   return (
-    <span title={value} className={cn('inline-flex h-6 max-w-48 items-center rounded-full px-2.5 text-[12px] font-medium ring-1 ring-inset', colourOf(value))}>
+    <span title={value} className={cn('inline-flex min-h-6 max-w-48 items-center rounded-full px-2.5 py-0.5 text-[12px] font-medium ring-1 ring-inset', colourOf(value))}>
       <span className="truncate">{value}</span>
     </span>
   )

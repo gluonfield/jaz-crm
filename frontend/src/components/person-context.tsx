@@ -51,7 +51,7 @@ export function ContextEditor({ record, autoFocus, onDone, className }: { record
           e.currentTarget.blur()
         }
       }}
-      className={cn('field-sizing-content block max-h-80 w-full rounded-[var(--radius-control)] bg-transparent text-[13px] leading-5 text-ink outline-none placeholder:text-ink-3', className)}
+      className={cn('field-sizing-content block max-h-80 w-full rounded-[var(--radius-control)] bg-transparent text-[13px] leading-5 text-ink outline-none placeholder:text-ink-3 pointer-coarse:leading-6', className)}
     />
   )
 }

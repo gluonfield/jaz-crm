@@ -230,13 +230,13 @@ function Details({ record, object }: { record: CrmRecord; object: CrmObject }) {
   return (
     <section aria-label="Details" className="min-w-0 self-start [grid-area:details] @5xl:sticky @5xl:top-0">
       <h2 className="mb-1.5 text-[12px] font-medium text-ink-3">Details</h2>
-      <dl className="grid grid-cols-[100px_minmax(0,1fr)] items-center gap-x-2 gap-y-0.5 text-[13px] @3xl:grid-cols-[100px_minmax(0,1fr)_100px_minmax(0,1fr)] @5xl:grid-cols-[100px_minmax(0,1fr)]">
+      <dl className="grid grid-cols-[100px_minmax(0,1fr)] items-center gap-x-2 gap-y-0.5 text-[13px] pointer-coarse:items-start @3xl:grid-cols-[100px_minmax(0,1fr)_100px_minmax(0,1fr)] @5xl:grid-cols-[100px_minmax(0,1fr)]">
         {object.attributes
           .filter((a) => a.slug !== 'name' && !(record.object === 'people' && a.slug === 'context') && !(record.object === 'follow_ups' && (a.slug === 'draft' || dateMetadata(a.slug))))
           .map((a) => (
             <div key={a.slug} className="contents">
-              <dt className="truncate text-ink-3">{a.name}</dt>
-              <dd className="min-w-0">
+              <dt className="truncate text-ink-3 pointer-coarse:leading-7">{a.name}</dt>
+              <dd data-value className="min-w-0">
                 <Field record={record} attribute={a} />
               </dd>
             </div>

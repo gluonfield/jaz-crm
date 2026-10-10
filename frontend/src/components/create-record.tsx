@@ -215,7 +215,7 @@ const Chip = forwardRef<HTMLButtonElement, { icon?: ReactNode; label: ReactNode;
   ref,
 ) {
   return (
-    <Button ref={ref} {...props} size="sm" className={cn('max-w-56 pointer-coarse:h-8 pointer-coarse:text-[16px]', empty ? 'text-ink-3' : 'text-ink-2', className)}>
+    <Button ref={ref} data-value {...props} size="sm" className={cn('max-w-56 pointer-coarse:h-8', empty ? 'text-ink-3' : 'text-ink-2', className)}>
       {icon}
       <span className="min-w-0 truncate">{label}</span>
     </Button>
@@ -358,7 +358,7 @@ const inputMode: Partial<Record<Attribute['type'], 'decimal' | 'email' | 'tel' |
 // until something is typed, then what was typed.
 function TextProperty({ attribute, value, onChange }: { attribute: Attribute; value: string; onChange: (text: string) => void }) {
   return (
-    <label className="inline-flex h-6 items-center rounded-full border border-border px-2.5 text-[12px] transition-colors focus-within:border-ink-3/60 hover:bg-list-hover pointer-coarse:h-8">
+    <label data-value className="inline-flex h-6 items-center rounded-full border border-border px-2.5 text-[12px] transition-colors focus-within:border-ink-3/60 hover:bg-list-hover pointer-coarse:h-8">
       <span className="sr-only">{attribute.name}</span>
       {attribute.type === 'number' && attribute.slug === 'value' && <span className="mr-1 text-ink-2">$</span>}
       <input
