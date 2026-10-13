@@ -1,11 +1,11 @@
 import { Button } from '@jaz/ui/button'
 import { useRouter } from '@tanstack/react-router'
-import { PanelLeft } from 'lucide-react'
+import { PanelLeft, PanelLeftClose } from 'lucide-react'
 import { Dialog as DialogPrimitive } from 'radix-ui'
 import { type PointerEvent, type ReactNode, useEffect, useRef, useState } from 'react'
 import { Dialog, DialogOverlay, DialogPortal, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { usePhone } from '@/lib/hooks'
-import { getUI, setUI, useUI } from '@/lib/ui'
+import { getUI, saveSidebarWidth, setUI, useUI } from '@/lib/ui'
 import { cn } from '@/lib/utils'
 import { Sidebar } from './sidebar'
 
@@ -38,7 +38,8 @@ export function NavButton() {
   const phone = usePhone()
   const collapsed = useUI((ui) => ui.sidebarCollapsed)
   if (!phone) {
-    return collapsed && <Button variant="ghost" size="icon" aria-label="Expand sidebar" title="Expand sidebar" className="-ml-1.5" onClick={() => setUI({ sidebarCollapsed: false })}><PanelLeft /></Button>
+    const label = collapsed ? 'Expand sidebar' : 'Collapse sidebar'
+    return <Button variant="ghost" size="icon" aria-label={label} title={label} aria-expanded={!collapsed} className="-ml-1.5" onClick={() => setUI({ sidebarCollapsed: !collapsed })}>{collapsed ? <PanelLeft /> : <PanelLeftClose />}</Button>
   }
   return (
     <DialogTrigger asChild>
@@ -81,15 +82,20 @@ export function DesktopSidebar() {
         }}
         onPointerMove={move}
         onPointerUp={move}
-        onLostPointerCapture={() => (drag.current = null)}
-        onDoubleClick={() => resize(232)}
+        onLostPointerCapture={() => {
+          drag.current = null
+          saveSidebarWidth()
+        }}
+        onDoubleClick={() => {
+          resize(232)
+          saveSidebarWidth()
+        }}
         onKeyDown={(e) => {
-          if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+          const next = e.key === 'Home' ? 232 : e.key === 'ArrowLeft' ? getUI().sidebarWidth - 16 : e.key === 'ArrowRight' ? getUI().sidebarWidth + 16 : undefined
+          if (next !== undefined) {
             e.preventDefault()
-            resize(getUI().sidebarWidth + (e.key === 'ArrowLeft' ? -16 : 16))
-          } else if (e.key === 'Home') {
-            e.preventDefault()
-            resize(232)
+            resize(next)
+            saveSidebarWidth()
           }
         }}
         className="absolute inset-y-0 -right-1 z-10 w-2 cursor-col-resize touch-none select-none outline-none after:absolute after:inset-y-2 after:left-1/2 after:w-px after:transition-colors hover:after:bg-border focus-visible:after:bg-primary active:after:bg-primary"

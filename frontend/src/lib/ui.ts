@@ -18,15 +18,16 @@ export function getUI() {
 
 export function setUI(next: Partial<UI>) {
   state = { ...state, ...next }
-  if (next.sidebarWidth !== undefined) {
-    writeItem('jaz-crm:sidebar-width', String(next.sidebarWidth))
-  }
   if (next.sidebarCollapsed !== undefined) {
     writeItem('jaz-crm:sidebar-collapsed', String(next.sidebarCollapsed))
   }
   for (const listener of listeners) {
     listener()
   }
+}
+
+export function saveSidebarWidth() {
+  writeItem('jaz-crm:sidebar-width', String(state.sidebarWidth))
 }
 
 export function useUI<T>(select: (ui: UI) => T) {
