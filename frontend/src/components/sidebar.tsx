@@ -1,5 +1,6 @@
+import { Button } from '@jaz/ui/button'
 import { Link } from '@tanstack/react-router'
-import { Check, ChevronDown, Inbox, LogOut, Monitor, Moon, PlugZap, Plus, Search, Settings, Sun, Trash2 } from 'lucide-react'
+import { Check, ChevronDown, Inbox, LogOut, Monitor, Moon, PanelLeftClose, PlugZap, Plus, Search, Settings, Sun, Trash2 } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { DialogClose } from '@/components/ui/dialog'
 import {
@@ -61,6 +62,9 @@ export function Sidebar({ className }: { className?: string }) {
             Search <Kbd>⌘K</Kbd>
           </TooltipContent>
         </Tooltip>
+        <Button variant="ghost" size="icon-sm" aria-label="Collapse sidebar" title="Collapse sidebar" className="max-md:hidden" onClick={() => setUI({ sidebarCollapsed: true })}>
+          <PanelLeftClose />
+        </Button>
       </div>
       <NavItem to="/triage" icon={<Inbox />} count={pending}>
         Triage
