@@ -54,33 +54,36 @@ export function path(pages: Pick<Pages, 'byId'>, id: string): Page[] {
 // within reports whether a page is the given one or inside it.
 export const within = (pages: Pages, id: string, ancestor: string) => path(pages, id).some((p) => p.id === ancestor)
 
-export function usePageDrag(pages: Pages | undefined, moved: (parent: string) => void) {
+export function useDataDrag(pages: Pages | undefined, moved: (parent: string) => void) {
   const write = useAction<object>('upsert_record')
-  const [dragging, setDragging] = useState<string>()
+  const edit = useAction<object>('edit_object')
+  const [source, setSource] = useState<Page | CrmObject>()
   const [target, setTarget] = useState<string>()
-  const type = 'application/x-jaz-crm-page'
+  const type = 'application/x-jaz-crm-data'
+  const pending = write.isPending || edit.isPending
+  const key = (item: Page | CrmObject) => 'slug' in item ? `database:${item.slug}` : `page:${item.id}`
   const reset = () => {
-    setDragging(undefined)
+    setSource(undefined)
     setTarget(undefined)
   }
   const accepts = (parent: string) => {
-    const page = pages?.byId.get(dragging ?? '')
-    return !!pages && !!page && (parent === '' || pages.byId.has(parent)) && parent !== (page.parent ?? '') && !within(pages, parent, page.id)
+    return !!pages && !!source && !pending && (parent === '' || pages.byId.has(parent)) && parent !== (source.parent ?? '') && ('slug' in source || !within(pages, parent, source.id))
   }
   return {
-    dragging,
+    dragging: !!source,
     target,
-    from: (id: string) => ({
-      draggable: !write.isPending,
+    from: (item: Page | CrmObject) => ({
+      draggable: !pending,
+      'data-dragging': !!source && key(source) === key(item),
       onDragStart: (event: DragEvent<HTMLElement>) => {
-        if (write.isPending) {
+        if (pending) {
           event.preventDefault()
           return
         }
         event.dataTransfer.clearData()
-        event.dataTransfer.setData(type, id)
+        event.dataTransfer.setData(type, key(item))
         event.dataTransfer.effectAllowed = 'move'
-        setDragging(id)
+        setSource(item)
       },
       onDragEnd: reset,
     }),
@@ -92,9 +95,9 @@ export function usePageDrag(pages: Pages | undefined, moved: (parent: string) =>
         event.stopPropagation()
         const allowed = accepts(parent)
         event.dataTransfer.dropEffect = allowed ? 'move' : 'none'
+        setTarget(allowed ? parent : undefined)
         if (allowed) {
           event.preventDefault()
-          setTarget(parent)
         }
       },
       onDragLeave: (event: DragEvent<HTMLElement>) => {
@@ -108,11 +111,13 @@ export function usePageDrag(pages: Pages | undefined, moved: (parent: string) =>
         }
         event.preventDefault()
         event.stopPropagation()
-        if (event.dataTransfer.getData(type) === dragging && accepts(parent)) {
-          write.mutate(
-            { object: 'pages', record_id: dragging, ...(parent ? { values: { parent } } : { remove: { parent: [] } }) },
-            { onSuccess: () => moved(parent) },
-          )
+        if (source && event.dataTransfer.getData(type) === key(source) && accepts(parent)) {
+          const callbacks = { onSuccess: () => moved(parent) }
+          if ('slug' in source) {
+            edit.mutate({ object: source.slug, action: 'move', parent }, callbacks)
+          } else {
+            write.mutate({ object: 'pages', record_id: source.id, ...(parent ? { values: { parent } } : { remove: { parent: [] } }) }, callbacks)
+          }
         }
         reset()
       },
@@ -120,4 +125,4 @@ export function usePageDrag(pages: Pages | undefined, moved: (parent: string) =>
   }
 }
 
-export type PageDrag = ReturnType<typeof usePageDrag>
+export type DataDrag = ReturnType<typeof useDataDrag>

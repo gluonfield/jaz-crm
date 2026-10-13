@@ -1,7 +1,7 @@
 import { useRouterState } from '@tanstack/react-router'
 import { ChevronRight, Plus } from 'lucide-react'
 import { useState } from 'react'
-import { type Page, type PageDrag, type Pages, path, usePageDrag, usePages } from '@/lib/pages'
+import { type DataDrag, type Page, type Pages, path, useDataDrag, usePages } from '@/lib/pages'
 import { readItem, writeItem } from '@/lib/storage'
 import type { CrmObject } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -41,7 +41,7 @@ export function DataNav() {
     setOpened(next)
     writeItem(openedKey, JSON.stringify([...next]))
   }
-  const drag = usePageDrag(pages, (parent) => {
+  const drag = useDataDrag(pages, (parent) => {
     if (parent && !opened.has(parent)) {
       toggle(parent)
     }
@@ -59,19 +59,19 @@ export function DataNav() {
           </button>
         </NewData>
       </div>
-      {pages?.tables.get('')?.map((table) => <TableItem key={table.slug} object={table} pages={pages} />)}
+      {pages?.tables.get('')?.map((table) => <TableItem key={table.slug} object={table} pages={pages} drag={drag} />)}
       {pages?.children.get('')?.map((page) => <PageItem key={page.id} page={page} pages={pages} depth={0} opened={opened} toggle={toggle} drag={drag} />)}
     </div>
   )
 }
 
-function TableItem({ object, pages, depth = 0 }: { object: CrmObject; pages: Pages; depth?: number }) {
+function TableItem({ object, pages, drag, depth = 0 }: { object: CrmObject; pages: Pages; drag: DataDrag; depth?: number }) {
   return <TableMenu object={object} pages={pages}>
-    <div><NavItem to={`/o/${object.slug}`} depth={depth} icon={<ObjectIcon slug={object.slug} icon={object.icon} />}>{object.name}</NavItem></div>
+    <div {...drag.from(object)} className="rounded-[var(--radius-control)] data-[dragging=true]:opacity-50 [&>a]:cursor-grab"><NavItem to={`/o/${object.slug}`} depth={depth} icon={<ObjectIcon slug={object.slug} icon={object.icon} />}>{object.name}</NavItem></div>
   </TableMenu>
 }
 
-function PageItem({ page, pages, depth, opened, toggle, drag }: { page: Page; pages: Pages; depth: number; opened: Set<string>; toggle: (id: string) => void; drag: PageDrag }) {
+function PageItem({ page, pages, depth, opened, toggle, drag }: { page: Page; pages: Pages; depth: number; opened: Set<string>; toggle: (id: string) => void; drag: DataDrag }) {
   const inside = pages.children.get(page.id) ?? []
   const tables = pages.tables.get(page.id) ?? []
   const hasChildren = inside.length + tables.length > 0
@@ -79,7 +79,7 @@ function PageItem({ page, pages, depth, opened, toggle, drag }: { page: Page; pa
   return (
     <>
       <PageMenu page={page} pages={pages}>
-        <div {...drag.from(page.id)} {...drag.onto(page.id)} className={cn('group/row relative rounded-[var(--radius-control)] [&>a]:cursor-grab pointer-coarse:[&>a]:pr-8', drag.dragging === page.id && 'opacity-50', drag.target === page.id && 'bg-primary-soft [&>a]:bg-transparent [&>a]:text-primary')}>
+        <div {...drag.from(page)} {...drag.onto(page.id)} className={cn('group/row relative rounded-[var(--radius-control)] data-[dragging=true]:opacity-50 [&>a]:cursor-grab pointer-coarse:[&>a]:pr-8', drag.target === page.id && 'bg-primary-soft [&>a]:bg-transparent [&>a]:text-primary')}>
           <NavItem to={`/r/${page.id}`} depth={depth} icon={<PageIcon value={page.icon} className={cn(hasChildren && 'group-hover/row:invisible pointer-coarse:invisible')} />}>
             {page.name}
           </NavItem>
@@ -94,7 +94,7 @@ function PageItem({ page, pages, depth, opened, toggle, drag }: { page: Page; pa
         </div>
       </PageMenu>
       {open && <>
-        {tables.map((table) => <TableItem key={table.slug} object={table} pages={pages} depth={depth + 1} />)}
+        {tables.map((table) => <TableItem key={table.slug} object={table} pages={pages} depth={depth + 1} drag={drag} />)}
         {inside.map((child) => <PageItem key={child.id} page={child} pages={pages} depth={depth + 1} opened={opened} toggle={toggle} drag={drag} />)}
       </>}
     </>
