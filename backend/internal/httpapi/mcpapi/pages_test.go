@@ -72,3 +72,64 @@ func TestAgentPagesAndTables(t *testing.T) {
 		t.Fatal("a deleted table's record remains")
 	}
 }
+
+func TestTablesInsidePages(t *testing.T) {
+	a, b := connect(t)
+	root := mustCall(t, a, "upsert_record", map[string]any{"object": "pages", "values": map[string]any{"name": "Research"}})["record"].(map[string]any)["id"].(string)
+	child := mustCall(t, a, "upsert_record", map[string]any{"object": "pages", "values": map[string]any{"name": "Interviews", "parent": root}})["record"].(map[string]any)["id"].(string)
+	foreign := mustCall(t, b, "upsert_record", map[string]any{"object": "pages", "values": map[string]any{"name": "Private"}})["record"].(map[string]any)["id"].(string)
+	company := mustCall(t, a, "upsert_record", map[string]any{"object": "companies", "values": map[string]any{"name": "Acme"}})["record"].(map[string]any)["id"].(string)
+	table := mustCall(t, a, "create_object", map[string]any{"slug": "suppliers", "name": "Suppliers", "parent": child})
+	if table["parent"] != child {
+		t.Fatalf("new table parent: %v", table)
+	}
+	row := mustCall(t, a, "upsert_record", map[string]any{"object": "suppliers", "values": map[string]any{"name": "First supplier"}})["record"].(map[string]any)["id"].(string)
+	body := "See [Suppliers](/o/suppliers)."
+	mustCall(t, a, "upsert_record", map[string]any{"object": "pages", "record_id": root, "values": map[string]any{"content": body}})
+	if got := mustCall(t, a, "get_record", map[string]any{"record_id": root})["values"].(map[string]any)["content"]; got != body {
+		t.Fatalf("table link content: %v", got)
+	}
+	parent := func() any {
+		t.Helper()
+		for _, raw := range mustCall(t, a, "list_objects", map[string]any{})["objects"].([]any) {
+			object := raw.(map[string]any)
+			if object["slug"] == "suppliers" {
+				return object["parent"]
+			}
+		}
+		t.Fatal("table disappeared")
+		return nil
+	}
+	for _, invalid := range []string{foreign, company, "missing"} {
+		if _, failure := call(t, a, "create_object", map[string]any{"slug": "invalid", "name": "Invalid", "parent": invalid}); failure == "" {
+			t.Fatalf("created table under invalid parent %s", invalid)
+		}
+		if _, failure := call(t, a, "edit_object", map[string]any{"object": "suppliers", "action": "move", "parent": invalid}); failure == "" || parent() != child {
+			t.Fatalf("invalid move changed nesting: %q", failure)
+		}
+	}
+	if _, failure := call(t, b, "edit_object", map[string]any{"object": "suppliers", "action": "move", "parent": foreign}); failure == "" {
+		t.Fatal("another workspace moved the table")
+	}
+	if _, failure := call(t, a, "edit_object", map[string]any{"object": "people", "action": "move", "parent": root}); failure == "" {
+		t.Fatal("a built-in CRM table was moved")
+	}
+	for _, destination := range []string{root, "", child} {
+		mustCall(t, a, "edit_object", map[string]any{"object": "suppliers", "action": "move", "parent": destination})
+		got, _ := parent().(string)
+		if got != destination {
+			t.Fatalf("table parent: got %q, want %q", got, destination)
+		}
+	}
+	mustCall(t, a, "delete_record", map[string]any{"record_id": child})
+	if parent() != child {
+		t.Fatal("Trash discarded table nesting")
+	}
+	if _, failure := call(t, a, "create_object", map[string]any{"slug": "trashed", "name": "Trashed", "parent": child}); failure == "" {
+		t.Fatal("a table was created inside a trashed page")
+	}
+	mustCall(t, a, "restore_record", map[string]any{"record_id": child})
+	if parent() != child || mustCall(t, a, "get_record", map[string]any{"record_id": row})["values"].(map[string]any)["name"] != "First supplier" {
+		t.Fatal("restoring the page changed its table or rows")
+	}
+}

@@ -4,7 +4,7 @@ import { Editor } from '@tiptap/core'
 import { DocumentKit, documentLinkAt, editDocumentLink } from './document-links'
 
 test('page and read-only documents preserve links, dividers and nested checklists through edits', () => {
-  const markdown = '[Budget](/r/budget) and [Visitor guide](https://example.com/guide)\n\n---\n\n- [x] **Book flights**\n  - [ ] Verify passport\n  - Packing list\n- [ ] Compare hotels'
+  const markdown = '[Budget](/r/budget), [Suppliers](/o/suppliers) and [Visitor guide](https://example.com/guide)\n\n---\n\n- [x] **Book flights**\n  - [ ] Verify passport\n  - Packing list\n- [ ] Compare hotels'
   for (const editable of [true, false]) {
     const options = { element: null, editable, extensions: [DocumentKit.configure(editable ? { link: { openOnClick: false } } : { trailingNode: false })], contentType: 'markdown' as const }
     const editor = new Editor({ ...options, content: markdown })
@@ -35,7 +35,7 @@ test('page and read-only documents preserve links, dividers and nested checklist
     assert.equal(checked, 1)
     assert.equal(unchecked, 2)
     assert.equal(divider, 1)
-    assert.deepEqual(links, ['/r/budget', 'https://example.com/guide'])
+    assert.deepEqual(links, ['/r/budget', '/o/suppliers', 'https://example.com/guide'])
     assert.match(editor.state.doc.textContent, /Packing list/)
     if (editable) {
       assert.notEqual(firstTask, undefined)

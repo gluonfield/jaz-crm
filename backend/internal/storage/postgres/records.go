@@ -47,6 +47,10 @@ func (s *Store) RenameObject(ctx context.Context, workspaceID, id, name string) 
 	return affected(s.rec.RenameObject(ctx, recdb.RenameObjectParams{Name: name, WorkspaceID: workspaceID, ID: id}))
 }
 
+func (s *Store) MoveObject(ctx context.Context, workspaceID, id string, parent *string) error {
+	return affected(s.rec.MoveObject(ctx, recdb.MoveObjectParams{WorkspaceID: workspaceID, ID: id, ParentID: parent}))
+}
+
 func (s *Store) DeleteObject(ctx context.Context, workspaceID, id string) error {
 	return mapError(pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
 		q := s.in.WithTx(tx)

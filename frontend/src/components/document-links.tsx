@@ -10,7 +10,7 @@ import { recordName } from '@/lib/crm'
 import { pageIcon } from '@/lib/pages'
 import { useTool } from '@/lib/queries'
 import type { CrmRecord } from '@/lib/types'
-import { RecordIcon } from './icons'
+import { ObjectIcon, RecordIcon } from './icons'
 
 export function documentLinkAt(editor: Editor, position: number) {
   const doc = editor.state.doc
@@ -39,6 +39,10 @@ export function editDocumentLink(editor: Editor, link: NonNullable<ReturnType<ty
 function DocumentLinkIcon({ href }: { href: string }) {
   const id = href.match(/^\/r\/([^/?#]+)$/)?.[1]
   const { data: record } = useTool<CrmRecord>('get_record', { record_id: id }, { enabled: !!id, staleTime: 60_000, retry: false })
+  const table = href.match(/^\/o\/([^/?#]+)$/)?.[1]
+  if (table) {
+    return <ObjectIcon slug={table} className="size-3.5" />
+  }
   return id ? record && <RecordIcon object={record.object} name={recordName(record)} photo={record.photo} icon={pageIcon(record)} size={14} /> : <Link2 size={14} />
 }
 

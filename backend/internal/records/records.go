@@ -24,6 +24,7 @@ func NewService(store storage.RecordStore) *Service {
 type Object struct {
 	Slug       string
 	Name       string
+	Parent     string
 	Standard   bool
 	Attributes []Attribute
 }
@@ -133,6 +134,9 @@ func (s *Service) Objects(ctx context.Context, actor auth.Actor, includeArchived
 	out := []Object{}
 	for _, o := range sc.objects {
 		view := Object{Slug: o.Slug, Name: o.Name, Standard: standard(o.Slug)}
+		if o.ParentID != nil {
+			view.Parent = *o.ParentID
+		}
 		for _, a := range sc.attributes(o.ID, includeArchived) {
 			attr := Attribute{Slug: a.Slug, Name: a.Name, Type: a.Type, Multi: a.Multi, Unique: a.IsUnique, Options: a.Options, Archived: a.Archived, Protected: protected(o.Slug, a)}
 			if a.TargetObjectID != nil {

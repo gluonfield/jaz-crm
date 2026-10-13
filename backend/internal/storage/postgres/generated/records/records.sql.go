@@ -99,7 +99,7 @@ func (q *Queries) CreateAttribute(ctx context.Context, arg CreateAttributeParams
 }
 
 const createObject = `-- name: CreateObject :one
-INSERT INTO objects (workspace_id, slug, name, id) VALUES ($1, $2, $3, $4) RETURNING id, workspace_id, slug, name, created_at
+INSERT INTO objects (workspace_id, slug, name, id, parent_id) VALUES ($1, $2, $3, $4, $5) RETURNING id, workspace_id, slug, name, created_at, parent_id
 `
 
 type CreateObjectParams struct {
@@ -107,6 +107,7 @@ type CreateObjectParams struct {
 	Slug        string
 	Name        string
 	ID          string
+	ParentID    *string
 }
 
 func (q *Queries) CreateObject(ctx context.Context, arg CreateObjectParams) (Object, error) {
@@ -115,6 +116,7 @@ func (q *Queries) CreateObject(ctx context.Context, arg CreateObjectParams) (Obj
 		arg.Slug,
 		arg.Name,
 		arg.ID,
+		arg.ParentID,
 	)
 	var i Object
 	err := row.Scan(
@@ -123,6 +125,7 @@ func (q *Queries) CreateObject(ctx context.Context, arg CreateObjectParams) (Obj
 		&i.Slug,
 		&i.Name,
 		&i.CreatedAt,
+		&i.ParentID,
 	)
 	return i, err
 }
@@ -426,7 +429,7 @@ func (q *Queries) ListAttributes(ctx context.Context, workspaceID string) ([]Att
 }
 
 const listObjects = `-- name: ListObjects :many
-SELECT id, workspace_id, slug, name, created_at FROM objects WHERE workspace_id = $1 ORDER BY created_at, slug
+SELECT id, workspace_id, slug, name, created_at, parent_id FROM objects WHERE workspace_id = $1 ORDER BY created_at, slug
 `
 
 func (q *Queries) ListObjects(ctx context.Context, workspaceID string) ([]Object, error) {
@@ -444,6 +447,7 @@ func (q *Queries) ListObjects(ctx context.Context, workspaceID string) ([]Object
 			&i.Slug,
 			&i.Name,
 			&i.CreatedAt,
+			&i.ParentID,
 		); err != nil {
 			return nil, err
 		}
@@ -607,6 +611,24 @@ func (q *Queries) LockStatus(ctx context.Context, arg LockStatusParams) (Attribu
 		&i.Archived,
 	)
 	return i, err
+}
+
+const moveObject = `-- name: MoveObject :execrows
+UPDATE objects SET parent_id = $1 WHERE workspace_id = $2 AND id = $3
+`
+
+type MoveObjectParams struct {
+	ParentID    *string
+	WorkspaceID string
+	ID          string
+}
+
+func (q *Queries) MoveObject(ctx context.Context, arg MoveObjectParams) (int64, error) {
+	result, err := q.db.Exec(ctx, moveObject, arg.ParentID, arg.WorkspaceID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const pageImage = `-- name: PageImage :one

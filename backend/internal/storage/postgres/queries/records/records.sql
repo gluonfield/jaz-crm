@@ -1,5 +1,5 @@
 -- name: CreateObject :one
-INSERT INTO objects (workspace_id, slug, name, id) VALUES ($1, $2, $3, sqlc.arg(id)) RETURNING *;
+INSERT INTO objects (workspace_id, slug, name, id, parent_id) VALUES ($1, $2, $3, sqlc.arg(id), sqlc.narg(parent_id)) RETURNING *;
 
 -- name: CreateAttribute :one
 INSERT INTO attributes (object_id, slug, name, type, multi, is_unique, target_object_id, options, id)
@@ -29,6 +29,9 @@ UPDATE objects SET name = @name WHERE workspace_id = @workspace_id AND id = @id;
 
 -- name: DeleteObject :execrows
 DELETE FROM objects WHERE workspace_id = @workspace_id AND id = @id;
+
+-- name: MoveObject :execrows
+UPDATE objects SET parent_id = sqlc.narg(parent_id) WHERE workspace_id = @workspace_id AND id = @id;
 
 -- name: RenameAttribute :execrows
 UPDATE attributes SET name = @name FROM objects

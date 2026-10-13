@@ -115,7 +115,7 @@ func TestRestoreCompanyReversesItsExclusionOnly(t *testing.T) {
 
 func TestRestoreCustomRecordDoesNotRestoreCompanyTriage(t *testing.T) {
 	e := setupManual(t, nil)
-	if _, err := e.crm.CreateObject(ctx, e.a, "suppliers", "Suppliers"); err != nil {
+	if _, err := e.crm.CreateObject(ctx, e.a, "suppliers", "Suppliers", ""); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := e.crm.CreateAttribute(ctx, e.a, "suppliers", records.Attribute{Slug: "domain", Name: "Domain", Type: records.Domain, Unique: true}); err != nil {

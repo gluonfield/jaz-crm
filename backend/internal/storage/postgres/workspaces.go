@@ -75,7 +75,7 @@ func (s *Store) DeleteWorkspace(ctx context.Context, id, name string) error {
 func createObjects(ctx context.Context, r *recdb.Queries, workspaceID string, objects []storage.NewObject) error {
 	ids := map[string]string{}
 	for _, object := range objects {
-		created, err := r.CreateObject(ctx, recdb.CreateObjectParams{ID: shortuuid.New(), WorkspaceID: workspaceID, Slug: object.Slug, Name: object.Name})
+		created, err := r.CreateObject(ctx, recdb.CreateObjectParams{ID: shortuuid.New(), WorkspaceID: workspaceID, Slug: object.Slug, Name: object.Name, ParentID: object.ParentID})
 		if err != nil {
 			return err
 		}

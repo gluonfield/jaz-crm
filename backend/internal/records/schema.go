@@ -27,12 +27,16 @@ func validName(slug, name string) error {
 }
 
 // CreateObject adds a table: a record type with a name and markdown content.
-func (s *Service) CreateObject(ctx context.Context, actor auth.Actor, slug, name string) (Object, error) {
+func (s *Service) CreateObject(ctx context.Context, actor auth.Actor, slug, name, parent string) (Object, error) {
 	name = strings.TrimSpace(name)
 	if err := validName(slug, name); err != nil {
 		return Object{}, err
 	}
-	err := s.store.CreateObject(ctx, actor.WorkspaceID, storage.NewObject{Slug: slug, Name: name, Attributes: []storage.NewAttribute{
+	parentID, err := s.tableParent(ctx, actor, parent)
+	if err != nil {
+		return Object{}, err
+	}
+	err = s.store.CreateObject(ctx, actor.WorkspaceID, storage.NewObject{Slug: slug, Name: name, ParentID: parentID, Attributes: []storage.NewAttribute{
 		{Slug: titleAttribute, Name: "Name", Type: Text},
 		{Slug: ContentAttribute, Name: "Content", Type: Markdown},
 	}})
@@ -150,7 +154,7 @@ func (s *Service) Delete(ctx context.Context, actor auth.Actor, id string) error
 }
 
 // EditObject renames or deletes one of the workspace's own tables.
-func (s *Service) EditObject(ctx context.Context, actor auth.Actor, object, action, name string) error {
+func (s *Service) EditObject(ctx context.Context, actor auth.Actor, object, action, name, parent string) error {
 	sc, err := s.schema(ctx, actor.WorkspaceID)
 	if err != nil {
 		return err
@@ -160,7 +164,7 @@ func (s *Service) EditObject(ctx context.Context, actor auth.Actor, object, acti
 		return err
 	}
 	if standard(o.Slug) {
-		return errs.Invalidf("%s is built in; only the workspace's own tables are renamed or deleted", o.Slug)
+		return errs.Invalidf("%s is built in; only the workspace's own tables are edited", o.Slug)
 	}
 	switch action {
 	case "rename":
@@ -171,8 +175,28 @@ func (s *Service) EditObject(ctx context.Context, actor auth.Actor, object, acti
 		return s.store.RenameObject(ctx, actor.WorkspaceID, o.ID, name)
 	case "delete":
 		return s.store.DeleteObject(ctx, actor.WorkspaceID, o.ID)
+	case "move":
+		parentID, err := s.tableParent(ctx, actor, parent)
+		if err != nil {
+			return err
+		}
+		return s.store.MoveObject(ctx, actor.WorkspaceID, o.ID, parentID)
 	}
-	return errs.Invalidf("action is rename or delete")
+	return errs.Invalidf("action is rename, move or delete")
+}
+
+func (s *Service) tableParent(ctx context.Context, actor auth.Actor, parent string) (*string, error) {
+	if parent == "" {
+		return nil, nil
+	}
+	page, err := s.Get(ctx, actor, parent)
+	if err != nil {
+		return nil, err
+	}
+	if page.Object != Pages {
+		return nil, errs.Invalidf("a table's parent must be a page")
+	}
+	return &parent, nil
 }
 
 func (s *Service) EditAttribute(ctx context.Context, actor auth.Actor, object, attribute, action, name string) error {

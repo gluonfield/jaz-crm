@@ -17,7 +17,7 @@ export type Attribute = {
   options?: string[]
 }
 
-export type CrmObject = { slug: string; name: string; standard?: boolean; attributes: Attribute[] }
+export type CrmObject = { slug: string; name: string; parent?: string; standard?: boolean; attributes: Attribute[] }
 
 export type StageEdit = {
   object: string

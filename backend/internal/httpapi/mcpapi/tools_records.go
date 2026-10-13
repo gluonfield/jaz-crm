@@ -128,13 +128,13 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 	add(r, &mcp.Tool{Annotations: &mcp.ToolAnnotations{DestructiveHint: new(false)}, Name: "create_object", Title: "Create table",
 		Description: "Create a table: a record type, such as painpoints or suppliers, whose records are pages. It starts with a name and markdown content; add columns with create_attribute."},
 		func(ctx context.Context, actor auth.Actor, in objectInput) (objectView, error) {
-			object, err := crm.CreateObject(ctx, actor, in.Slug, in.Name)
+			object, err := crm.CreateObject(ctx, actor, in.Slug, in.Name, in.Parent)
 			return objectOf(object), err
 		})
 	add(r, &mcp.Tool{Name: "edit_object", Title: "Edit table",
-		Description: "Rename or delete a table the workspace created. Delete removes its records and every reference attribute pointing at it."},
+		Description: "Rename, move inside a page or to the top level, or delete a table the workspace created. Delete removes its records and every reference attribute pointing at it."},
 		func(ctx context.Context, actor auth.Actor, in objectEdit) (empty, error) {
-			return empty{}, crm.EditObject(ctx, actor, in.Object, in.Action, in.Name)
+			return empty{}, crm.EditObject(ctx, actor, in.Object, in.Action, in.Name, in.Parent)
 		})
 	add(r, &mcp.Tool{Annotations: &mcp.ToolAnnotations{DestructiveHint: new(false)}, Name: "create_attribute", Title: "Create attribute",
 		Description: "Add an attribute to an object, such as a table's column. Types: text, number, date, datetime (date with optional time), checkbox, url, select (with options), status (with its stages in order as options; a new record starts in the first), member (a workspace member by email; a new record names its creator), email, domain, phone, reference (with target, such as people, companies or pages)."},
@@ -191,6 +191,7 @@ type objectView struct {
 	Slug       string          `json:"slug"`
 	Name       string          `json:"name"`
 	Standard   bool            `json:"standard,omitempty"`
+	Parent     string          `json:"parent,omitempty"`
 	Attributes []attributeView `json:"attributes"`
 }
 
@@ -199,7 +200,7 @@ type objectsOutput struct {
 }
 
 func objectOf(o records.Object) objectView {
-	view := objectView{Slug: o.Slug, Name: o.Name, Standard: o.Standard, Attributes: []attributeView{}}
+	view := objectView{Slug: o.Slug, Name: o.Name, Parent: o.Parent, Standard: o.Standard, Attributes: []attributeView{}}
 	for _, a := range o.Attributes {
 		view.Attributes = append(view.Attributes, attributeView(a))
 	}
@@ -353,14 +354,16 @@ func lists(values map[string]any) (map[string][]string, error) {
 }
 
 type objectInput struct {
-	Slug string `json:"slug" jsonschema:"lowercase identifier, such as quotes"`
-	Name string `json:"name" jsonschema:"display name, such as Quotes"`
+	Slug   string `json:"slug" jsonschema:"lowercase identifier, such as quotes"`
+	Name   string `json:"name" jsonschema:"display name, such as Quotes"`
+	Parent string `json:"parent,omitempty" jsonschema:"parent page record id; omit for the top level"`
 }
 
 type objectEdit struct {
 	Object string `json:"object"`
-	Action string `json:"action" jsonschema:"rename or delete"`
+	Action string `json:"action" jsonschema:"rename, move or delete"`
 	Name   string `json:"name,omitempty"`
+	Parent string `json:"parent,omitempty" jsonschema:"for move: parent page record id; omit or empty for the top level"`
 }
 
 type attributeEdit struct {

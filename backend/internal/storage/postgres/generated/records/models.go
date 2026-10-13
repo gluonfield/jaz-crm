@@ -28,6 +28,7 @@ type Object struct {
 	Slug        string
 	Name        string
 	CreatedAt   time.Time
+	ParentID    *string
 }
 
 type Record struct {

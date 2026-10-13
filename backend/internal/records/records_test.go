@@ -252,7 +252,7 @@ func TestConcurrentUpsertsCreateOneRecord(t *testing.T) {
 // the references to it.
 func TestCustomObjects(t *testing.T) {
 	svc, a, _ := setup(t)
-	if _, err := svc.CreateObject(ctx, a, "quotes", "Quotes"); err != nil {
+	if _, err := svc.CreateObject(ctx, a, "quotes", "Quotes", ""); err != nil {
 		t.Fatal(err)
 	}
 	for _, attr := range []records.Attribute{

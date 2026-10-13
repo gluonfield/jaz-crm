@@ -11,6 +11,7 @@ type Object struct {
 	Slug        string
 	Name        string
 	CreatedAt   time.Time
+	ParentID    *string
 }
 
 type Attribute struct {
@@ -93,6 +94,7 @@ type NewRecordValue struct {
 type NewObject struct {
 	Slug       string
 	Name       string
+	ParentID   *string
 	Attributes []NewAttribute
 	Filters    []SavedFilter
 }
@@ -186,6 +188,7 @@ type RecordStore interface {
 	CreateObject(ctx context.Context, workspaceID string, object NewObject) error
 	CreateAttribute(ctx context.Context, attr AttributeInput) error
 	RenameObject(ctx context.Context, workspaceID, id, name string) error
+	MoveObject(ctx context.Context, workspaceID, id string, parent *string) error
 	// DeleteObject removes an object with its records, their values and the
 	// reference attributes pointing at it, with those attributes' conditions
 	// in saved filters.

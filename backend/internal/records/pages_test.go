@@ -72,7 +72,7 @@ func TestDocumentVersions(t *testing.T) {
 // own objects and attributes stay.
 func TestEditTables(t *testing.T) {
 	svc, a, _ := setup(t)
-	pains, err := svc.CreateObject(ctx, a, "painpoints", "Painpoints")
+	pains, err := svc.CreateObject(ctx, a, "painpoints", "Painpoints", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,14 +126,14 @@ func TestEditTables(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, refused := range []string{"people", "pages"} {
-		if err := svc.EditObject(ctx, a, refused, "delete", ""); err == nil {
+		if err := svc.EditObject(ctx, a, refused, "delete", "", ""); err == nil {
 			t.Errorf("%s was deleted", refused)
 		}
 	}
-	if err := svc.EditObject(ctx, a, "painpoints", "rename", "Pains"); err != nil {
+	if err := svc.EditObject(ctx, a, "painpoints", "rename", "Pains", ""); err != nil {
 		t.Fatal(err)
 	}
-	if err := svc.EditObject(ctx, a, "painpoints", "delete", ""); err != nil {
+	if err := svc.EditObject(ctx, a, "painpoints", "delete", "", ""); err != nil {
 		t.Fatal(err)
 	}
 	objects, err := svc.Objects(ctx, a, false)
@@ -160,7 +160,7 @@ func TestEditTables(t *testing.T) {
 // where new records start.
 func TestNewStatusStartsRecords(t *testing.T) {
 	svc, a, _ := setup(t)
-	if _, err := svc.CreateObject(ctx, a, "problems", "Problems"); err != nil {
+	if _, err := svc.CreateObject(ctx, a, "problems", "Problems", ""); err != nil {
 		t.Fatal(err)
 	}
 	row, _ := upsert(t, svc, a, records.SourceUser, records.Write{Object: "problems", Set: set("name", "Untitled")})

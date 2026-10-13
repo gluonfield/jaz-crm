@@ -1,20 +1,18 @@
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { ChevronRight, FileText, FolderInput, Pencil, Plus, Table2, Trash2 } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
-import { call } from '@/lib/api'
-import { slugify } from '@/lib/crm'
 import { type Page, type PageDrag, type Pages, path, usePageDrag, usePages, within } from '@/lib/pages'
-import { useAction, useObjects } from '@/lib/queries'
+import { useAction } from '@/lib/queries'
 import { readItem, writeItem } from '@/lib/storage'
-import type { CrmObject, CrmRecord } from '@/lib/types'
+import type { CrmObject } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { ObjectIcon } from './icons'
 import { PageIcon } from './page-icon'
 import { NavItem } from './nav-item'
+import { NewData, NewTable, useNewPage } from './new-data'
 import { ConfirmDialog, NameDialog } from './prompt-dialog'
 import { RecordDeleteDialog } from './record-delete-dialog'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuOptions, ContextMenuSeparator, ContextMenuTrigger } from './ui/context-menu'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './ui/dropdown-menu'
 
 const openedKey = 'crm-opened-pages'
 
@@ -23,31 +21,17 @@ const openedKey = 'crm-opened-pages'
 const rowButton =
   'absolute top-1 flex size-5 items-center justify-center rounded-[4px] text-ink-3 opacity-0 outline-none transition-opacity duration-100 hover:bg-list-active hover:text-ink focus-visible:opacity-100 group-hover/row:opacity-100 pointer-coarse:top-2.5 pointer-coarse:opacity-100 pointer-coarse:before:absolute pointer-coarse:before:-inset-2.5 [&_svg]:size-3.5'
 
-// useNewPage creates an untitled page, inside a parent when given, and opens it.
-export function useNewPage() {
-  const navigate = useNavigate()
-  const create = useAction<object, { record: CrmRecord }>('upsert_record')
-  return (parent?: string) =>
-    create.mutate(
-      { object: 'pages', values: parent ? { name: 'Untitled', parent } : { name: 'Untitled' } },
-      { onSuccess: (out) => void navigate({ to: '/r/$recordId', params: { recordId: out.record.id } }) },
-    )
-}
-
 // DataNav lists the workspace's tables and its pages as a tree, and creates
 // either from +. Opened pages stay open, and opening a page opens its branch.
 export function DataNav() {
-  const tables = (useObjects() ?? []).filter((o) => !o.standard)
   const pages = usePages()
-  const navigate = useNavigate()
-  const newPage = useNewPage()
-  const createTable = useAction<object, { slug: string }>('create_object')
-  const [naming, setNaming] = useState(false)
   const [opened, setOpened] = useState(() => new Set<string>(JSON.parse(readItem(openedKey) ?? '[]')))
-  const viewing = useRouterState({ select: (s) => s.location.pathname }).match(/^\/r\/([^/]+)$/)?.[1]
+  const location = useRouterState({ select: (s) => s.location.pathname })
+  const viewing = location.match(/^\/r\/([^/]+)$/)?.[1] ?? (pages && [...pages.tables.values()].flat().find((table) => location === `/o/${table.slug}`)?.parent)
+  const branch = `${location}:${viewing}`
   const [revealed, setRevealed] = useState<string>()
-  if (pages && viewing && viewing !== revealed && pages.byId.has(viewing)) {
-    setRevealed(viewing)
+  if (pages && viewing && branch !== revealed && pages.byId.has(viewing)) {
+    setRevealed(branch)
     setOpened(new Set([...opened, ...path(pages, viewing).map((p) => p.id)]))
   }
   const toggle = (id: string) => {
@@ -69,51 +53,22 @@ export function DataNav() {
     <div className="mt-4 flex flex-col gap-px">
       <div {...drag.onto('')} className={cn('flex h-7 items-center rounded-[var(--radius-control)] pl-2 pr-1 text-[12px] font-medium text-ink-3', drag.target === '' && 'bg-primary-soft text-primary')}>
         <span className="flex-1">{drag.dragging ? 'Move to top level' : 'Data'}</span>
-        <DropdownMenu>
-          <DropdownMenuTrigger
+        <NewData>
+          <button type="button"
             aria-label="New page or table"
             className="relative flex size-5 items-center justify-center rounded-[4px] outline-none hover:bg-list-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-list-active pointer-coarse:before:absolute pointer-coarse:before:-inset-2.5 [&_svg]:size-3.5"
           >
             <Plus />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-44">
-            <DropdownMenuItem onSelect={() => newPage()}>
-              <FileText /> Page
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => setNaming(true)}>
-              <Table2 /> Table
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+          </button>
+        </NewData>
       </div>
-      {tables.map((o) => (
-        <TableItem key={o.slug} object={o} />
-      ))}
+      {pages?.tables.get('')?.map((table) => <TableItem key={table.slug} object={table} pages={pages} />)}
       {pages?.children.get('')?.map((page) => <PageItem key={page.id} page={page} pages={pages} depth={0} opened={opened} toggle={toggle} drag={drag} />)}
-      <NameDialog
-        open={naming}
-        onOpenChange={setNaming}
-        title="New table"
-        placeholder="Name, such as Painpoints"
-        action="Create"
-        onSubmit={(name) =>
-          createTable.mutate(
-            { slug: slugify(name), name },
-            {
-              // A new table starts with one untitled row, as in Notion.
-              onSuccess: async (o) => {
-                await call('upsert_record', { object: o.slug, values: { name: 'Untitled' } })
-                void navigate({ to: '/o/$object', params: { object: o.slug } })
-              },
-            },
-          )
-        }
-      />
     </div>
   )
 }
 
-function TableItem({ object }: { object: CrmObject }) {
+function TableItem({ object, pages, depth = 0 }: { object: CrmObject; pages: Pages; depth?: number }) {
   const navigate = useNavigate()
   const viewing = useRouterState({ select: (s) => s.location.pathname }) === `/o/${object.slug}`
   const edit = useAction<object>('edit_object')
@@ -124,7 +79,7 @@ function TableItem({ object }: { object: CrmObject }) {
       <ContextMenu>
         <ContextMenuTrigger asChild>
           <div>
-            <NavItem to={`/o/${object.slug}`} icon={<ObjectIcon slug={object.slug} />}>
+            <NavItem to={`/o/${object.slug}`} depth={depth} icon={<ObjectIcon slug={object.slug} />}>
               {object.name}
             </NavItem>
           </div>
@@ -133,6 +88,17 @@ function TableItem({ object }: { object: CrmObject }) {
           <ContextMenuItem onSelect={() => setRenaming(true)}>
             <Pencil /> Rename…
           </ContextMenuItem>
+          <ContextMenuOptions
+            icon={<FolderInput />}
+            label="Move to"
+            placeholder="Move to…"
+            options={[
+              { value: '', label: 'Top level' },
+              ...[...pages.byId.values()].map((page) => ({ value: page.id, label: path(pages, page.id).map((ancestor) => ancestor.name).join(' / '), icon: <PageIcon value={page.icon} /> })),
+            ]}
+            selected={[object.parent ?? '']}
+            onSelect={(parent) => edit.mutate({ object: object.slug, action: 'move', parent })}
+          />
           <ContextMenuSeparator />
           <ContextMenuItem onSelect={() => setDeleting(true)}>
             <Trash2 /> Delete…
@@ -154,26 +120,30 @@ function TableItem({ object }: { object: CrmObject }) {
 
 function PageItem({ page, pages, depth, opened, toggle, drag }: { page: Page; pages: Pages; depth: number; opened: Set<string>; toggle: (id: string) => void; drag: PageDrag }) {
   const inside = pages.children.get(page.id) ?? []
+  const tables = pages.tables.get(page.id) ?? []
+  const hasChildren = inside.length + tables.length > 0
   const open = opened.has(page.id)
-  const newPage = useNewPage()
   return (
     <>
       <PageMenu page={page} pages={pages}>
         <div {...drag.from(page.id)} {...drag.onto(page.id)} className={cn('group/row relative rounded-[var(--radius-control)] [&>a]:cursor-grab pointer-coarse:[&>a]:pr-8', drag.dragging === page.id && 'opacity-50', drag.target === page.id && 'bg-primary-soft [&>a]:bg-transparent [&>a]:text-primary')}>
-          <NavItem to={`/r/${page.id}`} depth={depth} icon={<PageIcon value={page.icon} className={cn(inside.length > 0 && 'group-hover/row:invisible pointer-coarse:invisible')} />}>
+          <NavItem to={`/r/${page.id}`} depth={depth} icon={<PageIcon value={page.icon} className={cn(hasChildren && 'group-hover/row:invisible pointer-coarse:invisible')} />}>
             {page.name}
           </NavItem>
-          {inside.length > 0 && (
+          {hasChildren && (
             <button type="button" aria-label={`${open ? 'Collapse' : 'Expand'} ${page.name}`} aria-expanded={open} onClick={() => toggle(page.id)} style={{ left: 6 + depth * 14 }} className={rowButton}>
               <ChevronRight className={cn('transition-transform duration-150 motion-reduce:transition-none', open && 'rotate-90')} />
             </button>
           )}
-          <button type="button" aria-label={`Add a page inside ${page.name}`} onClick={() => newPage(page.id)} className={cn(rowButton, 'right-1')}>
-            <Plus />
-          </button>
+          <NewData parent={page.id}>
+            <button type="button" aria-label={`Add inside ${page.name}`} className={cn(rowButton, 'right-1')}><Plus /></button>
+          </NewData>
         </div>
       </PageMenu>
-      {open && inside.map((child) => <PageItem key={child.id} page={child} pages={pages} depth={depth + 1} opened={opened} toggle={toggle} drag={drag} />)}
+      {open && <>
+        {tables.map((table) => <TableItem key={table.slug} object={table} pages={pages} depth={depth + 1} />)}
+        {inside.map((child) => <PageItem key={child.id} page={child} pages={pages} depth={depth + 1} opened={opened} toggle={toggle} drag={drag} />)}
+      </>}
     </>
   )
 }
@@ -187,6 +157,7 @@ function PageMenu({ page, pages, children }: { page: Page; pages: Pages; childre
   const write = useAction<object>('upsert_record')
   const remove = useAction<{ record_id: string }>('delete_record')
   const [deleting, setDeleting] = useState(false)
+  const [naming, setNaming] = useState(false)
   const places = [
     { value: '', label: 'Top level' },
     ...[...pages.byId.values()]
@@ -199,8 +170,9 @@ function PageMenu({ page, pages, children }: { page: Page; pages: Pages; childre
         <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
         <ContextMenuContent className="w-52" onCloseAutoFocus={(e) => e.preventDefault()}>
           <ContextMenuItem onSelect={() => newPage(page.id)}>
-            <Plus /> Add page inside
+            <FileText /> Add page inside
           </ContextMenuItem>
+          <ContextMenuItem onSelect={() => setNaming(true)}><Table2 /> Add table inside</ContextMenuItem>
           <ContextMenuOptions
             icon={<FolderInput />}
             label="Move to"
@@ -215,6 +187,7 @@ function PageMenu({ page, pages, children }: { page: Page; pages: Pages; childre
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
+      <NewTable parent={page.id} open={naming} onOpenChange={setNaming} />
       <RecordDeleteDialog
         open={deleting}
         onOpenChange={setDeleting}

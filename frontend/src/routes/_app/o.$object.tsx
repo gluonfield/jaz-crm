@@ -1,5 +1,5 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
-import { ArrowDownAZ, Kanban, ListChecks, Plus, Search, Table2, X } from 'lucide-react'
+import { ArrowDownAZ, ChevronRight, Kanban, ListChecks, Plus, Search, Table2, X } from 'lucide-react'
 import { type ReactNode, useMemo, useRef, useState } from 'react'
 import { Board } from '@/components/board'
 import { CompanyPeople } from '@/components/company-people'
@@ -23,7 +23,7 @@ import { ListMotion } from '@/components/list-motion'
 import { SelectField } from '@/components/select-field'
 import { UpdatedAt } from '@/components/updated-at'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
-import { pageIcon } from '@/lib/pages'
+import { pageIcon, path, usePages } from '@/lib/pages'
 import { formatDay, formatNumber } from '@/lib/format'
 import { useDebounced, useInView, useListKeys, usePhone } from '@/lib/hooks'
 import { DateLabel, dateMetadata } from '@/components/date-field'
@@ -61,6 +61,8 @@ function ObjectPage() {
 function ObjectList({ slug }: { slug: string }) {
   const objects = useObjects()
   const object = objects?.find((o) => o.slug === slug)
+  const pages = usePages()
+  const ancestors = object?.parent && pages ? path(pages, object.parent) : []
   const me = useWorkspace()?.members?.find((m) => m.is_me)
   const search = Route.useSearch()
   const defaults: RecordFilter[] = slug === 'follow_ups' ? [
@@ -173,6 +175,12 @@ function ObjectList({ slug }: { slug: string }) {
     <>
       {!queue && <Header className="group/header h-auto min-h-11 py-2 md:flex-wrap">
         <NavButton />
+        {ancestors.length > 0 && <nav aria-label="Parent pages" className={cn('flex min-w-0 items-center gap-1.5', phoneSearch)}>
+          {ancestors.map((page) => <span key={page.id} className="flex min-w-0 items-center gap-1.5">
+            <Link to="/r/$recordId" params={{ recordId: page.id }} title={page.name} className="truncate text-ink-2 hover:text-ink">{page.name}</Link>
+            <ChevronRight aria-hidden className="size-3 shrink-0 text-ink-3" />
+          </span>)}
+        </nav>}
         <ObjectIcon slug={slug} />
         <span className={cn('whitespace-nowrap max-md:min-w-0 max-md:truncate', phoneSearch)}>{object.name}</span>
         {total !== undefined && <span className={cn('font-normal tabular-nums text-ink-3', phoneSearch)}>{total}</span>}
