@@ -153,8 +153,15 @@ func (s *Service) Delete(ctx context.Context, actor auth.Actor, id string) error
 	return s.store.DeleteRecord(ctx, actor.WorkspaceID, id)
 }
 
-// EditObject renames or deletes one of the workspace's own tables.
-func (s *Service) EditObject(ctx context.Context, actor auth.Actor, object, action, name, parent string) error {
+type ObjectEdit struct {
+	Action      string
+	Name        string
+	Parent      string
+	Icon        string
+	Description string
+}
+
+func (s *Service) EditObject(ctx context.Context, actor auth.Actor, object string, edit ObjectEdit) error {
 	sc, err := s.schema(ctx, actor.WorkspaceID)
 	if err != nil {
 		return err
@@ -166,23 +173,37 @@ func (s *Service) EditObject(ctx context.Context, actor auth.Actor, object, acti
 	if standard(o.Slug) {
 		return errs.Invalidf("%s is built in; only the workspace's own tables are edited", o.Slug)
 	}
-	switch action {
+	update := storage.ObjectUpdate{}
+	switch edit.Action {
 	case "rename":
-		name = strings.TrimSpace(name)
-		if err := validName(o.Slug, name); err != nil {
+		edit.Name = strings.TrimSpace(edit.Name)
+		if err := validName(o.Slug, edit.Name); err != nil {
 			return err
 		}
-		return s.store.RenameObject(ctx, actor.WorkspaceID, o.ID, name)
+		update.Name = &edit.Name
+	case "icon":
+		edit.Icon = strings.TrimSpace(edit.Icon)
+		if strings.HasPrefix(edit.Icon, "image:") || strings.HasPrefix(edit.Icon, "data:") {
+			if _, err := s.pageImage(ctx, actor.WorkspaceID, edit.Icon); err != nil {
+				return err
+			}
+		}
+		update.Icon = &edit.Icon
+	case "describe":
+		edit.Description = strings.TrimSpace(edit.Description)
+		update.Description = &edit.Description
 	case "delete":
 		return s.store.DeleteObject(ctx, actor.WorkspaceID, o.ID)
 	case "move":
-		parentID, err := s.tableParent(ctx, actor, parent)
+		parentID, err := s.tableParent(ctx, actor, edit.Parent)
 		if err != nil {
 			return err
 		}
 		return s.store.MoveObject(ctx, actor.WorkspaceID, o.ID, parentID)
+	default:
+		return errs.Invalidf("action is rename, move, icon, describe or delete")
 	}
-	return errs.Invalidf("action is rename, move or delete")
+	return s.store.UpdateObject(ctx, actor.WorkspaceID, o.ID, update)
 }
 
 func (s *Service) tableParent(ctx context.Context, actor auth.Actor, parent string) (*string, error) {

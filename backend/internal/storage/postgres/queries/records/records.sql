@@ -24,8 +24,9 @@ WITH updated AS (
 )
 SELECT option::text FROM updated, unnest(options) AS option WHERE lower(option) = lower(@value::text);
 
--- name: RenameObject :execrows
-UPDATE objects SET name = @name WHERE workspace_id = @workspace_id AND id = @id;
+-- name: UpdateObject :execrows
+UPDATE objects SET name = coalesce(sqlc.narg(name), name), icon = coalesce(sqlc.narg(icon), icon), description = coalesce(sqlc.narg(description), description)
+WHERE workspace_id = @workspace_id AND id = @id;
 
 -- name: DeleteObject :execrows
 DELETE FROM objects WHERE workspace_id = @workspace_id AND id = @id;

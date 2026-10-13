@@ -99,7 +99,7 @@ func (q *Queries) CreateAttribute(ctx context.Context, arg CreateAttributeParams
 }
 
 const createObject = `-- name: CreateObject :one
-INSERT INTO objects (workspace_id, slug, name, id, parent_id) VALUES ($1, $2, $3, $4, $5) RETURNING id, workspace_id, slug, name, created_at, parent_id
+INSERT INTO objects (workspace_id, slug, name, id, parent_id) VALUES ($1, $2, $3, $4, $5) RETURNING id, workspace_id, slug, name, created_at, parent_id, icon, description
 `
 
 type CreateObjectParams struct {
@@ -126,6 +126,8 @@ func (q *Queries) CreateObject(ctx context.Context, arg CreateObjectParams) (Obj
 		&i.Name,
 		&i.CreatedAt,
 		&i.ParentID,
+		&i.Icon,
+		&i.Description,
 	)
 	return i, err
 }
@@ -429,7 +431,7 @@ func (q *Queries) ListAttributes(ctx context.Context, workspaceID string) ([]Att
 }
 
 const listObjects = `-- name: ListObjects :many
-SELECT id, workspace_id, slug, name, created_at, parent_id FROM objects WHERE workspace_id = $1 ORDER BY created_at, slug
+SELECT id, workspace_id, slug, name, created_at, parent_id, icon, description FROM objects WHERE workspace_id = $1 ORDER BY created_at, slug
 `
 
 func (q *Queries) ListObjects(ctx context.Context, workspaceID string) ([]Object, error) {
@@ -448,6 +450,8 @@ func (q *Queries) ListObjects(ctx context.Context, workspaceID string) ([]Object
 			&i.Name,
 			&i.CreatedAt,
 			&i.ParentID,
+			&i.Icon,
+			&i.Description,
 		); err != nil {
 			return nil, err
 		}
@@ -811,24 +815,6 @@ func (q *Queries) RenameAttribute(ctx context.Context, arg RenameAttributeParams
 	return result.RowsAffected(), nil
 }
 
-const renameObject = `-- name: RenameObject :execrows
-UPDATE objects SET name = $1 WHERE workspace_id = $2 AND id = $3
-`
-
-type RenameObjectParams struct {
-	Name        string
-	WorkspaceID string
-	ID          string
-}
-
-func (q *Queries) RenameObject(ctx context.Context, arg RenameObjectParams) (int64, error) {
-	result, err := q.db.Exec(ctx, renameObject, arg.Name, arg.WorkspaceID, arg.ID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const replaceStageValues = `-- name: ReplaceStageValues :exec
 WITH closed AS (
   UPDATE record_values SET active_until = clock_timestamp()
@@ -1089,6 +1075,33 @@ func (q *Queries) StartRecords(ctx context.Context, arg StartRecordsParams) erro
 		arg.ObjectID,
 	)
 	return err
+}
+
+const updateObject = `-- name: UpdateObject :execrows
+UPDATE objects SET name = coalesce($1, name), icon = coalesce($2, icon), description = coalesce($3, description)
+WHERE workspace_id = $4 AND id = $5
+`
+
+type UpdateObjectParams struct {
+	Name        *string
+	Icon        *string
+	Description *string
+	WorkspaceID string
+	ID          string
+}
+
+func (q *Queries) UpdateObject(ctx context.Context, arg UpdateObjectParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateObject,
+		arg.Name,
+		arg.Icon,
+		arg.Description,
+		arg.WorkspaceID,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const updateSavedFilter = `-- name: UpdateSavedFilter :one

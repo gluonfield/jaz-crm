@@ -44,7 +44,7 @@ INSERT INTO sessions(token_hash,user_id,expires_at) SELECT 'legacy'::bytea,id,no
 				value += " - 'updated_at'"
 			}
 			if table == "objects" {
-				value += " - 'parent_id'"
+				value += " - 'parent_id' - 'icon' - 'description'"
 			}
 			if table == "attributes" {
 				value += " - 'archived'"

@@ -1,18 +1,15 @@
-import { useNavigate, useRouterState } from '@tanstack/react-router'
-import { ChevronRight, FileText, FolderInput, Pencil, Plus, Table2, Trash2 } from 'lucide-react'
-import { type ReactNode, useState } from 'react'
-import { type Page, type PageDrag, type Pages, path, usePageDrag, usePages, within } from '@/lib/pages'
-import { useAction } from '@/lib/queries'
+import { useRouterState } from '@tanstack/react-router'
+import { ChevronRight, Plus } from 'lucide-react'
+import { useState } from 'react'
+import { type Page, type PageDrag, type Pages, path, usePageDrag, usePages } from '@/lib/pages'
 import { readItem, writeItem } from '@/lib/storage'
 import type { CrmObject } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { ObjectIcon } from './icons'
 import { PageIcon } from './page-icon'
 import { NavItem } from './nav-item'
-import { NewData, NewTable, useNewPage } from './new-data'
-import { ConfirmDialog, NameDialog } from './prompt-dialog'
-import { RecordDeleteDialog } from './record-delete-dialog'
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuOptions, ContextMenuSeparator, ContextMenuTrigger } from './ui/context-menu'
+import { NewData } from './new-data'
+import { PageMenu, TableMenu } from './data-menu'
 
 const openedKey = 'crm-opened-pages'
 
@@ -55,7 +52,7 @@ export function DataNav() {
         <span className="flex-1">{drag.dragging ? 'Move to top level' : 'Data'}</span>
         <NewData>
           <button type="button"
-            aria-label="New page or table"
+            aria-label="New Page or Database"
             className="relative flex size-5 items-center justify-center rounded-[4px] outline-none hover:bg-list-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-list-active pointer-coarse:before:absolute pointer-coarse:before:-inset-2.5 [&_svg]:size-3.5"
           >
             <Plus />
@@ -69,53 +66,9 @@ export function DataNav() {
 }
 
 function TableItem({ object, pages, depth = 0 }: { object: CrmObject; pages: Pages; depth?: number }) {
-  const navigate = useNavigate()
-  const viewing = useRouterState({ select: (s) => s.location.pathname }) === `/o/${object.slug}`
-  const edit = useAction<object>('edit_object')
-  const [renaming, setRenaming] = useState(false)
-  const [deleting, setDeleting] = useState(false)
-  return (
-    <>
-      <ContextMenu>
-        <ContextMenuTrigger asChild>
-          <div>
-            <NavItem to={`/o/${object.slug}`} depth={depth} icon={<ObjectIcon slug={object.slug} />}>
-              {object.name}
-            </NavItem>
-          </div>
-        </ContextMenuTrigger>
-        <ContextMenuContent className="w-48" onCloseAutoFocus={(e) => e.preventDefault()}>
-          <ContextMenuItem onSelect={() => setRenaming(true)}>
-            <Pencil /> Rename…
-          </ContextMenuItem>
-          <ContextMenuOptions
-            icon={<FolderInput />}
-            label="Move to"
-            placeholder="Move to…"
-            options={[
-              { value: '', label: 'Top level' },
-              ...[...pages.byId.values()].map((page) => ({ value: page.id, label: path(pages, page.id).map((ancestor) => ancestor.name).join(' / '), icon: <PageIcon value={page.icon} /> })),
-            ]}
-            selected={[object.parent ?? '']}
-            onSelect={(parent) => edit.mutate({ object: object.slug, action: 'move', parent })}
-          />
-          <ContextMenuSeparator />
-          <ContextMenuItem onSelect={() => setDeleting(true)}>
-            <Trash2 /> Delete…
-          </ContextMenuItem>
-        </ContextMenuContent>
-      </ContextMenu>
-      <NameDialog open={renaming} onOpenChange={setRenaming} title="Rename table" initial={object.name} action="Rename" onSubmit={(name) => edit.mutate({ object: object.slug, action: 'rename', name })} />
-      <ConfirmDialog
-        open={deleting}
-        onOpenChange={setDeleting}
-        title={`Delete ${object.name}?`}
-        onConfirm={() => edit.mutate({ object: object.slug, action: 'delete' }, { onSuccess: () => viewing && void navigate({ to: '/' }) })}
-      >
-        Its records and their content will be deleted, with every column that references them. This cannot be undone.
-      </ConfirmDialog>
-    </>
-  )
+  return <TableMenu object={object} pages={pages}>
+    <div><NavItem to={`/o/${object.slug}`} depth={depth} icon={<ObjectIcon slug={object.slug} icon={object.icon} />}>{object.name}</NavItem></div>
+  </TableMenu>
 }
 
 function PageItem({ page, pages, depth, opened, toggle, drag }: { page: Page; pages: Pages; depth: number; opened: Set<string>; toggle: (id: string) => void; drag: PageDrag }) {
@@ -144,59 +97,6 @@ function PageItem({ page, pages, depth, opened, toggle, drag }: { page: Page; pa
         {tables.map((table) => <TableItem key={table.slug} object={table} pages={pages} depth={depth + 1} />)}
         {inside.map((child) => <PageItem key={child.id} page={child} pages={pages} depth={depth + 1} opened={opened} toggle={toggle} drag={drag} />)}
       </>}
-    </>
-  )
-}
-
-// PageMenu adds a page inside one, moves it under another page or to the top
-// level, and deletes it; its pages then move to the top level.
-function PageMenu({ page, pages, children }: { page: Page; pages: Pages; children: ReactNode }) {
-  const navigate = useNavigate()
-  const viewing = useRouterState({ select: (s) => s.location.pathname }) === `/r/${page.id}`
-  const newPage = useNewPage()
-  const write = useAction<object>('upsert_record')
-  const remove = useAction<{ record_id: string }>('delete_record')
-  const [deleting, setDeleting] = useState(false)
-  const [naming, setNaming] = useState(false)
-  const places = [
-    { value: '', label: 'Top level' },
-    ...[...pages.byId.values()]
-      .filter((p) => !within(pages, p.id, page.id))
-      .map((p) => ({ value: p.id, label: path(pages, p.id).map((a) => a.name).join(' / '), icon: <PageIcon value={p.icon} /> })),
-  ]
-  return (
-    <>
-      <ContextMenu>
-        <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-        <ContextMenuContent className="w-52" onCloseAutoFocus={(e) => e.preventDefault()}>
-          <ContextMenuItem onSelect={() => newPage(page.id)}>
-            <FileText /> Add page inside
-          </ContextMenuItem>
-          <ContextMenuItem onSelect={() => setNaming(true)}><Table2 /> Add table inside</ContextMenuItem>
-          <ContextMenuOptions
-            icon={<FolderInput />}
-            label="Move to"
-            placeholder="Move to…"
-            options={places}
-            selected={[page.parent ?? '']}
-            onSelect={(parent) => write.mutate({ object: 'pages', record_id: page.id, ...(parent ? { values: { parent } } : { remove: { parent: [] } }) })}
-          />
-          <ContextMenuSeparator />
-          <ContextMenuItem onSelect={() => setDeleting(true)}>
-            <Trash2 /> Delete…
-          </ContextMenuItem>
-        </ContextMenuContent>
-      </ContextMenu>
-      <NewTable parent={page.id} open={naming} onOpenChange={setNaming} />
-      <RecordDeleteDialog
-        open={deleting}
-        onOpenChange={setDeleting}
-        name={page.name}
-        object="pages"
-        onConfirm={() =>
-          remove.mutate({ record_id: page.id }, { onSuccess: () => viewing && void navigate(page.parent ? { to: '/r/$recordId', params: { recordId: page.parent } } : { to: '/' }) })
-        }
-      />
     </>
   )
 }

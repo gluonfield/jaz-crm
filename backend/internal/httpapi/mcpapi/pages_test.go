@@ -83,6 +83,24 @@ func TestTablesInsidePages(t *testing.T) {
 	if table["parent"] != child {
 		t.Fatalf("new table parent: %v", table)
 	}
+	for _, icon := range []string{"📚", "icon:Phone:green", "image:https://example.com/logo.png", ""} {
+		mustCall(t, a, "edit_object", map[string]any{"object": "suppliers", "action": "icon", "icon": icon})
+		for _, raw := range mustCall(t, a, "list_objects", map[string]any{})["objects"].([]any) {
+			object := raw.(map[string]any)
+			if object["slug"] == "suppliers" {
+				got, _ := object["icon"].(string)
+				if got != icon || object["parent"] != child {
+					t.Fatalf("saved database icon: %v", object)
+				}
+			}
+		}
+	}
+	for _, icon := range []string{"image:javascript:alert(1)", "image:file:///private/logo.png", "data:image/png;base64,aGVsbG8=", "image:https://user:password@example.com/logo.png"} {
+		if _, failure := call(t, a, "edit_object", map[string]any{"object": "suppliers", "action": "icon", "icon": icon}); failure == "" {
+			t.Fatalf("unsafe database icon accepted: %s", icon)
+		}
+	}
+	mustCall(t, a, "edit_object", map[string]any{"object": "suppliers", "action": "describe", "description": "Supplier research and quotations"})
 	row := mustCall(t, a, "upsert_record", map[string]any{"object": "suppliers", "values": map[string]any{"name": "First supplier"}})["record"].(map[string]any)["id"].(string)
 	body := "See [Suppliers](/o/suppliers)."
 	mustCall(t, a, "upsert_record", map[string]any{"object": "pages", "record_id": root, "values": map[string]any{"content": body}})
@@ -119,6 +137,12 @@ func TestTablesInsidePages(t *testing.T) {
 		got, _ := parent().(string)
 		if got != destination {
 			t.Fatalf("table parent: got %q, want %q", got, destination)
+		}
+	}
+	for _, raw := range mustCall(t, a, "list_objects", map[string]any{})["objects"].([]any) {
+		object := raw.(map[string]any)
+		if object["slug"] == "suppliers" && object["description"] != "Supplier research and quotations" {
+			t.Fatalf("moving changed database description: %v", object)
 		}
 	}
 	mustCall(t, a, "delete_record", map[string]any{"record_id": child})

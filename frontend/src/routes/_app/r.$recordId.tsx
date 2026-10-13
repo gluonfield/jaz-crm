@@ -73,7 +73,7 @@ function RecordPage() {
       ) : (
         <>
           <Link to="/o/$object" params={{ object: object.slug }} className="flex items-center gap-2 text-ink-2 hover:text-ink">
-            <ObjectIcon slug={object.slug} className="size-4" />
+            <ObjectIcon slug={object.slug} icon={object.icon} className="size-4" />
             {object.name}
           </Link>
           <span className="text-ink-3">/</span>

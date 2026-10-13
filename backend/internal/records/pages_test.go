@@ -126,14 +126,14 @@ func TestEditTables(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, refused := range []string{"people", "pages"} {
-		if err := svc.EditObject(ctx, a, refused, "delete", "", ""); err == nil {
+		if err := svc.EditObject(ctx, a, refused, records.ObjectEdit{Action: "delete"}); err == nil {
 			t.Errorf("%s was deleted", refused)
 		}
 	}
-	if err := svc.EditObject(ctx, a, "painpoints", "rename", "Pains", ""); err != nil {
+	if err := svc.EditObject(ctx, a, "painpoints", records.ObjectEdit{Action: "rename", Name: "Pains"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := svc.EditObject(ctx, a, "painpoints", "delete", "", ""); err != nil {
+	if err := svc.EditObject(ctx, a, "painpoints", records.ObjectEdit{Action: "delete"}); err != nil {
 		t.Fatal(err)
 	}
 	objects, err := svc.Objects(ctx, a, false)

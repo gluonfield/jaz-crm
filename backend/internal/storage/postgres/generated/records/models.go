@@ -29,6 +29,8 @@ type Object struct {
 	Name        string
 	CreatedAt   time.Time
 	ParentID    *string
+	Icon        string
+	Description string
 }
 
 type Record struct {

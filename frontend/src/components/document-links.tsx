@@ -8,7 +8,7 @@ import StarterKit from '@tiptap/starter-kit'
 import { Link2 } from 'lucide-react'
 import { recordName } from '@/lib/crm'
 import { pageIcon } from '@/lib/pages'
-import { useTool } from '@/lib/queries'
+import { useObjects, useTool } from '@/lib/queries'
 import type { CrmRecord } from '@/lib/types'
 import { ObjectIcon, RecordIcon } from './icons'
 
@@ -40,8 +40,9 @@ function DocumentLinkIcon({ href }: { href: string }) {
   const id = href.match(/^\/r\/([^/?#]+)$/)?.[1]
   const { data: record } = useTool<CrmRecord>('get_record', { record_id: id }, { enabled: !!id, staleTime: 60_000, retry: false })
   const table = href.match(/^\/o\/([^/?#]+)$/)?.[1]
+  const objects = useObjects()
   if (table) {
-    return <ObjectIcon slug={table} className="size-3.5" />
+    return <ObjectIcon slug={table} icon={objects?.find((object) => object.slug === table)?.icon} size={14} className="size-3.5" />
   }
   return id ? record && <RecordIcon object={record.object} name={recordName(record)} photo={record.photo} icon={pageIcon(record)} size={14} /> : <Link2 size={14} />
 }

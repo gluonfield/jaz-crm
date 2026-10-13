@@ -23,7 +23,7 @@ export function NewTable({ parent, open, onOpenChange }: { parent?: string; open
   return <NameDialog
     open={open}
     onOpenChange={onOpenChange}
-    title="New table"
+    title="New Database"
     placeholder="Name, such as Painpoints"
     action="Create"
     onSubmit={(name) => create.mutate(
@@ -44,7 +44,7 @@ export function NewData({ parent, children }: { parent?: string; children: React
       <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-44">
         <DropdownMenuItem onSelect={() => newPage(parent)}><FileText /> Page</DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => setNaming(true)}><Table2 /> Table</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => setNaming(true)}><Table2 /> Database</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
     <NewTable parent={parent} open={naming} onOpenChange={setNaming} />

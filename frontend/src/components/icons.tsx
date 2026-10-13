@@ -23,7 +23,7 @@ function initials(name: string) {
 // lettered and tinted by name.
 export function RecordIcon({ object, name, photo, icon, size = 18, className }: { object: string; name: string; photo?: string; icon?: string; size?: number; className?: string }) {
   const [failed, setFailed] = useState<string>()
-  if (object === 'pages') {
+  if (!['people', 'companies', 'deals', 'follow_ups'].includes(object)) {
     return <PageIcon value={icon} size={Math.min(size, 20)} className={className} />
   }
   const shape = object === 'people' ? 'rounded-full' : 'rounded-[28%]'
@@ -58,8 +58,11 @@ export function RecordIcon({ object, name, photo, icon, size = 18, className }: 
 
 const objectIcons: Record<string, typeof Table2> = { people: Users, companies: Building2, deals: Handshake, follow_ups: CornerUpRight, pages: FileText }
 
-export function ObjectIcon({ slug, className }: { slug: string; className?: string }) {
+export function ObjectIcon({ slug, icon, className, size = 16 }: { slug: string; icon?: string; className?: string; size?: number }) {
   const Icon = objectIcons[slug] ?? Table2
+  if (icon) {
+    return <PageIcon value={icon} className={className} size={size} fallback={Icon} />
+  }
   return <Icon className={className} />
 }
 

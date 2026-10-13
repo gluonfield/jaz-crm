@@ -48,7 +48,7 @@ export function RecordFilters({ object, filters, defaults = [], query, scope, se
   const edited = title ? active && JSON.stringify(active.filters) !== JSON.stringify(filters) : changed
   const added = filters.filter((f) => !defaults.some((d) => JSON.stringify(d) === JSON.stringify(f))).length
   const custom = !title && (added > 0 || !!query.trim())
-  const label = active ? `${active.name}${edited ? ' · Edited' : ''}` : custom ? 'Custom filter' : title || defaults.length ? object.name : `All ${object.name.toLowerCase()}`
+  const label = active ? `${active.name}${edited ? ' · Edited' : ''}` : custom ? 'Custom filter' : title || defaults.length ? object.name : object.standard ? `All ${object.name.toLowerCase()}` : 'All Records'
   return (
     <div className="flex min-w-0 max-w-full items-center gap-1 md:flex-wrap">
       <Picker
@@ -58,7 +58,7 @@ export function RecordFilters({ object, filters, defaults = [], query, scope, se
             <span className="text-[13px] tabular-nums text-ink-3">{total}</span>
             <ChevronDown className="size-3.5 shrink-0 text-ink-3" />
           </button>
-          : <Button variant="ghost" className={cn('max-w-40 shrink-0 max-md:px-1.5', active && 'max-md:bg-list-hover max-md:text-ink')}><Bookmark className="shrink-0" /><span className="truncate max-md:sr-only">{label}</span><ChevronDown className="shrink-0 max-md:hidden" /></Button>}
+          : <Button variant="ghost" className={cn('max-w-40 shrink-0 max-md:px-1.5', active && 'max-md:bg-list-hover max-md:text-ink')}><Bookmark className="shrink-0" /><span className="truncate max-md:sr-only">{label}</span>{!object.standard && total !== undefined && <span title="Record count" className="tabular-nums text-ink-3">{total}</span>}<ChevronDown className="shrink-0 max-md:hidden" /></Button>}
         placeholder="Find saved filters…"
         options={[{ value: '', label: `All ${object.name.toLowerCase()}` }, ...saved.map((f) => ({ value: f.id, label: f.name }))].map((option, i) => title ? { ...option, hint: counts[i] ?? '' } : option)}
         selected={active ? [active.id] : filters.length ? [] : ['']}

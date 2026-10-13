@@ -1,5 +1,5 @@
 import { Button } from '@jaz/ui/button'
-import { Check, ChevronDown, FileText, Search, SmilePlus } from 'lucide-react'
+import { Check, ChevronDown, FileText, type LucideIcon, Search, SmilePlus } from 'lucide-react'
 import { Tabs } from 'radix-ui'
 import { type ReactNode, useState } from 'react'
 import { colorValue, type IconColor, iconColors, pageEmojis, pageSymbol, pageSymbolNames, pageSymbols, symbolValue } from '@/lib/page-icons'
@@ -13,11 +13,11 @@ import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
 const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
 const symbols = pageSymbolNames.map((name) => ({ name, value: symbolValue(name, 'default'), label: name.replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase() }))
 
-export function PageIcon({ value, size = 16, className }: { value?: string; size?: number; className?: string }) {
+export function PageIcon({ value, size = 16, className, fallback = FileText }: { value?: string; size?: number; className?: string; fallback?: LucideIcon }) {
   const [failed, setFailed] = useState<string>()
   const image = value?.startsWith('image:')
   const symbol = pageSymbol(value)
-  const Icon = symbol?.name ? pageSymbols[symbol.name] : FileText
+  const Icon = symbol?.name ? pageSymbols[symbol.name] : fallback
   return (
     <span aria-hidden style={{ width: size, height: size, fontSize: size, ...(symbol && { color: colorValue(symbol.color) }) }} className={cn('inline-flex shrink-0 select-none items-center justify-center overflow-hidden leading-none text-ink-2', className)}>
       {image && failed !== value ? <img src={value?.slice(6)} alt="" referrerPolicy="no-referrer" onError={() => setFailed(value)} className="size-full rounded-[20%] object-contain outline outline-1 -outline-offset-1 outline-black/10 dark:outline-white/10" /> : value && !image && !symbol ? value : <Icon style={{ width: size, height: size }} />}
@@ -26,9 +26,12 @@ export function PageIcon({ value, size = 16, className }: { value?: string; size
 }
 
 export function PageIconPicker({ record, children }: { record: CrmRecord; children?: ReactNode }) {
-  const value = pageIcon(record)
-  const saved = pageSymbol(value)
   const write = useAction<object>('upsert_record')
+  return <IconPicker value={pageIcon(record)} pending={write.isPending} onChange={(icon, onSuccess) => write.mutate({ object: 'pages', record_id: record.id, ...(icon ? { values: { icon } } : { remove: { icon: [] } }) }, { onSuccess })}>{children}</IconPicker>
+}
+
+export function IconPicker({ value, pending, onChange, children }: { value?: string; pending: boolean; onChange: (icon: string | undefined, onSaved: () => void) => void; children?: ReactNode }) {
+  const saved = pageSymbol(value)
   const [open, setOpen] = useState(false)
   const [tab, setTab] = useState('emojis')
   const [color, setColor] = useState<IconColor>('default')
@@ -40,11 +43,11 @@ export function PageIconPicker({ record, children }: { record: CrmRecord; childr
   if (tab === 'emojis' && custom && !options.some((option) => option.value === query)) {
     options.unshift({ value: query, label: 'Pasted emoji' })
   }
-  const pick = (icon?: string, close = true) => write.mutate({ object: 'pages', record_id: record.id, ...(icon ? { values: { icon } } : { remove: { icon: [] } }) }, { onSuccess: () => {
+  const pick = (icon?: string, close = true) => onChange(icon, () => {
     if (close) {
       setOpen(false)
     }
-  } })
+  })
   return (
     <Popover open={open} onOpenChange={(next) => {
       setOpen(next)
@@ -60,7 +63,7 @@ export function PageIconPicker({ record, children }: { record: CrmRecord; childr
           {value ? <PageIcon value={value} size={48} /> : <><SmilePlus /> Add icon</>}
         </Button>}
       </PopoverTrigger>
-      <PopoverContent align="start" collisionPadding={8} className="w-80 max-w-[calc(100vw-1rem)] overflow-hidden p-0" aria-label="Page icon">
+      <PopoverContent align="start" collisionPadding={8} className="w-80 max-w-[calc(100vw-1rem)] overflow-hidden p-0" aria-label="Icon">
         <Tabs.Root value={tab} onValueChange={(next) => {
           setTab(next)
           setSearch('')
@@ -68,10 +71,10 @@ export function PageIconPicker({ record, children }: { record: CrmRecord; childr
           <div className="flex items-center border-b border-border px-2">
             <Tabs.List aria-label="Icon type" className="flex">
               {(['emojis', 'icons', 'image'] as const).map((kind) => <Tabs.Trigger key={kind} value={kind} asChild>
-                <Button variant="ghost" disabled={write.isPending} className="h-10 rounded-none border-0 border-b-2 border-transparent px-3 hover:bg-transparent data-[state=active]:border-ink data-[state=active]:text-ink">{kind === 'emojis' ? 'Emojis' : kind === 'icons' ? 'Icons' : 'Image'}</Button>
+                <Button variant="ghost" disabled={pending} className="h-10 rounded-none border-0 border-b-2 border-transparent px-3 hover:bg-transparent data-[state=active]:border-ink data-[state=active]:text-ink">{kind === 'emojis' ? 'Emojis' : kind === 'icons' ? 'Icons' : 'Image'}</Button>
               </Tabs.Trigger>)}
             </Tabs.List>
-            {value && <Button variant="ghost" className="ml-auto text-ink-3" disabled={write.isPending} onClick={() => pick()}>Remove</Button>}
+            {value && <Button variant="ghost" className="ml-auto text-ink-3" disabled={pending} onClick={() => pick()}>Remove</Button>}
           </div>
           <Tabs.Content value={tab} className="outline-none">
             {tab === 'image' ? <form className="flex flex-col items-center gap-3 p-3" onSubmit={(event) => {
@@ -79,8 +82,8 @@ export function PageIconPicker({ record, children }: { record: CrmRecord; childr
               pick('image:' + link.trim())
             }}>
               {value?.startsWith('image:') && <PageIcon value={value} size={64} />}
-              <input autoFocus type="url" required pattern="https?://.+" aria-label="Image URL" placeholder="Paste image URL…" value={link} onChange={(event) => setLink(event.target.value)} disabled={write.isPending} className="h-10 w-full min-w-0 rounded-[var(--radius-control)] border border-border bg-bg px-3 text-[13px] text-ink outline-none placeholder:text-ink-3 focus:border-primary" />
-              <Button type="submit" className="h-10 w-full" disabled={write.isPending}>Apply</Button>
+              <input autoFocus type="url" required pattern="https?://.+" aria-label="Image URL" placeholder="Paste image URL…" value={link} onChange={(event) => setLink(event.target.value)} disabled={pending} className="h-10 w-full min-w-0 rounded-[var(--radius-control)] border border-border bg-bg px-3 text-[13px] text-ink outline-none placeholder:text-ink-3 focus:border-primary" />
+              <Button type="submit" className="h-10 w-full" disabled={pending}>Apply</Button>
             </form> : <>
               <div className="flex items-center gap-1 px-3">
                 <label className="flex min-w-0 flex-1 items-center gap-2 text-ink-3">
@@ -94,7 +97,7 @@ export function PageIconPicker({ record, children }: { record: CrmRecord; childr
                 </label>
                 {tab === 'icons' && <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" aria-label={'Icon color: ' + color} disabled={write.isPending}><span className="size-3 rounded-full" style={{ backgroundColor: colorValue(color) }} /> Color <ChevronDown /></Button>
+                    <Button variant="ghost" aria-label={'Icon color: ' + color} disabled={pending}><span className="size-3 rounded-full" style={{ backgroundColor: colorValue(color) }} /> Color <ChevronDown /></Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" aria-label="Icon colors" className="grid min-w-0 grid-cols-5 gap-1">
                     {iconColors.map((choice) => <DropdownMenuItem key={choice} title={choice} aria-label={choice + (color === choice ? ' (selected)' : '')} className="size-10 justify-center p-0" onSelect={() => {
@@ -121,7 +124,7 @@ export function PageIconPicker({ record, children }: { record: CrmRecord; childr
                   const symbol = pageSymbol(option.value)
                   const selected = symbol ? saved?.name === symbol.name : value === option.value
                   const icon = symbol?.name ? symbolValue(symbol.name, color) : option.value
-                  return <Button key={option.value} variant="ghost" size="icon" data-icon-option aria-label={'Choose ' + option.label} title={option.label} aria-pressed={selected} disabled={write.isPending} onClick={() => pick(icon)} className={cn('relative size-10 [content-visibility:auto]', selected && 'bg-list-active')}>
+                  return <Button key={option.value} variant="ghost" size="icon" data-icon-option aria-label={'Choose ' + option.label} title={option.label} aria-pressed={selected} disabled={pending} onClick={() => pick(icon)} className={cn('relative size-10 [content-visibility:auto]', selected && 'bg-list-active')}>
                     <PageIcon value={icon} size={22} />
                     {selected && <Check className="absolute bottom-0.5 right-0.5 size-2.5 text-primary" />}
                   </Button>

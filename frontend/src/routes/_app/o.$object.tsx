@@ -3,6 +3,7 @@ import { ArrowDownAZ, ChevronRight, Kanban, ListChecks, Plus, Search, Table2, X 
 import { type ReactNode, useMemo, useRef, useState } from 'react'
 import { Board } from '@/components/board'
 import { CompanyPeople } from '@/components/company-people'
+import { DatabaseHeader } from '@/components/database-header'
 import { editDraft } from '@/components/follow-up'
 import { byUrgency, FollowUpQueue } from '@/components/follow-ups'
 import { Stage } from '@/components/stage'
@@ -171,6 +172,39 @@ function ObjectList({ slug }: { slug: string }) {
       </p>}
     </>
   )
+  const tableToolbar = (
+    <>
+      {status && (
+        <div role="group" aria-label="View" className={cn('ml-2 flex h-7 items-center rounded-full bg-list-hover p-0.5', phoneSearch)}>
+          <ViewButton active={!!board} label={slug === 'follow_ups' ? 'Queue' : 'Board'} onClick={() => void navigate({ to: '.', search: { ...search, view: own ? 'board' : undefined, group_by_conversation: slug === 'follow_ups' ? true : undefined }, replace: true })}>
+            {slug === 'follow_ups' ? <ListChecks /> : <Kanban />}
+          </ViewButton>
+          <ViewButton active={!board} label="Table" onClick={() => void navigate({ to: '.', search: { ...search, view: own ? undefined : 'table', group_by_conversation: slug === 'follow_ups' ? false : undefined }, replace: true })}>
+            <Table2 />
+          </ViewButton>
+        </div>
+      )}
+      <div className={cn('flex min-w-0 max-w-full items-center gap-1 font-normal md:flex-wrap', own ? 'flex-1' : 'ml-auto', q ? 'max-md:flex-1' : 'max-md:group-has-[[data-page-search]:focus]/header:flex-1')}>
+        <span className={cn('flex min-w-0 items-center gap-1', own && 'mr-auto', phoneSearch)}>
+          {recordFilters()}
+          {ownerFilter}
+          {sorter(
+            <Button variant="ghost" aria-label="Sort records" className="max-md:px-1.5">
+              <ArrowDownAZ />
+              <span className="hidden xl:inline">{sortName}</span>
+            </Button>,
+          )}
+        </span>
+        <label className={cn('group flex h-7 shrink-0 items-center gap-1.5 rounded-[var(--radius-control)] px-2 text-ink-3 transition-colors focus-within:bg-list-hover hover:bg-list-hover', q ? 'max-md:flex-1' : 'max-md:group-has-[[data-page-search]:focus]/header:flex-1')}>
+          <Search className="size-3.5 shrink-0" />
+          <input {...searching} onKeyDown={(e) => e.stopPropagation()} placeholder="Search" className={cn('w-20 min-w-0 bg-transparent text-[12.5px] text-ink outline-none transition-[width] duration-150 placeholder:text-ink-3 focus:w-40 max-md:w-0 max-md:focus:w-full', q && 'max-md:w-full')} />
+        </label>
+        <Button className="ml-1 max-md:w-7 max-md:px-0" onClick={() => setCreating(true)}>
+          <Plus /> <span className="max-md:sr-only">New</span>
+        </Button>
+      </div>
+    </>
+  )
   return (
     <>
       {!queue && <Header className="group/header h-auto min-h-11 py-2 md:flex-wrap">
@@ -181,40 +215,16 @@ function ObjectList({ slug }: { slug: string }) {
             <ChevronRight aria-hidden className="size-3 shrink-0 text-ink-3" />
           </span>)}
         </nav>}
-        <ObjectIcon slug={slug} />
+        <ObjectIcon slug={slug} icon={object.icon} />
         <span className={cn('whitespace-nowrap max-md:min-w-0 max-md:truncate', phoneSearch)}>{object.name}</span>
-        {total !== undefined && <span className={cn('font-normal tabular-nums text-ink-3', phoneSearch)}>{total}</span>}
+        {!own && total !== undefined && <span className={cn('font-normal tabular-nums text-ink-3', phoneSearch)}>{total}</span>}
         {conversationFilter}
-        {status && (
-          <div role="group" aria-label="View" className={cn('ml-2 flex h-7 items-center rounded-full bg-list-hover p-0.5', phoneSearch)}>
-            <ViewButton active={!!board} label={slug === 'follow_ups' ? 'Queue' : 'Board'} onClick={() => void navigate({ to: '.', search: { ...search, view: own ? 'board' : undefined, group_by_conversation: slug === 'follow_ups' ? true : undefined }, replace: true })}>
-              {slug === 'follow_ups' ? <ListChecks /> : <Kanban />}
-            </ViewButton>
-            <ViewButton active={!board} label="Table" onClick={() => void navigate({ to: '.', search: { ...search, view: own ? undefined : 'table', group_by_conversation: slug === 'follow_ups' ? false : undefined }, replace: true })}>
-              <Table2 />
-            </ViewButton>
-          </div>
-        )}
-        <div className={cn('ml-auto flex max-w-full items-center gap-1 font-normal md:flex-wrap', q ? 'max-md:flex-1' : 'max-md:group-has-[[data-page-search]:focus]/header:flex-1')}>
-          <span className={cn('contents', phoneSearch)}>
-            {recordFilters()}
-            {ownerFilter}
-            {sorter(
-              <Button variant="ghost" aria-label="Sort records" className="max-md:px-1.5">
-                <ArrowDownAZ />
-                <span className="hidden xl:inline">{sortName}</span>
-              </Button>,
-            )}
-          </span>
-          <label className={cn('group flex h-7 shrink-0 items-center gap-1.5 rounded-[var(--radius-control)] px-2 text-ink-3 transition-colors focus-within:bg-list-hover hover:bg-list-hover', q ? 'max-md:flex-1' : 'max-md:group-has-[[data-page-search]:focus]/header:flex-1')}>
-            <Search className="size-3.5 shrink-0" />
-            <input {...searching} onKeyDown={(e) => e.stopPropagation()} placeholder="Search" className={cn('w-20 min-w-0 bg-transparent text-[12.5px] text-ink outline-none transition-[width] duration-150 placeholder:text-ink-3 focus:w-40 max-md:w-0 max-md:focus:w-full', q && 'max-md:w-full')} />
-          </label>
-          <Button className="ml-1 max-md:w-7 max-md:px-0" onClick={() => setCreating(true)}>
-            <Plus /> <span className="max-md:sr-only">New</span>
-          </Button>
-        </div>
+        {!own && tableToolbar}
       </Header>}
+      {own && <>
+        <DatabaseHeader key={object.slug} object={object} />
+        <div className="group/header flex min-h-11 shrink-0 items-center gap-2 border-b border-border px-5 py-2 md:px-8">{tableToolbar}</div>
+      </>}
       <CreateRecord object={object} open={creating} onOpenChange={setCreating} openCreated />
       <ListMotion className="flex min-h-0 flex-1 flex-col" scope={JSON.stringify([query, filters, view, sort, conversation_id])}>
         {result.isError ? <EmptyState title={result.error.message} icon={<Search />} /> : board ? (
@@ -243,7 +253,7 @@ function ObjectList({ slug }: { slug: string }) {
             <div ref={end} aria-hidden className="h-px" />
           </div>
         ) : (
-          <div className="scrollbar-quiet min-h-0 flex-1 overflow-auto">
+          <div className={cn("scrollbar-quiet min-h-0 flex-1 overflow-auto", own && "px-5 md:px-8")}>
             <table className="w-full table-fixed border-collapse text-[13px]">
               <colgroup>
                 <col style={{ width: width('name', 280) }} />

@@ -81,7 +81,7 @@ async function matching(query: string, objects: CrmObject[], pages: Pages | unde
     .map(({ page, trail }) => ({ id: page.id, href: `/r/${page.id}`, name: page.name, object: 'pages', icon: page.icon, detail: trail.slice(0, -1).join(' / ') || 'Page' }))
   const tables = objects.filter((table) => !table.standard && named(table.name))
     .filter((table) => alongPath(parts.slice(0, -1), table.parent && pages ? path(pages, table.parent).map((page) => page.name) : []))
-    .map((table) => ({ id: `/o/${table.slug}`, href: `/o/${table.slug}`, name: table.name, object: table.slug, detail: 'Table' }))
+    .map((table) => ({ id: `/o/${table.slug}`, href: `/o/${table.slug}`, name: table.name, object: table.slug, icon: table.icon, detail: 'Database' }))
   const searched = parts.length > 1 ? [] : objects.filter((o) => o.slug === 'people' || o.slug === 'companies' || !o.standard)
   const results = await Promise.all(searched.map((o) => call<{ records: CrmRecord[] }>('search_records', { object: o.slug, query: title, limit: 8 })))
   const records = results.flatMap((result, i) =>
@@ -259,7 +259,7 @@ export function PageEditor({ record }: { record: CrmRecord }) {
                 onClick={() => menu.pick(item)}
                 className={cn('flex h-8 w-full items-center gap-2.5 rounded-[var(--radius-control)] px-2 text-left text-ink outline-none', index === menu.index && 'bg-list-active')}
               >
-                {item.href.startsWith('/o/') ? <ObjectIcon slug={item.object} className="size-4 shrink-0 text-ink-2" /> : <RecordIcon object={item.object} name={item.name} photo={item.photo} icon={item.icon} size={16} />}
+                {item.href.startsWith('/o/') ? <ObjectIcon slug={item.object} icon={item.icon} className="size-4 shrink-0 text-ink-2" /> : <RecordIcon object={item.object} name={item.name} photo={item.photo} icon={item.icon} size={16} />}
                 <span className="min-w-0 flex-1 truncate">{item.name}</span>
                 <span className="max-w-36 shrink-0 truncate text-[12px] text-ink-3">{item.detail}</span>
               </button>
