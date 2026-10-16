@@ -345,7 +345,6 @@
     gap: 0.5em;
     padding: 1em 1em 1em 0.75em;
     border-radius: 4px;
-    background: color-mix(in oklab, var(--callout) 14%, transparent);
     & .callout-icon {
       display: flex;
       flex-shrink: 0;
@@ -360,11 +359,12 @@
     & button.callout-icon:hover {
       background: var(--color-list-hover);
     }
-    & .callout-icon[data-empty] {
-      opacity: 0;
-    }
-    &:hover .callout-icon[data-empty] {
-      opacity: 1;
+    /* Without an icon, the slot to add one shows on hover, on focus and
+       on screens that cannot hover. */
+    @media (hover: hover) {
+      &:not(:hover) .callout-icon[data-empty]:not(:focus-visible) {
+        opacity: 0;
+      }
     }
   }
   & table {
@@ -442,6 +442,11 @@
   & .tableWrapper {
     overflow-x: auto;
   }
+}
+
+/* A callout's background, also previewed in its color menu. */
+.callout-tint {
+  background: color-mix(in oklab, var(--callout) 14%, transparent);
 }
 
 /* Short markdown fields read as secondary text at the same proportions. */

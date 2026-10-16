@@ -3,7 +3,8 @@ import type { Editor } from '@tiptap/core'
 import { NodeSelection, Selection, type Transaction } from '@tiptap/pm/state'
 import { Check, Copy, GripVertical, Palette, Plus, Repeat2, Trash2 } from 'lucide-react'
 import { type DragEvent, useEffect, useState } from 'react'
-import { colorValue, iconColors } from '@/lib/page-icons'
+import { iconColors } from '@/lib/page-icons'
+import { tint } from './callout'
 import { addBelow, blockAt, blocks, deleteBlock, duplicateBlock, kindOf, turnBlock } from './editor-blocks'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from './ui/dropdown-menu'
 
@@ -132,11 +133,8 @@ export function BlockHandle({ editor, frame }: { editor: Editor; frame: HTMLElem
               <DropdownMenuSubTrigger><Palette /> Color</DropdownMenuSubTrigger>
               <DropdownMenuSubContent className="w-44">
                 {iconColors.map((choice) => (
-                  <DropdownMenuItem key={choice} onSelect={() => editor.commands.command(({ tr }) => {
-                    tr.setNodeAttribute(spot.pos, 'color', choice)
-                    return true
-                  })}>
-                    <span className="size-4 rounded-[4px]" style={{ background: `color-mix(in oklab, ${colorValue(choice)} 25%, transparent)` }} />
+                  <DropdownMenuItem key={choice} onSelect={() => editor.view.dispatch(editor.state.tr.setNodeAttribute(spot.pos, 'color', choice))}>
+                    <span className="callout-tint size-4 rounded-[4px]" style={tint(choice)} />
                     <span className="min-w-0 flex-1 truncate capitalize">{choice}</span>
                     {choice === color && <Check className="text-ink" />}
                   </DropdownMenuItem>

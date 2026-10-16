@@ -120,4 +120,8 @@ test('callouts keep their icon, color and body through saving, beside plain quot
   assert.equal(quote.type.name, 'blockquote')
   assert.equal(saved(editor), markdown)
   editor.destroy()
+  const unknown = open('> [!callout|banana] 🍌\n> Ripe')
+  assert.equal(unknown.state.doc.firstChild!.attrs.color, 'default')
+  assert.equal(saved(unknown), '> [!callout] 🍌\n> Ripe')
+  unknown.destroy()
 })
