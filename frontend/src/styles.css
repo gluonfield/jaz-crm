@@ -363,12 +363,37 @@
   & .suggestion {
     color: var(--color-primary);
   }
-  & p.is-editor-empty:first-child::before {
+  /* The line being typed on hints at what it can become; an empty page
+     always does. */
+  &.ProseMirror-focused .is-empty::before,
+  & .is-editor-empty:first-child::before {
     content: attr(data-placeholder);
     color: var(--color-ink-3);
     float: left;
     height: 0;
     pointer-events: none;
+  }
+  &.ProseMirror-focused li > .is-empty::before {
+    content: 'List';
+  }
+  &.ProseMirror-focused [data-type='taskList'] .is-empty::before {
+    content: 'To-do';
+  }
+  & :is(td, th) .is-empty::before {
+    content: none;
+  }
+  & .ProseMirror-selectednode {
+    background: var(--color-selection);
+    border-radius: 4px;
+  }
+  & hr.ProseMirror-selectednode {
+    border-color: var(--color-primary);
+  }
+  & .selectedCell {
+    background: var(--color-selection);
+  }
+  & .tableWrapper {
+    overflow-x: auto;
   }
 }
 

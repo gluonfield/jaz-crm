@@ -126,7 +126,7 @@ function RecordPage() {
       <>
         {!page && header}
         <div className="scrollbar-quiet @container min-h-0 flex-1 overflow-y-auto">
-          <div className={`mx-auto flex max-w-[720px] flex-col px-6 pb-24 ${page ? 'pt-6' : 'pt-16'}`}>
+          <div className={`mx-auto flex max-w-[784px] flex-col px-6 pb-24 @lg:px-14 ${page ? 'pt-6' : 'pt-16'}`}>
             {page && header}
             {page && <PageIconPicker key={record.id} record={record} />}
             <h1 className="text-[30px] font-semibold leading-tight tracking-[-0.02em] text-ink">
