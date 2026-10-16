@@ -7,6 +7,7 @@ Source: Augustinas, 2026-10-16; screenshot of a `/` block menu (Heading 1–3, B
 - [x] Selected text shows a format bar: bold, italic, strikethrough, code and link; ⌘K links a selection.
 - [x] A handle in the current table cell inserts and deletes rows and columns.
 - [x] Placeholders name the empty line being typed on: commands hint, Heading 1–3, List, To-do.
+- [x] Follow-up (screenshot of a Notion page): Notion's document rhythm and checkboxes. Text is 16px on 24px lines with 16px between blocks and 6px between list items, matching the 40px and 30px baseline pitches measured from the screenshot; outlined 16px checkboxes fill with the accent and a white check; titles are 40px bold with Notion's gap to the text; headings, quotes, code, tables and dividers use Notion's proportions.
 - [ ] Math blocks: need `katex`, a new dependency awaiting approval.
 
 Pages still store markdown; every block the menu creates saves and reloads through the existing format. `/` stays out of tables and code because markdown table cells hold only text.

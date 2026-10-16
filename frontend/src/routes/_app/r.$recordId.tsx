@@ -129,7 +129,7 @@ function RecordPage() {
           <div className={`mx-auto flex max-w-[784px] flex-col px-6 pb-24 @lg:px-14 ${page ? 'pt-6' : 'pt-16'}`}>
             {page && header}
             {page && <PageIconPicker key={record.id} record={record} />}
-            <h1 className="text-[30px] font-semibold leading-tight tracking-[-0.02em] text-ink">
+            <h1 className="text-[40px] font-bold leading-[1.2] tracking-[-0.02em] text-ink">
               <Title key={`${record.id}:${name}`} record={record} object={object} name={name} />
             </h1>
             {!page && (
@@ -137,7 +137,7 @@ function RecordPage() {
                 <Properties record={record} object={object} objects={objects} />
               </div>
             )}
-            <div className={page ? 'mt-3' : 'mt-6'}>
+            <div className="mt-6">
               <PageEditor key={record.id} record={record} />
             </div>
             <div className="mt-6 flex flex-col gap-8">

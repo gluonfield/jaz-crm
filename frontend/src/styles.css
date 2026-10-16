@@ -221,12 +221,14 @@
 
 /* Page content: calm document typography in the app's tokens. */
 .prose-page {
-  font-size: 15px;
-  line-height: 1.65;
+  /* Notion's document rhythm: 16px text on 24px lines, 16px between
+     blocks, 6px between list items. */
+  font-size: 16px;
+  line-height: 1.5;
   color: var(--color-ink);
   overflow-wrap: anywhere;
   & > * + * {
-    margin-top: 0.6em;
+    margin-top: 1em;
   }
   & h1,
   & h2,
@@ -236,23 +238,26 @@
     line-height: 1.3;
   }
   & h1 {
-    font-size: 24px;
-    margin-top: 1.4em;
+    font-size: 1.875em;
+    margin-top: 1.1em;
   }
   & h2 {
-    font-size: 19px;
-    margin-top: 1.3em;
+    font-size: 1.5em;
+    margin-top: 1.25em;
   }
   & h3 {
-    font-size: 16px;
+    font-size: 1.25em;
     margin-top: 1.2em;
+  }
+  & > :is(h1, h2, h3) + * {
+    margin-top: 0.375em;
   }
   & > :first-child {
     margin-top: 0;
   }
   & ul,
   & ol {
-    padding-left: 1.4em;
+    padding-left: 1.625em;
   }
   & ul {
     list-style: disc;
@@ -263,20 +268,23 @@
   & li > p {
     margin: 0;
   }
-  & li + li {
-    margin-top: 0.15em;
+  & li + li,
+  & li > :is(ul, ol) {
+    margin-top: 0.375em;
   }
   & ul[data-type='taskList'] {
     list-style: none;
-    padding-left: 0.2em;
+    padding-left: 0;
     & > li {
       display: flex;
-      gap: 0.5em;
+      gap: 0.375em;
       & > label {
         flex-shrink: 0;
         display: flex;
         align-items: center;
-        height: 1.65em;
+        justify-content: center;
+        width: 1.5em;
+        height: 1.5em;
       }
       & > div {
         flex: 1;
@@ -288,29 +296,42 @@
       }
     }
     & input {
-      width: 15px;
-      height: 15px;
+      appearance: none;
+      width: 1em;
+      height: 1em;
       margin: 0;
-      accent-color: var(--color-ink);
+      border: 1.5px solid color-mix(in oklab, var(--color-ink) 75%, transparent);
+      border-radius: 3px;
       cursor: pointer;
+      transition: background-color 100ms, border-color 100ms;
+      &:hover {
+        background-color: var(--color-list-hover);
+      }
+      &:checked {
+        border-color: var(--color-primary);
+        background: var(--color-primary) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 8.5l3 3 6-7'/%3E%3C/svg%3E") center / 100% no-repeat;
+      }
+      &:focus-visible {
+        outline: 2px solid var(--color-primary);
+        outline-offset: 2px;
+      }
     }
   }
   & blockquote {
-    border-left: 2px solid var(--color-border);
-    padding-left: 0.9em;
-    color: var(--color-ink-2);
+    border-left: 3px solid currentColor;
+    padding-left: 0.875em;
   }
   & code {
     font-family: var(--font-mono);
-    font-size: 0.88em;
-    background: var(--color-list-hover);
+    font-size: 0.85em;
+    background: var(--color-list-active);
     border-radius: 4px;
-    padding: 0.1em 0.3em;
+    padding: 0.2em 0.4em;
   }
   & pre {
     background: var(--color-list-hover);
     border-radius: var(--radius-control);
-    padding: 0.75em 1em;
+    padding: 1.25em 1.5em;
     overflow-x: auto;
     & code {
       background: none;
@@ -319,22 +340,22 @@
   }
   & hr {
     border-color: var(--color-border);
-    margin: 1.2em 0;
   }
   & table {
     border-collapse: collapse;
     width: 100%;
-    font-size: 13px;
+    font-size: 0.875em;
     & th,
     & td {
       border: 1px solid var(--color-border);
-      padding: 0.35em 0.6em;
+      padding: 0.5em 0.65em;
       text-align: left;
       vertical-align: top;
     }
     & th {
       font-weight: 500;
       color: var(--color-ink-2);
+      background: var(--color-list-hover);
     }
   }
   & a {
@@ -402,6 +423,9 @@
   font-size: 12.5px;
   line-height: 1.55;
   color: var(--color-ink-2);
+  & > * + * {
+    margin-top: 0.5em;
+  }
   & h1,
   & h2,
   & h3 {
