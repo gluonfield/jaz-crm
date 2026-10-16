@@ -53,6 +53,7 @@ test('the / menu turns the line it is typed on into each kind of block', () => {
     'Bulleted list': '- Visit Sheffield',
     'Numbered list': '1. Visit Sheffield',
     Checklist: '- [ ] Visit Sheffield',
+    Callout: '> [!callout] 💡\n> Visit Sheffield',
     Quote: '> Visit Sheffield',
     Code: '```\nVisit Sheffield\n```',
   }
@@ -106,5 +107,17 @@ test('block handles move, copy, delete and convert one list item at a time', () 
 
   assert.equal(addBelow(editor, textblock(editor, 'Notes')), true)
   assert.equal(saved(editor), '- [ ] Book flights\n\n# Compare hotels\n\n- [ ] /\n\nNotes\n\n/')
+  editor.destroy()
+})
+
+test('callouts keep their icon, color and body through saving, beside plain quotes', () => {
+  const markdown = 'Intro\n\n> [!callout|blue] 🚚\n> Ship by **Friday**\n>\n> - Pallets\n> - Labels\n\n> [!callout]\n> No icon\n\n> Plain quote'
+  const editor = open(markdown)
+  const [, shipping, bare, quote] = editor.state.doc.content.content
+  assert.deepEqual([shipping.type.name, shipping.attrs.icon, shipping.attrs.color], ['callout', '🚚', 'blue'])
+  assert.deepEqual(shipping.content.content.map((node) => node.type.name), ['paragraph', 'bulletList'])
+  assert.deepEqual([bare.type.name, bare.attrs.icon, bare.attrs.color], ['callout', '', 'default'])
+  assert.equal(quote.type.name, 'blockquote')
+  assert.equal(saved(editor), markdown)
   editor.destroy()
 })

@@ -10,6 +10,7 @@ import { recordName } from '@/lib/crm'
 import { pageIcon } from '@/lib/pages'
 import { useObjects, useTool } from '@/lib/queries'
 import type { CrmRecord } from '@/lib/types'
+import { Callout } from './callout'
 import { ObjectIcon, RecordIcon } from './icons'
 
 export function documentLinkAt(editor: Editor, position: number) {
@@ -78,6 +79,7 @@ export const DocumentKit = StarterKit.extend({
       TaskList,
       TaskItem.configure({ nested: true }),
       TableKit,
+      Callout,
       Markdown,
     ]
   },

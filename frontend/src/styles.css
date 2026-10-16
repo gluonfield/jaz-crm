@@ -340,6 +340,33 @@
   & hr {
     border-color: var(--color-border);
   }
+  & aside[data-callout] {
+    display: flex;
+    gap: 0.5em;
+    padding: 1em 1em 1em 0.75em;
+    border-radius: 4px;
+    background: color-mix(in oklab, var(--callout) 14%, transparent);
+    & .callout-icon {
+      display: flex;
+      flex-shrink: 0;
+      align-items: center;
+      justify-content: center;
+      width: 1.5em;
+      height: 1.5em;
+      border-radius: 4px;
+      color: var(--color-ink-3);
+      user-select: none;
+    }
+    & button.callout-icon:hover {
+      background: var(--color-list-hover);
+    }
+    & .callout-icon[data-empty] {
+      opacity: 0;
+    }
+    &:hover .callout-icon[data-empty] {
+      opacity: 1;
+    }
+  }
   & table {
     border-collapse: collapse;
     width: 100%;

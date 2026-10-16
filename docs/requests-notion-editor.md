@@ -8,6 +8,8 @@ Source: Augustinas, 2026-10-16; screenshot of a `/` block menu (Heading 1–3, B
 - [x] A handle in the current table cell inserts and deletes rows and columns.
 - [x] Placeholders name the empty line being typed on: commands hint, Heading 1–3, List, To-do.
 - [x] Follow-up (screenshot of a Notion page): Notion's document rhythm and checkboxes. Text is 16px on 24px lines with 16px between blocks and 6px between list items, matching the 40px and 30px baseline pitches measured from the screenshot; outlined 16px checkboxes fill with the accent and a white check; titles are 40px bold with Notion's gap to the text; headings, quotes, code, tables and dividers use Notion's proportions.
+- [x] Follow-up: square checkboxes.
+- [x] Follow-up (Notion `/` menu screenshot): Callout blocks with a changeable icon and color. The icon uses the page icon picker (emoji, icon or image, or none); Color sits in the block menu with the page icon palette. Markdown stores a callout as an Obsidian-style quote, `> [!callout|blue] 💡` then its body, which other renderers show as a quote; the agent tool description documents it.
 - [ ] Math blocks: need `katex`, a new dependency awaiting approval.
 
 Pages still store markdown; every block the menu creates saves and reloads through the existing format. `/` stays out of tables and code because markdown table cells hold only text.

@@ -1,7 +1,7 @@
 import type { ChainedCommands, Editor } from '@tiptap/core'
 import type { Node } from '@tiptap/pm/model'
 import { TextSelection } from '@tiptap/pm/state'
-import { CodeXml, Heading1, Heading2, Heading3, List, ListOrdered, ListTodo, type LucideIcon, Minus, Pilcrow, Quote, Table } from 'lucide-react'
+import { CodeXml, Heading1, Heading2, Heading3, List, ListOrdered, ListTodo, type LucideIcon, Minus, Pilcrow, Quote, SquareMenu, Table } from 'lucide-react'
 
 // A Block is a kind the / menu creates. Blocks with is are kinds a block can
 // be turned into; the rest insert a new block.
@@ -31,6 +31,7 @@ export const blocks: Block[] = [
   { name: 'Bulleted list', icon: List, hint: '-', keywords: 'bullet unordered', run: (chain) => chain.clearNodes().toggleBulletList(), is: (node, parent) => node.type.name === 'listItem' && parent.type.name === 'bulletList' },
   { name: 'Numbered list', icon: ListOrdered, hint: '1.', keywords: 'ordered', run: (chain) => chain.clearNodes().toggleOrderedList(), is: (node, parent) => node.type.name === 'listItem' && parent.type.name === 'orderedList' },
   { name: 'Checklist', icon: ListTodo, hint: '[]', keywords: 'todo to-do task checkbox', run: (chain) => chain.clearNodes().toggleTaskList(), is: (node) => node.type.name === 'taskItem' },
+  { name: 'Callout', icon: SquareMenu, keywords: 'note tip warning aside', run: (chain) => chain.clearNodes().wrapIn('callout'), is: (node) => node.type.name === 'callout' },
   { name: 'Quote', icon: Quote, hint: '>', keywords: 'blockquote', run: (chain) => chain.clearNodes().setBlockquote(), is: (node) => node.type.name === 'blockquote' },
   { name: 'Code', icon: CodeXml, hint: '```', keywords: 'codeblock snippet', run: (chain) => chain.setCodeBlock(), is: (node) => node.type.name === 'codeBlock' },
   { name: 'Table', icon: Table, keywords: 'grid', run: (chain) => chain.insertTable({ rows: 3, cols: 3, withHeaderRow: true }) },
