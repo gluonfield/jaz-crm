@@ -8,6 +8,8 @@ import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { inputClass } from './controls'
 
+type Look = { label: string; keys: string; icon: LucideIcon }
+
 const marks = [
   { name: 'bold', label: 'Bold', keys: '⌘B', icon: Bold },
   { name: 'italic', label: 'Italic', keys: '⌘I', icon: Italic },
@@ -15,7 +17,9 @@ const marks = [
   { name: 'code', label: 'Code', keys: '⌘E', icon: Code },
 ]
 
-function Mark({ label, keys, icon: Icon, on, onClick }: { label: string; keys: string; icon: LucideIcon; on: boolean; onClick: () => void }) {
+const link: Look = { label: 'Link', keys: '⌘K', icon: Link2 }
+
+function Mark({ mark: { label, keys, icon: Icon }, on, onClick }: { mark: Look; on: boolean; onClick: () => void }) {
   return (
     <Button
       variant="ghost"
@@ -85,8 +89,8 @@ export function FormatBar({ editor }: { editor: Editor }) {
           />
         </form>
       ) : <>
-        {marks.map((mark, index) => <Mark key={mark.name} {...mark} on={active.marks[index]} onClick={() => editor.chain().focus().toggleMark(mark.name).run()} />)}
-        <Mark label="Link" keys="⌘K" icon={Link2} on={active.link} onClick={() => {
+        {marks.map((mark, index) => <Mark key={mark.name} mark={mark} on={active.marks[index]} onClick={() => editor.chain().focus().toggleMark(mark.name).run()} />)}
+        <Mark mark={link} on={active.link} onClick={() => {
           if (active.link) {
             editor.chain().focus().extendMarkRange('link').unsetLink().run()
           } else {

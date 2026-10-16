@@ -24,8 +24,8 @@ const release = (editor: Editor) => editor.chain().focus().command(({ tr }) => {
 // drag hands a block to ProseMirror's drag and drop, which moves it to where
 // it is dropped.
 function drag(editor: Editor, pos: number, event: DragEvent) {
+  editor.commands.setNodeSelection(pos)
   const { view } = editor
-  view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, pos)))
   const slice = view.state.selection.content()
   const { dom, text } = view.serializeForClipboard(slice)
   event.dataTransfer.clearData()
@@ -94,9 +94,7 @@ export function BlockHandle({ editor, frame }: { editor: Editor; frame: HTMLElem
   if (!spot || !editor.state.doc.nodeAt(spot.pos)) {
     return null
   }
-  const { view } = editor
-  const select = () => view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, spot.pos)))
-  const kind = kindOf(view.state.doc, spot.pos)
+  const kind = kindOf(editor.state.doc, spot.pos)
   return (
     <div className="absolute z-10 flex -translate-x-full -translate-y-1/2 items-center pr-1 pointer-coarse:hidden" style={{ top: spot.top, left: spot.left }}>
       <Button variant="ghost" size="icon-sm" aria-label="Add below" title="Add below" onMouseDown={(e) => e.preventDefault()} onClick={() => {
@@ -105,7 +103,7 @@ export function BlockHandle({ editor, frame }: { editor: Editor; frame: HTMLElem
       }}><Plus /></Button>
       <div className="relative">
         <Button variant="ghost" size="icon-sm" draggable aria-label="Drag to move, click for options" title="Drag to move, click for options" className="w-5 cursor-grab active:cursor-grabbing" onClick={() => {
-          select()
+          editor.commands.setNodeSelection(spot.pos)
           setOpen(true)
         }} onDragStart={(event) => drag(editor, spot.pos, event)} onDragEnd={() => endDrag(editor)}><GripVertical /></Button>
         {/* The menu opens on click, not on the trigger's pointer down, so

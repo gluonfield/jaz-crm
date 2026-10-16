@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import type { Editor } from '@tiptap/core'
 import { Placeholder } from '@tiptap/extensions'
+import { cellAround } from '@tiptap/pm/tables'
 import { EditorContent, useEditor } from '@tiptap/react'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -16,13 +17,29 @@ import { singular } from './create-record'
 import { DocumentLinkEditor } from './document-link-editor'
 import { DocumentKit } from './document-links'
 import { type Block, findBlocks } from './editor-blocks'
-import { SuggestionList, suggestions, useSuggestionMenu } from './editor-suggestions'
+import { suggestions } from './editor-suggestions'
 import { FormatBar } from './format-bar'
 import { ObjectIcon, RecordIcon } from './icons'
 import { TableMenu } from './table-menu'
 import { MenuShortcut } from './ui/menu'
 
 type Mention = { id: string; href: string; name: string; object: string; detail: string; photo?: string; icon?: string }
+
+// Markdown table cells hold only text, so / turns or adds blocks outside them.
+const blockMenu = suggestions<Block>({
+  char: '/',
+  find: findBlocks,
+  allow: (state, range) => !cellAround(state.doc.resolve(range.from)),
+  pick: (editor, range, block) => block.run(editor.chain().focus().deleteRange(range)).run(),
+  label: 'Blocks',
+  empty: 'No results',
+  className: 'w-60',
+  item: (block) => <>
+    <block.icon className="size-4 shrink-0 text-ink-2" />
+    <span className="min-w-0 flex-1 truncate">{block.name}</span>
+    {block.hint && <MenuShortcut>{block.hint}</MenuShortcut>}
+  </>,
+})
 
 // matching finds people, companies and table records by title, and pages by
 // title or by path: research/dan finds a page titled Dan… inside Research.
@@ -94,8 +111,6 @@ export function PageEditor({ record }: { record: CrmRecord }) {
   const latest = useRef<string | null>(null)
   const timer = useRef(0)
   const saving = useRef<Promise<void> | null>(null)
-  const [mention, mentionBridge] = useSuggestionMenu<Mention>()
-  const [slash, slashBridge] = useSuggestionMenu<Block>()
   const [frame, setFrame] = useState<HTMLDivElement | null>(null)
 
   const view = useRef<Editor | null>(null)
@@ -140,22 +155,22 @@ export function PageEditor({ record }: { record: CrmRecord }) {
       suggestions<Mention>({
         char: '@',
         find,
-        bridge: mentionBridge,
         allowSpaces: true,
         debounce: 120,
         pick: (editor, range, item) => editor.chain().focus().insertContentAt(range, [
           { type: 'text', text: item.name, marks: [{ type: 'link', attrs: { href: item.href } }] },
           { type: 'text', text: ' ' },
         ]).run(),
+        label: 'Mention',
+        empty: 'No matches',
+        className: 'w-80',
+        item: (item) => <>
+          {item.href.startsWith('/o/') ? <ObjectIcon slug={item.object} icon={item.icon} className="size-4 shrink-0 text-ink-2" /> : <RecordIcon object={item.object} name={item.name} photo={item.photo} icon={item.icon} size={16} />}
+          <span className="min-w-0 flex-1 truncate">{item.name}</span>
+          <span className="max-w-36 shrink-0 truncate text-[12px] text-ink-3">{item.detail}</span>
+        </>,
       }),
-      // Markdown tables hold only text, so / turns or adds blocks outside them.
-      suggestions<Block>({
-        char: '/',
-        find: findBlocks,
-        bridge: slashBridge,
-        allow: (state, range) => !state.doc.resolve(range.from).node(-1).type.spec.tableRole,
-        pick: (editor, range, block) => block.run(editor.chain().focus().deleteRange(range)).run(),
-      }),
+      blockMenu,
     ],
     content: saved,
     contentType: 'markdown',
@@ -203,20 +218,6 @@ export function PageEditor({ record }: { record: CrmRecord }) {
       {editor && <FormatBar editor={editor} />}
       {editor && frame && <BlockHandle editor={editor} frame={frame} />}
       {editor && frame && <TableMenu editor={editor} frame={frame} />}
-      {mention && <SuggestionList menu={mention} label="Mention" empty="No matches" className="w-80">
-        {(item) => <>
-          {item.href.startsWith('/o/') ? <ObjectIcon slug={item.object} icon={item.icon} className="size-4 shrink-0 text-ink-2" /> : <RecordIcon object={item.object} name={item.name} photo={item.photo} icon={item.icon} size={16} />}
-          <span className="min-w-0 flex-1 truncate">{item.name}</span>
-          <span className="max-w-36 shrink-0 truncate text-[12px] text-ink-3">{item.detail}</span>
-        </>}
-      </SuggestionList>}
-      {slash && <SuggestionList menu={slash} label="Blocks" empty="No results" className="w-60">
-        {(block) => <>
-          <block.icon className="size-4 shrink-0 text-ink-2" />
-          <span className="min-w-0 flex-1 truncate">{block.name}</span>
-          {block.hint && <MenuShortcut>{block.hint}</MenuShortcut>}
-        </>}
-      </SuggestionList>}
     </div>
   )
 }
