@@ -25,7 +25,7 @@ import { SelectField } from '@/components/select-field'
 import { UpdatedAt } from '@/components/updated-at'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
 import { pageIcon, path, usePages } from '@/lib/pages'
-import { formatDay, formatNumber } from '@/lib/format'
+import { formatDateTime, formatDay, formatNumber, recentOrDate } from '@/lib/format'
 import { useDebounced, useInView, useListKeys, usePhone } from '@/lib/hooks'
 import { DateLabel, dateMetadata } from '@/components/date-field'
 import { useObjects, useRecordPages, useTool, useWorkspace } from '@/lib/queries'
@@ -107,6 +107,7 @@ function ObjectList({ slug }: { slug: string }) {
     return objects ? <Header><NavButton />{slug}</Header> : <Loading />
   }
   const own = !object.standard
+  const contacts = slug === 'companies' || slug === 'people'
   // The CRM's objects show their choices first; the workspace's own tables keep the order columns were added in.
   const columns = object.attributes.filter((a) => a.slug !== 'name' && a.type !== 'markdown' && !(slug === 'follow_ups' && dateMetadata(a.slug))).sort((a, b) => (own ? 0 : Number(b.type === 'select') - Number(a.type === 'select')))
   const ownerFilter = slug === 'follow_ups' && <OwnerFilter filters={filters} onChange={(filters) => void navigate({ to: '.', search: (previous) => ({ ...previous, filters: urlFilters(filters) }), replace: true })} />
@@ -258,6 +259,7 @@ function ObjectList({ slug }: { slug: string }) {
               <colgroup>
                 <col style={{ width: width('name', 280) }} />
                 {slug === 'companies' && <col style={{ width: width('people', 240) }} />}
+                {contacts && <col style={{ width: width('last_contact', 140) }} />}
                 <col style={{ width: width('updated_at', 140) }} />
                 {columns.map((a) => (
                   <col key={a.slug} style={{ width: width(a.slug, defaultWidth(a)) }} />
@@ -277,6 +279,10 @@ function ObjectList({ slug }: { slug: string }) {
                       <Resizer onPointerDown={resize('people', 240)} />
                     </th>
                   )}
+                  {contacts && <th className="relative px-3 font-medium">
+                    Last Contact
+                    <Resizer onPointerDown={resize('last_contact', 140)} />
+                  </th>}
                   <th className="relative px-3 font-medium">
                     Last updated
                     <Resizer onPointerDown={resize('updated_at', 140)} />
@@ -315,6 +321,9 @@ function ObjectList({ slug }: { slug: string }) {
                         </Link>
                       </td>
                       {slug === 'companies' && <td className="overflow-hidden px-3 text-ink-2"><CompanyPeople company={r} /></td>}
+                      {contacts && <td className="px-3 text-[12px] text-ink-3">
+                        {r.activity?.last_at && <time dateTime={r.activity.last_at} title={formatDateTime(r.activity.last_at)} className="whitespace-nowrap tabular-nums">{recentOrDate(r.activity.last_at)}</time>}
+                      </td>}
                       <td className="px-3 text-[12px] text-ink-3"><UpdatedAt at={r.updated_at} /></td>
                       {columns.map((a) => (
                         <td key={a.slug} className="overflow-hidden px-3 py-1 text-ink-2">
