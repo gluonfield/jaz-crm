@@ -7,7 +7,7 @@
 - [x] Archive Fit Profile without replacing it.
 - [x] Rehearse the CAS-only migration, preserve property history and record update timestamps, and verify other workspaces remain unchanged.
 - [x] Run the complete backend and frontend checks and verify the real screens.
-- [ ] Commit, push and verify the production rollout.
+- [x] Commit, push and verify the production rollout.
 
 ## Verification
 
@@ -30,3 +30,9 @@ shows calculated contact dates in company and people tables, separately from
 record edits, with light/dark and 390px checks.
 
 Scratch snapshots, replay and checks: runs/company-field-cleanup/.
+
+Production Server and Worker both deployed 6cc9861 successfully. Read-only
+production verification confirms all 6,414 source description values, all prior
+categories and all Yes manufacturer classifications are preserved; 151 notes
+match their archived source verbatim, and zero company update timestamps changed.
+The live Companies table shows Last Contact and omits the six archived fields.
