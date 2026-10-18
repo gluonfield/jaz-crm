@@ -27,7 +27,14 @@ export function Loading() {
 
 export function Tab({ active, children, onClick }: { active: boolean; children: ReactNode; onClick: () => void }) {
   return (
-    <Button aria-pressed={active} onClick={onClick} className={active ? 'bg-list-active' : undefined}>
+    <Button
+      aria-pressed={active}
+      onClick={onClick}
+      className={cn(
+        'correspondence:h-9 correspondence:rounded-none correspondence:border-0 correspondence:bg-transparent correspondence:px-0 correspondence:text-[13.5px] correspondence:font-normal correspondence:text-ink-3 correspondence:hover:bg-transparent correspondence:hover:text-ink',
+        active && 'bg-list-active correspondence:text-ink correspondence:shadow-[inset_0_-2px_0_var(--color-primary)]',
+      )}
+    >
       {children}
     </Button>
   )

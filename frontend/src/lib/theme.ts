@@ -4,11 +4,15 @@ import { embedded } from './api'
 
 export type Scheme = 'light' | 'dark'
 export type SchemePreference = Scheme | 'system'
+// Style is the look over either scheme: the standard one or Correspondence,
+// a serif, relationship-first design being tried out (see THEMING.md).
+export type Style = 'standard' | 'correspondence'
 
 // ThemeMessage is what a framing page posts to theme the app (see THEMING.md).
 export type ThemeMessage = { type: 'jaz:theme'; vars?: Record<string, string>; scheme?: Scheme }
 
 const preferenceKey = 'jaz-crm:scheme'
+const styleKey = 'jaz-crm:style'
 const listeners = new Set<() => void>()
 let hostScheme: Scheme | null = null
 
@@ -23,8 +27,13 @@ function resolvedScheme(): Scheme {
   return hostScheme ?? (preference === 'system' ? (systemDark() ? 'dark' : 'light') : preference)
 }
 
+export function stylePreference(): Style {
+  return readItem(styleKey) === 'correspondence' ? 'correspondence' : 'standard'
+}
+
 function render() {
   document.documentElement.classList.toggle('dark', resolvedScheme() === 'dark')
+  document.documentElement.classList.toggle('correspondence', stylePreference() === 'correspondence')
   listeners.forEach((listener) => listener())
 }
 
@@ -34,15 +43,24 @@ export function setSchemePreference(preference: SchemePreference) {
   render()
 }
 
+export function setStylePreference(style: Style) {
+  writeItem(styleKey, style)
+  render()
+}
+
+function subscribe(listener: () => void) {
+  listeners.add(listener)
+  return () => {
+    listeners.delete(listener)
+  }
+}
+
 export function useScheme(): Scheme {
-  return useSyncExternalStore(
-    (listener) => {
-      listeners.add(listener)
-      return () => listeners.delete(listener)
-    },
-    resolvedScheme,
-    () => 'light',
-  )
+  return useSyncExternalStore(subscribe, resolvedScheme, () => 'light')
+}
+
+export function useStyle(): Style {
+  return useSyncExternalStore(subscribe, stylePreference, () => 'standard')
 }
 
 // Only custom properties are accepted, and never values that could load

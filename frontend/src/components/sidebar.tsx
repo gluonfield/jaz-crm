@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { Check, ChevronDown, Inbox, LogOut, Monitor, Moon, PlugZap, Plus, Search, Settings, Sun, Trash2 } from 'lucide-react'
+import { Check, ChevronDown, Feather, Inbox, LogOut, Monitor, Moon, PlugZap, Plus, Search, Settings, Sun, Trash2 } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { DialogClose } from '@/components/ui/dialog'
 import {
@@ -18,7 +18,7 @@ import { signOut, useMe } from '@/lib/account'
 import { embedded } from '@/lib/api'
 import { useObjects, useTool, useWorkspace } from '@/lib/queries'
 import { steps, syncing, useConnections } from '@/lib/sync'
-import { setSchemePreference } from '@/lib/theme'
+import { setSchemePreference, setStylePreference, useStyle } from '@/lib/theme'
 import type { Contact, CrmObject, TrashedRecord } from '@/lib/types'
 import { setUI } from '@/lib/ui'
 import { cn } from '@/lib/utils'
@@ -95,6 +95,7 @@ function WorkspaceMenu() {
   const me = useMe()
   const workspaces = useWorkspaces()
   const move = useMoveWorkspace()
+  const correspondence = useStyle() === 'correspondence'
   const [creating, setCreating] = useState(false)
   const name = workspace?.name ?? ''
   return (
@@ -131,6 +132,12 @@ function WorkspaceMenu() {
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setSchemePreference('system')}>
                 <Monitor /> System
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => setStylePreference(correspondence ? 'standard' : 'correspondence')}>
+                <Feather />
+                <span className="flex-1">Correspondence</span>
+                {correspondence && <Check aria-label="On" />}
               </DropdownMenuItem>
             </DropdownMenuSubContent>
           </DropdownMenuSub>

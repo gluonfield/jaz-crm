@@ -5,8 +5,9 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { installHostBridge } from '@/lib/theme'
 import styles from '@/styles.css?url'
 
-// Applies the saved or system scheme before first paint to avoid a flash.
-const schemeScript = `(function(){try{var p=localStorage.getItem('jaz-crm:scheme')||'system';var t=new URLSearchParams(location.search).get('theme');var d=t==='dark'||(t!=='light'&&(p==='dark'||(p==='system'&&matchMedia('(prefers-color-scheme: dark)').matches)));document.documentElement.classList.toggle('dark',d)}catch(e){}})()`
+// Applies the saved or system scheme and the saved style before first paint
+// to avoid a flash.
+const schemeScript = `(function(){try{var p=localStorage.getItem('jaz-crm:scheme')||'system';var t=new URLSearchParams(location.search).get('theme');var d=t==='dark'||(t!=='light'&&(p==='dark'||(p==='system'&&matchMedia('(prefers-color-scheme: dark)').matches)));document.documentElement.classList.toggle('dark',d);document.documentElement.classList.toggle('correspondence',localStorage.getItem('jaz-crm:style')==='correspondence')}catch(e){}})()`
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({

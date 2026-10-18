@@ -46,6 +46,12 @@ Each token falls back to the matching [MCP Apps](https://github.com/modelcontext
 
 The list hover and active washes derive from `--color-ink`. Primary fills keep the host accent's hue and cap OKLCH lightness at 0.55 for white labels. Hover darkens the fill. Both schemes use the same primary palette.
 
+## Correspondence style
+
+Correspondence is a design being tried out: warm paper and charcoal, a Cambridge-blue primary, Instrument Sans with Newsreader for record names, softer radii, and record pages that lead with the relationship (teammate and linked-person cards, last contact, the next meeting) and fold empty details away. Turn it on from the workspace menu under Theme; the choice is stored per browser as `jaz-crm:style`.
+
+It is the class `.correspondence` on `:root`. `src/styles.css` sets its tokens under `:root.correspondence` and `:root.dark.correspondence`, and components restyle with the `correspondence:` variant. Its literal tokens take precedence over a host's standard variables.
+
 ## As an MCP App (Jaz, Claude, ChatGPT)
 
 The server's MCP endpoint serves the app as the `ui://jaz-crm/app` resource (`text/html;profile=mcp-app`), one self-contained HTML document built by `bun run build` and embedded in the Go binary. It connects with the official `@modelcontextprotocol/ext-apps` SDK, loads data through the app-only `graphql` tool, and needs no login: the host's OAuth token carries the user.

@@ -126,7 +126,7 @@ export function InteractionRow({ interaction, when }: { interaction: Interaction
           </span>
           <span className="min-w-0 flex-1">
             <span className="flex items-baseline gap-3">
-              <span className="truncate text-[13px] font-medium text-ink">{interaction.title || 'No subject'}</span>
+              <span className="truncate text-[13px] font-medium text-ink correspondence:font-serif correspondence:text-[16px]">{interaction.title || 'No subject'}</span>
               <time className="ml-auto shrink-0 text-[12px] tabular-nums text-ink-3" dateTime={interaction.started_at} title={formatDateTime(interaction.started_at)}>
                 {when ?? recentOrDate(interaction.started_at)}
               </time>
@@ -135,7 +135,7 @@ export function InteractionRow({ interaction, when }: { interaction: Interaction
               {interaction.drafts?.some((draft) => draft.state === 'draft') && <span className="mr-2 text-ink-2">Gmail draft</span>}
               {interaction.last_message ? <MessageState message={interaction.last_message} /> : who(interaction)}
             </span>
-            {interaction.preview && <span className="mt-1 line-clamp-2 text-[12.5px] leading-[1.5] text-ink-2">{interaction.preview}</span>}
+            {interaction.preview && <span className="mt-1 line-clamp-2 text-[12.5px] leading-[1.5] text-ink-2 correspondence:text-[13.5px]">{interaction.preview}</span>}
           </span>
         </button>
       </InteractionDialog>

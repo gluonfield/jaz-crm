@@ -1,11 +1,16 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import '@fontsource-variable/inter';
+@import '@fontsource-variable/newsreader';
+@import '@fontsource-variable/instrument-sans';
 
 @source '../node_modules/@jaz/ui/ui';
 
 /* Class-based dark mode, like Jaz: tokens are redefined under :root.dark. */
 @custom-variant dark (&:where(.dark, .dark *));
+/* The Correspondence style, a design being tried out, is the class
+   .correspondence on the root (see THEMING.md). */
+@custom-variant correspondence (&:where(.correspondence, .correspondence *));
 
 /*
  * Theme tokens. Names and semantics match the Jaz desktop app so a host can
@@ -60,6 +65,7 @@
 
   --font-sans: var(--jaz-ui-font, 'Inter Variable'), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--jaz-mono-font, 'JetBrains Mono Variable'), ui-monospace, 'SF Mono', monospace;
+  --font-serif: 'Newsreader Variable', ui-serif, Georgia, serif;
 
   --radius-control: var(--border-radius-md, 6px);
   --radius-card: var(--border-radius-lg, 10px);
@@ -136,6 +142,49 @@
   --color-raised: var(--color-surface);
 }
 
+/* Correspondence: warm paper and charcoal, Cambridge blue, Instrument Sans
+   with Newsreader for names. A token set for light applies to dark too
+   unless the dark block sets it again. */
+:root.correspondence {
+  --font-sans: 'Instrument Sans Variable', ui-sans-serif, system-ui, sans-serif;
+  --radius-control: 8px;
+  --radius-card: 14px;
+  --color-bg: #fbf9f5;
+  --color-surface: #f3efe8;
+  --color-surface-2: #e9e4dc;
+  --color-ink: #2a2621;
+  --color-ink-2: #5e574e;
+  --color-ink-3: #6f665b;
+  --color-border: #e6e0d6;
+  --color-primary: #4f6e5a;
+  --color-avatar-1: #d1ab84;
+  --color-avatar-2: #a9c0d4;
+  --color-avatar-3: #a3c1ad;
+  --color-avatar-4: #dba497;
+  --color-avatar-5: #c1b2da;
+  --color-avatar-6: #d9c27f;
+  --color-avatar-ink: #1b1a18;
+}
+
+:root.dark.correspondence {
+  --color-bg: #1b1a18;
+  --color-panel: #131210;
+  --color-surface: #242320;
+  --color-surface-2: #2e2c29;
+  --color-ink: #efe9e0;
+  --color-ink-2: #b5ada2;
+  --color-ink-3: #938b80;
+  --color-border: #33302c;
+  /* Light enough to need a dark label, so hover brightens it. */
+  --color-primary: #a3c1ad;
+  --color-primary-strong: #b9d2c1;
+  --color-on-primary: #13201a;
+  --color-running: #e3b35f;
+  --color-ok: #a9cf8a;
+  --color-danger: #ee8a74;
+  --color-danger-soft: #3a2420;
+}
+
 /* shadcn/ui variables, derived from the tokens above. */
 :root {
   --background: var(--color-bg);
@@ -205,6 +254,9 @@
     font-feature-settings: 'cv11', 'ss01';
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+  }
+  .correspondence body {
+    font-feature-settings: normal;
   }
   ::selection {
     background: var(--color-selection);
