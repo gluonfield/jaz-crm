@@ -88,7 +88,7 @@ function ObjectList({ slug }: { slug: string }) {
   // The workspace's own tables open as tables, the CRM's pipelines as boards.
   const board = slug !== 'follow_ups' && (view ?? (object?.standard ? 'board' : 'table')) === 'board' ? status : undefined
   const everything = !!board || queue
-  const result = useRecordPages({ object: slug, ...scope, query, filters, include: slug === 'companies' ? [{ object: 'people', attribute: 'company', limit: 50 }] : undefined, sort: sort ?? (slug === 'follow_ups' ? 'action_date' : undefined), limit }, { all: everything, enabled: !!object && (!saved || !!views.data) })
+  const result = useRecordPages({ object: slug, ...scope, query, filters, include: slug === 'companies' ? [{ object: 'people', attribute: 'company', limit: 20 }] : undefined, sort: sort ?? (slug === 'follow_ups' ? 'action_date' : undefined), limit }, { all: everything, enabled: !!object && (!saved || !!views.data) })
   const { total, hasNextPage, isFetchingNextPage, fetchNextPage } = result
   const zone = useWorkspace()?.timezone ?? 'UTC'
   // A queue reads in the order it shows, most urgent first.
