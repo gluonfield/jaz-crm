@@ -1,7 +1,7 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
+@import '@fontsource-variable/inter';
 @import '@fontsource-variable/newsreader';
-@import '@fontsource-variable/instrument-sans';
 
 @source '../node_modules/@jaz/ui/ui';
 
@@ -16,8 +16,8 @@
  *   surface   raised fills           surface-2  deeper fills
  *   ink 1-3   text hierarchy         border     hairlines
  *   primary   accent for selection, focus and primary actions
- * Defaults are warm paper and charcoal with a Cambridge-blue accent; names
- * and documents are set in Newsreader, everything else in Instrument Sans.
+ * Defaults are warm paper and charcoal with a Cambridge-blue accent; record
+ * names and database titles are set in Newsreader, everything else in Inter.
  */
 @theme static {
   --color-bg: var(--color-background-primary, #fbf9f5);
@@ -60,7 +60,7 @@
   --color-avatar-6: #d9c27f;
   --color-avatar-ink: #1b1a18;
 
-  --font-sans: var(--jaz-ui-font, 'Instrument Sans Variable'), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--jaz-ui-font, 'Inter Variable'), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--jaz-mono-font, 'JetBrains Mono Variable'), ui-monospace, 'SF Mono', monospace;
   --font-serif: 'Newsreader Variable', ui-serif, Georgia, serif;
 
@@ -209,6 +209,7 @@
     color: var(--color-ink);
     font-family: var(--font-sans);
     font-size: 13px;
+    font-feature-settings: 'cv11', 'ss01';
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
@@ -225,11 +226,11 @@
   scrollbar-color: color-mix(in oklab, var(--color-ink-3) 40%, transparent) transparent;
 }
 
-/* Page content: documents read in the serif, a size up from Notion's
-   rhythm, with a block's height between blocks. */
+/* Page content: calm document typography in the app's tokens. */
 .prose-page {
-  font-family: var(--font-serif);
-  font-size: 17px;
+  /* Notion's document rhythm: 16px text on 25.6px lines, 16px between
+     blocks, 6px between list items. */
+  font-size: 16px;
   line-height: 1.6;
   color: var(--color-ink);
   overflow-wrap: anywhere;
@@ -394,11 +395,13 @@
       background: var(--color-list-hover);
     }
   }
+  /* Links read by colour; a faint underline firms up on hover. */
   & a {
     color: var(--color-link);
     text-decoration: underline;
-    text-decoration-color: color-mix(in oklab, currentColor 50%, transparent);
-    text-underline-offset: 2px;
+    text-decoration-color: color-mix(in oklab, currentColor 25%, transparent);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
     cursor: pointer;
     border-radius: 2px;
     &:hover {
@@ -461,7 +464,6 @@
 
 /* Short markdown fields read as secondary text at the same proportions. */
 .prose-page.prose-compact {
-  font-family: var(--font-sans);
   font-size: 12.5px;
   line-height: 1.55;
   color: var(--color-ink-2);

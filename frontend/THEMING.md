@@ -22,8 +22,8 @@ Every color, radius, font and shadow in the web app comes from CSS custom proper
 | `--color-running`, `--color-ok`, `--color-danger`, `--color-danger-soft` | Due soon, success, overdue and errors |
 | `--color-scrim` | Dialog backdrop |
 | `--color-avatar-1` ... `--color-avatar-6`, `--color-avatar-ink` | Avatar backgrounds and initials |
-| `--font-sans`, `--font-mono` | Type families: Instrument Sans for the interface (they read `--jaz-ui-font` / `--jaz-mono-font` first) |
-| `--font-serif` | Newsreader, for record and database names and page documents |
+| `--font-sans`, `--font-mono` | Type families: Inter for the interface and documents (they read `--jaz-ui-font` / `--jaz-mono-font` first) |
+| `--font-serif` | Newsreader, for record names and database titles |
 | `--radius-control`, `--radius-card` | Corner radii for controls and cards |
 | `--shadow-raised` | Shadow for menus, dialogs and dragged cards |
 
