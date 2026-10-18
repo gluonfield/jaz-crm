@@ -15,10 +15,14 @@ export const textOf = (record: CrmRecord, slug: string) => valuesOf(record, slug
 // valueKey is how a write names a value: its text, or a referenced record's id.
 export const valueKey = (value: Value) => (typeof value === 'string' ? value : value.id)
 
+// pageOnly reports whether an attribute only draws a page or orders it in the
+// sidebar, so record views leave it out.
+export const pageOnly = (object: string, slug: string) => object === 'pages' && (slug === 'icon' || slug === 'position')
+
 // recordName falls back to an identifying value such as an email address,
 // then to any text, as the server names references.
 export function recordName(record: CrmRecord) {
-  const name = ['name', 'email_addresses', 'domains', 'phone_numbers'].map((slug) => valuesOf(record, slug)[0]).find(Boolean) ?? Object.entries(record.values).filter(([slug]) => record.object !== 'pages' || slug !== 'icon').flatMap(([, value]) => value).find((v) => typeof v === 'string')
+  const name = ['name', 'email_addresses', 'domains', 'phone_numbers'].map((slug) => valuesOf(record, slug)[0]).find(Boolean) ?? Object.entries(record.values).filter(([slug]) => !pageOnly(record.object, slug)).flatMap(([, value]) => value).find((v) => typeof v === 'string')
   return name ? valueText(name) : 'Unnamed'
 }
 

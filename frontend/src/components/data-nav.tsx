@@ -48,7 +48,7 @@ export function DataNav() {
   })
   return (
     <div className="mt-4 flex flex-col gap-px">
-      <div {...drag.onto('')} className={cn('flex h-7 items-center rounded-[var(--radius-control)] pl-2 pr-1 text-[12px] font-medium text-ink-3', drag.target === '' && 'bg-primary-soft text-primary')}>
+      <div {...drag.onto('')} className={cn('flex h-7 items-center rounded-[var(--radius-control)] pl-2 pr-1 text-[12px] font-medium text-ink-3', drag.target?.id === '' && 'bg-primary-soft text-primary')}>
         <span className="flex-1">{drag.dragging ? 'Move to top level' : 'Data'}</span>
         <NewData>
           <button type="button"
@@ -76,10 +76,23 @@ function PageItem({ page, pages, depth, opened, toggle, drag }: { page: Page; pa
   const tables = pages.tables.get(page.id) ?? []
   const hasChildren = inside.length + tables.length > 0
   const open = opened.has(page.id)
+  const place = drag.target?.id === page.id ? drag.target.place : undefined
   return (
     <>
       <PageMenu page={page} pages={pages}>
-        <div {...drag.from(page)} {...drag.onto(page.id)} className={cn('group/row relative rounded-[var(--radius-control)] data-[dragging=true]:opacity-50 [&>a]:cursor-grab pointer-coarse:[&>a]:pr-8', drag.target === page.id && 'bg-primary-soft [&>a]:bg-transparent [&>a]:text-primary')}>
+        {/* Below an open page come its children, so a page dropped on its
+            bottom edge would land out of sight: it offers only the top. */}
+        <div
+          {...drag.from(page)}
+          {...drag.onto(page.id, open && hasChildren ? ['before'] : ['before', 'after'])}
+          className={cn(
+            'group/row relative rounded-[var(--radius-control)] data-[dragging=true]:opacity-50 [&>a]:cursor-grab pointer-coarse:[&>a]:pr-8',
+            place === 'inside' && 'bg-primary-soft [&>a]:bg-transparent [&>a]:text-primary',
+            place && place !== 'inside' && 'before:absolute before:inset-x-1 before:z-10 before:h-0.5 before:rounded-full before:bg-primary',
+            place === 'before' && 'before:-top-px',
+            place === 'after' && 'before:-bottom-px',
+          )}
+        >
           <NavItem to={`/r/${page.id}`} depth={depth} icon={<PageIcon value={page.icon} className={cn(hasChildren && 'group-hover/row:invisible pointer-coarse:invisible')} />}>
             {page.name}
           </NavItem>

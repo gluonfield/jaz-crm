@@ -1,7 +1,7 @@
 import { ArrowUpRight } from 'lucide-react'
 import { RecordIcon } from '@/components/icons'
 import { Stage } from '@/components/stage'
-import { recordName, valueText, valuesOf } from '@/lib/crm'
+import { pageOnly, recordName, valueText, valuesOf } from '@/lib/crm'
 import { pageIcon } from '@/lib/pages'
 import { formatNumber, recentOrDate } from '@/lib/format'
 import { useTool } from '@/lib/queries'
@@ -24,7 +24,7 @@ export function RecordCard({ recordId, onOpen }: { recordId: string; onOpen: (ur
   const stage = valuesOf(record, 'stage')[0]
   const value = valuesOf(record, 'value')[0]
   const description = valuesOf(record, 'description')[0]
-  const fields = Object.keys(record.values).filter((slug) => !['name', 'stage', 'value', 'description'].includes(slug) && (record.object !== 'pages' || slug !== 'icon') && valuesOf(record, slug).length > 0)
+  const fields = Object.keys(record.values).filter((slug) => !['name', 'stage', 'value', 'description'].includes(slug) && !pageOnly(record.object, slug) && valuesOf(record, slug).length > 0)
   const href = `codex://plugins/jaz-crm/app/show_crm?path=${encodeURIComponent(`/r/${record.id}`)}`
   return (
     <a

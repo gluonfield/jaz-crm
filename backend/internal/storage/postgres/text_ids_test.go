@@ -22,6 +22,7 @@ INSERT INTO users(workspace_id,name,email,admin) SELECT id,'Owner','owner@exampl
 INSERT INTO objects(workspace_id,slug,name) SELECT id,'pages','Pages' FROM workspaces;
 INSERT INTO attributes(object_id,slug,name,type) SELECT id,'name','Name','text' FROM objects;
 INSERT INTO attributes(object_id,slug,name,type) SELECT id,'icon','Icon','text' FROM objects;
+INSERT INTO attributes(object_id,slug,name,type) SELECT id,'position','Position','number' FROM objects;
 INSERT INTO attributes(object_id,slug,name,type,target_object_id) SELECT id,'parent','Parent','reference',id FROM objects;
 INSERT INTO records(workspace_id,object_id) SELECT workspace_id,id FROM objects;
 INSERT INTO record_values(record_id,attribute_id,text,source,actor_id) SELECT records.id,attributes.id,'Legacy page','user',users.id FROM records,attributes,users WHERE attributes.slug='name';
