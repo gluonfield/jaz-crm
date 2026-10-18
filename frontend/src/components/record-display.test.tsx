@@ -39,7 +39,7 @@ test('a teammate in a summary is named with their field', () => {
   }
   const client = newQueryClient()
   const html = renderToStaticMarkup(<QueryClientProvider client={client}><Summary record={record} object={object} name="Andy" upcoming={[]}><h2>Andy</h2></Summary></QueryClientProvider>)
-  assert.match(html, />Owner<\/span>.*august@jaz\.test/)
+  assert.match(html, />Owner<\/div>.*august@jaz\.test/)
   client.clear()
 })
 

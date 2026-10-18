@@ -27,14 +27,7 @@ export function Loading() {
 
 export function Tab({ active, children, onClick }: { active: boolean; children: ReactNode; onClick: () => void }) {
   return (
-    <Button
-      aria-pressed={active}
-      onClick={onClick}
-      className={cn(
-        'correspondence:h-9 correspondence:rounded-none correspondence:border-0 correspondence:bg-transparent correspondence:px-0 correspondence:text-[13.5px] correspondence:font-normal correspondence:text-ink-3 correspondence:hover:bg-transparent correspondence:hover:text-ink',
-        active && 'bg-list-active correspondence:text-ink correspondence:shadow-[inset_0_-2px_0_var(--color-primary)]',
-      )}
-    >
+    <Button aria-pressed={active} onClick={onClick} className={cn('h-9 rounded-none border-0 bg-transparent px-0 text-[13.5px] font-normal text-ink-3 hover:bg-transparent hover:text-ink', active && 'text-ink shadow-[inset_0_-2px_0_var(--color-primary)]')}>
       {children}
     </Button>
   )
@@ -65,6 +58,23 @@ export function Chip({ children, onRemove }: { children: ReactNode; onRemove?: (
           <X className="size-3" />
         </button>
       )}
+    </span>
+  )
+}
+
+// RecordStack shows linked records on one line: their icons overlapping, the
+// first two names, and how many more.
+export function RecordStack({ object, refs }: { object: string; refs: Ref[] }) {
+  const names = refs.map((r) => r.name || 'Unnamed')
+  return (
+    <span className="flex min-w-0 items-center gap-2">
+      <span className="flex shrink-0">
+        {refs.slice(0, 4).map((r, i) => (
+          <RecordIcon key={r.id} object={object} name={names[i]} photo={r.photo} icon={r.icon} size={20} className={cn('ring-2 ring-bg', i > 0 && '-ml-1.5')} />
+        ))}
+      </span>
+      <span className="truncate">{names.slice(0, 2).join(', ')}</span>
+      {refs.length > 2 && <span className="shrink-0 text-ink-3">+{refs.length - 2}</span>}
     </span>
   )
 }

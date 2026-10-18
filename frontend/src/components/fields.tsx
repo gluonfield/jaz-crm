@@ -8,7 +8,7 @@ import { useDebounced } from '@/lib/hooks'
 import { useRecords, useWorkspace, useWrite } from '@/lib/queries'
 import type { Attribute, CrmRecord, Value } from '@/lib/types'
 import { cn } from '@/lib/utils'
-import { Chip } from './controls'
+import { Chip, RecordStack } from './controls'
 import { RecordIcon } from './icons'
 import { Picker } from './picker'
 import { Stage, StageDot } from './stage'
@@ -18,9 +18,10 @@ import { SelectField } from './select-field'
 
 const inputType: Partial<Record<Attribute['type'], string>> = { number: 'number', date: 'date', email: 'email', url: 'url', phone: 'tel' }
 
-// Field shows and edits one attribute of a record in the way its type needs;
-// a limit shows that many of its values until the rest are asked for.
-export function Field({ record, attribute, limit }: { record: CrmRecord; attribute: Attribute; limit?: number }) {
+// Field shows and edits one attribute of a record in the way its type needs.
+// Inline, as in a table, it keeps to one line: many values collapse to the
+// first and a count, and empty prompts show only on hover (data-hint).
+export function Field({ record, attribute, inline = false }: { record: CrmRecord; attribute: Attribute; inline?: boolean }) {
   const values = valuesOf(record, attribute.slug)
   const write = useWrite(record)
   const slug = attribute.slug
@@ -42,14 +43,14 @@ export function Field({ record, attribute, limit }: { record: CrmRecord; attribu
     )
   }
   if (attribute.type === 'select') {
-    return <SelectField record={record} attribute={attribute} limit={limit} />
+    return <SelectField record={record} attribute={attribute} inline={inline} />
   }
   if (attribute.type === 'status') {
     const current = values[0] && valueText(values[0])
     return (
       <Picker
         trigger={
-          <button className={cn(valueButton, !current && 'text-ink-3')}>{current ? <Stage stage={current} /> : 'Set…'}</button>
+          <button data-hint={!current || undefined} className={cn(valueButton, !current && 'text-ink-3')}>{current ? <Stage stage={current} /> : 'Set…'}</button>
         }
         placeholder={`Set ${attribute.name.toLowerCase()}...`}
         options={(attribute.options ?? []).map((o) => ({ value: o, label: o, icon: <StageDot stage={o} /> }))}
@@ -62,13 +63,13 @@ export function Field({ record, attribute, limit }: { record: CrmRecord; attribu
     return <MemberField attribute={attribute} values={values.map(valueText)} onSelect={(email) => write.set(slug, email)} />
   }
   if (attribute.type === 'reference') {
-    return <ReferenceField record={record} attribute={attribute} values={values} limit={limit} />
+    return <ReferenceField record={record} attribute={attribute} values={values} inline={inline} />
   }
   const ValueLink = valueLinks[attribute.type]
   if (attribute.multi || ValueLink) {
     return (
-      <div className="flex min-w-0 flex-wrap items-center gap-1">
-        <Capped limit={limit}>
+      <div className={cn('flex min-w-0 items-center gap-1', inline ? 'overflow-hidden' : 'flex-wrap')}>
+        <Capped limit={inline ? 1 : undefined}>
           {values.map((v) => (
             <Chip key={valueKey(v)} onRemove={() => write.remove(slug, [valueKey(v)])}>
               {ValueLink ? <ValueLink value={valueText(v)} className="truncate" /> : valueText(v)}
@@ -139,7 +140,7 @@ export function TextInput({
   const shown = display ?? (type === 'date' && !text ? placeholder : undefined)
   if (shown && !editing) {
     return (
-      <button type="button" aria-label={display ? `${label}: ${display}` : label} className={cn(valueButton, !display && 'text-ink-3', className)} onClick={() => setEditing(true)}>
+      <button type="button" data-hint={!display || undefined} aria-label={display ? `${label}: ${display}` : label} className={cn(valueButton, !display && 'text-ink-3', className)} onClick={() => setEditing(true)}>
         {shown}
       </button>
     )
@@ -186,20 +187,44 @@ function Capped({ limit, children }: { limit?: number; children: ReactNode[] }) 
         }}
         className="min-h-[22px] rounded-full px-2 text-[12px] text-ink-3 outline-none hover:bg-list-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-ring"
       >
-        {all ? 'Show less' : `+${children.length - limit} more`}
+        {all ? 'Show less' : `+${children.length - limit}`}
       </button>
     </>
   )
 }
 
-function ReferenceField({ record, attribute, values, limit }: { record: CrmRecord; attribute: Attribute; values: Value[]; limit?: number }) {
+// ReferenceField links records. Inline, many links show as a stack of faces
+// and names, and one menu adds and removes them.
+function ReferenceField({ record, attribute, values, inline }: { record: CrmRecord; attribute: Attribute; values: Value[]; inline: boolean }) {
   const write = useWrite(record)
   const [search, setSearch] = useState<string>()
   const found = useRecords(attribute.target ?? '', useDebounced(search), 20).data?.records ?? []
   const target = attribute.target ?? ''
+  if (inline && attribute.multi) {
+    const refs = values.map((v) => (typeof v === 'string' ? { id: v } : v))
+    const linked = new Set(refs.map((r) => r.id))
+    return (
+      <Picker
+        trigger={
+          <button type="button" aria-label={`Edit ${attribute.name.toLowerCase()} for ${recordName(record)}`} className={cn(valueButton, 'w-full text-ink-2')}>
+            {refs.length ? <RecordStack object={target} refs={refs} /> : <span data-hint className="text-ink-3">Add…</span>}
+          </button>
+        }
+        placeholder={`Find ${target}...`}
+        onSearch={setSearch}
+        multiple
+        selected={[...linked]}
+        options={[
+          ...(search ? [] : refs.map((r) => ({ value: r.id, label: r.name || 'Unnamed', icon: <RecordIcon object={target} name={r.name || 'Unnamed'} photo={r.photo} icon={r.icon} size={16} /> }))),
+          ...found.filter((r) => search || !linked.has(r.id)).map((r) => ({ value: r.id, label: recordName(r), icon: <RecordIcon object={target} name={recordName(r)} photo={r.photo} icon={pageIcon(r)} size={16} /> })),
+        ]}
+        onSelect={(id) => (linked.has(id) ? write.remove(attribute.slug, [id]) : write.set(attribute.slug, id))}
+      />
+    )
+  }
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-1">
-      <Capped limit={limit}>
+      <Capped>
         {values.map((v) => (
           <Chip key={valueKey(v)} onRemove={() => write.remove(attribute.slug, [valueKey(v)])}>
             <Link to="/r/$recordId" params={{ recordId: valueKey(v) }} className="flex items-center gap-1.5 hover:text-ink">
@@ -212,7 +237,7 @@ function ReferenceField({ record, attribute, values, limit }: { record: CrmRecor
       {(attribute.multi || values.length === 0) && (
         <Picker
           trigger={
-            <button className="flex size-6 items-center justify-center rounded-[var(--radius-control)] text-ink-3 outline-none hover:bg-list-hover hover:text-ink" aria-label={`Set ${attribute.name}`}>
+            <button data-hint className="flex size-6 items-center justify-center rounded-[var(--radius-control)] text-ink-3 outline-none hover:bg-list-hover hover:text-ink" aria-label={`Set ${attribute.name}`}>
               <Plus className="size-3.5" />
             </button>
           }
@@ -233,7 +258,7 @@ function MemberField({ attribute, values, onSelect }: { attribute: Attribute; va
   return (
     <Picker
       trigger={
-        <button className={cn(valueButton, 'gap-2', !values[0] && 'text-ink-3')}>
+        <button data-hint={!values[0] || undefined} className={cn(valueButton, 'gap-2', !values[0] && 'text-ink-3')}>
           {chosen && <RecordIcon object="people" name={chosen.name || chosen.email} photo={chosen.photo} size={18} />}
           <span className="truncate">{chosen ? chosen.name || chosen.email : (values[0] ?? 'Set…')}</span>
         </button>

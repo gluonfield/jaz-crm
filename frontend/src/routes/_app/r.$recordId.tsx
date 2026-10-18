@@ -23,7 +23,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { recordName, valueText, valuesOf } from '@/lib/crm'
 import { useAction, useObjects, useTool, useUpcoming, useWrite } from '@/lib/queries'
 import { path, usePages } from '@/lib/pages'
-import { useStyle } from '@/lib/theme'
 import type { CrmObject, CrmRecord, Ref } from '@/lib/types'
 
 export const Route = createFileRoute('/_app/r/$recordId')({
@@ -130,7 +129,7 @@ function RecordPage() {
           <div className={`mx-auto flex max-w-[784px] flex-col px-6 pb-24 @lg:px-14 ${page ? 'pt-6' : 'pt-16'}`}>
             {page && header}
             {page && <PageIconPicker key={record.id} record={record} />}
-            <h1 className="text-[40px] font-bold leading-[1.2] tracking-[-0.02em] text-ink">
+            <h1 className="font-serif text-[44px] font-medium leading-[1.15] tracking-[-0.015em] text-ink">
               <Title key={`${record.id}:${name}`} record={record} object={object} name={name} />
             </h1>
             {!page && (
@@ -157,7 +156,7 @@ function RecordPage() {
         <div className="mx-auto grid max-w-[1120px] gap-x-14 gap-y-8 px-6 pb-20 pt-8 [grid-template-areas:'summary'_'details'_'main'] @5xl:grid-cols-[minmax(0,1fr)_272px] @5xl:px-10 @5xl:[grid-template-areas:'summary_details'_'main_details']">
           <div className="min-w-0 [grid-area:summary]">
             <Summary record={record} object={object} name={name} upcoming={upcoming}>
-              <h1 className="text-[22px] font-semibold leading-tight tracking-[-0.015em] text-ink correspondence:font-serif correspondence:text-[36px] correspondence:font-medium correspondence:leading-[1.15] correspondence:tracking-[-0.01em]">
+              <h1 className="font-serif text-[36px] font-medium leading-[1.15] tracking-[-0.01em] text-ink">
                 <Title key={`${record.id}:${name}`} record={record} object={object} name={name} />
               </h1>
             </Summary>
@@ -167,7 +166,7 @@ function RecordPage() {
           <div className="flex min-w-0 flex-col gap-8 [grid-area:main]">
             <Related recordId={record.id} object={object.slug} objects={objects} />
             <section>
-              <div className="mb-4 flex gap-1.5 border-b border-border pb-2 correspondence:gap-6 correspondence:pb-0">
+              <div className="mb-4 flex gap-6 border-b border-border">
                 <Tab active={!tab} onClick={() => void navigate({ to: '.', search: {}, replace: true })}>
                   Conversations
                 </Tab>
@@ -226,17 +225,16 @@ function Title({ record, object, name }: { record: CrmRecord; object: CrmObject;
 }
 
 // Details edits every attribute but the name, which the title edits. Beside
-// the page on a wide screen, it stays in view as the timeline scrolls. The
-// Correspondence style folds empty attributes away until asked for.
+// the page on a wide screen, it stays in view as the timeline scrolls.
+// Empty attributes fold away until asked for.
 function Details({ record, object }: { record: CrmRecord; object: CrmObject }) {
-  const fold = useStyle() === 'correspondence'
   const [unfolded, setUnfolded] = useState(false)
   const attributes = object.attributes.filter((a) => a.slug !== 'name' && !(record.object === 'people' && a.slug === 'context') && !(record.object === 'follow_ups' && (a.slug === 'draft' || dateMetadata(a.slug))))
-  const empty = fold ? attributes.filter((a) => !valuesOf(record, a.slug).length).length : 0
+  const empty = attributes.filter((a) => !valuesOf(record, a.slug).length).length
   return (
     <section aria-label="Details" className="min-w-0 self-start [grid-area:details] @5xl:sticky @5xl:top-0">
       <h2 className="mb-1.5 text-[12px] font-medium text-ink-3">Details</h2>
-      <dl className="grid grid-cols-[100px_minmax(0,1fr)] items-center gap-x-2 gap-y-0.5 text-[13px] pointer-coarse:items-start @3xl:grid-cols-[100px_minmax(0,1fr)_100px_minmax(0,1fr)] @5xl:grid-cols-[100px_minmax(0,1fr)] correspondence:text-[13.5px]">
+      <dl className="grid grid-cols-[100px_minmax(0,1fr)] items-center gap-x-2 gap-y-0.5 text-[13px] pointer-coarse:items-start @3xl:grid-cols-[100px_minmax(0,1fr)_100px_minmax(0,1fr)] @5xl:grid-cols-[100px_minmax(0,1fr)]">
         {attributes
           .filter((a) => !empty || unfolded || valuesOf(record, a.slug).length)
           .map((a) => (

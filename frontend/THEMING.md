@@ -1,6 +1,6 @@
 # Theming
 
-Every color, radius, font and shadow in the web app comes from CSS custom properties on `:root`. The names and meanings match the Jaz desktop app (`jaz/frontend/src/renderer/src/styles/globals.css`), so a host can pass its own tokens straight through. The defaults in `src/styles.css` follow Linear's palette; `:root.dark` holds the dark defaults.
+Every color, radius, font and shadow in the web app comes from CSS custom properties on `:root`. The names and meanings match the Jaz desktop app (`jaz/frontend/src/renderer/src/styles/globals.css`), so a host can pass its own tokens straight through. The defaults in `src/styles.css` are warm paper and charcoal with a Cambridge-blue accent; `:root.dark` holds the dark defaults.
 
 ## Tokens
 
@@ -22,7 +22,8 @@ Every color, radius, font and shadow in the web app comes from CSS custom proper
 | `--color-running`, `--color-ok`, `--color-danger`, `--color-danger-soft` | Due soon, success, overdue and errors |
 | `--color-scrim` | Dialog backdrop |
 | `--color-avatar-1` ... `--color-avatar-6`, `--color-avatar-ink` | Avatar backgrounds and initials |
-| `--font-sans`, `--font-mono` | Type families (they read `--jaz-ui-font` / `--jaz-mono-font` first) |
+| `--font-sans`, `--font-mono` | Type families: Instrument Sans for the interface (they read `--jaz-ui-font` / `--jaz-mono-font` first) |
+| `--font-serif` | Newsreader, for record and database names and page documents |
 | `--radius-control`, `--radius-card` | Corner radii for controls and cards |
 | `--shadow-raised` | Shadow for menus, dialogs and dragged cards |
 
@@ -44,13 +45,7 @@ Each token falls back to the matching [MCP Apps](https://github.com/modelcontext
 | `--shadow-raised` | `--shadow-lg` |
 | `--font-sans`, `--font-mono` | same names |
 
-The list hover and active washes derive from `--color-ink`. Primary fills keep the host accent's hue and cap OKLCH lightness at 0.55 for white labels. Hover darkens the fill. Both schemes use the same primary palette.
-
-## Correspondence style
-
-Correspondence is a design being tried out: warm paper and charcoal, a Cambridge-blue primary, Instrument Sans with Newsreader for record names, softer radii, and record pages that lead with the relationship (teammate and linked-person cards, last contact, the next meeting) and fold empty details away. Turn it on from the workspace menu under Theme; the choice is stored per browser as `jaz-crm:style`.
-
-It is the class `.correspondence` on `:root`. `src/styles.css` sets its tokens under `:root.correspondence` and `:root.dark.correspondence`, and components restyle with the `correspondence:` variant. Its literal tokens take precedence over a host's standard variables.
+The list hover and active washes derive from `--color-ink`. Primary fills keep the host accent's hue. In light mode they cap OKLCH lightness at 0.55 for white labels and hover darkens them; in dark mode they lift it to at least 0.75 for dark labels and hover brightens them.
 
 ## As an MCP App (Jaz, Claude, ChatGPT)
 

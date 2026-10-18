@@ -13,7 +13,7 @@ export function DatabaseHeader({ object }: { object: CrmObject }) {
           <PageIcon value={object.icon} size={32} fallback={Table2} />
         </Button>
       </IconPicker>
-      <h1 className="min-w-0 flex-1 text-[30px] font-semibold leading-[1.35] tracking-[-0.02em] text-ink">
+      <h1 className="min-w-0 flex-1 font-serif text-[36px] font-medium leading-[1.25] tracking-[-0.01em] text-ink">
         <textarea key={object.name} aria-label="Database name" rows={1} defaultValue={object.name} onBlur={(event) => {
           const input = event.currentTarget
           const entered = input.value
@@ -49,6 +49,6 @@ export function DatabaseHeader({ object }: { object: CrmObject }) {
           }
         } })
       }
-    }} className="field-sizing-content mt-2 block w-full resize-none bg-transparent text-[13px] leading-relaxed text-ink-2 outline-none placeholder:text-ink-3" />
+    }} className="field-sizing-content mt-2 block w-full resize-none bg-transparent text-[14px] leading-relaxed text-ink-2 outline-none placeholder:text-ink-3" />
   </section>
 }

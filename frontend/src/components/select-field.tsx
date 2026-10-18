@@ -5,21 +5,16 @@ import type { Attribute, CrmRecord } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { Picker } from './picker'
 
-const colours = [
-  'bg-amber-500/12 text-amber-700 ring-amber-500/20 dark:text-amber-300',
-  'bg-violet-500/12 text-violet-700 ring-violet-500/20 dark:text-violet-300',
-  'bg-emerald-500/12 text-emerald-700 ring-emerald-500/20 dark:text-emerald-300',
-  'bg-rose-500/12 text-rose-700 ring-rose-500/20 dark:text-rose-300',
-  'bg-sky-500/12 text-sky-700 ring-sky-500/20 dark:text-sky-300',
-  'bg-orange-500/12 text-orange-700 ring-orange-500/20 dark:text-orange-300',
-]
+// A value is a dot of colour and its word: colour sorts values at a glance
+// without filling a table with pills.
+const colours = ['text-amber-500', 'text-violet-400', 'text-emerald-500', 'text-rose-400', 'text-sky-400', 'text-orange-400']
 
 const colourOf = (value: string) => colours[[...value.toLowerCase()].reduce((hash, letter) => (hash * 31 + letter.codePointAt(0)!) % colours.length, 0)]
 
 export function ValueTag({ value }: { value: string }) {
   return (
-    <span title={value} className={cn('inline-flex min-h-6 max-w-48 items-center rounded-full px-2.5 py-0.5 text-[12px] font-medium ring-1 ring-inset correspondence:gap-2 correspondence:bg-transparent correspondence:px-0 correspondence:text-[13px] correspondence:font-normal correspondence:ring-0 correspondence:before:size-2 correspondence:before:shrink-0 correspondence:before:rounded-full correspondence:before:bg-current', colourOf(value))}>
-      <span className="truncate correspondence:text-ink">{value}</span>
+    <span title={value} className={cn('inline-flex min-h-6 min-w-0 max-w-48 items-center gap-2 text-[13px] before:size-2 before:shrink-0 before:rounded-full before:bg-current', colourOf(value))}>
+      <span className="truncate text-ink">{value}</span>
     </span>
   )
 }
@@ -29,8 +24,11 @@ export function ValueDot({ value }: { value: string }) {
   return <span className={cn(colourOf(value), 'size-2 shrink-0 rounded-full bg-current')} />
 }
 
-export function SelectField({ record, attribute, limit = Infinity }: { record: CrmRecord; attribute: Attribute; limit?: number }) {
+// SelectField picks a select's values; inline, as in a table, it keeps to one
+// line and shows its empty label and menu chevron only on hover.
+export function SelectField({ record, attribute, inline = false }: { record: CrmRecord; attribute: Attribute; inline?: boolean }) {
   const values = valuesOf(record, attribute.slug).map(valueText)
+  const limit = inline ? 1 : Infinity
   const write = useWrite(record)
   const add = useAction<{ object: string; attribute: string; value: string }, { value: string }>('add_attribute_option')
   const pending = write.pending || add.isPending
@@ -44,11 +42,11 @@ export function SelectField({ record, attribute, limit = Infinity }: { record: C
           onKeyDown={(e) => e.stopPropagation()}
           className="flex min-h-7 w-full min-w-0 items-center gap-1.5 rounded-[var(--radius-control)] px-1.5 py-0.5 text-left outline-none hover:bg-list-hover focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
         >
-          <span className="flex min-w-0 flex-1 flex-wrap gap-1">
-            {values.length ? values.slice(0, limit).map((value) => <ValueTag key={value} value={value} />) : <span className="flex items-center gap-1.5 text-[12px] text-ink-3"><Tags className="size-3.5" /> Add {attribute.name.toLowerCase()}</span>}
-            {values.length > limit && <span className="self-center text-[12px] text-ink-3">+{values.length - limit}</span>}
+          <span className={cn('flex min-w-0 flex-1 gap-x-3 gap-y-1', inline ? 'overflow-hidden' : 'flex-wrap')}>
+            {values.length ? values.slice(0, limit).map((value) => <ValueTag key={value} value={value} />) : <span data-hint className="flex items-center gap-1.5 text-[12px] text-ink-3"><Tags className="size-3.5" /> Add {attribute.name.toLowerCase()}</span>}
+            {values.length > limit && <span className="shrink-0 self-center text-[12px] text-ink-3">+{values.length - limit}</span>}
           </span>
-          <ChevronDown className="size-3 shrink-0 text-ink-3" />
+          <ChevronDown data-hint={inline || undefined} className="size-3 shrink-0 text-ink-3" />
         </button>
       }
       placeholder={`Find or create ${attribute.name.toLowerCase()}…`}

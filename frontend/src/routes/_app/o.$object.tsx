@@ -88,7 +88,7 @@ function ObjectList({ slug }: { slug: string }) {
   // The workspace's own tables open as tables, the CRM's pipelines as boards.
   const board = slug !== 'follow_ups' && (view ?? (object?.standard ? 'board' : 'table')) === 'board' ? status : undefined
   const everything = !!board || queue
-  const result = useRecordPages({ object: slug, ...scope, query, filters, include: slug === 'companies' ? [{ object: 'people', attribute: 'company', limit: 4 }] : undefined, sort: sort ?? (slug === 'follow_ups' ? 'action_date' : undefined), limit }, { all: everything, enabled: !!object && (!saved || !!views.data) })
+  const result = useRecordPages({ object: slug, ...scope, query, filters, include: slug === 'companies' ? [{ object: 'people', attribute: 'company', limit: 50 }] : undefined, sort: sort ?? (slug === 'follow_ups' ? 'action_date' : undefined), limit }, { all: everything, enabled: !!object && (!saved || !!views.data) })
   const { total, hasNextPage, isFetchingNextPage, fetchNextPage } = result
   const zone = useWorkspace()?.timezone ?? 'UTC'
   // A queue reads in the order it shows, most urgent first.
@@ -255,7 +255,8 @@ function ObjectList({ slug }: { slug: string }) {
           </div>
         ) : (
           <div className={cn("scrollbar-quiet min-h-0 flex-1 overflow-auto", own && "px-5 md:px-8")}>
-            <table className="w-full table-fixed border-collapse text-[13px]">
+            {/* Cells keep to one line; empty prompts and menu chevrons show on the hovered row only. */}
+            <table className="w-full table-fixed border-collapse text-[13px] [&_[data-hint]]:opacity-0 [&_[data-hint]:focus-visible]:opacity-100 [&_[data-hint][data-state=open]]:opacity-100 [&_tr:hover_[data-hint]]:opacity-100 [&_tr:not(:hover)_input:not(:focus)::placeholder]:text-transparent pointer-coarse:[&_[data-hint]]:opacity-100">
               <colgroup>
                 <col style={{ width: width('name', 280) }} />
                 {slug === 'companies' && <col style={{ width: width('people', 240) }} />}
@@ -312,12 +313,12 @@ function ObjectList({ slug }: { slug: string }) {
                       data-row={index}
                       data-flip={r.id}
                       onClick={() => openRecord(index)}
-                      className={cn('group h-10 cursor-default border-b border-border/50 hover:bg-list-hover data-[state=open]:bg-list-hover', focus === index && 'bg-list-hover')}
+                      className={cn('group h-11 cursor-default border-b border-border/60 hover:bg-list-hover data-[state=open]:bg-list-hover', focus === index && 'bg-list-hover')}
                     >
-                      <td className={cn('sticky left-0 z-10 bg-bg px-4 group-hover:bg-list-hover group-data-[state=open]:bg-list-hover', focus === index && 'bg-list-hover')}>
-                        <Link to="/r/$recordId" params={{ recordId: r.id }} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} className="flex min-w-0 items-center gap-2.5 font-medium text-ink">
+                      <td className={cn('sticky left-0 z-10 bg-bg px-4 py-2 group-hover:bg-list-hover group-data-[state=open]:bg-list-hover', focus === index && 'bg-list-hover')}>
+                        <Link to="/r/$recordId" params={{ recordId: r.id }} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} className="flex min-w-0 items-center gap-2.5 font-medium leading-[1.35] text-ink">
                           <RecordIcon object={slug} name={recordName(r)} photo={r.photo} icon={pageIcon(r)} />
-                          <span className="min-w-0 truncate">{recordName(r)}</span>
+                          <span title={recordName(r)} className="line-clamp-2 min-w-0">{recordName(r)}</span>
                         </Link>
                       </td>
                       {slug === 'companies' && <td className="overflow-hidden px-3 text-ink-2"><CompanyPeople company={r} /></td>}
@@ -329,11 +330,11 @@ function ObjectList({ slug }: { slug: string }) {
                         <td key={a.slug} className="overflow-hidden px-3 py-1 text-ink-2">
                           {own ? (
                             <div onClick={(e) => e.stopPropagation()}>
-                              <Field record={r} attribute={a} limit={5} />
+                              <Field record={r} attribute={a} inline />
                             </div>
                           ) : a.type === 'select' ? (
                             <div onClick={(e) => e.stopPropagation()}>
-                              <SelectField record={r} attribute={a} />
+                              <SelectField record={r} attribute={a} inline />
                             </div>
                           ) : (
                             cell(r, a)
@@ -391,8 +392,13 @@ function cell(record: CrmRecord, attribute: Attribute) {
     return <Stage stage={values[0]} />
   }
   const ValueLink = valueLinks[attribute.type]
-  if (ValueLink) {
-    return <div className="flex flex-col gap-1">{values.map((value) => <ValueLink key={value} value={value} className="block truncate" />)}</div>
+  if (ValueLink && values[0]) {
+    return (
+      <span className="flex min-w-0 items-center gap-1.5">
+        <ValueLink value={values[0]} className="truncate" />
+        {values.length > 1 && <span className="shrink-0 text-[12px] text-ink-3">+{values.length - 1}</span>}
+      </span>
+    )
   }
   if (attribute.type === 'datetime') {
     return values.map((value) => <DateLabel key={value} value={value} suggested={attribute.slug === 'action_date' && record.values.action_date_basis === 'Suggested'} />)

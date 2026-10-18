@@ -1,21 +1,23 @@
 import { Link } from '@tanstack/react-router'
 import { recordName } from '@/lib/crm'
 import type { CrmRecord } from '@/lib/types'
-import { RecordIcon } from './icons'
+import { RecordStack } from './controls'
 
+const link = 'flex h-7 min-w-0 items-center rounded-[var(--radius-control)] px-1 text-ink-2 outline-none hover:bg-list-hover hover:text-ink focus-visible:bg-list-hover'
+
+// CompanyPeople is a company's people on one line, opening the one person or
+// the list of them.
 export function CompanyPeople({ company }: { company: CrmRecord }) {
   const people = company.related?.['people.company'] ?? []
+  const stack = <RecordStack object="people" refs={people} />
   return (
-    <div className="flex max-w-96 items-center gap-1 py-1" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} onContextMenu={(e) => e.stopPropagation()}>
-      {people.slice(0, 3).map((person) => (
-        <Link key={person.id} to="/r/$recordId" params={{ recordId: person.id }} title={person.name || 'Unnamed'}
-          className="flex h-7 min-w-0 max-w-32 items-center gap-1.5 rounded-[var(--radius-control)] px-1 outline-none hover:bg-list-hover hover:text-ink focus-visible:bg-list-hover">
-          <RecordIcon object="people" name={person.name || 'Unnamed'} photo={person.photo} />
-          <span className="truncate">{person.name || 'Unnamed'}</span>
+    <div className="flex min-w-0" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} onContextMenu={(e) => e.stopPropagation()}>
+      {people.length === 1 && <Link to="/r/$recordId" params={{ recordId: people[0].id }} className={link}>{stack}</Link>}
+      {people.length > 1 && (
+        <Link to="/o/$object" params={{ object: 'people' }} search={{ filters: [{ attribute: 'company', operator: 'is', value: company.id }] }} aria-label={`People at ${recordName(company)}`} className={link}>
+          {stack}
         </Link>
-      ))}
-      {people.length > 3 && <Link to="/o/$object" params={{ object: 'people' }} search={{ filters: [{ attribute: 'company', operator: 'is', value: company.id }] }}
-        aria-label={`More people at ${recordName(company)}`} className="flex h-7 shrink-0 items-center rounded-[var(--radius-control)] px-1 text-[12px] text-ink-3 outline-none hover:bg-list-hover hover:text-ink focus-visible:bg-list-hover">More</Link>}
+      )}
     </div>
   )
 }

@@ -54,7 +54,7 @@ function TriagePage() {
         <NavButton />
         <Inbox />
         Triage
-        <div className="scrollbar-quiet ml-3 flex gap-1.5 max-md:min-w-0 max-md:overflow-x-auto">
+        <div className="scrollbar-quiet ml-4 flex gap-5 self-stretch max-md:min-w-0 max-md:overflow-x-auto [&>button]:h-full">
           {tabs.map((t) => (
             <Tab key={t.status} active={status === t.status} onClick={() => setStatus(t.status)}>
               {t.label}
