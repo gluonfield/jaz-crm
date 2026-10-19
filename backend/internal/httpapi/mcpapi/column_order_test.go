@@ -13,7 +13,10 @@ func columns(t *testing.T, session *mcp.ClientSession, slug string) []string {
 	for _, o := range mustCall(t, session, "list_objects", nil)["objects"].([]any) {
 		object := o.(map[string]any)
 		if object["slug"] == slug {
-			list, _ := object["columns"].([]any)
+			list, ok := object["columns"].([]any)
+			if !ok {
+				t.Fatalf("%s column order is not an array: %v", slug, object["columns"])
+			}
 			var out []string
 			for _, column := range list {
 				out = append(out, column.(string))

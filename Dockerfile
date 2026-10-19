@@ -3,7 +3,7 @@ WORKDIR /web
 COPY frontend/package.json frontend/bun.lock ./
 RUN bun install --frozen-lockfile
 COPY frontend/ ./
-RUN bun run check
+RUN bun run check:code
 
 FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS build
 ARG TARGETOS

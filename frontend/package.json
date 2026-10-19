@@ -8,7 +8,8 @@
     "preview": "vite preview --port 7501",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "check": "bun test && bun run typecheck && bun run lint && bun run build && bun run test:browser",
+    "check": "bun run check:code && bun run test:browser",
+    "check:code": "bun test && bun run typecheck && bun run lint && bun run build",
     "test:browser": "node --test tests/column-order.mjs"
   },
   "dependencies": {

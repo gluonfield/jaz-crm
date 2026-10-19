@@ -195,7 +195,7 @@ type objectView struct {
 	Position    float64         `json:"position"`
 	Icon        string          `json:"icon,omitempty"`
 	Description string          `json:"description,omitempty"`
-	Columns     []string        `json:"columns,omitempty" jsonschema:"the table's column order after name, set by edit_object; columns left out follow"`
+	Columns     []string        `json:"columns" jsonschema:"the table's column order after name, set by edit_object; columns left out follow"`
 	Attributes  []attributeView `json:"attributes"`
 }
 

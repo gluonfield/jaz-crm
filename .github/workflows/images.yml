@@ -31,6 +31,17 @@ jobs:
         with:
           go-version: '1.26'
           cache-dependency-path: backend/go.sum
+      - name: Set up Bun
+        run: |
+          mkdir -p runs/bun
+          curl -fsSL https://github.com/oven-sh/bun/releases/download/bun-v1.3.14/bun-linux-x64.zip -o runs/bun.zip
+          echo '951ee2aee855f08595aeec6225226a298d3fea83a3dcd6465c09cbccdf7e848f  runs/bun.zip' | sha256sum --check
+          unzip -q runs/bun.zip -d runs/bun
+          echo "$PWD/runs/bun/bun-linux-x64" >> "$GITHUB_PATH"
+      - working-directory: frontend
+        run: |
+          bun install --frozen-lockfile
+          bun run check
       - working-directory: backend
         run: |
           go build ./...
