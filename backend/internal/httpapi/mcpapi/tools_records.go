@@ -366,8 +366,8 @@ type objectEdit struct {
 	Object      string   `json:"object"`
 	Action      string   `json:"action" jsonschema:"rename, move, icon, describe or delete"`
 	Name        string   `json:"name,omitempty"`
-	Parent      string   `json:"parent,omitempty" jsonschema:"for move: parent page record id; omit or empty for the top level"`
-	Position    *float64 `json:"position,omitempty" jsonschema:"for move: orders it among the pages and tables beside it, lowest first, like a page's position; omit to keep it, and pass its current parent to reorder in place"`
+	Parent      *string  `json:"parent,omitempty" jsonschema:"for move: parent page record id, empty for the top level; omit to keep it"`
+	Position    *float64 `json:"position,omitempty" jsonschema:"for move: orders it among the pages and tables beside it, lowest first, like a page's position; omit to keep it"`
 	Icon        string   `json:"icon,omitempty" jsonschema:"for icon: emoji, icon:Name[:color], or image:https://URL; empty removes it"`
 	Description string   `json:"description,omitempty" jsonschema:"for describe: database description; empty removes it"`
 }

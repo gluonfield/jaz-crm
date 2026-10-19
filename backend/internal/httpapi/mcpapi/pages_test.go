@@ -151,8 +151,9 @@ func TestTablesInsidePages(t *testing.T) {
 	if _, failure := call(t, a, "create_object", map[string]any{"slug": "trashed", "name": "Trashed", "parent": child}); failure == "" {
 		t.Fatal("a table was created inside a trashed page")
 	}
+	mustCall(t, a, "edit_object", map[string]any{"object": "suppliers", "action": "move", "position": 7.5})
 	mustCall(t, a, "restore_record", map[string]any{"record_id": child})
-	if parent() != child || mustCall(t, a, "get_record", map[string]any{"record_id": row})["values"].(map[string]any)["name"] != "First supplier" {
-		t.Fatal("restoring the page changed its table or rows")
+	if parent() != child || suppliers()["position"] != 7.5 || mustCall(t, a, "get_record", map[string]any{"record_id": row})["values"].(map[string]any)["name"] != "First supplier" {
+		t.Fatal("reordering inside a trashed page or restoring it changed its table or rows")
 	}
 }

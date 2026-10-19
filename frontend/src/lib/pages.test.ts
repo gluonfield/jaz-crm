@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import type { CrmObject, CrmRecord } from './types'
-import { type Item, type Pages, isTable, pagesOf, slot } from './pages'
+import { type Item, type Pages, allowed, isTable, pagesOf, slot } from './pages'
 
 const page = (id: string, minute: number, values: CrmRecord['values'] = {}): CrmRecord => ({
   id,
@@ -41,4 +41,15 @@ test('a dropped page or table takes a position between its new neighbours', () =
   assert.deepEqual(slot(pages, events, { item: d, place: 'before' }), { parent: 'a', position: at(3) - 1000 }, 'beside a sub-page moves into its parent')
   assert.deepEqual(slot(pages, b, { place: 'inside', page: pages.byId.get('a') }), { parent: 'a', position: at(3) + 1000 }, 'inside a page goes last')
   assert.deepEqual(slot(pages, d, { place: 'inside' }), { parent: '', position: at(2) + 1000 }, 'to the top level goes last')
+})
+
+test('a move changes where an item sits and never puts a page inside its own branch', () => {
+  const pages = pagesOf([page('a', 0), page('b', 1), page('d', 3, { parent: { id: 'a', name: 'a' } })], [table('events', 0, 'a')])
+  const [a, b, d, events] = ['a', 'b', 'd', 'events'].map((wanted) => find(pages, wanted))
+  assert.equal(allowed(pages, d, { place: 'inside', page: pages.byId.get('a') }), false, 'inside its own parent')
+  assert.equal(allowed(pages, b, { place: 'before', item: b }), false, 'beside itself')
+  assert.equal(allowed(pages, a, { place: 'inside', page: pages.byId.get('d') }), false, 'inside its own branch')
+  assert.equal(allowed(pages, a, { place: 'after', item: d }), false, 'beside its own sub-page')
+  assert.equal(allowed(pages, events, { place: 'inside', page: pages.byId.get('b') }), true)
+  assert.equal(allowed(pages, b, { place: 'after', item: events }), true)
 })

@@ -86,17 +86,31 @@ export function slot(pages: Pages, moving: Item, drop: Drop) {
   return { parent, position }
 }
 
-// useMove moves a page or table to where a drop puts it.
+// allowed reports whether a drop moves an item somewhere new, never a page
+// into its own branch.
+export function allowed(pages: Pages, item: Item, drop: Drop) {
+  const parent = parentOf(drop)
+  if (drop.place === 'inside' ? parent === (item.parent ?? '') : keyOf(drop.item) === keyOf(item)) {
+    return false
+  }
+  return isTable(item) || !within(pages, parent, item.id)
+}
+
+// useMove moves a page or table to where a drop puts it. A move leaves out an
+// unchanged parent, so an item whose parent is in Trash keeps it.
 export function useMove() {
   const write = useAction<object>('upsert_record')
   const edit = useAction<object>('edit_object')
   return {
     pending: write.isPending || edit.isPending,
     move: (pages: Pages, item: Item, drop: Drop, moved?: (parent: string) => void) => {
+      if (!allowed(pages, item, drop)) {
+        return
+      }
       const { parent, position } = slot(pages, item, drop)
       const done = { onSuccess: () => moved?.(parent) }
       if (isTable(item)) {
-        edit.mutate({ object: item.slug, action: 'move', parent, position }, done)
+        edit.mutate({ object: item.slug, action: 'move', position, ...(parent !== (item.parent ?? '') ? { parent } : {}) }, done)
       } else {
         const values = { position: String(position), ...(parent && parent !== item.parent ? { parent } : {}) }
         write.mutate({ object: 'pages', record_id: item.id, values, ...(!parent && item.parent ? { remove: { parent: [] } } : {}) }, done)
@@ -126,16 +140,7 @@ export function useDataDrag(pages: Pages | undefined, moved: (parent: string) =>
     const edge = y < 0.3 ? 'before' : y >= 0.7 ? 'after' : 'inside'
     return item && edge !== 'inside' && edges.includes(edge) ? { place: edge, item } : { place: 'inside', page: item }
   }
-  const accepts = (drop: Drop) => {
-    if (!pages || !source || pending) {
-      return false
-    }
-    const parent = parentOf(drop)
-    if (drop.place === 'inside' ? parent === (source.parent ?? '') : keyOf(drop.item) === keyOf(source)) {
-      return false
-    }
-    return isTable(source) || !within(pages, parent, source.id)
-  }
+  const accepts = (drop: Drop) => !!pages && !!source && !pending && allowed(pages, source, drop)
   return {
     dragging: !!source,
     // at is where a dragged item would land at an item's row, or the top
