@@ -41,7 +41,6 @@ addEventListener('message', (event) => {
   let page
   try {
     page = await chrome.page(`http://127.0.0.1:${server.address().port}`)
-    await page.call('Emulation.setUserAgentOverride', { userAgent: 'Synthetic browser', platform: 'MacIntel' })
     await page.call('Runtime.enable')
     chrome.on('Runtime.consoleAPICalled', (event) => {
       if (event.type === 'error') {
@@ -76,7 +75,8 @@ addEventListener('message', (event) => {
     await writeFile(resolve(directory, 'mcp-clipboard-api.txt'), String(await evaluate('document.documentElement.dataset.clipboardAvailable')))
     await click(page, 'iframe')
     await evaluate('document.activeElement?.blur()')
-    for (const [key, code, modifiers, expected] of [['.', 'Period', 4, record.id], ['<', 'Comma', 12, `https://crm.jaz.chat/r/${record.id}`]]) {
+    const modifier = (await evaluate('navigator.platform')).startsWith('Mac') ? 4 : 2
+    for (const [key, code, modifiers, expected] of [['.', 'Period', modifier, record.id], ['<', 'Comma', modifier | 8, `https://crm.jaz.chat/r/${record.id}`]]) {
       await page.call('Input.dispatchKeyEvent', {type:'keyDown', key, code, modifiers})
       await page.call('Input.dispatchKeyEvent', {type:'keyUp', key, code, modifiers})
       await until(() => page.evaluate(`window.copies.at(-1) === ${JSON.stringify(expected)}`), 'Embedded copy must reach the clipboard')
