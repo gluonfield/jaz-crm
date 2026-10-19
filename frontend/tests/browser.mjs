@@ -9,7 +9,7 @@ export async function browser(directory) {
     throw new Error('Set CHROME to a Chrome/Chromium binary to run the headless interaction tests')
   }
   const profile = await mkdtemp(resolve(directory, 'browser-'))
-  const processHandle = spawn(executable, ['--headless=new', '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-extensions', '--remote-debugging-pipe', `--user-data-dir=${profile}`], { stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'] })
+  const processHandle = spawn(executable, ['--headless=new', '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-extensions', '--remote-debugging-pipe', `--user-data-dir=${profile}`], { stdio: ['ignore', 'ignore', 'inherit', 'pipe', 'pipe'] })
   const exited = new Promise((accept) => processHandle.once('close', accept))
   let closing = false
   let failure

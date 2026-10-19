@@ -39,6 +39,8 @@ jobs:
           unzip -q runs/bun.zip -d runs/bun
           echo "$PWD/runs/bun/bun-linux-x64" >> "$GITHUB_PATH"
       - working-directory: frontend
+        env:
+          CHROME: /usr/bin/google-chrome
         run: |
           bun install --frozen-lockfile
           bun run check
