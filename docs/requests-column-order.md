@@ -7,7 +7,8 @@
 - [x] Hidden browser on synthetic local data: light/dark/narrow, before/after screenshots, drag recording.
 - [x] Full backend and frontend checks; thermo-nuclear review and fixes; verify final revision.
 - [x] Commit implementation and verification on this branch.
-- [ ] Await Augustinas’s approval, then merge main, re-verify, push and confirm deployment.
+- [x] Augustinas approved release. Merge origin/main and re-run full backend/frontend checks.
+- Release: fast-forward main, push and record the deployment result in the thread report.
 - [x] Stop all verification processes; no test databases left behind. Worktree Postgres and preview server stopped.
 
 ## Decisions
@@ -16,7 +17,7 @@ Continue the inherited `objects.columns` design. Named presets currently hold on
 
 Computed columns use `$people`, `$last_contact` and `$updated_at`, distinct from attribute slugs (which start with a letter). Name is implicit and fixed first. Unlisted columns follow in their existing default order. Archived columns retain their saved position; deleted attributes disappear from the API order.
 
-The pending push branch already watches every UPDATE on objects and invalidates list_objects, so column changes use its existing notification path. Integration and migration-number reconciliation will be checked after approval to merge main.
+The pending push branch already watches every UPDATE on objects and invalidates list_objects, so column changes use its existing notification path. Column order is migration 0058, after main’s 0057 sidebar ordering. Push-not-poll has not landed on origin/main and must use the next free number when it lands.
 
 ## Verification
 
@@ -24,6 +25,6 @@ The pending push branch already watches every UPDATE on objects and invalidates 
 - Frontend `bun run check`: 25 existing tests, typecheck, lint, both builds and the new native-headless interaction test pass. `bun run test:browser` is included in that check; it uses installed Chrome/Chromium (or `CHROME`), no new dependency.
 - 11/11 negative controls caught: persistence, MCP exposure, built-in ordering, fixed Name, validation, duplicate columns, deleted columns, native dragging, reload persistence, archived slots, header/body alignment. Mutations ran in a disposable source copy.
 - Real CRM server + browser: native drag, insertion line, unchanged geometry before drop, reload persistence, all five table types, light/dark, 900px width and disabled Move Left on the first movable column. Synthetic data only. Evidence: `runs/visual/{before,after,during-drag,dark,narrow-menu,people,companies,deals,follow_ups}.png`, `runs/visual/column-drag.mp4`.
-- Pending push migration applied to synthetic Postgres: a real `edit_object` request emitted `changes` with the correct workspace payload. Source review confirms the pending frontend listener invalidates `list_objects`. Full merged-branch/deployment verification awaits approval.
+- Pending push migration applied to synthetic Postgres: a real `edit_object` request emitted `changes` with the correct workspace payload. Source review confirms the pending frontend listener invalidates `list_objects`. The notification branch remains separate; deployment verification is read-only.
 - Full thermo-nuclear self-review: consolidated header/body/width definitions, fixed computed-column identity collisions, preserved archived slots and existing width preferences, updated the legacy migration snapshot. No remaining structural blocker. Details in `runs/review.md`.
-- Before pushing: merge current main as requested, reconcile the migration number (main already owns 0057 for sidebar ordering), re-run full checks, then verify the automatic deploy.
+- Merged origin/main 2ea84ca: retained parent-preserving table moves and sidebar positions, regenerated sqlc/MCP assets, renumbered column order to 0058. Fresh full Go suite, vet and build passed; frontend check passed with 26 unit tests plus the native-browser test. Merge review retained both independent ordering fields and no structural blocker.

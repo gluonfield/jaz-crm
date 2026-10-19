@@ -132,9 +132,9 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 			return objectOf(object), err
 		})
 	add(r, &mcp.Tool{Name: "edit_object", Title: "Edit table",
-		Description: "Edit a workspace database: rename, move inside a page or to the top level, set its icon or description, order its columns for everyone, or delete. Order also applies to the CRM's own objects, such as people. Icons use emoji, icon:Name[:color], or image:https://URL, as pages do; empty removes the icon. Delete removes its records and every reference attribute pointing at it."},
+		Description: "Edit a workspace database: rename, move inside a page or to the top level or reorder it by position, set its icon or description, order its columns for everyone, or delete. Order also applies to the CRM's own objects, such as people. Icons use emoji, icon:Name[:color], or image:https://URL, as pages do; empty removes the icon. Delete removes its records and every reference attribute pointing at it."},
 		func(ctx context.Context, actor auth.Actor, in objectEdit) (empty, error) {
-			return empty{}, crm.EditObject(ctx, actor, in.Object, records.ObjectEdit{Action: in.Action, Name: in.Name, Parent: in.Parent, Icon: in.Icon, Description: in.Description, Columns: in.Columns})
+			return empty{}, crm.EditObject(ctx, actor, in.Object, records.ObjectEdit{Action: in.Action, Name: in.Name, Parent: in.Parent, Position: in.Position, Icon: in.Icon, Description: in.Description, Columns: in.Columns})
 		})
 	add(r, &mcp.Tool{Annotations: &mcp.ToolAnnotations{DestructiveHint: new(false)}, Name: "create_attribute", Title: "Create attribute",
 		Description: "Add an attribute to an object, such as a table's column. Types: text, number, date, datetime (date with optional time), checkbox, url, select (with options), status (with its stages in order as options; a new record starts in the first), member (a workspace member by email; a new record names its creator), email, domain, phone, reference (with target, such as people, companies or pages)."},
@@ -192,6 +192,7 @@ type objectView struct {
 	Name        string          `json:"name"`
 	Standard    bool            `json:"standard,omitempty"`
 	Parent      string          `json:"parent,omitempty"`
+	Position    float64         `json:"position"`
 	Icon        string          `json:"icon,omitempty"`
 	Description string          `json:"description,omitempty"`
 	Columns     []string        `json:"columns,omitempty" jsonschema:"the table's column order after name, set by edit_object; columns left out follow"`
@@ -203,7 +204,7 @@ type objectsOutput struct {
 }
 
 func objectOf(o records.Object) objectView {
-	view := objectView{Slug: o.Slug, Name: o.Name, Parent: o.Parent, Icon: o.Icon, Description: o.Description, Standard: o.Standard, Columns: o.Columns, Attributes: []attributeView{}}
+	view := objectView{Slug: o.Slug, Name: o.Name, Parent: o.Parent, Position: o.Position, Icon: o.Icon, Description: o.Description, Standard: o.Standard, Columns: o.Columns, Attributes: []attributeView{}}
 	for _, a := range o.Attributes {
 		view.Attributes = append(view.Attributes, attributeView(a))
 	}
@@ -366,7 +367,8 @@ type objectEdit struct {
 	Object      string   `json:"object"`
 	Action      string   `json:"action" jsonschema:"rename, move, icon, describe, order or delete"`
 	Name        string   `json:"name,omitempty"`
-	Parent      string   `json:"parent,omitempty" jsonschema:"for move: parent page record id; omit or empty for the top level"`
+	Parent      *string  `json:"parent,omitempty" jsonschema:"for move: parent page record id, empty for the top level; omit to keep it"`
+	Position    *float64 `json:"position,omitempty" jsonschema:"for move: orders it among the pages and tables beside it, lowest first, like a page's position; omit to keep it"`
 	Icon        string   `json:"icon,omitempty" jsonschema:"for icon: emoji, icon:Name[:color], or image:https://URL; empty removes it"`
 	Description string   `json:"description,omitempty" jsonschema:"for describe: database description; empty removes it"`
 	Columns     []string `json:"columns,omitempty" jsonschema:"for order: attribute slugs, $updated_at, $last_contact (people/companies) or $people (companies), in the order the table shows them after name; columns left out follow, and none restores the default order"`

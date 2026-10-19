@@ -47,8 +47,8 @@ func (s *Store) UpdateObject(ctx context.Context, workspaceID, id string, update
 	return affected(s.rec.UpdateObject(ctx, recdb.UpdateObjectParams{Name: update.Name, Icon: update.Icon, Description: update.Description, Columns: update.Columns, WorkspaceID: workspaceID, ID: id}))
 }
 
-func (s *Store) MoveObject(ctx context.Context, workspaceID, id string, parent *string) error {
-	return affected(s.rec.MoveObject(ctx, recdb.MoveObjectParams{WorkspaceID: workspaceID, ID: id, ParentID: parent}))
+func (s *Store) MoveObject(ctx context.Context, workspaceID, id string, parent *string, position *float64) error {
+	return affected(s.rec.MoveObject(ctx, recdb.MoveObjectParams{WorkspaceID: workspaceID, ID: id, ParentID: parent, Position: position}))
 }
 
 func (s *Store) DeleteObject(ctx context.Context, workspaceID, id string) error {

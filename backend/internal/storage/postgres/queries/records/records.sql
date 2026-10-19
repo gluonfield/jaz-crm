@@ -33,7 +33,7 @@ WHERE workspace_id = @workspace_id AND id = @id;
 DELETE FROM objects WHERE workspace_id = @workspace_id AND id = @id;
 
 -- name: MoveObject :execrows
-UPDATE objects SET parent_id = sqlc.narg(parent_id) WHERE workspace_id = @workspace_id AND id = @id;
+UPDATE objects SET parent_id = sqlc.narg(parent_id), position = coalesce(sqlc.narg(position), position) WHERE workspace_id = @workspace_id AND id = @id;
 
 -- name: RenameAttribute :execrows
 UPDATE attributes SET name = @name FROM objects

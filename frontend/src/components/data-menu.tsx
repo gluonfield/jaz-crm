@@ -1,7 +1,7 @@
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { ArrowUpRight, FileText, FolderInput, Pencil, Table2, Trash2 } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
-import { type Page, type Pages, path, within } from '@/lib/pages'
+import { type Item, type Page, type Pages, isTable, path, useMove, within } from '@/lib/pages'
 import { useAction } from '@/lib/queries'
 import type { CrmObject } from '@/lib/types'
 import { PageIcon } from './page-icon'
@@ -27,17 +27,7 @@ export function TableMenu({ object, pages, children }: { object: CrmObject; page
           <ContextMenuItem onSelect={() => setRenaming(true)}>
             <Pencil /> Rename…
           </ContextMenuItem>
-          <ContextMenuOptions
-            icon={<FolderInput />}
-            label="Move to"
-            placeholder="Move to…"
-            options={[
-              { value: '', label: 'Top level' },
-              ...[...pages.byId.values()].map((page) => ({ value: page.id, label: path(pages, page.id).map((ancestor) => ancestor.name).join(' / '), icon: <PageIcon value={page.icon} /> })),
-            ]}
-            selected={[object.parent ?? '']}
-            onSelect={(parent) => edit.mutate({ object: object.slug, action: 'move', parent })}
-          />
+          <MoveTo item={object} pages={pages} />
           <ContextMenuSeparator />
           <ContextMenuItem onSelect={() => setDeleting(true)}>
             <Trash2 /> Delete…
@@ -66,12 +56,6 @@ export function PageMenu({ page, pages, children }: { page: Page; pages: Pages; 
   const [deleting, setDeleting] = useState(false)
   const [naming, setNaming] = useState(false)
   const [renaming, setRenaming] = useState(false)
-  const places = [
-    { value: '', label: 'Top level' },
-    ...[...pages.byId.values()]
-      .filter((p) => !within(pages, p.id, page.id))
-      .map((p) => ({ value: p.id, label: path(pages, p.id).map((a) => a.name).join(' / '), icon: <PageIcon value={p.icon} /> })),
-  ]
   return (
     <>
       <ContextMenu>
@@ -84,14 +68,7 @@ export function PageMenu({ page, pages, children }: { page: Page; pages: Pages; 
             <FileText /> Add Page
           </ContextMenuItem>
           <ContextMenuItem onSelect={() => setNaming(true)}><Table2 /> Add Database</ContextMenuItem>
-          <ContextMenuOptions
-            icon={<FolderInput />}
-            label="Move to"
-            placeholder="Move to…"
-            options={places}
-            selected={[page.parent ?? '']}
-            onSelect={(parent) => write.mutate({ object: 'pages', record_id: page.id, ...(parent ? { values: { parent } } : { remove: { parent: [] } }) })}
-          />
+          <MoveTo item={page} pages={pages} />
           <ContextMenuSeparator />
           <ContextMenuItem onSelect={() => setDeleting(true)}>
             <Trash2 /> Delete…
@@ -110,5 +87,25 @@ export function PageMenu({ page, pages, children }: { page: Page; pages: Pages; 
         }
       />
     </>
+  )
+}
+
+// MoveTo moves a page or table inside another page, or to the top level.
+function MoveTo({ item, pages }: { item: Item; pages: Pages }) {
+  const { move } = useMove()
+  return (
+    <ContextMenuOptions
+      icon={<FolderInput />}
+      label="Move to"
+      placeholder="Move to…"
+      options={[
+        { value: '', label: 'Top level' },
+        ...[...pages.byId.values()]
+          .filter((p) => isTable(item) || !within(pages, p.id, item.id))
+          .map((p) => ({ value: p.id, label: path(pages, p.id).map((a) => a.name).join(' / '), icon: <PageIcon value={p.icon} /> })),
+      ]}
+      selected={[item.parent ?? '']}
+      onSelect={(parent) => move(pages, item, { place: 'inside', page: pages.byId.get(parent) })}
+    />
   )
 }

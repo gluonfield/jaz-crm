@@ -156,7 +156,8 @@ func (s *Service) Delete(ctx context.Context, actor auth.Actor, id string) error
 type ObjectEdit struct {
 	Action      string
 	Name        string
-	Parent      string
+	Parent      *string
+	Position    *float64
 	Icon        string
 	Description string
 	Columns     []string
@@ -207,11 +208,13 @@ func (s *Service) EditObject(ctx context.Context, actor auth.Actor, object strin
 	case "delete":
 		return s.store.DeleteObject(ctx, actor.WorkspaceID, o.ID)
 	case "move":
-		parentID, err := s.tableParent(ctx, actor, edit.Parent)
-		if err != nil {
-			return err
+		parentID := o.ParentID
+		if edit.Parent != nil {
+			if parentID, err = s.tableParent(ctx, actor, *edit.Parent); err != nil {
+				return err
+			}
 		}
-		return s.store.MoveObject(ctx, actor.WorkspaceID, o.ID, parentID)
+		return s.store.MoveObject(ctx, actor.WorkspaceID, o.ID, parentID, edit.Position)
 	default:
 		return errs.Invalidf("action is rename, move, icon, describe, order or delete")
 	}
