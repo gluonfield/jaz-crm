@@ -1,7 +1,6 @@
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
-import { once } from 'node:events'
 import { resolve } from 'node:path'
 
 export async function browser(directory) {
@@ -11,10 +10,27 @@ export async function browser(directory) {
   }
   const profile = await mkdtemp(resolve(directory, 'browser-'))
   const processHandle = spawn(executable, ['--headless=new', '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-extensions', '--remote-debugging-pipe', `--user-data-dir=${profile}`], { stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'] })
+  const exited = new Promise((accept) => processHandle.once('close', accept))
+  let closing = false
+  let failure
   let seq = 0
   let buffer = ''
   const pending = new Map()
   const listeners = new Map()
+  const failed = (error) => {
+    if (closing) {
+      return
+    }
+    failure = error
+    for (const callback of pending.values()) {
+      callback({ error: { message: error.message } })
+    }
+    pending.clear()
+  }
+  processHandle.on('error', failed)
+  processHandle.on('exit', (code, signal) => failed(new Error(`Browser exited: ${signal ?? code}`)))
+  processHandle.stdio[3].on('error', failed)
+  processHandle.stdio[4].on('error', failed)
   processHandle.stdio[4].on('data', (chunk) => {
     buffer += chunk.toString()
     let end
@@ -31,6 +47,10 @@ export async function browser(directory) {
     }
   })
   const send = (method, params = {}, sessionId) => new Promise((accept, reject) => {
+    if (failure || closing) {
+      reject(failure ?? new Error('Browser is closed'))
+      return
+    }
     const id = ++seq
     const timer = setTimeout(() => {
       pending.delete(id)
@@ -70,8 +90,9 @@ export async function browser(directory) {
       }
     },
     async close() {
+      closing = true
       processHandle.kill('SIGKILL')
-      await once(processHandle, 'exit')
+      await exited
       await rm(profile, { recursive: true, force: true })
     },
   }
