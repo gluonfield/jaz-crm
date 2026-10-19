@@ -172,7 +172,8 @@ WITH scoped AS (
     ELSE matches_text END AS matches_query
   FROM scoped
 ), ranked AS (
-  SELECT matched.id, matched.conversation_id, matched.match_rank,
+  SELECT matched.id, matched.workspace_id, matched.object_id, matched.created_at, matched.updated_at, matched.timezone,
+    matched.conversation_id, matched.match_rank,
     CASE WHEN @group_by_conversation::boolean THEN row_number() OVER (
       PARTITION BY coalesce(matched.conversation_id, matched.id)
       ORDER BY CASE state.status WHEN 'Done' THEN 1 WHEN 'Dismissed' THEN 2 ELSE 0 END,
@@ -224,17 +225,16 @@ WITH scoped AS (
     ) = ((@operators::text[])[i] IN ('is_not', 'not_contains', 'is_empty'))
   )
 )
-SELECT sqlc.embed(records), coalesce(ranked.conversation_id::text, '')::text AS conversation_id, count(*) OVER () AS total FROM ranked
-JOIN records ON records.id = ranked.id
-JOIN workspaces ON workspaces.id = records.workspace_id
+SELECT ranked.id, ranked.workspace_id, ranked.object_id, ranked.created_at, ranked.updated_at,
+  coalesce(ranked.conversation_id::text, '')::text AS conversation_id, count(*) OVER () AS total FROM ranked
 WHERE ranked.position = 1
-ORDER BY CASE WHEN @sort_updated_at::boolean THEN records.updated_at END DESC, (
+ORDER BY CASE WHEN @sort_updated_at::boolean THEN ranked.updated_at END DESC, (
     SELECT min(CASE WHEN attributes.type = 'datetime'
-      THEN to_char(record_instant(record_values.text, workspaces.timezone) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US')
+      THEN to_char(record_instant(record_values.text, ranked.timezone) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US')
       ELSE record_values.text END) FROM record_values JOIN attributes ON attributes.id = record_values.attribute_id
-    WHERE record_values.record_id = records.id AND record_values.active_until IS NULL
+    WHERE record_values.record_id = ranked.id AND record_values.active_until IS NULL
       AND record_values.attribute_id = sqlc.narg(sort_attribute_id)::text
-  ) NULLS LAST, ranked.match_rank NULLS LAST, records.created_at DESC, records.id
+  ) NULLS LAST, ranked.match_rank NULLS LAST, ranked.created_at DESC, ranked.id
 LIMIT @row_limit OFFSET @row_offset;
 
 -- name: RelatedRecords :many

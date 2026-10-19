@@ -7,6 +7,7 @@ package records
 
 import (
 	"context"
+	"time"
 )
 
 const addAttributeOption = `-- name: AddAttributeOption :one
@@ -889,7 +890,8 @@ WITH scoped AS (
     ELSE matches_text END AS matches_query
   FROM scoped
 ), ranked AS (
-  SELECT matched.id, matched.conversation_id, matched.match_rank,
+  SELECT matched.id, matched.workspace_id, matched.object_id, matched.created_at, matched.updated_at, matched.timezone,
+    matched.conversation_id, matched.match_rank,
     CASE WHEN $6::boolean THEN row_number() OVER (
       PARTITION BY coalesce(matched.conversation_id, matched.id)
       ORDER BY CASE state.status WHEN 'Done' THEN 1 WHEN 'Dismissed' THEN 2 ELSE 0 END,
@@ -941,17 +943,16 @@ WITH scoped AS (
     ) = (($11::text[])[i] IN ('is_not', 'not_contains', 'is_empty'))
   )
 )
-SELECT records.id, records.workspace_id, records.object_id, records.created_at, records.updated_at, coalesce(ranked.conversation_id::text, '')::text AS conversation_id, count(*) OVER () AS total FROM ranked
-JOIN records ON records.id = ranked.id
-JOIN workspaces ON workspaces.id = records.workspace_id
+SELECT ranked.id, ranked.workspace_id, ranked.object_id, ranked.created_at, ranked.updated_at,
+  coalesce(ranked.conversation_id::text, '')::text AS conversation_id, count(*) OVER () AS total FROM ranked
 WHERE ranked.position = 1
-ORDER BY CASE WHEN $1::boolean THEN records.updated_at END DESC, (
+ORDER BY CASE WHEN $1::boolean THEN ranked.updated_at END DESC, (
     SELECT min(CASE WHEN attributes.type = 'datetime'
-      THEN to_char(record_instant(record_values.text, workspaces.timezone) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US')
+      THEN to_char(record_instant(record_values.text, ranked.timezone) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US')
       ELSE record_values.text END) FROM record_values JOIN attributes ON attributes.id = record_values.attribute_id
-    WHERE record_values.record_id = records.id AND record_values.active_until IS NULL
+    WHERE record_values.record_id = ranked.id AND record_values.active_until IS NULL
       AND record_values.attribute_id = $2::text
-  ) NULLS LAST, ranked.match_rank NULLS LAST, records.created_at DESC, records.id
+  ) NULLS LAST, ranked.match_rank NULLS LAST, ranked.created_at DESC, ranked.id
 LIMIT $4 OFFSET $3
 `
 
@@ -971,7 +972,11 @@ type SearchRecordsParams struct {
 }
 
 type SearchRecordsRow struct {
-	Record         Record
+	ID             string
+	WorkspaceID    string
+	ObjectID       string
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 	ConversationID string
 	Total          int64
 }
@@ -999,11 +1004,11 @@ func (q *Queries) SearchRecords(ctx context.Context, arg SearchRecordsParams) ([
 	for rows.Next() {
 		var i SearchRecordsRow
 		if err := rows.Scan(
-			&i.Record.ID,
-			&i.Record.WorkspaceID,
-			&i.Record.ObjectID,
-			&i.Record.CreatedAt,
-			&i.Record.UpdatedAt,
+			&i.ID,
+			&i.WorkspaceID,
+			&i.ObjectID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
 			&i.ConversationID,
 			&i.Total,
 		); err != nil {
