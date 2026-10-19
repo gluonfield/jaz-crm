@@ -10,7 +10,7 @@ type Widths = Record<string, Record<string, number>>
 export function useColumnWidths(object: string) {
   const [widths, setWidths] = useState<Widths>(() => JSON.parse(readItem(key) ?? '{}'))
   const latest = useRef(widths)
-  const width = (column: string, fallback: number) => widths[object]?.[column] ?? fallback
+  const width = (column: string, fallback: number) => widths[object]?.[column] ?? widths[object]?.[column.replace(/^\$/, '')] ?? fallback
   const resize = (column: string, fallback: number) => (e: PointerEvent) => {
     e.preventDefault()
     e.stopPropagation()

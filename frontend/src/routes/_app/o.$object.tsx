@@ -2,17 +2,14 @@ import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { ArrowDownAZ, ChevronRight, Kanban, ListChecks, Plus, Search, Table2, X } from 'lucide-react'
 import { type ReactNode, useMemo, useRef, useState } from 'react'
 import { Board } from '@/components/board'
-import { CompanyPeople } from '@/components/company-people'
+import { RecordTable } from '@/components/record-table'
 import { DatabaseHeader } from '@/components/database-header'
 import { editDraft } from '@/components/follow-up'
 import { byUrgency, FollowUpQueue } from '@/components/follow-ups'
 import { Stage } from '@/components/stage'
 import { Button } from '@jaz/ui/button'
 import { Header, Loading } from '@/components/controls'
-import { AddColumn, ColumnHeader } from '@/components/columns'
 import { CreateRecord } from '@/components/create-record'
-import { Field } from '@/components/fields'
-import { valueLinks } from '@/components/external-link'
 import { ConnectGoogle, EmptyState } from '@/components/empty-state'
 import { ObjectIcon, RecordIcon } from '@/components/icons'
 import { Picker } from '@/components/picker'
@@ -21,15 +18,10 @@ import { RecordFilters } from '@/components/record-filters'
 import { RecordMenu } from '@/components/record-menu'
 import { NavButton } from '@/components/nav-drawer'
 import { ListMotion } from '@/components/list-motion'
-import { SelectField } from '@/components/select-field'
-import { UpdatedAt } from '@/components/updated-at'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
 import { pageIcon, path, usePages } from '@/lib/pages'
-import { formatDateTime, formatDay, formatNumber, recentOrDate } from '@/lib/format'
 import { useDebounced, useInView, useListKeys, usePhone } from '@/lib/hooks'
-import { DateLabel, dateMetadata } from '@/components/date-field'
 import { useObjects, useRecordPages, useTool, useWorkspace } from '@/lib/queries'
-import { useColumnWidths } from '@/lib/use-column-widths'
 import { filterKeys, validateRecordSearch } from '@/lib/record-search'
 import { statusOf } from '@/lib/stages'
 import { useMail } from '@/lib/sync'
@@ -95,7 +87,6 @@ function ObjectList({ slug }: { slug: string }) {
   const records = useMemo(() => queue && result.records ? byUrgency(result.records, zone).map((item) => item.record) : result.records, [queue, result.records, zone])
   // Searching narrows a view, so the queue says how much of it shows.
   const unsearched = useTool<{ total: number }>('search_records', { object: slug, ...scope, query: '', filters, limit: 1 }, { enabled: queue && !!query }).data?.total
-  const { width, resize } = useColumnWidths(slug)
   const end = useRef<HTMLDivElement>(null)
   useInView(end, !everything && !!hasNextPage && !isFetchingNextPage, fetchNextPage)
   const navigate = useNavigate()
@@ -107,9 +98,6 @@ function ObjectList({ slug }: { slug: string }) {
     return objects ? <Header><NavButton />{slug}</Header> : <Loading />
   }
   const own = !object.standard
-  const contacts = slug === 'companies' || slug === 'people'
-  // The CRM's objects show their choices first; the workspace's own tables keep the order columns were added in.
-  const columns = object.attributes.filter((a) => a.slug !== 'name' && a.type !== 'markdown' && !(slug === 'follow_ups' && dateMetadata(a.slug))).sort((a, b) => (own ? 0 : Number(b.type === 'select') - Number(a.type === 'select')))
   const ownerFilter = slug === 'follow_ups' && <OwnerFilter filters={filters} onChange={(filters) => void navigate({ to: '.', search: (previous) => ({ ...previous, filters: urlFilters(filters) }), replace: true })} />
   const recordFilters = (title = false) => (
     <RecordFilters key={slug} object={object} filters={filters} defaults={defaults} query={q} scope={scope} selected={saved} title={title} total={total}
@@ -255,113 +243,13 @@ function ObjectList({ slug }: { slug: string }) {
           </div>
         ) : (
           <div className={cn("scrollbar-quiet min-h-0 flex-1 overflow-auto", own && "px-5 md:px-8")}>
-            {/* Cells keep to one line; empty prompts and menu chevrons show on the hovered row only. */}
-            <table className="w-full table-fixed border-collapse text-[13px] [&_[data-hint]]:opacity-0 [&_[data-hint]:focus-visible]:opacity-100 [&_[data-hint][data-state=open]]:opacity-100 [&_tr:hover_[data-hint]]:opacity-100 [&_tr:not(:hover)_input:not(:focus)::placeholder]:text-transparent pointer-coarse:[&_[data-hint]]:opacity-100">
-              <colgroup>
-                <col style={{ width: width('name', 280) }} />
-                {slug === 'companies' && <col style={{ width: width('people', 240) }} />}
-                {contacts && <col style={{ width: width('last_contact', 140) }} />}
-                <col style={{ width: width('updated_at', 140) }} />
-                {columns.map((a) => (
-                  <col key={a.slug} style={{ width: width(a.slug, defaultWidth(a)) }} />
-                ))}
-                {own && <col style={{ width: 48 }} />}
-                <col />
-              </colgroup>
-              <thead className="sticky top-0 z-10 bg-bg">
-                <tr className="h-9 border-b border-border text-left text-[12px] text-ink-3">
-                  <th className="sticky left-0 z-20 bg-bg px-4 font-medium">
-                    {own ? <ColumnHeader object={object} attribute={object.attributes.find((a) => a.slug === 'name')!} /> : slug === 'companies' ? 'Company' : 'Name'}
-                    <Resizer onPointerDown={resize('name', 280)} />
-                  </th>
-                  {slug === 'companies' && (
-                    <th className="relative px-3 font-medium">
-                      People
-                      <Resizer onPointerDown={resize('people', 240)} />
-                    </th>
-                  )}
-                  {contacts && <th className="relative px-3 font-medium">
-                    Last Contact
-                    <Resizer onPointerDown={resize('last_contact', 140)} />
-                  </th>}
-                  <th className="relative px-3 font-medium">
-                    Last updated
-                    <Resizer onPointerDown={resize('updated_at', 140)} />
-                  </th>
-                  {columns.map((a) => (
-                    <th key={a.slug} className="relative px-3 font-medium">
-                      {own ? <ColumnHeader object={object} attribute={a} /> : <span className="block truncate">{a.name}</span>}
-                      <Resizer onPointerDown={resize(a.slug, defaultWidth(a))} />
-                    </th>
-                  ))}
-                  {own && (
-                    <th className="px-1">
-                      <AddColumn object={object} objects={objects ?? []}>
-                        <Button variant="ghost" size="icon-sm" aria-label="Add column">
-                          <Plus />
-                        </Button>
-                      </AddColumn>
-                    </th>
-                  )}
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {records?.map((r, index) => (
-                  <RecordMenu key={r.id} object={object} record={r}>
-                    <tr
-                      data-row={index}
-                      data-flip={r.id}
-                      onClick={() => openRecord(index)}
-                      className={cn('group h-11 cursor-default border-b border-border/60 hover:bg-list-hover data-[state=open]:bg-list-hover', focus === index && 'bg-list-hover')}
-                    >
-                      <td className={cn('sticky left-0 z-10 bg-bg px-4 py-2 group-hover:bg-list-hover group-data-[state=open]:bg-list-hover', focus === index && 'bg-list-hover')}>
-                        <Link to="/r/$recordId" params={{ recordId: r.id }} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} className="flex min-w-0 items-center gap-2.5 font-medium leading-[1.35] text-ink">
-                          <RecordIcon object={slug} name={recordName(r)} photo={r.photo} icon={pageIcon(r)} />
-                          <span title={recordName(r)} className="line-clamp-2 min-w-0">{recordName(r)}</span>
-                        </Link>
-                      </td>
-                      {slug === 'companies' && <td className="overflow-hidden px-3 text-ink-2"><CompanyPeople company={r} /></td>}
-                      {contacts && <td className="px-3 text-[12px] text-ink-3">
-                        {r.activity?.last_at && <time dateTime={r.activity.last_at} title={formatDateTime(r.activity.last_at)} className="whitespace-nowrap tabular-nums">{recentOrDate(r.activity.last_at)}</time>}
-                      </td>}
-                      <td className="px-3 text-[12px] text-ink-3"><UpdatedAt at={r.updated_at} /></td>
-                      {columns.map((a) => (
-                        <td key={a.slug} className="overflow-hidden px-3 py-1 text-ink-2">
-                          {own ? (
-                            <div onClick={(e) => e.stopPropagation()}>
-                              <Field record={r} attribute={a} inline />
-                            </div>
-                          ) : a.type === 'select' ? (
-                            <div onClick={(e) => e.stopPropagation()}>
-                              <SelectField record={r} attribute={a} inline />
-                            </div>
-                          ) : (
-                            cell(r, a)
-                          )}
-                        </td>
-                      ))}
-                      {own && <td />}
-                      <td />
-                    </tr>
-                  </RecordMenu>
-                ))}
-              </tbody>
-            </table>
+            <RecordTable object={object} objects={objects ?? []} records={records ?? []} focus={focus} openRecord={openRecord} />
             <div ref={end} aria-hidden className="h-px" />
           </div>
         )}
       </ListMotion>
     </>
   )
-}
-
-// defaultWidth fits a column's usual content until someone drags it wider.
-const defaultWidth = (attribute: Attribute) => (attribute.multi || attribute.type === 'reference' ? 280 : attribute.type === 'select' || attribute.type === 'status' ? 200 : 180)
-
-// Resizer is the edge of a table header that drags its column's width.
-function Resizer({ onPointerDown }: { onPointerDown: (e: React.PointerEvent) => void }) {
-  return <span aria-hidden onPointerDown={onPointerDown} onClick={(e) => e.stopPropagation()} className="absolute inset-y-0 right-0 w-1.5 cursor-col-resize touch-none transition-colors hover:bg-primary/40" />
 }
 
 function ViewButton({ active, label, onClick, children }: { active: boolean; label: string; onClick: () => void; children: ReactNode }) {
@@ -384,35 +272,6 @@ function glance(record: CrmRecord, object: CrmObject) {
   }
   const text = valueText(valuesOf(record, attribute.slug)[0])
   return attribute.type === 'status' ? <Stage stage={text} /> : text
-}
-
-function cell(record: CrmRecord, attribute: Attribute) {
-  const values = valuesOf(record, attribute.slug).map(valueText)
-  if (attribute.type === 'status' && values[0]) {
-    return <Stage stage={values[0]} />
-  }
-  const ValueLink = valueLinks[attribute.type]
-  if (ValueLink && values[0]) {
-    return (
-      <span className="flex min-w-0 items-center gap-1.5">
-        <ValueLink value={values[0]} className="truncate" />
-        {values.length > 1 && <span className="shrink-0 text-[12px] text-ink-3">+{values.length - 1}</span>}
-      </span>
-    )
-  }
-  if (attribute.type === 'datetime') {
-    return values.map((value) => <DateLabel key={value} value={value} suggested={attribute.slug === 'action_date' && record.values.action_date_basis === 'Suggested'} />)
-  }
-  if (attribute.type === 'date') {
-    return values.map(formatDay).join(', ')
-  }
-  if (attribute.type === 'checkbox') {
-    return values[0] === 'true' ? 'Yes' : ''
-  }
-  if (attribute.type === 'number') {
-    return values.map((v) => formatNumber(v, attribute.slug)).join(', ')
-  }
-  return <span className="block truncate" title={values.join(', ')}>{values.join(', ')}</span>
 }
 
 function Empty({ object, query, filtered }: { object: CrmObject; query: string; filtered: boolean }) {

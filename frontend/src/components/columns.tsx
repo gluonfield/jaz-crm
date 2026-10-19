@@ -1,4 +1,4 @@
-import { AlignLeft, Archive, ArrowUpRight, AtSign, Calendar, CircleChevronDown, Contrast, Hash, Link2, Pencil, Phone, SquareCheck, Tags, Trash2, UserRound } from 'lucide-react'
+import { AlignLeft, Archive, ArrowLeft, ArrowRight, ArrowUpRight, AtSign, Calendar, ChevronDown, CircleChevronDown, Contrast, Hash, Link2, Pencil, Phone, SquareCheck, Tags, Trash2, UserRound } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { slugify } from '@/lib/crm'
 import { useAction } from '@/lib/queries'
@@ -11,27 +11,43 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { menuItem, menuLabel, menuSeparator } from './ui/menu'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
 
-export function ColumnHeader({ object, attribute, icon, className }: { object: CrmObject; attribute: Attribute; icon?: ReactNode; className?: string }) {
+export function ColumnHeader({ object, attribute, name, reorder, icon, className }: {
+  object: CrmObject
+  attribute?: Attribute
+  name?: string
+  reorder?: { left?: () => void; right?: () => void }
+  icon?: ReactNode
+  className?: string
+}) {
   const edit = useAction<object>('edit_attribute')
   const [renaming, setRenaming] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const label = name ?? attribute?.name
   return (
     <>
+      {reorder && <span className="min-w-0 truncate">{label}</span>}
       <DropdownMenu>
         <DropdownMenuTrigger
+          aria-label={`${label} column options`}
+          draggable={false}
           className={cn(
             '-mx-1.5 flex h-7 min-w-0 items-center gap-2 rounded-[var(--radius-control)] px-1.5 font-medium outline-none hover:bg-list-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-list-active',
+            reorder && 'ml-auto shrink-0 opacity-0 group-hover/column:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 pointer-coarse:opacity-100',
             className,
           )}
         >
-          {icon}
-          <span className="truncate">{attribute.name}</span>
+          {reorder ? <ChevronDown className="size-3.5" /> : <>{icon}<span className="truncate">{label}</span></>}
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-44">
-          <DropdownMenuItem onSelect={() => setRenaming(true)}>
+          {reorder && <>
+            <DropdownMenuItem disabled={!reorder.left} onSelect={reorder.left}><ArrowLeft /> Move Left</DropdownMenuItem>
+            <DropdownMenuItem disabled={!reorder.right} onSelect={reorder.right}><ArrowRight /> Move Right</DropdownMenuItem>
+            {attribute && <DropdownMenuSeparator />}
+          </>}
+          {attribute && <DropdownMenuItem onSelect={() => setRenaming(true)}>
             <Pencil /> Rename…
-          </DropdownMenuItem>
-          {!attribute.protected && (
+          </DropdownMenuItem>}
+          {attribute && !attribute.protected && (
             <>
               <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={() => edit.mutate({ object: object.slug, attribute: attribute.slug, action: 'archive' })}>
@@ -44,10 +60,12 @@ export function ColumnHeader({ object, attribute, icon, className }: { object: C
           )}
         </DropdownMenuContent>
       </DropdownMenu>
-      <NameDialog open={renaming} onOpenChange={setRenaming} title="Rename column" initial={attribute.name} action="Rename" onSubmit={(name) => edit.mutate({ object: object.slug, attribute: attribute.slug, action: 'rename', name })} />
-      <ConfirmDialog open={deleting} onOpenChange={setDeleting} title={`Delete ${attribute.name}?`} onConfirm={() => edit.mutate({ object: object.slug, attribute: attribute.slug, action: 'delete' })}>
-        Its value in every {singular(object)} will be deleted, with the saved views filtering by it. This cannot be undone.
-      </ConfirmDialog>
+      {attribute && <>
+        <NameDialog open={renaming} onOpenChange={setRenaming} title="Rename column" initial={attribute.name} action="Rename" onSubmit={(name) => edit.mutate({ object: object.slug, attribute: attribute.slug, action: 'rename', name })} />
+        <ConfirmDialog open={deleting} onOpenChange={setDeleting} title={`Delete ${attribute.name}?`} onConfirm={() => edit.mutate({ object: object.slug, attribute: attribute.slug, action: 'delete' })}>
+          Its value in every {singular(object)} will be deleted, with the saved views filtering by it. This cannot be undone.
+        </ConfirmDialog>
+      </>}
     </>
   )
 }

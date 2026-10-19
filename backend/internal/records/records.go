@@ -28,7 +28,9 @@ type Object struct {
 	Icon        string
 	Description string
 	Standard    bool
-	Attributes  []Attribute
+	// Columns order the table's columns after Name; the rest follow.
+	Columns    []string
+	Attributes []Attribute
 }
 
 type Attribute struct {
@@ -122,6 +124,20 @@ func (sc schema) attribute(object storage.Object, slug string, includeArchived b
 	return sc.attrs[i], nil
 }
 
+// Computed columns cannot collide with attribute slugs, which start with a letter.
+func (sc schema) column(object storage.Object, column string) bool {
+	switch column {
+	case "$updated_at":
+		return true
+	case "$people":
+		return object.Slug == "companies"
+	case "$last_contact":
+		return object.Slug == "companies" || object.Slug == "people"
+	}
+	a, err := sc.attribute(object, column, true)
+	return err == nil && column != titleAttribute && a.Type != Markdown
+}
+
 func (sc schema) attributeByID(id string) storage.Attribute {
 	i := slices.IndexFunc(sc.attrs, func(a storage.Attribute) bool { return a.ID == id })
 	return sc.attrs[i]
@@ -136,6 +152,7 @@ func (s *Service) Objects(ctx context.Context, actor auth.Actor, includeArchived
 	out := []Object{}
 	for _, o := range sc.objects {
 		view := Object{Slug: o.Slug, Name: o.Name, Icon: o.Icon, Description: o.Description, Standard: standard(o.Slug)}
+		view.Columns = slices.DeleteFunc(o.Columns, func(column string) bool { return !sc.column(o, column) })
 		if o.ParentID != nil {
 			view.Parent = *o.ParentID
 		}

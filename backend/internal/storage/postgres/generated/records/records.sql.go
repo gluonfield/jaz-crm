@@ -99,7 +99,7 @@ func (q *Queries) CreateAttribute(ctx context.Context, arg CreateAttributeParams
 }
 
 const createObject = `-- name: CreateObject :one
-INSERT INTO objects (workspace_id, slug, name, id, parent_id) VALUES ($1, $2, $3, $4, $5) RETURNING id, workspace_id, slug, name, created_at, parent_id, icon, description
+INSERT INTO objects (workspace_id, slug, name, id, parent_id) VALUES ($1, $2, $3, $4, $5) RETURNING id, workspace_id, slug, name, created_at, parent_id, icon, description, columns
 `
 
 type CreateObjectParams struct {
@@ -128,6 +128,7 @@ func (q *Queries) CreateObject(ctx context.Context, arg CreateObjectParams) (Obj
 		&i.ParentID,
 		&i.Icon,
 		&i.Description,
+		&i.Columns,
 	)
 	return i, err
 }
@@ -431,7 +432,7 @@ func (q *Queries) ListAttributes(ctx context.Context, workspaceID string) ([]Att
 }
 
 const listObjects = `-- name: ListObjects :many
-SELECT id, workspace_id, slug, name, created_at, parent_id, icon, description FROM objects WHERE workspace_id = $1 ORDER BY created_at, slug
+SELECT id, workspace_id, slug, name, created_at, parent_id, icon, description, columns FROM objects WHERE workspace_id = $1 ORDER BY created_at, slug
 `
 
 func (q *Queries) ListObjects(ctx context.Context, workspaceID string) ([]Object, error) {
@@ -452,6 +453,7 @@ func (q *Queries) ListObjects(ctx context.Context, workspaceID string) ([]Object
 			&i.ParentID,
 			&i.Icon,
 			&i.Description,
+			&i.Columns,
 		); err != nil {
 			return nil, err
 		}
@@ -1078,14 +1080,16 @@ func (q *Queries) StartRecords(ctx context.Context, arg StartRecordsParams) erro
 }
 
 const updateObject = `-- name: UpdateObject :execrows
-UPDATE objects SET name = coalesce($1, name), icon = coalesce($2, icon), description = coalesce($3, description)
-WHERE workspace_id = $4 AND id = $5
+UPDATE objects SET name = coalesce($1, name), icon = coalesce($2, icon), description = coalesce($3, description),
+  columns = coalesce($4, columns)
+WHERE workspace_id = $5 AND id = $6
 `
 
 type UpdateObjectParams struct {
 	Name        *string
 	Icon        *string
 	Description *string
+	Columns     []string
 	WorkspaceID string
 	ID          string
 }
@@ -1095,6 +1099,7 @@ func (q *Queries) UpdateObject(ctx context.Context, arg UpdateObjectParams) (int
 		arg.Name,
 		arg.Icon,
 		arg.Description,
+		arg.Columns,
 		arg.WorkspaceID,
 		arg.ID,
 	)

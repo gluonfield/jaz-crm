@@ -44,7 +44,7 @@ func (s *Store) CreateAttribute(ctx context.Context, attr storage.AttributeInput
 }
 
 func (s *Store) UpdateObject(ctx context.Context, workspaceID, id string, update storage.ObjectUpdate) error {
-	return affected(s.rec.UpdateObject(ctx, recdb.UpdateObjectParams{Name: update.Name, Icon: update.Icon, Description: update.Description, WorkspaceID: workspaceID, ID: id}))
+	return affected(s.rec.UpdateObject(ctx, recdb.UpdateObjectParams{Name: update.Name, Icon: update.Icon, Description: update.Description, Columns: update.Columns, WorkspaceID: workspaceID, ID: id}))
 }
 
 func (s *Store) MoveObject(ctx context.Context, workspaceID, id string, parent *string) error {

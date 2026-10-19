@@ -14,12 +14,14 @@ type Object struct {
 	ParentID    *string
 	Icon        string
 	Description string
+	Columns     []string
 }
 
 type ObjectUpdate struct {
 	Name        *string
 	Icon        *string
 	Description *string
+	Columns     []string
 }
 
 type Attribute struct {
