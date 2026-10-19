@@ -25,6 +25,7 @@ type Object struct {
 	Slug        string
 	Name        string
 	Parent      string
+	Position    float64
 	Icon        string
 	Description string
 	Standard    bool
@@ -135,7 +136,7 @@ func (s *Service) Objects(ctx context.Context, actor auth.Actor, includeArchived
 	}
 	out := []Object{}
 	for _, o := range sc.objects {
-		view := Object{Slug: o.Slug, Name: o.Name, Icon: o.Icon, Description: o.Description, Standard: standard(o.Slug)}
+		view := Object{Slug: o.Slug, Name: o.Name, Position: o.Position, Icon: o.Icon, Description: o.Description, Standard: standard(o.Slug)}
 		if o.ParentID != nil {
 			view.Parent = *o.ParentID
 		}

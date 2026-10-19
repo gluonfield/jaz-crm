@@ -1,7 +1,7 @@
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { ArrowUpRight, FileText, FolderInput, Pencil, Table2, Trash2 } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
-import { type Page, type Pages, path, within } from '@/lib/pages'
+import { type Page, type Pages, path, useMove, within } from '@/lib/pages'
 import { useAction } from '@/lib/queries'
 import type { CrmObject } from '@/lib/types'
 import { PageIcon } from './page-icon'
@@ -14,6 +14,7 @@ export function TableMenu({ object, pages, children }: { object: CrmObject; page
   const navigate = useNavigate()
   const viewing = useRouterState({ select: (s) => s.location.pathname }) === `/o/${object.slug}`
   const edit = useAction<object>('edit_object')
+  const { move } = useMove()
   const [renaming, setRenaming] = useState(false)
   const [deleting, setDeleting] = useState(false)
   return (
@@ -36,7 +37,7 @@ export function TableMenu({ object, pages, children }: { object: CrmObject; page
               ...[...pages.byId.values()].map((page) => ({ value: page.id, label: path(pages, page.id).map((ancestor) => ancestor.name).join(' / '), icon: <PageIcon value={page.icon} /> })),
             ]}
             selected={[object.parent ?? '']}
-            onSelect={(parent) => edit.mutate({ object: object.slug, action: 'move', parent })}
+            onSelect={(parent) => parent !== (object.parent ?? '') && move(pages, object, { place: 'inside', page: pages.byId.get(parent) })}
           />
           <ContextMenuSeparator />
           <ContextMenuItem onSelect={() => setDeleting(true)}>
@@ -62,6 +63,7 @@ export function PageMenu({ page, pages, children }: { page: Page; pages: Pages; 
   const viewing = useRouterState({ select: (s) => s.location.pathname }) === `/r/${page.id}`
   const newPage = useNewPage()
   const write = useAction<object>('upsert_record')
+  const { move } = useMove()
   const remove = useAction<{ record_id: string }>('delete_record')
   const [deleting, setDeleting] = useState(false)
   const [naming, setNaming] = useState(false)
@@ -90,7 +92,7 @@ export function PageMenu({ page, pages, children }: { page: Page; pages: Pages; 
             placeholder="Move to…"
             options={places}
             selected={[page.parent ?? '']}
-            onSelect={(parent) => write.mutate({ object: 'pages', record_id: page.id, ...(parent ? { values: { parent } } : { remove: { parent: [] } }) })}
+            onSelect={(parent) => parent !== (page.parent ?? '') && move(pages, page, { place: 'inside', page: pages.byId.get(parent) })}
           />
           <ContextMenuSeparator />
           <ContextMenuItem onSelect={() => setDeleting(true)}>

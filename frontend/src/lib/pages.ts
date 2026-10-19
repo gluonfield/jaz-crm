@@ -3,15 +3,23 @@ import { recordName, valuesOf } from './crm'
 import { useAction, useObjects, useTool } from './queries'
 import type { CrmObject, CrmRecord, Ref } from './types'
 
-// A page's order sorts it among its siblings: its stored position, else when
-// it was made. parent is where it sits in the tree.
-export type Page = { id: string; name: string; parent?: string; icon?: string; order: number }
+// A page's position sorts it among the pages and tables beside it: its stored
+// position, else when it was made. parent is where it sits in the tree.
+export type Page = { id: string; name: string; parent?: string; icon?: string; position: number }
+
+// Item is a page or a table in the Data tree.
+export type Item = Page | CrmObject
+
+export const isTable = (item: Item): item is CrmObject => 'slug' in item
+
+// keyOf names an item's row, '' for the top level's.
+const keyOf = (item?: Item) => !item ? '' : isTable(item) ? `database:${item.slug}` : `page:${item.id}`
 
 export const pageIcon = (record: CrmRecord) => record.object === 'pages' && typeof record.values.icon === 'string' ? record.values.icon : undefined
 
-// Pages is every page, and its sub-pages by parent ('' for the top level) in
-// order.
-export type Pages = { byId: Map<string, Page>; children: Map<string, Page[]>; tables: Map<string, CrmObject[]> }
+// Pages is every page, and the pages and tables inside each page ('' for the
+// top level) in order.
+export type Pages = { byId: Map<string, Page>; children: Map<string, Item[]> }
 
 export function usePages(): Pages | undefined {
   const records = useTool<{ records: CrmRecord[] }>('search_records', { object: 'pages', limit: 500 }).data?.records
@@ -23,24 +31,20 @@ export function pagesOf(records: CrmRecord[], objects: CrmObject[]): Pages {
   const byId = new Map<string, Page>()
   for (const r of [...records].sort((a, b) => a.created_at.localeCompare(b.created_at))) {
     const position = valuesOf(r, 'position')[0]
-    byId.set(r.id, { id: r.id, name: recordName(r), parent: (valuesOf(r, 'parent')[0] as Ref | undefined)?.id, icon: pageIcon(r), order: typeof position === 'string' ? Number(position) : Date.parse(r.created_at) })
+    byId.set(r.id, { id: r.id, name: recordName(r), parent: (valuesOf(r, 'parent')[0] as Ref | undefined)?.id, icon: pageIcon(r), position: typeof position === 'string' ? Number(position) : Date.parse(r.created_at) })
   }
-  // A page whose parent is unknown, or which no top-level page reaches, sits
-  // at the top level.
-  const top = (page: Page) => !page.parent || !byId.has(page.parent) || path({ byId }, page.id).length === 0
-  const sorted = [...byId.values()].sort((a, b) => a.order - b.order)
-  const parents = sorted.map((page) => (top(page) ? '' : page.parent!))
-  const children = new Map<string, Page[]>()
-  sorted.forEach((page, i) => {
-    page.parent = parents[i] || undefined
-    children.set(parents[i], [...(children.get(parents[i]) ?? []), page])
+  // An item whose parent is unknown, or a page which no top-level page
+  // reaches, sits at the top level.
+  const top = (item: Item) => !item.parent || !byId.has(item.parent) || (!isTable(item) && path({ byId }, item.id).length === 0)
+  const tables = objects.filter((object) => !object.standard).map((table) => ({ ...table }))
+  const items = [...tables, ...byId.values()].sort((a, b) => a.position - b.position)
+  const parents = items.map((item) => (top(item) ? '' : item.parent!))
+  const children = new Map<string, Item[]>()
+  items.forEach((item, i) => {
+    item.parent = parents[i] || undefined
+    children.set(parents[i], [...(children.get(parents[i]) ?? []), item])
   })
-  const tables = new Map<string, CrmObject[]>()
-  for (const table of objects.filter((object) => !object.standard)) {
-    const parent = table.parent && byId.has(table.parent) ? table.parent : ''
-    tables.set(parent, [...(tables.get(parent) ?? []), table])
-  }
-  return { byId, children, tables }
+  return { byId, children }
 }
 
 // path lists a page's ancestors and the page from the top, or nothing when
@@ -59,89 +63,118 @@ export function path(pages: Pick<Pages, 'byId'>, id: string): Page[] {
 // within reports whether a page is the given one or inside it.
 export const within = (pages: Pages, id: string, ancestor: string) => path(pages, id).some((p) => p.id === ancestor)
 
-// Drop is where a dragged page or table lands: inside a page ('' for the top
-// level), or before or after one among its siblings.
-export type Place = 'inside' | 'before' | 'after'
-export type Drop = { id: string; place: Place }
+// Drop is where a moved item lands: inside a page (none for the top level),
+// or before or after a page or table among its siblings.
+export type Drop = { place: 'inside'; page?: Page } | { place: 'before' | 'after'; item: Item }
+export type Place = Drop['place']
+type Edge = Exclude<Place, 'inside'>
 
-// slot is where a page dropped there sits: its parent, and an order between
-// its new neighbours, after the last page when it goes inside.
-export function slot(pages: Pages, page: string, drop: Drop) {
-  const parent = drop.place === 'inside' ? drop.id : (pages.byId.get(drop.id)?.parent ?? '')
-  const siblings = (pages.children.get(parent) ?? []).filter((p) => p.id !== page)
-  const at = drop.place === 'inside' ? siblings.length : siblings.findIndex((p) => p.id === drop.id) + (drop.place === 'after' ? 1 : 0)
+// parentOf is the page a drop puts an item in, '' for the top level.
+const parentOf = (drop: Drop) => (drop.place === 'inside' ? (drop.page?.id ?? '') : (drop.item.parent ?? ''))
+
+// rowOf names the row a drop is at.
+const rowOf = (drop: Drop) => keyOf(drop.place === 'inside' ? drop.page : drop.item)
+
+// slot is where an item dropped there sits: its parent, and a position between
+// its new neighbours, after the last item when it goes inside.
+export function slot(pages: Pages, moving: Item, drop: Drop) {
+  const parent = parentOf(drop)
+  const siblings = (pages.children.get(parent) ?? []).filter((item) => keyOf(item) !== keyOf(moving))
+  const at = drop.place === 'inside' ? siblings.length : siblings.findIndex((item) => keyOf(item) === keyOf(drop.item)) + (drop.place === 'after' ? 1 : 0)
   const [before, after] = [siblings[at - 1], siblings[at]]
-  const order = before && after ? (before.order + after.order) / 2 : before ? before.order + 1000 : after ? after.order - 1000 : 0
-  return { parent, order }
+  const position = before && after ? (before.position + after.position) / 2 : before ? before.position + 1000 : after ? after.position - 1000 : 0
+  return { parent, position }
+}
+
+// useMove moves a page or table to where a drop puts it.
+export function useMove() {
+  const write = useAction<object>('upsert_record')
+  const edit = useAction<object>('edit_object')
+  return {
+    pending: write.isPending || edit.isPending,
+    move: (pages: Pages, item: Item, drop: Drop, moved?: (parent: string) => void) => {
+      const { parent, position } = slot(pages, item, drop)
+      const done = { onSuccess: () => moved?.(parent) }
+      if (isTable(item)) {
+        edit.mutate({ object: item.slug, action: 'move', parent, position }, done)
+      } else {
+        const values = { position: String(position), ...(parent && parent !== item.parent ? { parent } : {}) }
+        write.mutate({ object: 'pages', record_id: item.id, values, ...(!parent && item.parent ? { remove: { parent: [] } } : {}) }, done)
+      }
+    },
+  }
 }
 
 export function useDataDrag(pages: Pages | undefined, moved: (parent: string) => void) {
-  const write = useAction<object>('upsert_record')
-  const edit = useAction<object>('edit_object')
-  const [source, setSource] = useState<Page | CrmObject>()
+  const { pending, move } = useMove()
+  const [source, setSource] = useState<Item>()
   const [target, setTarget] = useState<Drop>()
   const type = 'application/x-jaz-crm-data'
-  const pending = write.isPending || edit.isPending
-  const key = (item: Page | CrmObject) => 'slug' in item ? `database:${item.slug}` : `page:${item.id}`
   const reset = () => {
     setSource(undefined)
     setTarget(undefined)
   }
-  // A table only moves inside a page; a page also moves beside one, where the
-  // row offers it, by its top or bottom edge.
-  const dropAt = (event: DragEvent<HTMLElement>, id: string, edges: Place[]): Drop => {
+  // A row's edges place an item before or after it: a table's halves, or a
+  // page's top and bottom thirds where it offers them, its middle taking the
+  // item inside.
+  const dropAt = (event: DragEvent<HTMLElement>, item: Item | undefined, edges: Edge[]): Drop => {
     const { top, height } = event.currentTarget.getBoundingClientRect()
     const y = (event.clientY - top) / height
-    const edge = !source || 'slug' in source ? undefined : y < 0.3 ? 'before' : y > 0.7 ? 'after' : undefined
-    return { id, place: edge && edges.includes(edge) ? edge : 'inside' }
+    if (item && isTable(item)) {
+      return { place: y < 0.5 ? 'before' : 'after', item }
+    }
+    const edge = y < 0.3 ? 'before' : y >= 0.7 ? 'after' : 'inside'
+    return item && edge !== 'inside' && edges.includes(edge) ? { place: edge, item } : { place: 'inside', page: item }
   }
-  const accepts = ({ id, place }: Drop) => {
-    if (!pages || !source || pending || (id !== '' && !pages.byId.has(id))) {
+  const accepts = (drop: Drop) => {
+    if (!pages || !source || pending) {
       return false
     }
-    const parent = place === 'inside' ? id : (pages.byId.get(id)?.parent ?? '')
-    if (place === 'inside' && parent === (source.parent ?? '')) {
+    const parent = parentOf(drop)
+    if (drop.place === 'inside' ? parent === (source.parent ?? '') : keyOf(drop.item) === keyOf(source)) {
       return false
     }
-    return 'slug' in source || (id !== source.id && !within(pages, parent, source.id))
+    return isTable(source) || !within(pages, parent, source.id)
   }
   return {
     dragging: !!source,
-    target,
-    from: (item: Page | CrmObject) => ({
+    // at is where a dragged item would land at an item's row, or the top
+    // level's.
+    at: (item?: Item) => (target && rowOf(target) === keyOf(item) ? target.place : undefined),
+    from: (item: Item) => ({
       draggable: !pending,
-      'data-dragging': !!source && key(source) === key(item),
+      'data-dragging': !!source && keyOf(source) === keyOf(item),
       onDragStart: (event: DragEvent<HTMLElement>) => {
         if (pending) {
           event.preventDefault()
           return
         }
         event.dataTransfer.clearData()
-        event.dataTransfer.setData(type, key(item))
+        event.dataTransfer.setData(type, keyOf(item))
         event.dataTransfer.effectAllowed = 'move'
         setSource(item)
       },
       onDragEnd: reset,
     }),
-    // onto makes a row a drop target for the page id ('' for the top level),
-    // offering the edges a page can also land beside it by.
-    onto: (id: string, edges: Place[] = []) => ({
+    // onto makes an item's row, or the top level's, a drop target; a page row
+    // offers the given edges.
+    onto: (item?: Item, edges: Edge[] = []) => ({
       onDragOver: (event: DragEvent<HTMLElement>) => {
         if (!event.dataTransfer.types.includes(type)) {
           return
         }
         event.stopPropagation()
-        const drop = dropAt(event, id, edges)
+        const drop = dropAt(event, item, edges)
         const allowed = accepts(drop)
         event.dataTransfer.dropEffect = allowed ? 'move' : 'none'
-        setTarget((current) => !allowed ? undefined : current?.id === id && current.place === drop.place ? current : drop)
+        setTarget((current) => !allowed ? undefined : current && rowOf(current) === rowOf(drop) && current.place === drop.place ? current : drop)
         if (allowed) {
           event.preventDefault()
         }
       },
       onDragLeave: (event: DragEvent<HTMLElement>) => {
         if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) {
-          setTarget((current) => current?.id === id ? undefined : current)
+          setTarget((current) => current && rowOf(current) === keyOf(item) ? undefined : current)
         }
       },
       onDrop: (event: DragEvent<HTMLElement>) => {
@@ -150,15 +183,9 @@ export function useDataDrag(pages: Pages | undefined, moved: (parent: string) =>
         }
         event.preventDefault()
         event.stopPropagation()
-        const drop = dropAt(event, id, edges)
-        if (pages && source && event.dataTransfer.getData(type) === key(source) && accepts(drop)) {
-          if ('slug' in source) {
-            edit.mutate({ object: source.slug, action: 'move', parent: id }, { onSuccess: () => moved(id) })
-          } else {
-            const { parent, order } = slot(pages, source.id, drop)
-            const values = { position: String(order), ...(parent && parent !== source.parent ? { parent } : {}) }
-            write.mutate({ object: 'pages', record_id: source.id, values, ...(!parent && source.parent ? { remove: { parent: [] } } : {}) }, { onSuccess: () => moved(parent) })
-          }
+        const drop = dropAt(event, item, edges)
+        if (pages && source && event.dataTransfer.getData(type) === keyOf(source) && accepts(drop)) {
+          move(pages, source, drop, moved)
         }
         reset()
       },

@@ -11,7 +11,7 @@ import { Related } from './related'
 import { Summary } from './summary'
 
 test('a person summary keeps context in its own field', () => {
-  const object: CrmObject = { slug: 'people', name: 'People', attributes: [
+  const object: CrmObject = { slug: 'people', name: 'People', position: 0, attributes: [
     { slug: 'name', name: 'Name', type: 'text' },
     { slug: 'job_title', name: 'Job title', type: 'text' },
     { slug: 'context', name: 'Context', type: 'text' },
@@ -29,7 +29,7 @@ test('a person summary keeps context in its own field', () => {
 })
 
 test('a teammate in a summary is named with their field', () => {
-  const object: CrmObject = { slug: 'people', name: 'People', attributes: [
+  const object: CrmObject = { slug: 'people', name: 'People', position: 0, attributes: [
     { slug: 'name', name: 'Name', type: 'text' },
     { slug: 'owner', name: 'Owner', type: 'member' },
   ] }
@@ -89,7 +89,7 @@ test('page decorations leave custom Icon fields visible in record cards', () => 
 })
 
 test('a related custom table keeps its Icon field as descriptive data', async () => {
-  const object: CrmObject = { slug: 'parts', name: 'Parts', attributes: [
+  const object: CrmObject = { slug: 'parts', name: 'Parts', position: 0, attributes: [
     { slug: 'name', name: 'Name', type: 'text' },
     { slug: 'icon', name: 'Icon', type: 'text' },
     { slug: 'company', name: 'Company', type: 'reference', target: 'companies' },

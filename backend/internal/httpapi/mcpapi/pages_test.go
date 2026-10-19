@@ -107,17 +107,17 @@ func TestTablesInsidePages(t *testing.T) {
 	if got := mustCall(t, a, "get_record", map[string]any{"record_id": root})["values"].(map[string]any)["content"]; got != body {
 		t.Fatalf("table link content: %v", got)
 	}
-	parent := func() any {
+	suppliers := func() map[string]any {
 		t.Helper()
 		for _, raw := range mustCall(t, a, "list_objects", map[string]any{})["objects"].([]any) {
-			object := raw.(map[string]any)
-			if object["slug"] == "suppliers" {
-				return object["parent"]
+			if object := raw.(map[string]any); object["slug"] == "suppliers" {
+				return object
 			}
 		}
 		t.Fatal("table disappeared")
 		return nil
 	}
+	parent := func() any { return suppliers()["parent"] }
 	for _, invalid := range []string{foreign, company, "missing"} {
 		if _, failure := call(t, a, "create_object", map[string]any{"slug": "invalid", "name": "Invalid", "parent": invalid}); failure == "" {
 			t.Fatalf("created table under invalid parent %s", invalid)
@@ -139,11 +139,10 @@ func TestTablesInsidePages(t *testing.T) {
 			t.Fatalf("table parent: got %q, want %q", got, destination)
 		}
 	}
-	for _, raw := range mustCall(t, a, "list_objects", map[string]any{})["objects"].([]any) {
-		object := raw.(map[string]any)
-		if object["slug"] == "suppliers" && object["description"] != "Supplier research and quotations" {
-			t.Fatalf("moving changed database description: %v", object)
-		}
+	mustCall(t, a, "edit_object", map[string]any{"object": "suppliers", "action": "move", "parent": root, "position": 2.5})
+	mustCall(t, a, "edit_object", map[string]any{"object": "suppliers", "action": "move", "parent": child})
+	if moved := suppliers(); moved["parent"] != child || moved["position"] != 2.5 || moved["description"] != "Supplier research and quotations" {
+		t.Fatalf("a move without a position kept neither its place nor its description: %v", moved)
 	}
 	mustCall(t, a, "delete_record", map[string]any{"record_id": child})
 	if parent() != child {

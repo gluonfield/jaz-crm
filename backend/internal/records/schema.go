@@ -157,6 +157,7 @@ type ObjectEdit struct {
 	Action      string
 	Name        string
 	Parent      string
+	Position    *float64
 	Icon        string
 	Description string
 }
@@ -199,7 +200,7 @@ func (s *Service) EditObject(ctx context.Context, actor auth.Actor, object strin
 		if err != nil {
 			return err
 		}
-		return s.store.MoveObject(ctx, actor.WorkspaceID, o.ID, parentID)
+		return s.store.MoveObject(ctx, actor.WorkspaceID, o.ID, parentID, edit.Position)
 	default:
 		return errs.Invalidf("action is rename, move, icon, describe or delete")
 	}
