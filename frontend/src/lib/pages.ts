@@ -1,4 +1,4 @@
-import { type DragEvent, useMemo, useState } from 'react'
+import { type DragEvent, useEffect, useMemo, useState } from 'react'
 import { recordName, valuesOf } from './crm'
 import { useAction, useObjects, useTool } from './queries'
 import type { CrmObject, CrmRecord, Ref } from './types'
@@ -119,11 +119,25 @@ export function useMove() {
   }
 }
 
+const dragType = 'application/x-jaz-crm-data'
+
 export function useDataDrag(pages: Pages | undefined, moved: (parent: string) => void) {
   const { pending, move } = useMove()
   const [source, setSource] = useState<Item>()
   const [target, setTarget] = useState<Drop>()
-  const type = 'application/x-jaz-crm-data'
+  // The window takes a dragged row wherever it is let go, so the drag ends at
+  // once; a refused drop makes the browser slide its picture back first.
+  useEffect(() => {
+    const take = (event: globalThis.DragEvent) => {
+      if (event.dataTransfer?.types.includes(dragType)) {
+        event.preventDefault()
+        event.dataTransfer.dropEffect = 'move'
+      }
+    }
+    const names = ['dragenter', 'dragover', 'drop'] as const
+    names.forEach((name) => window.addEventListener(name, take))
+    return () => names.forEach((name) => window.removeEventListener(name, take))
+  }, [])
   const reset = () => {
     setSource(undefined)
     setTarget(undefined)
@@ -155,7 +169,7 @@ export function useDataDrag(pages: Pages | undefined, moved: (parent: string) =>
           return
         }
         event.dataTransfer.clearData()
-        event.dataTransfer.setData(type, keyOf(item))
+        event.dataTransfer.setData(dragType, keyOf(item))
         event.dataTransfer.effectAllowed = 'move'
         setSource(item)
       },
@@ -165,17 +179,11 @@ export function useDataDrag(pages: Pages | undefined, moved: (parent: string) =>
     // offers the given edges.
     onto: (item?: Item, edges: Edge[] = []) => ({
       onDragOver: (event: DragEvent<HTMLElement>) => {
-        if (!event.dataTransfer.types.includes(type)) {
+        if (!event.dataTransfer.types.includes(dragType)) {
           return
         }
-        event.stopPropagation()
         const drop = dropAt(event, item, edges)
-        const allowed = accepts(drop)
-        event.dataTransfer.dropEffect = allowed ? 'move' : 'none'
-        setTarget((current) => !allowed ? undefined : current && rowOf(current) === rowOf(drop) && current.place === drop.place ? current : drop)
-        if (allowed) {
-          event.preventDefault()
-        }
+        setTarget((current) => !accepts(drop) ? undefined : current && rowOf(current) === rowOf(drop) && current.place === drop.place ? current : drop)
       },
       onDragLeave: (event: DragEvent<HTMLElement>) => {
         if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) {
@@ -183,13 +191,8 @@ export function useDataDrag(pages: Pages | undefined, moved: (parent: string) =>
         }
       },
       onDrop: (event: DragEvent<HTMLElement>) => {
-        if (!event.dataTransfer.types.includes(type)) {
-          return
-        }
-        event.preventDefault()
-        event.stopPropagation()
         const drop = dropAt(event, item, edges)
-        if (pages && source && event.dataTransfer.getData(type) === keyOf(source) && accepts(drop)) {
+        if (pages && source && event.dataTransfer.getData(dragType) === keyOf(source) && accepts(drop)) {
           move(pages, source, drop, moved)
         }
         reset()

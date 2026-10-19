@@ -8,7 +8,7 @@ import { browser, until } from './browser.mjs'
 
 const directory = resolve('../runs/data-drag-tests')
 
-test('a Data row drags as itself, solid under the pointer, and fades in the list while it moves', { timeout: 60000 }, async () => {
+test('a Data row drags as itself, solid under the pointer, fades while it moves, and ends at once when let go in place', { timeout: 60000 }, async () => {
   await mkdir(directory, { recursive: true })
   execFileSync('bun', ['build', 'tests/data-drag.tsx', '--outdir', directory, '--target', 'browser'], { stdio: 'pipe' })
   const bundle = await readFile(resolve(directory, 'data-drag.js'))
@@ -52,7 +52,8 @@ test('a Data row drags as itself, solid under the pointer, and fades in the list
       const row = event.target.closest('[draggable="true"]')
       window.dragged = { source: event.target.tagName }
       setTimeout(() => { window.dragged.opacity = getComputedStyle(row).opacity })
-    }, true)`)
+    }, true)
+    window.addEventListener('dragover', (event) => { window.taken = event.defaultPrevented })`)
     const point = (href, fraction) => page.evaluate(`(() => {
       const rect = document.querySelector('a[href="${href}"]').getBoundingClientRect()
       return { x: rect.x + 40, y: rect.y + rect.height * ${fraction} }
@@ -63,20 +64,37 @@ test('a Data row drags as itself, solid under the pointer, and fades in the list
     chrome.on('Input.dragIntercepted', (event) => {
       drag = event.data
     })
-    await page.call('Input.setInterceptDrags', { enabled: true })
-    await page.call('Input.dispatchMouseEvent', { type: 'mouseMoved', ...source })
-    await page.call('Input.dispatchMouseEvent', { type: 'mousePressed', button: 'left', buttons: 1, clickCount: 1, ...source })
-    await page.call('Input.dispatchMouseEvent', { type: 'mouseMoved', button: 'left', buttons: 1, x: source.x, y: source.y + 6 })
-    await page.call('Input.dispatchMouseEvent', { type: 'mouseMoved', button: 'left', buttons: 1, ...target })
-    await until(() => drag)
-    await page.call('Input.dispatchDragEvent', { type: 'dragEnter', ...target, data: drag })
-    await page.call('Input.dispatchDragEvent', { type: 'dragOver', ...target, data: drag })
+    const lift = async (from, to) => {
+      drag = undefined
+      await page.call('Input.setInterceptDrags', { enabled: true })
+      await page.call('Input.dispatchMouseEvent', { type: 'mouseMoved', ...from })
+      await page.call('Input.dispatchMouseEvent', { type: 'mousePressed', button: 'left', buttons: 1, clickCount: 1, ...from })
+      await page.call('Input.dispatchMouseEvent', { type: 'mouseMoved', button: 'left', buttons: 1, x: from.x, y: from.y + 6 })
+      await page.call('Input.dispatchMouseEvent', { type: 'mouseMoved', button: 'left', buttons: 1, ...to })
+      await until(() => drag)
+      await page.call('Input.dispatchDragEvent', { type: 'dragEnter', ...to, data: drag })
+      await page.call('Input.dispatchDragEvent', { type: 'dragOver', ...to, data: drag })
+    }
+    const release = async (at) => {
+      await page.call('Input.dispatchDragEvent', { type: 'drop', ...at, data: drag })
+      await page.call('Input.dispatchMouseEvent', { type: 'mouseReleased', button: 'left', clickCount: 1, ...at })
+    }
+    await lift(source, target)
     await until(() => page.evaluate(`getComputedStyle(document.querySelector('a[href="/o/events"]').parentElement).opacity === '0.5'`))
     assert.deepEqual(await page.evaluate('window.dragged'), { source: 'DIV', opacity: '1' }, 'the row, not its link, is dragged and pictured before it fades')
-    await page.call('Input.dispatchDragEvent', { type: 'drop', ...target, data: drag })
-    await page.call('Input.dispatchMouseEvent', { type: 'mouseReleased', button: 'left', clickCount: 1, ...target })
+    await release(target)
     await until(() => writes.length === 1)
     assert.deepEqual(writes[0], { object: 'events', action: 'move', position: Date.parse(made) + 1000 }, 'a move beside a page at the top level keeps the parent it has')
+    await until(() => page.evaluate(`document.querySelector('a[href="/o/events"]').parentElement.draggable`))
+    // Let go on its own row: the page takes the drop, so the browser ends the
+    // drag at once instead of sliding the picture back, and nothing moves.
+    const still = await point('/o/events', 0.5)
+    await lift(still, { x: still.x, y: still.y + 40 })
+    await page.call('Input.dispatchDragEvent', { type: 'dragOver', ...still, data: drag })
+    assert.equal(await page.evaluate('window.taken'), true, 'a drag let go in place is taken')
+    await release(still)
+    await until(() => page.evaluate(`getComputedStyle(document.querySelector('a[href="/o/events"]').parentElement).opacity === '1'`))
+    assert.equal(writes.length, 1)
   } finally {
     await chrome.close()
     await new Promise((accept) => server.close(accept))
