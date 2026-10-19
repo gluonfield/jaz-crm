@@ -2,6 +2,7 @@ import { Bookmark, ChevronDown, ListFilter, Plus, Save, Trash2 } from 'lucide-re
 import { useQueries } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { toolQuery, useAction, useTool } from '@/lib/queries'
+import { useShortcutActions } from '@/lib/shortcuts'
 import { needsValue, type RecordSearchScope } from '@/lib/record-search'
 import type { CrmObject, RecordFilter, SavedFilter } from '@/lib/types'
 import { Button } from '@jaz/ui/button'
@@ -26,6 +27,10 @@ export function RecordFilters({ object, filters, defaults = [], query, scope, se
   const save = useAction<{ object: string; id?: string; name: string; query: string; filters: RecordFilter[] }, SavedFilter>('save_filter')
   const remove = useAction<{ id: string }>('delete_saved_filter')
   const [open, setOpen] = useState(false)
+  useShortcutActions({ filter: () => {
+    setDraft(filters)
+    setOpen(true)
+  } })
   const [draft, setDraft] = useState<RecordFilter[]>([])
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)

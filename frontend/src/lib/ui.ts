@@ -2,11 +2,12 @@ import { useSyncExternalStore } from 'react'
 import { readItem, writeItem } from './storage'
 
 // Shell state shared by components that are not parent and child.
-type UI = { paletteOpen: boolean; sidebarWidth: number; sidebarCollapsed: boolean }
+type UI = { paletteOpen: boolean; helpOpen: boolean; sidebarWidth: number; sidebarCollapsed: boolean }
 
 const savedWidth = Number(readItem('jaz-crm:sidebar-width'))
 let state: UI = {
   paletteOpen: false,
+  helpOpen: false,
   sidebarWidth: Number.isFinite(savedWidth) && savedWidth >= 200 ? Math.min(420, savedWidth) : 232,
   sidebarCollapsed: readItem('jaz-crm:sidebar-collapsed') === 'true',
 }

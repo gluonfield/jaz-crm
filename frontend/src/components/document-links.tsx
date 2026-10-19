@@ -6,6 +6,7 @@ import { TextSelection } from '@tiptap/pm/state'
 import { ReactRenderer } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { Link2 } from 'lucide-react'
+import { editorShortcuts } from '@/lib/shortcut-definitions'
 import { recordName } from '@/lib/crm'
 import { pageIcon } from '@/lib/pages'
 import { useObjects, useTool } from '@/lib/queries'
@@ -75,8 +76,25 @@ const documentLink: MarkViewRenderer = ({ editor, mark, HTMLAttributes }) => {
 export const DocumentKit = StarterKit.extend({
   addExtensions() {
     return [
-      ...this.parent!().map((extension) => extension.name === 'link' ? extension.extend({ addMarkView: () => documentLink }) : extension),
-      TaskList,
+      ...this.parent!().map((extension) => {
+        if (extension.name === 'link') {
+          return extension.extend({ addMarkView: () => documentLink })
+        }
+        if (extension.name === 'orderedList') {
+          return extension.extend({ addKeyboardShortcuts() {
+            return { [editorShortcuts.ordered.keys.replaceAll('+', '-')]: () => this.editor.commands.toggleOrderedList() }
+          } })
+        }
+        if (extension.name === 'codeBlock') {
+          return extension.extend({ addKeyboardShortcuts() {
+            return { ...this.parent?.(), [editorShortcuts.codeBlock.keys.replaceAll('+', '-')]: () => this.editor.commands.toggleCodeBlock() }
+          } })
+        }
+        return extension
+      }),
+      TaskList.extend({ addKeyboardShortcuts() {
+        return { [editorShortcuts.todo.keys.replaceAll('+', '-')]: () => this.editor.commands.toggleTaskList() }
+      } }),
       TaskItem.configure({ nested: true }),
       TableKit,
       Callout,

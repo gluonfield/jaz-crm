@@ -13,13 +13,17 @@ import { PageIconPicker } from '@/components/page-icon'
 import { PersonContext } from '@/components/person-context'
 import { Properties } from '@/components/properties'
 import { Related } from '@/components/related'
+import { RecordCommands } from '@/components/record-commands'
+import { useShortcutActions } from '@/lib/shortcuts'
+import { useNewPage } from '@/components/new-data'
+import { RecordCopyItems } from '@/components/record-copy-items'
 import { RecordDeleteDialog } from '@/components/record-delete-dialog'
 import { NavButton } from '@/components/nav-drawer'
 import { SubPages } from '@/components/sub-pages'
 import { Summary } from '@/components/summary'
 import { Timeline } from '@/components/timeline'
 import { UpdatedAt } from '@/components/updated-at'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
 import { useAction, useObjects, useTool, useUpcoming, useWrite } from '@/lib/queries'
 import { path, usePages } from '@/lib/pages'
@@ -41,6 +45,17 @@ function RecordPage() {
   const remove = useAction<object>('delete_record')
   const [deleting, setDeleting] = useState(false)
   const pages = usePages()
+  const newPage = useNewPage()
+  const parentId = record && (valuesOf(record, 'parent')[0] as Ref | undefined)?.id
+  const firstChild = pages?.children.get(recordId)?.find((item) => 'id' in item)
+  useShortcutActions({
+    ...(object && { back: () => { void navigate({ to: '/o/$object', params: { object: object.slug } }) } }),
+    ...(record?.object === 'pages' && {
+      subPage: () => newPage(recordId),
+      ...(parentId && { parent: () => { void navigate({ to: '/r/$recordId', params: { recordId: parentId } }) } }),
+      ...(firstChild && 'id' in firstChild && { child: () => { void navigate({ to: '/r/$recordId', params: { recordId: firstChild.id } }) } }),
+    }),
+  })
   if (!record || !objects || !object) {
     return <Loading />
   }
@@ -51,6 +66,7 @@ function RecordPage() {
   const ancestors = page && pages ? path(pages, record.id).slice(0, -1) : []
   const header = (
     <Header className={page ? 'mb-8 border-b-0 px-0' : undefined}>
+      <RecordCommands key={record.id} record={record} object={object} page onDelete={() => setDeleting(true)} />
       <NavButton />
       {page ? (
         <nav aria-label="Breadcrumbs" className="min-w-0 flex-1">
@@ -94,6 +110,8 @@ function RecordPage() {
           {record.object === 'follow_ups' && <DropdownMenuItem onSelect={() => void navigate({ to: '.', search: tab ? {} : { tab: 'activity' } })}>
             <FileText /> {tab ? 'Conversation' : 'Changes'}
           </DropdownMenuItem>}
+          <RecordCopyItems id={record.id} />
+          <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => setDeleting(true)}>
             <Trash2 /> Delete…
           </DropdownMenuItem>

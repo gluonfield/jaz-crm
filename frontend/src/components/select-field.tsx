@@ -26,10 +26,10 @@ export function ValueDot({ value }: { value: string }) {
 
 // SelectField picks a select's values; inline, as in a table, it keeps to one
 // line and shows its empty label and menu chevron only on hover.
-export function SelectField({ record, attribute, inline = false }: { record: CrmRecord; attribute: Attribute; inline?: boolean }) {
+export function SelectField({ record, attribute, inline = false, onCommit }: { record: CrmRecord; attribute: Attribute; inline?: boolean; onCommit?: () => void }) {
   const values = valuesOf(record, attribute.slug).map(valueText)
   const limit = inline ? 1 : Infinity
-  const write = useWrite(record)
+  const write = useWrite(record, onCommit)
   const add = useAction<{ object: string; attribute: string; value: string }, { value: string }>('add_attribute_option')
   const pending = write.pending || add.isPending
   return (
@@ -39,7 +39,6 @@ export function SelectField({ record, attribute, inline = false }: { record: Crm
           type="button"
           aria-label={`Edit ${attribute.name.toLowerCase()} for ${recordName(record)}`}
           disabled={pending}
-          onKeyDown={(e) => e.stopPropagation()}
           className="flex min-h-7 w-full min-w-0 items-center gap-1.5 rounded-[var(--radius-control)] px-1.5 py-0.5 text-left outline-none hover:bg-list-hover focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
         >
           <span className={cn('flex min-w-0 flex-1 gap-x-3 gap-y-1', inline ? 'overflow-hidden' : 'flex-wrap')}>

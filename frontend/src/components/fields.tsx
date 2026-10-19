@@ -21,12 +21,12 @@ const inputType: Partial<Record<Attribute['type'], string>> = { number: 'number'
 // Field shows and edits one attribute of a record in the way its type needs.
 // Inline, as in a table, it keeps to one line: many values collapse to the
 // first and a count, and empty prompts show only on hover (data-hint).
-export function Field({ record, attribute, inline = false }: { record: CrmRecord; attribute: Attribute; inline?: boolean }) {
+export function Field({ record, attribute, inline = false, onCommit }: { record: CrmRecord; attribute: Attribute; inline?: boolean; onCommit?: () => void }) {
   const values = valuesOf(record, attribute.slug)
-  const write = useWrite(record)
+  const write = useWrite(record, onCommit)
   const slug = attribute.slug
   if (attribute.type === 'datetime' && !attribute.multi) {
-    return <DateField record={record} slug={slug} label={attribute.name} />
+    return <DateField record={record} slug={slug} label={attribute.name} onCommit={onCommit} />
   }
   if (attribute.type === 'checkbox') {
     const on = values[0] === 'true'
@@ -43,7 +43,7 @@ export function Field({ record, attribute, inline = false }: { record: CrmRecord
     )
   }
   if (attribute.type === 'select') {
-    return <SelectField record={record} attribute={attribute} inline={inline} />
+    return <SelectField record={record} attribute={attribute} inline={inline} onCommit={onCommit} />
   }
   if (attribute.type === 'status') {
     const current = values[0] && valueText(values[0])

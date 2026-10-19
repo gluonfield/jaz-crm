@@ -21,11 +21,12 @@ import { UpdatedAt } from './updated-at'
 
 type TableColumn = { key: string; name: string; width: number; attribute?: Attribute }
 
-export function RecordTable({ object, objects, records, focus, openRecord }: {
+export function RecordTable({ object, objects, records, focus, onFocus, openRecord }: {
   object: CrmObject
   objects: CrmObject[]
   records: CrmRecord[]
   focus: number
+  onFocus?: (index: number) => void
   openRecord: (index: number) => void
 }) {
   const slug = object.slug
@@ -84,12 +85,14 @@ export function RecordTable({ object, objects, records, focus, openRecord }: {
           <RecordMenu key={r.id} object={object} record={r}>
             <tr
               data-row={index}
+              onPointerEnter={() => onFocus?.(index)}
+              onFocus={() => onFocus?.(index)}
               data-flip={r.id}
               onClick={() => openRecord(index)}
               className={cn('group h-11 cursor-default border-b border-border/60 hover:bg-list-hover data-[state=open]:bg-list-hover', focus === index && 'bg-list-hover')}
             >
               <td data-column="name" className={cn('sticky left-0 z-10 bg-bg px-4 py-2 group-hover:bg-list-hover group-data-[state=open]:bg-list-hover', focus === index && 'bg-list-hover')}>
-                <Link to="/r/$recordId" params={{ recordId: r.id }} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} className="flex min-w-0 items-center gap-2.5 font-medium leading-[1.35] text-ink">
+                <Link to="/r/$recordId" params={{ recordId: r.id }} onClick={(e) => e.stopPropagation()} className="flex min-w-0 items-center gap-2.5 font-medium leading-[1.35] text-ink">
                   <RecordIcon object={slug} name={recordName(r)} photo={r.photo} icon={pageIcon(r)} />
                   <span title={recordName(r)} className="line-clamp-2 min-w-0">{recordName(r)}</span>
                 </Link>

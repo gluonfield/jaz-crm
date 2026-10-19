@@ -1,55 +1,37 @@
 import { useNavigate } from '@tanstack/react-router'
-import { type ReactNode, useEffect } from 'react'
+import { type ReactNode } from 'react'
 import { Toaster } from 'sonner'
-import { isTyping } from '@/lib/hooks'
+import { embedded } from '@/lib/api'
+import { signOut } from '@/lib/account'
+import { ShortcutProvider, useShortcutActions } from '@/lib/shortcuts'
+import { ShortcutsHelp } from './shortcuts-help'
 import { getUI, setUI } from '@/lib/ui'
 import { CommandPalette } from './command-palette'
 import { DesktopSidebar, NavDrawer } from './nav-drawer'
 import { useChanges } from '@/lib/changes'
 import { useWorkspaceChanges } from '@/lib/workspaces'
 
-const goKeys: Record<string, string> = { p: '/o/people', c: '/o/companies', t: '/triage', x: '/connections', s: '/settings' }
-
 export function AppShell({ children }: { children: ReactNode }) {
+  return <ShortcutProvider><Shell>{children}</Shell></ShortcutProvider>
+}
+
+function Shell({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
   useChanges(useWorkspaceChanges())
-  useEffect(() => {
-    let pendingG = false
-    const onKey = (e: KeyboardEvent) => {
-      if (e.defaultPrevented) {
-        return
-      }
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault()
-        setUI({ paletteOpen: !getUI().paletteOpen })
-        return
-      }
-      if (isTyping(e) || e.metaKey || e.ctrlKey || e.altKey || getUI().paletteOpen) {
-        return
-      }
-      if (pendingG) {
-        pendingG = false
-        if (goKeys[e.key]) {
-          e.preventDefault()
-          navigate({ to: goKeys[e.key] })
-        }
-      } else if (e.key === 'g') {
-        pendingG = true
-        window.setTimeout(() => (pendingG = false), 1200)
-      } else if (e.key === '/') {
-        e.preventDefault()
-        // A page's own search takes /, as on most sites; elsewhere / searches everything.
-        const search = document.querySelector<HTMLInputElement>('[data-page-search]')
-        if (search) {
-          search.focus()
-        } else {
-          setUI({ paletteOpen: true })
-        }
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [navigate])
+  const go = (to: string) => () => void navigate({ to })
+  useShortcutActions({
+    palette: () => setUI({ paletteOpen: !getUI().paletteOpen }),
+    help: () => setUI({ helpOpen: true }),
+    search: () => setUI({ paletteOpen: true }),
+    people: go('/o/people'),
+    companies: go('/o/companies'),
+    inbox: go('/triage'),
+    mine: go('/o/follow_ups'),
+    trash: go('/trash'),
+    settings: go('/settings'),
+    connections: go('/connections'),
+    ...(!embedded() && { signOut: () => { void signOut() } }),
+  }, 0)
 
   return (
     <NavDrawer>
@@ -57,6 +39,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <DesktopSidebar />
         <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-bg pb-[var(--safe-area-bottom)] md:my-2 md:mr-2 md:rounded-[var(--radius-card)]">{children}</main>
         <CommandPalette />
+        <ShortcutsHelp />
         <Toaster
           position="bottom-left"
           mobileOffset={{ bottom: 'calc(16px + var(--safe-area-bottom))' }}

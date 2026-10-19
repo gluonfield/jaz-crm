@@ -8,6 +8,8 @@ import { pageIcon } from '@/lib/pages'
 import { useDebounced } from '@/lib/hooks'
 import { useObjects, useRecordSearch } from '@/lib/queries'
 import { setSchemePreference } from '@/lib/theme'
+import { useAvailableShortcuts, shortcutLabel } from '@/lib/shortcuts'
+import { shortcuts, shortcutIds } from '@/lib/shortcut-definitions'
 import { setUI, useUI } from '@/lib/ui'
 import { ObjectIcon, RecordIcon } from './icons'
 import { Kbd } from './kbd'
@@ -29,6 +31,7 @@ export function CommandPalette() {
 
 function Palette() {
   const navigate = useNavigate()
+  const actions = useAvailableShortcuts()
   const objects = useObjects() ?? []
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState('')
@@ -47,7 +50,7 @@ function Palette() {
   const pages = [
     ...objects.map((o) => ({ label: o.name, to: `/o/${o.slug}`, icon: <ObjectIcon slug={o.slug} />, shortcut: undefined })),
     { label: 'Triage', to: '/triage', icon: <Inbox />, shortcut: 'G T' },
-    { label: 'Connections', to: '/connections', icon: <PlugZap />, shortcut: 'G X' },
+    { label: 'Connections', to: '/connections', icon: <PlugZap />, shortcut: undefined },
     { label: 'Settings', to: '/settings', icon: <Settings />, shortcut: 'G S' },
   ].filter((p) => matches(p.label))
   const themes = [
@@ -55,7 +58,7 @@ function Palette() {
     { label: 'Dark theme', scheme: 'dark' as const, icon: <Moon /> },
   ].filter((s) => matches(s.label))
   return (
-    <CommandPrimitive loop shouldFilter={false} label="Search" value={selected} onValueChange={setSelected}>
+    <CommandPrimitive data-command-palette loop shouldFilter={false} label="Search" value={selected} onValueChange={setSelected}>
       <CommandPrimitive.Input
         asChild
         autoFocus
@@ -86,6 +89,12 @@ function Palette() {
             ))}
           </CommandPrimitive.Group>
         )}
+        <CommandPrimitive.Group heading="Commands" className={groupClass}>
+          {shortcutIds.filter((id) => id !== 'palette' && id !== 'search' && actions[id] && matches(shortcuts[id].label)).map((id) => <Item key={id} value={`command:${id}`} shortcut={shortcuts[id].keys.map(shortcutLabel).join(' / ')} onSelect={() => {
+            setUI({ paletteOpen: false })
+            actions[id]?.()
+          }}>{shortcuts[id].label}</Item>)}
+        </CommandPrimitive.Group>
         {themes.length > 0 && (
           <CommandPrimitive.Group heading="Theme" className={groupClass}>
             {themes.map((s) => (
@@ -102,7 +111,7 @@ function Palette() {
 
 const groupClass = '[&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:text-[12px] [&_[cmdk-group-heading]]:text-ink-3'
 
-function Item({ value, icon, shortcut, onSelect, children }: { value?: string; icon: ReactNode; shortcut?: string; onSelect: () => void; children: ReactNode }) {
+function Item({ value, icon, shortcut, onSelect, children }: { value?: string; icon?: ReactNode; shortcut?: string; onSelect: () => void; children: ReactNode }) {
   return (
     <CommandPrimitive.Item
       value={value}

@@ -1,6 +1,8 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { ArrowDownAZ, ChevronRight, Kanban, ListChecks, Plus, Search, Table2, X } from 'lucide-react'
 import { type ReactNode, useMemo, useRef, useState } from 'react'
+import { RecordCommands } from '@/components/record-commands'
+import { useShortcutActions } from '@/lib/shortcuts'
 import { Board } from '@/components/board'
 import { RecordTable } from '@/components/record-table'
 import { DatabaseHeader } from '@/components/database-header'
@@ -84,16 +86,40 @@ function ObjectList({ slug }: { slug: string }) {
   const { total, hasNextPage, isFetchingNextPage, fetchNextPage } = result
   const zone = useWorkspace()?.timezone ?? 'UTC'
   // A queue reads in the order it shows, most urgent first.
-  const records = useMemo(() => queue && result.records ? byUrgency(result.records, zone).map((item) => item.record) : result.records, [queue, result.records, zone])
+  const ordered = useMemo(() => queue && result.records ? byUrgency(result.records, zone).map((item) => item.record) : result.records, [queue, result.records, zone])
+  const records = board && ordered ? (board.options ?? []).flatMap((stage) => ordered.filter((record) => valueText(valuesOf(record, board.slug)[0] ?? '') === stage)) : ordered
   // Searching narrows a view, so the queue says how much of it shows.
   const unsearched = useTool<{ total: number }>('search_records', { object: slug, ...scope, query: '', filters, limit: 1 }, { enabled: queue && !!query }).data?.total
   const end = useRef<HTMLDivElement>(null)
   useInView(end, !everything && !!hasNextPage && !isFetchingNextPage, fetchNextPage)
   const navigate = useNavigate()
   const openRecord = (index: number) => records && navigate({ to: '/r/$recordId', params: { recordId: records[index].id } })
-  const [focus, setFocus] = useListKeys(records?.map((r) => queue ? r.conversation_id ?? r.id : r.id) ?? [], queue ? { Enter: editDraft, Escape: () => setFocus(-1) } : { Enter: openRecord, o: openRecord })
+  const [focus, setFocus] = useListKeys(records?.map((r) => queue ? r.conversation_id ?? r.id : r.id) ?? [], queue ? { open: editDraft, back: () => setFocus(-1) } : { open: openRecord, back: () => setFocus(-1) })
   const [creating, setCreating] = useState(false)
   const phone = usePhone()
+  const across = (delta: number) => {
+    if (!board || !records?.length) {
+      return
+    }
+    const groups = (board.options ?? []).map((stage) => records.filter((record) => valueText(valuesOf(record, board.slug)[0] ?? '') === stage)).filter((group) => group.length)
+    const column = groups.findIndex((group) => group.includes(records[focus]))
+    const row = groups[column]?.indexOf(records[focus]) ?? 0
+    const next = groups[column + delta]
+    if (next) {
+      setFocus(records.indexOf(next[Math.min(Math.max(0, row), next.length - 1)]))
+    }
+  }
+  useShortcutActions({
+    ...(board && { left: () => across(-1), right: () => across(1) }),
+    create: () => setCreating(true),
+    ...(status && {
+      layout: () => { void navigate({ to: '.', search: { ...search, view: board || queue ? 'table' : 'board', group_by_conversation: slug === 'follow_ups' ? !queue : undefined }, replace: true }) },
+      board: () => { void navigate({ to: '.', search: { ...search, view: 'board', group_by_conversation: slug === 'follow_ups' ? true : undefined }, replace: true }) },
+    }),
+    all: () => { void navigate({ to: '.', search: { view: search.view, filters: [] }, replace: true }) },
+    clearFilter: () => { void navigate({ to: '.', search: { ...search, saved: undefined, filters: urlFilters(filters.slice(0, -1)) }, replace: true }) },
+    clearFilters: () => { void navigate({ to: '.', search: { ...search, q: undefined, saved: undefined, filters: [] }, replace: true }) },
+  })
   if (!object) {
     return objects ? <Header><NavButton />{slug}</Header> : <Loading />
   }
@@ -196,6 +222,7 @@ function ObjectList({ slug }: { slug: string }) {
   )
   return (
     <>
+      {records?.[focus] && <RecordCommands key={records[focus].id} record={records[focus]} object={object} />}
       {!queue && <Header className="group/header h-auto min-h-11 py-2 md:flex-wrap">
         <NavButton />
         {ancestors.length > 0 && <nav aria-label="Parent pages" className={cn('flex min-w-0 items-center gap-1.5', phoneSearch)}>
@@ -217,7 +244,7 @@ function ObjectList({ slug }: { slug: string }) {
       <CreateRecord object={object} open={creating} onOpenChange={setCreating} openCreated />
       <ListMotion className="flex min-h-0 flex-1 flex-col" scope={JSON.stringify([query, filters, view, sort, conversation_id])}>
         {result.isError ? <EmptyState title={result.error.message} icon={<Search />} /> : board ? (
-          records && <Board object={object} status={board} records={records} />
+          records && <Board object={object} status={board} records={records} focus={focus} onFocus={setFocus} />
         ) : queue ? (
           <FollowUpQueue records={records ?? []} focus={focus} onFocus={setFocus} controls={controls} empty={records?.length === 0 && <Empty object={object} query={query} filtered={filters.length > 0} />} />
         ) : records?.length === 0 && (!own || query || filters.length > 0 || phone) ? (
@@ -228,7 +255,7 @@ function ObjectList({ slug }: { slug: string }) {
               {records?.map((r, index) => (
                 <li key={r.id} data-flip={r.id}>
                   <RecordMenu object={object} record={r}>
-                    <Link to="/r/$recordId" params={{ recordId: r.id }} data-row={index} className={cn('flex h-13 items-center gap-3 px-4 outline-none hover:bg-list-hover focus-visible:bg-list-hover data-[state=open]:bg-list-hover', focus === index && 'bg-list-hover')}>
+                    <Link to="/r/$recordId" params={{ recordId: r.id }} data-row={index} onPointerEnter={() => setFocus(index)} className={cn('flex h-13 items-center gap-3 px-4 outline-none hover:bg-list-hover focus-visible:bg-list-hover data-[state=open]:bg-list-hover', focus === index && 'bg-list-hover')}>
                       <RecordIcon object={slug} name={recordName(r)} photo={r.photo} icon={pageIcon(r)} size={28} />
                       <span className="flex min-w-0 flex-col">
                         <span className="truncate font-medium text-ink">{recordName(r)}</span>
@@ -243,7 +270,7 @@ function ObjectList({ slug }: { slug: string }) {
           </div>
         ) : (
           <div className={cn("scrollbar-quiet min-h-0 flex-1 overflow-auto", own && "px-5 md:px-8")}>
-            <RecordTable object={object} objects={objects ?? []} records={records ?? []} focus={focus} openRecord={openRecord} />
+            <RecordTable object={object} objects={objects ?? []} records={records ?? []} focus={focus} onFocus={setFocus} openRecord={openRecord} />
             <div ref={end} aria-hidden className="h-px" />
           </div>
         )}

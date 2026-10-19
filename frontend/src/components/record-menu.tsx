@@ -5,6 +5,7 @@ import { type ReactNode, useState } from 'react'
 import { recordName, valueText, valuesOf } from '@/lib/crm'
 import { useAction, useWorkspace, useWrite } from '@/lib/queries'
 import type { Attribute, CrmObject, CrmRecord } from '@/lib/types'
+import { RecordCopyItems } from './record-copy-items'
 import { CreateRecord } from './create-record'
 import { RecordDeleteDialog } from './record-delete-dialog'
 import { RecordIcon } from './icons'
@@ -40,6 +41,7 @@ export function RecordMenu({ object, record, children }: { object: CrmObject; re
           <ContextMenuItem onSelect={() => setEditing(true)}>
             <Pencil /> Edit…
           </ContextMenuItem>
+          <RecordCopyItems id={record.id} context />
           <ContextMenuSeparator />
           <ContextMenuItem onSelect={() => setDeleting(true)}>
             <Trash2 /> Delete…

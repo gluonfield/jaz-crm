@@ -85,7 +85,7 @@ export function useColumnDrag(options: string[], save: (stage: string, before?: 
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', end)
       window.removeEventListener('pointercancel', cancel)
-      window.removeEventListener('keydown', key)
+      window.removeEventListener('keydown', key, true)
       window.removeEventListener('blur', finish)
       cleanup.current = undefined
       setView(undefined)
@@ -113,6 +113,7 @@ export function useColumnDrag(options: string[], save: (stage: string, before?: 
     }
     const key = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        e.preventDefault()
         finish()
       }
     }
@@ -120,7 +121,7 @@ export function useColumnDrag(options: string[], save: (stage: string, before?: 
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', end)
     window.addEventListener('pointercancel', cancel)
-    window.addEventListener('keydown', key)
+    window.addEventListener('keydown', key, true)
     window.addEventListener('blur', finish)
   }
   return { boardRef, order, view, start }

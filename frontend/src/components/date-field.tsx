@@ -21,7 +21,7 @@ export function DateLabel({ value, suggested = false }: { value: string; suggest
 
 // DateField shows a date and edits it in a popover; a prefix names it beside
 // the date where nothing else does.
-export function DateField({ record, slug = 'action_date', label = 'Action date', prefix }: { record: CrmRecord; slug?: string; label?: string; prefix?: string }) {
+export function DateField({ record, slug = 'action_date', label = 'Action date', prefix, onCommit }: { record: CrmRecord; slug?: string; label?: string; prefix?: string; onCommit?: () => void }) {
   const zone = useWorkspace()?.timezone ?? 'UTC'
   const value = textOf(record, slug)
   const basis = slug === 'action_date' ? textOf(record, 'action_date_basis') : ''
@@ -35,7 +35,10 @@ export function DateField({ record, slug = 'action_date', label = 'Action date',
       </Button>
     </PopoverTrigger>
     <PopoverContent align="end" className="w-[300px]" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
-      <DateEditor key={`${value}:${zone}`} record={record} slug={slug} label={label} value={value} zone={zone} close={() => setOpen(false)} />
+      <DateEditor key={`${value}:${zone}`} record={record} slug={slug} label={label} value={value} zone={zone} close={() => {
+        setOpen(false)
+        onCommit?.()
+      }} />
     </PopoverContent>
   </Popover>
 }

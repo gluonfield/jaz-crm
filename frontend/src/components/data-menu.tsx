@@ -4,6 +4,7 @@ import { type ReactNode, useState } from 'react'
 import { type Item, type Page, type Pages, isTable, path, useMove, within } from '@/lib/pages'
 import { useAction } from '@/lib/queries'
 import type { CrmObject } from '@/lib/types'
+import { RecordCopyItems } from './record-copy-items'
 import { PageIcon } from './page-icon'
 import { NewTable, useNewPage } from './new-data'
 import { ConfirmDialog, NameDialog } from './prompt-dialog'
@@ -69,6 +70,7 @@ export function PageMenu({ page, pages, children }: { page: Page; pages: Pages; 
           </ContextMenuItem>
           <ContextMenuItem onSelect={() => setNaming(true)}><Table2 /> Add Database</ContextMenuItem>
           <MoveTo item={page} pages={pages} />
+          <RecordCopyItems id={page.id} context />
           <ContextMenuSeparator />
           <ContextMenuItem onSelect={() => setDeleting(true)}>
             <Trash2 /> Delete…

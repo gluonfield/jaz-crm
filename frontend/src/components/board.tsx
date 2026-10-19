@@ -19,7 +19,7 @@ import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
 
 // Board lays an object's records out in columns by the stage of its status,
 // and moves a record to another stage when its card is dropped there.
-export function Board({ object, status, records }: { object: CrmObject; status: Attribute; records: CrmRecord[] }) {
+export function Board({ object, status, records, focus, onFocus }: { object: CrmObject; status: Attribute; records: CrmRecord[]; focus?: number; onFocus?: (index: number) => void }) {
   const upsert = useAction<object>('upsert_record')
   const [moved, setMoved] = useState<Record<string, { from: string; to: string }>>({})
   const [dragging, setDragging] = useState<string>()
@@ -98,7 +98,7 @@ export function Board({ object, status, records }: { object: CrmObject; status: 
               onCollapse={() => setCollapsed((current) => [...current, stage])}
               onPointerDown={(e) => dragColumn(stage, e)}>
               {cards.map((r) => (
-                <Card key={r.id} object={object} record={r} amount={amount} dragging={dragging === r.id} onDrag={setDragging} />
+                <Card key={r.id} object={object} record={r} index={records.indexOf(r)} focused={focus === records.indexOf(r)} onFocus={() => onFocus?.(records.indexOf(r))} amount={amount} dragging={dragging === r.id} onDrag={setDragging} />
               ))}
             </Column>}
           </section>
@@ -215,7 +215,7 @@ function Column({
   )
 }
 
-function Card({ object, record, amount, dragging, onDrag }: { object: CrmObject; record: CrmRecord; amount?: Attribute; dragging: boolean; onDrag: (id?: string) => void }) {
+function Card({ object, record, amount, dragging, onDrag, index, focused, onFocus }: { index: number; focused: boolean; onFocus: () => void; object: CrmObject; record: CrmRecord; amount?: Attribute; dragging: boolean; onDrag: (id?: string) => void }) {
   const navigate = useNavigate()
   const company = valuesOf(record, 'company')[0] as Ref | undefined
   const people = valuesOf(record, 'people') as Ref[]
@@ -226,6 +226,9 @@ function Card({ object, record, amount, dragging, onDrag }: { object: CrmObject;
     <li data-flip={record.id}>
       <RecordMenu object={object} record={record}>
         <div
+          data-row={index}
+          onPointerEnter={onFocus}
+          onFocus={onFocus}
           role="link"
           tabIndex={0}
           draggable
@@ -239,6 +242,7 @@ function Card({ object, record, amount, dragging, onDrag }: { object: CrmObject;
           onKeyDown={(e: KeyboardEvent) => e.key === 'Enter' && open()}
           className={cn(
             'group flex cursor-grab flex-col gap-2 rounded-[8px] border border-border bg-raised px-3 py-2.5 text-[13px] shadow-xs outline-none transition-[border-color,box-shadow,opacity] duration-150 hover:border-ink-3/40 hover:shadow-sm data-[state=open]:border-ink-3/40 focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing',
+            focused && 'bg-list-hover',
             dragging && 'opacity-40',
           )}
         >

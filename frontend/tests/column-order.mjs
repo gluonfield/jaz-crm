@@ -105,7 +105,7 @@ test('table order follows drags and keyboard menus, survives reload, and rolls b
     await key('Enter', 'Enter')
     await until(async () => writes.length === 2 && (await headers())[1] === 'cost')
     assert.deepEqual(writes[1].columns, ['archived', 'cost', '$updated_at', 'location', 'updated_at'])
-    assert.equal(await page.evaluate(`document.activeElement?.getAttribute('aria-label')`), 'Cost column options')
+    await until(() => page.evaluate(`document.activeElement?.getAttribute('aria-label') === 'Cost column options'`), 'Column menu must restore focus after closing')
     await key('Enter', 'Enter')
     await until(() => page.evaluate(`!!document.querySelector('[role="menu"]')`))
     assert.equal(await page.evaluate(`Array.from(document.querySelectorAll('[role="menuitem"]')).find(n => n.textContent.includes('Move Left')).getAttribute('aria-disabled')`), 'true')

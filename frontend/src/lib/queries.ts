@@ -51,12 +51,12 @@ export function useRecords(object: string, query: string | undefined, limit: num
   return useTool<{ records: CrmRecord[] }>('search_records', { object, query, limit }, { enabled: query !== undefined, placeholderData: (previous) => previous })
 }
 
-export function useWrite(record: CrmRecord) {
+export function useWrite(record: CrmRecord, onSuccess?: () => void) {
   const upsert = useAction<{ object: string; record_id: string; values?: Record<string, string>; remove?: Record<string, string[]> }>('upsert_record')
   return {
     pending: upsert.isPending,
-    set: (slug: string, value: string) => upsert.mutate({ object: record.object, record_id: record.id, values: { [slug]: value } }),
-    remove: (slug: string, values: string[]) => upsert.mutate({ object: record.object, record_id: record.id, remove: { [slug]: values } }),
+    set: (slug: string, value: string) => upsert.mutate({ object: record.object, record_id: record.id, values: { [slug]: value } }, { onSuccess }),
+    remove: (slug: string, values: string[]) => upsert.mutate({ object: record.object, record_id: record.id, remove: { [slug]: values } }, { onSuccess }),
   }
 }
 

@@ -6,6 +6,7 @@ import { NavButton } from '@/components/nav-drawer'
 import { ListMotion } from '@/components/list-motion'
 import { ObjectIcon } from '@/components/icons'
 import { PageIcon } from '@/components/page-icon'
+import { useListKeys } from '@/lib/hooks'
 import { formatDate, timeAgo } from '@/lib/format'
 import { useAction, useTool } from '@/lib/queries'
 import type { TrashedRecord } from '@/lib/types'
@@ -14,6 +15,9 @@ export const Route = createFileRoute('/_app/trash')({ component: TrashPage })
 
 function TrashPage() {
   const trash = useTool<{ records: TrashedRecord[] }>('list_trash')
+  const restore = useAction<{ record_id: string }>('restore_record')
+  const records = trash.data?.records ?? []
+  const [focus] = useListKeys(records.map((record) => record.id), { restore: (index) => restore.mutate({ record_id: records[index].id }) })
   return (
     <>
       <Header><NavButton /><Trash2 /> Trash</Header>
@@ -22,7 +26,7 @@ function TrashPage() {
           <div className="mx-auto max-w-[760px] px-6 py-8">
             {trash.isError && <p className="text-[13px] text-danger">Couldn’t load Trash.</p>}
             {trash.data?.records.length === 0 && <p className="text-[13px] text-ink-3">Trash is empty.</p>}
-            {trash.data?.records.map((record) => <TrashedRow key={record.id} record={record} />)}
+            {records.map((record, index) => <div key={record.id} data-row={index} className={focus === index ? "bg-list-hover" : undefined}><TrashedRow record={record} /></div>)}
           </div>
         </div>
       </ListMotion>
