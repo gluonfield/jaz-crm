@@ -18,6 +18,11 @@ const openedKey = 'crm-opened-pages'
 const rowButton =
   'absolute top-1 flex size-5 items-center justify-center rounded-[4px] text-ink-3 opacity-0 outline-none transition-opacity duration-100 hover:bg-list-active hover:text-ink focus-visible:opacity-100 group-hover/row:opacity-100 pointer-coarse:top-2.5 pointer-coarse:opacity-100 pointer-coarse:before:absolute pointer-coarse:before:-inset-2.5 [&_svg]:size-3.5'
 
+// Rows turn off dragging their link, so the browser drags and pictures the row
+// itself. lifted's fade is a transition, under reduced motion too, so it starts
+// after that picture is taken and the picture stays solid.
+const lifted = 'relative rounded-[var(--radius-control)] transition-opacity duration-150 data-[dragging=true]:opacity-50 [&>a]:cursor-grab'
+
 // mark shows where a dragged item would land at a row: tinted inside it, or a
 // line above or below it.
 const mark = (place?: Place) =>
@@ -84,7 +89,7 @@ function Items({ parent, depth, ...tree }: Tree & { parent: string; depth: numbe
 
 function TableItem({ object, pages, drag, depth }: { object: CrmObject; pages: Pages; drag: DataDrag; depth: number }) {
   return <TableMenu object={object} pages={pages}>
-    <div {...drag.from(object)} {...drag.onto(object)} className={cn('relative rounded-[var(--radius-control)] data-[dragging=true]:opacity-50 [&>a]:cursor-grab', mark(drag.at(object)))}><NavItem to={`/o/${object.slug}`} depth={depth} icon={<ObjectIcon slug={object.slug} icon={object.icon} />}>{object.name}</NavItem></div>
+    <div {...drag.from(object)} {...drag.onto(object)} className={cn(lifted, mark(drag.at(object)))}><NavItem to={`/o/${object.slug}`} depth={depth} draggable={false} icon={<ObjectIcon slug={object.slug} icon={object.icon} />}>{object.name}</NavItem></div>
   </TableMenu>
 }
 
@@ -100,9 +105,9 @@ function PageItem({ page, depth, ...tree }: Tree & { page: Page; depth: number }
         <div
           {...drag.from(page)}
           {...drag.onto(page, open && hasChildren ? ['before'] : ['before', 'after'])}
-          className={cn('group/row relative rounded-[var(--radius-control)] data-[dragging=true]:opacity-50 [&>a]:cursor-grab pointer-coarse:[&>a]:pr-8', mark(drag.at(page)))}
+          className={cn(lifted, 'group/row pointer-coarse:[&>a]:pr-8', mark(drag.at(page)))}
         >
-          <NavItem to={`/r/${page.id}`} depth={depth} icon={<PageIcon value={page.icon} className={cn(hasChildren && 'group-hover/row:invisible pointer-coarse:invisible')} />}>
+          <NavItem to={`/r/${page.id}`} depth={depth} draggable={false} icon={<PageIcon value={page.icon} className={cn(hasChildren && 'group-hover/row:invisible pointer-coarse:invisible')} />}>
             {page.name}
           </NavItem>
           {hasChildren && (
