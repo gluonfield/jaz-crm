@@ -5,15 +5,14 @@ import { isTyping } from '@/lib/hooks'
 import { getUI, setUI } from '@/lib/ui'
 import { CommandPalette } from './command-palette'
 import { DesktopSidebar, NavDrawer } from './nav-drawer'
-import { useLiveSync } from '@/lib/sync'
+import { useChanges } from '@/lib/changes'
 import { useWorkspaceChanges } from '@/lib/workspaces'
 
 const goKeys: Record<string, string> = { p: '/o/people', c: '/o/companies', t: '/triage', x: '/connections', s: '/settings' }
 
 export function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
-  useLiveSync()
-  useWorkspaceChanges()
+  useChanges(useWorkspaceChanges())
   useEffect(() => {
     let pendingG = false
     const onKey = (e: KeyboardEvent) => {

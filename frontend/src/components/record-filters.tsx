@@ -16,7 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
 // conditions someone added beyond the view's defaults. The title variant
 // shows each view's count, where search narrows the view without editing it.
 export function RecordFilters({ object, filters, defaults = [], query, scope, selected, title = false, total, onChange, onApply }: { object: CrmObject; filters: RecordFilter[]; defaults?: RecordFilter[]; query: string; scope: RecordSearchScope; selected?: string; title?: boolean; total?: number; onChange: (filters: RecordFilter[]) => void; onApply: (filter?: SavedFilter) => void }) {
-  const saved = useTool<{ filters: SavedFilter[] }>('list_saved_filters', { object: object.slug }, { refetchInterval: 5000 }).data?.filters ?? []
+  const saved = useTool<{ filters: SavedFilter[] }>('list_saved_filters', { object: object.slug }).data?.filters ?? []
   const active = saved.find((f) => f.id === selected)
   const [menu, setMenu] = useState(false)
   const counts = useQueries({

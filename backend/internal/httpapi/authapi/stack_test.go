@@ -19,8 +19,10 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
+	"github.com/gluonfield/jaz-crm/backend/internal/changes"
 	"github.com/gluonfield/jaz-crm/backend/internal/connections"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/authapi"
+	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/changesapi"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/connectapi"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/mcpapi"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/webhooks"
@@ -30,6 +32,7 @@ import (
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
 	"github.com/gluonfield/jaz-crm/backend/internal/workspaces"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"go.uber.org/fx/fxtest"
 )
 
 type stack struct {
@@ -69,7 +72,7 @@ func start(t *testing.T, oidc signin.OIDCConfig, members workspaces.Config) stac
 	}
 	lg := logos.NewService(store, logos.Fetcher{})
 	agents := mcpapi.NewHandler(mcpapi.Services{Records: crm, Workspaces: people, Interactions: convs, Connections: conns, Logos: lg}, keys, logger)
-	srv.Config.Handler = server.New(authn, agents, connectapi.NewHandler(conns, keys, logger), webhooks.NewHandler(conns, idle{}, convs, keys, webhooks.Config{}, logger), logosapi.NewHandler(lg, logger), pageimagesapi.NewHandler(crm, logger), "")
+	srv.Config.Handler = server.New(authn, agents, changesapi.NewHandler(changes.NewHub(fxtest.NewLifecycle(t), store, logger)), connectapi.NewHandler(conns, keys, logger), webhooks.NewHandler(conns, idle{}, convs, keys, webhooks.Config{}, logger), logosapi.NewHandler(lg, logger), pageimagesapi.NewHandler(crm, logger), "")
 	srv.Start()
 	t.Cleanup(srv.Close)
 	return stack{url: base, apiKey: apiKey, keys: keys, owner: owner.ID}

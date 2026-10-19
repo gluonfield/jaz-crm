@@ -1,5 +1,4 @@
 import { ArrowLeft, Check, Circle, CircleCheck, CircleDot, CircleX, Clock, LoaderCircle, Mail, NotebookText } from 'lucide-react'
-import { useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { Button } from '@jaz/ui/button'
@@ -53,10 +52,7 @@ function useSource(record: CrmRecord) {
   const meetings = useTool<{ interactions: Interaction[] }>('list_interactions', { record_id: record.id, kinds: ['meeting', 'call'], limit: 1 }, { enabled: !scoped })
   const found = messages.data?.interactions[0] ?? meetings.data?.interactions[0]
   const id = record.conversation_id ?? found?.id
-  const thread = useTool<Interaction>('get_interaction', { interaction_id: id ?? '' }, {
-    enabled: !!id,
-    refetchInterval: (query) => (query.state.data?.drafting?.state === 'drafting' ? 3000 : false),
-  })
+  const thread = useTool<Interaction>('get_interaction', { interaction_id: id ?? '' }, { enabled: !!id })
   const source = thread.data ?? found
   return {
     source,
@@ -112,14 +108,6 @@ export function Conversation({ record: initialRecord, onClose }: { record: CrmRe
   const company = valuesOf(record, 'company')[0] as Ref | undefined
   const context = useTool<CrmRecord>('get_record', { record_id: person?.id ?? '' }, { enabled: !!person })
   const drafting = source?.drafting
-  const draftingState = drafting?.state
-  const draftingStartedAt = drafting?.started_at
-  const client = useQueryClient()
-  useEffect(() => {
-    if (draftingState && draftingState !== 'drafting') {
-      void client.invalidateQueries({ queryKey: ['search_records'] })
-    }
-  }, [draftingState, draftingStartedAt, client])
   const channel = textOf(record, 'channel') || channelNames[source?.channel ?? ''] || (written ? '' : 'Email')
   const sender = useTool<DraftSender>('get_draft_sender', { record_id: record.id }, { enabled: channel === 'Email' })
   const error = sourceError ?? actions.error

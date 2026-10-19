@@ -31,7 +31,8 @@ function progress(c: Connection, since: string) {
 
 function ConnectionsPage() {
   const { error } = Route.useSearch()
-  const data = useConnections()
+  // When each stream last synced moves every pass, which announces no change.
+  const data = useConnections(60_000)
   const connect = useConnect()
   const disconnect = useAction<object>('disconnect')
   const share = useAction<{ connection_id: string; allowed: boolean }>('set_teammates_send')

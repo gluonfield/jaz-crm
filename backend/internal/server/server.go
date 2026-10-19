@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/authapi"
+	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/changesapi"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/connectapi"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/logosapi"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/mcpapi"
@@ -18,7 +19,7 @@ import (
 // WebDir holds the built web app; empty serves a sign-in page instead.
 type WebDir string
 
-func New(authn *authapi.Handler, agents *mcpapi.Handler, connect *connectapi.Handler, hooks *webhooks.Handler, logos *logosapi.Handler, images *pageimagesapi.Handler, web WebDir) http.Handler {
+func New(authn *authapi.Handler, agents *mcpapi.Handler, changes *changesapi.Handler, connect *connectapi.Handler, hooks *webhooks.Handler, logos *logosapi.Handler, images *pageimagesapi.Handler, web WebDir) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("ok"))
@@ -31,6 +32,7 @@ func New(authn *authapi.Handler, agents *mcpapi.Handler, connect *connectapi.Han
 	mux.HandleFunc("GET /favicon.svg", mcpapi.Favicon)
 	mux.HandleFunc("GET /favicon.ico", mcpapi.Favicon)
 	mux.Handle("POST /api/tools/{tool}", authn.Session(agents.API))
+	mux.Handle("GET /api/changes", authn.Session(changes))
 	mux.Handle("GET /connections/google/start", authn.Session(http.HandlerFunc(connect.Start)))
 	mux.Handle("GET /connections/google/callback", authn.Session(http.HandlerFunc(connect.Callback)))
 	mux.HandleFunc("POST /webhooks/google/gmail", hooks.Gmail)
