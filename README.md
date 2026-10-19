@@ -107,4 +107,4 @@ go run ./cmd/server & go run ./cmd/worker
 cd ../frontend && bun install && bun run dev
 ```
 
-Run `bun run check` in `frontend` for unit tests, type checking, lint, builds and headless browser scenarios. Browser files run one at a time so the Go fixture build and separate Chrome instances do not compete during startup on constrained machines. Set `CHROME` to select the browser binary.
+Run `bun run check` in `frontend` for unit tests, type checking, lint, builds and headless browser scenarios. Set `CHROME` to select the browser binary. The harness disables Chrome's automatic startup window so each scenario can create its own tabs without racing browser startup.
