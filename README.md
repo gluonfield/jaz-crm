@@ -106,3 +106,5 @@ sqlc generate                      # after changing SQL in internal/storage/post
 go run ./cmd/server & go run ./cmd/worker
 cd ../frontend && bun install && bun run dev
 ```
+
+Run `bun run check` in `frontend` for unit tests, type checking, lint, builds and headless browser scenarios. Browser files run one at a time so the Go fixture build and separate Chrome instances do not compete during startup on constrained machines. Set `CHROME` to select the browser binary.
