@@ -14,12 +14,15 @@ type Object struct {
 	ParentID    *string
 	Icon        string
 	Description string
+	Position    float64
+	Columns     []string
 }
 
 type ObjectUpdate struct {
 	Name        *string
 	Icon        *string
 	Description *string
+	Columns     []string
 }
 
 type Attribute struct {
@@ -196,7 +199,7 @@ type RecordStore interface {
 	CreateObject(ctx context.Context, workspaceID string, object NewObject) error
 	CreateAttribute(ctx context.Context, attr AttributeInput) error
 	UpdateObject(ctx context.Context, workspaceID, id string, update ObjectUpdate) error
-	MoveObject(ctx context.Context, workspaceID, id string, parent *string) error
+	MoveObject(ctx context.Context, workspaceID, id string, parent *string, position *float64) error
 	// DeleteObject removes an object with its records, their values and the
 	// reference attributes pointing at it, with those attributes' conditions
 	// in saved filters.

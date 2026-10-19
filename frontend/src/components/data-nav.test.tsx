@@ -13,8 +13,8 @@ test('root and nested sidebar databases expose the same drag affordance as pages
     { id: 'customers', object: 'pages', created_at: '2026-10-13T12:01:00Z', updated_at: '2026-10-13T12:01:00Z', values: { name: 'Customers', parent: { id: 'company', name: 'Company' } } },
   ]
   const objects: CrmObject[] = [
-    { slug: 'problems', name: 'Industry Problems', attributes: [] },
-    { slug: 'customer_calls', name: 'Customer Calls', parent: 'customers', attributes: [] },
+    { slug: 'problems', name: 'Industry Problems', position: 0, attributes: [] },
+    { slug: 'customer_calls', name: 'Customer Calls', parent: 'customers', position: 0, attributes: [] },
   ]
   const client = newQueryClient()
   client.setQueryData(['search_records', { object: 'pages', limit: 500 }], { records })

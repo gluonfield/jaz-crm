@@ -21,7 +21,7 @@ Follow-up from the supplied screenshots:
 - [x] Verify real database drag/drop, saved nesting after reload, row preservation and existing page-drag guards.
 - [x] Complete the requested thermo-nuclear review of database dragging before publication.
 
-Tables keep their existing object identity and gain an optional parent page; creation is shared by root and child controls. Moving uses `edit_object` with `action: move`; omitting `parent` returns to the root. A trashed parent leaves its table accessible at the root, retaining the relationship for restoration. Built-in CRM objects stay in their existing navigation.
+Tables keep their existing object identity and gain an optional parent page; creation is shared by root and child controls. Moving uses `edit_object` with `action: move`; an empty `parent` returns to the root and an omitted one keeps the current parent. A trashed parent leaves its table accessible at the root, retaining the relationship for restoration. Built-in CRM objects stay in their existing navigation.
 
 | Before | After |
 | --- | --- |

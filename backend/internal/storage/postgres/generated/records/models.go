@@ -31,6 +31,8 @@ type Object struct {
 	ParentID    *string
 	Icon        string
 	Description string
+	Position    float64
+	Columns     []string
 }
 
 type Record struct {

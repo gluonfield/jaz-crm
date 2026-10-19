@@ -156,9 +156,11 @@ func (s *Service) Delete(ctx context.Context, actor auth.Actor, id string) error
 type ObjectEdit struct {
 	Action      string
 	Name        string
-	Parent      string
+	Parent      *string
+	Position    *float64
 	Icon        string
 	Description string
+	Columns     []string
 }
 
 func (s *Service) EditObject(ctx context.Context, actor auth.Actor, object string, edit ObjectEdit) error {
@@ -170,11 +172,22 @@ func (s *Service) EditObject(ctx context.Context, actor auth.Actor, object strin
 	if err != nil {
 		return err
 	}
-	if standard(o.Slug) {
-		return errs.Invalidf("%s is built in; only the workspace's own tables are edited", o.Slug)
+	if standard(o.Slug) && edit.Action != "order" {
+		return errs.Invalidf("%s is built in; only its column order changes", o.Slug)
 	}
 	update := storage.ObjectUpdate{}
 	switch edit.Action {
+	case "order":
+		update.Columns = []string{}
+		for _, column := range edit.Columns {
+			if !sc.column(o, column) {
+				return errs.Invalidf("%s has no reorderable column %q", o.Slug, column)
+			}
+			if slices.Contains(update.Columns, column) {
+				return errs.Invalidf("columns lists %q twice", column)
+			}
+			update.Columns = append(update.Columns, column)
+		}
 	case "rename":
 		edit.Name = strings.TrimSpace(edit.Name)
 		if err := validName(o.Slug, edit.Name); err != nil {
@@ -195,13 +208,15 @@ func (s *Service) EditObject(ctx context.Context, actor auth.Actor, object strin
 	case "delete":
 		return s.store.DeleteObject(ctx, actor.WorkspaceID, o.ID)
 	case "move":
-		parentID, err := s.tableParent(ctx, actor, edit.Parent)
-		if err != nil {
-			return err
+		parentID := o.ParentID
+		if edit.Parent != nil {
+			if parentID, err = s.tableParent(ctx, actor, *edit.Parent); err != nil {
+				return err
+			}
 		}
-		return s.store.MoveObject(ctx, actor.WorkspaceID, o.ID, parentID)
+		return s.store.MoveObject(ctx, actor.WorkspaceID, o.ID, parentID, edit.Position)
 	default:
-		return errs.Invalidf("action is rename, move, icon, describe or delete")
+		return errs.Invalidf("action is rename, move, icon, describe, order or delete")
 	}
 	return s.store.UpdateObject(ctx, actor.WorkspaceID, o.ID, update)
 }
