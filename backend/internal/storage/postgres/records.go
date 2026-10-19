@@ -138,7 +138,10 @@ func (s *Store) SearchRecords(ctx context.Context, query storage.RecordQuery) ([
 	out := make([]storage.SearchRecord, len(rows))
 	total := 0
 	for i, row := range rows {
-		out[i] = storage.SearchRecord{Record: toRecord(row.Record), ConversationID: row.ConversationID}
+		// The search selects the records' columns instead of joining records
+		// again, which custom plans scanned in a nested loop, so sqlc cannot
+		// embed them.
+		out[i] = storage.SearchRecord{Record: storage.Record{ID: row.ID, WorkspaceID: row.WorkspaceID, ObjectID: row.ObjectID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}, ConversationID: row.ConversationID}
 		total = int(row.Total)
 	}
 	if len(rows) == 0 && query.Offset > 0 {

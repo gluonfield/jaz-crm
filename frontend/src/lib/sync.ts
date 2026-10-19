@@ -1,5 +1,3 @@
-import { useQueryClient } from '@tanstack/react-query'
-import { useEffect } from 'react'
 import { embedded } from './api'
 import { app } from './mcp-app'
 import { useTool } from './queries'
@@ -23,10 +21,11 @@ export const steps: Record<string, string> = {
 // syncing reports whether a connection is working now or still importing.
 export const syncing = (c: Connection) => c.status === 'active' && (!c.backfilled || !!c.step)
 
-// useConnections polls the workspace's connections, every few seconds while
-// one syncs and every half minute otherwise.
+// useConnections reads the workspace's connections, which data changes
+// refetch. The step a sync runs lives in Temporal, so no change announces its
+// end: a shown step is checked again every few seconds until it ends.
 export function useConnections(interval?: number) {
-  return useTool<Connections>('list_connections', {}, { refetchInterval: (query) => interval ?? (query.state.data?.connections.some(syncing) ? 3000 : 30_000) }).data
+  return useTool<Connections>('list_connections', {}, { refetchInterval: (query) => (query.state.data?.connections.some((c) => c.step) ? 3000 : (interval ?? false)) }).data
 }
 
 // useMail says whether any mail is connected and whether it is still
@@ -55,23 +54,4 @@ export function useConnect() {
       window.location.assign(url)
     }
   }
-}
-
-// useLiveSync refreshes on progress changes, including passes completed
-// between polls.
-export function useLiveSync() {
-  const connections = useConnections()?.connections
-  const client = useQueryClient()
-  useEffect(() => {
-    if (!connections?.some((c) => c.status === 'active')) {
-      return
-    }
-    const refresh = () => void client.invalidateQueries({ predicate: (q) => q.queryKey[0] !== 'list_connections' })
-    refresh()
-    if (!connections.some(syncing)) {
-      return
-    }
-    const timer = setInterval(refresh, 5000)
-    return () => clearInterval(timer)
-  }, [connections, client])
 }

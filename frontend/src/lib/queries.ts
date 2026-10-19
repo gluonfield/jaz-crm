@@ -11,7 +11,8 @@ const recordReads = new Set(['search_records', 'get_record', 'get_draft_sender',
 // Every query is a tool call keyed by [tool, args]. A successful change
 // refetches what it can alter on screen, everything unless it only writes
 // records, so views never patch caches by hand; any failed one shows its
-// error. Data read moments ago is reused on the way back to it.
+// error. Changes made elsewhere refetch through useChanges. Data read
+// moments ago is reused on the way back to it.
 export function newQueryClient() {
   const client: QueryClient = new QueryClient({
     defaultOptions: { queries: { retry: 1, staleTime: 10_000 } },
@@ -67,6 +68,7 @@ export function useRecordPages(args: { object: string; query?: string; filters?:
     queryFn: ({ pageParam }) => call<{ records: CrmRecord[]; total: number }>('search_records', { ...args, offset: pageParam }),
     initialPageParam: 0,
     enabled,
+    // Chase lists actions as they fall due, which time does without a change.
     refetchInterval: args.object === 'follow_ups' ? 60_000 : false,
     getNextPageParam: (last, pages) => {
       const loaded = pages.reduce((sum, page) => sum + page.records.length, 0)

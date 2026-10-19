@@ -13,9 +13,11 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
+	"github.com/gluonfield/jaz-crm/backend/internal/changes"
 	"github.com/gluonfield/jaz-crm/backend/internal/connections"
 	"github.com/gluonfield/jaz-crm/backend/internal/followups"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/authapi"
+	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/changesapi"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/connectapi"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/logosapi"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/mcpapi"
@@ -42,7 +44,7 @@ func shared(cfg Config) fx.Option {
 		fx.Provide(
 			NewLogger,
 			fx.Annotate(OpenStore, fx.As(fx.Self()), fx.As(new(storage.AuthStore)), fx.As(new(storage.WorkspaceStore)),
-				fx.As(new(storage.RecordStore)), fx.As(new(storage.ConnectionStore)), fx.As(new(storage.InteractionStore)), fx.As(new(storage.LogoStore))),
+				fx.As(new(storage.RecordStore)), fx.As(new(storage.ConnectionStore)), fx.As(new(storage.InteractionStore)), fx.As(new(storage.LogoStore)), fx.As(new(storage.ChangeFeed))),
 			records.NewService,
 			logos.NewFetcher,
 			logos.NewService,
@@ -68,6 +70,8 @@ func Server(cfg Config) fx.Option {
 			workspaces.NewService,
 			authapi.NewHandler,
 			mcpapi.NewHandler,
+			changes.NewHub,
+			changesapi.NewHandler,
 			connectapi.NewHandler,
 			webhooks.NewHandler,
 			logosapi.NewHandler,
@@ -123,8 +127,10 @@ func ProvisionOwner(cfg Config, people *workspaces.Service, keys *auth.Service) 
 	return nil
 }
 
-func StartHTTP(lc fx.Lifecycle, handler http.Handler, cfg Config, logger *log.Logger) {
+func StartHTTP(lc fx.Lifecycle, handler http.Handler, cfg Config, logger *log.Logger, hub *changes.Hub) {
 	srv := &http.Server{Addr: cfg.Addr, Handler: handler, ReadHeaderTimeout: 10 * time.Second}
+	// Shutdown waits for open requests, which change streams never end.
+	srv.RegisterOnShutdown(hub.Close)
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
 			listener, err := net.Listen("tcp", cfg.Addr)

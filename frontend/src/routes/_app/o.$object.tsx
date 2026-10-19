@@ -64,7 +64,7 @@ function ObjectList({ slug }: { slug: string }) {
   ] : []
   const { sort, view, saved, limit = 100, conversation_id } = search
   // A saved view's link shows the view; changing its filters or search edits it.
-  const views = useTool<{ filters: SavedFilter[] }>('list_saved_filters', { object: slug }, { refetchInterval: 5000 })
+  const views = useTool<{ filters: SavedFilter[] }>('list_saved_filters', { object: slug })
   const chosen = views.data?.filters.find((f) => f.id === saved)
   // A key naming no attribute, such as a link's tracking parameter, neither
   // filters nor replaces a saved view.

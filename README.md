@@ -51,6 +51,7 @@ Build locally with `docker build --target server -t jaz-crm-server .` and `docke
 - **Privacy.** Metadata is stored for every message, but bodies are fetched only for conversations linked to a kept person or a record, and forgotten when they no longer are. Skipping a thread removes it for good.
 - **Sync.** One Temporal workflow per connection backfills mail and calendar (`BACKFILL_DAYS`), then follows Gmail history and Calendar sync tokens every minute, or at once on a push. Meet transcripts are fetched after meetings end and kept, since Meet deletes them after 30 days.
 - **Web app.** Triage, conversations, every object as a table, and a page per record with its fields, timeline and a form to log a call or note; ⌘K searches records. In Jaz the same app opens from the sidebar as an MCP App through the `show_crm` tool.
+- **Live pages.** Open pages refetch what they show when their workspace's data changes, whoever changed it: Postgres triggers notify the server, which streams an event to each signed-in page at `GET /api/changes`. Pages do not poll, except a sync step in progress, Connections' sync times and Follow-ups, whose Chase view changes with time. The MCP App, which has no session to stream with, refreshes every half minute.
 - **Calls and recorders.** Log a call or note in the app or through `log_interaction`. Recorders post conversations to `POST /webhooks/interactions` with an API key; an `external_id` makes a repeated post update one interaction.
 
 ## Authentication

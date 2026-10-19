@@ -51,6 +51,8 @@
 - Query SQL lives in `backend/internal/storage/postgres/queries/<feature>`; sqlc output goes to `backend/internal/storage/postgres/generated/<feature>` and is checked in. Handwritten `storage/postgres/*.go` files may open the pool, run migrations, manage transactions and map rows, but must not contain query SQL.
 - `storage` records and inputs mirror the sqlc models and params field for field, so the adapter converts with a type conversion. A schema change fails to compile until the record follows; keep it that way instead of writing field-by-field mappers.
 - Regenerate with `sqlc generate` in `backend`. sqlc cannot parse multi-array `unnest`; pair arrays with `generate_subscripts`.
+- Open pages refetch when Postgres notifies channel `changes` with a workspace ID (`internal/changes`, `GET /api/changes`). Every table holding workspace data gets the `notify_change` triggers of migration 0059; add them to new ones. Its columns need equality operators (no `json`), since the triggers compare old and new rows.
+- A write a sync pass repeats must leave rows as they were when nothing changed: a per-pass timestamp in a watched table makes every idle pass refetch every open page.
 
 ## Testing
 
