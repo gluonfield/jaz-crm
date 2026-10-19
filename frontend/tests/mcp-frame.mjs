@@ -41,6 +41,7 @@ addEventListener('message', (event) => {
   let page
   try {
     page = await chrome.page(`http://127.0.0.1:${server.address().port}`)
+    await page.call('Emulation.setUserAgentOverride', { userAgent: 'Synthetic browser', platform: 'MacIntel' })
     await page.call('Runtime.enable')
     chrome.on('Runtime.consoleAPICalled', (event) => {
       if (event.type === 'error') {

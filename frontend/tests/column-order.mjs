@@ -22,6 +22,7 @@ test('table order follows drags and keyboard menus, survives reload, and rolls b
   }))
   const writes = []
   let fail = false
+  let releaseFailure
   const server = createServer(async (req, res) => {
     if (req.url === '/bundle.js') {
       res.setHeader('Content-Type', 'text/javascript')
@@ -43,6 +44,7 @@ test('table order follows drags and keyboard menus, survives reload, and rolls b
     if (tool === 'edit_object') {
       writes.push(args)
       if (fail) {
+        await new Promise((accept) => { releaseFailure = accept })
         res.writeHead(500)
         res.end(JSON.stringify({ error: 'Synthetic save failure' }))
       } else {
@@ -116,7 +118,10 @@ test('table order follows drags and keyboard menus, survives reload, and rolls b
     await click(page, '[aria-label="Location column options"]')
     await until(() => page.evaluate(`!!document.querySelector('[role="menu"]')`))
     await page.evaluate(`Array.from(document.querySelectorAll('[role="menuitem"]')).find(n=>n.textContent.includes('Move Left')).click()`)
-    await until(async () => writes.length === 3 && JSON.stringify(await headers()) === JSON.stringify(prior))
+    await until(async () => writes.length === 3 && await page.evaluate(`!document.querySelector('th[data-column="location"]').draggable`))
+    assert.notDeepEqual(await headers(), prior, 'a pending save must show its optimistic order')
+    releaseFailure()
+    await until(async () => writes.length === 3 && JSON.stringify(await headers()) === JSON.stringify(prior), 'Failed column save must restore the server order')
     assert.deepEqual(await headers(), prior, 'a failed write must restore the server order')
     fail = false
     for (const object of ['people', 'companies', 'deals', 'follow_ups']) {
@@ -132,6 +137,7 @@ test('table order follows drags and keyboard menus, survives reload, and rolls b
       assert.equal((await headers())[0], 'name')
     }
   } finally {
+    releaseFailure?.()
     await chrome.close()
     await new Promise((accept) => server.close(accept))
   }

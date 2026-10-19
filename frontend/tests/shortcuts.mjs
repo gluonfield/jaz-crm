@@ -43,6 +43,7 @@ test('CRM commands target real records, preserve typing and match menu actions',
     }
     chrome = await browser(directory)
     const page = await chrome.page('about:blank')
+    await page.call('Emulation.setUserAgentOverride', { userAgent: 'Synthetic browser', platform: 'MacIntel' })
     await page.call('Emulation.setEmulatedMedia', { features: [{name:'prefers-color-scheme',value:'light'}] })
     await page.call('Runtime.enable')
     chrome.on('Runtime.exceptionThrown', (event) => console.error(JSON.stringify(event)))
