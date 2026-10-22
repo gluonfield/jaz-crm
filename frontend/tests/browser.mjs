@@ -46,7 +46,7 @@ export async function browser(directory) {
       }
     }
   })
-  const send = (method, params = {}, sessionId) => new Promise((accept, reject) => {
+  const send = (method, params = {}, sessionId, timeout = 10000) => new Promise((accept, reject) => {
     if (failure || closing) {
       reject(failure ?? new Error('Browser is closed'))
       return
@@ -55,7 +55,7 @@ export async function browser(directory) {
     const timer = setTimeout(() => {
       pending.delete(id)
       reject(new Error(`Timed out: ${method}`))
-    }, 10000)
+    }, timeout)
     pending.set(id, (message) => {
       clearTimeout(timer)
       if (message.error) {
@@ -70,7 +70,9 @@ export async function browser(directory) {
     send,
     on: (method, callback) => listeners.set(method, callback),
     async page(url) {
-      const { targetId } = await send('Target.createTarget', { url: 'about:blank' })
+      // Chrome answers its first command only after it has started, and a
+      // first start on a CI runner builds the font cache for seconds.
+      const { targetId } = await send('Target.createTarget', { url: 'about:blank' }, undefined, 30000)
       const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true })
       const call = (method, params) => send(method, params, sessionId)
       await call('Page.enable')
