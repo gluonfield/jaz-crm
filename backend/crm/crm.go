@@ -24,9 +24,9 @@ import (
 )
 
 type Options struct {
-	// Schema holds the CRM's tables and its migration history, apart from
-	// the host's. Empty uses the connections' own search_path, as the
-	// standalone app does.
+	// Schema holds the CRM's tables and its migration history apart from
+	// the host's. Empty is the standalone app's layout: both live wherever
+	// the connections' search_path points, usually public.
 	Schema string
 	// Classifier triages incoming conversations; without one they wait for
 	// a person.
@@ -105,6 +105,10 @@ func (c *CRM) AddMember(ctx context.Context, workspaceID string, m Member) (reco
 	user.WorkspaceID = workspaceID
 	added, err := c.store.AddMember(ctx, user, m.identity())
 	if errors.Is(err, storage.ErrConflict) {
+		// A concurrent call may have added the same person first.
+		if existing, err := c.ActAs(ctx, m.Principal, workspaceID); err == nil {
+			return existing, nil
+		}
 		return records.Actor{}, errs.Invalidf("another member of this workspace has the email %s", user.Email)
 	}
 	return actor(added), err

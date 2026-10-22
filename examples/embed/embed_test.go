@@ -6,10 +6,12 @@ import (
 	"context"
 	"crypto/rand"
 	"errors"
+	"fmt"
 	"net/url"
 	"os"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/gluonfield/jaz-crm/backend/crm"
@@ -57,11 +59,45 @@ func TestEmbeddedCRM(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if again, err := c.AddMember(ctx, owner.WorkspaceID, bob); err != nil || again != member {
-		t.Fatalf("adding a member twice gave %+v, want %+v: %v", again, member, err)
+	renamed := bob
+	renamed.Email = "robert@host.test"
+	if again, err := c.AddMember(ctx, owner.WorkspaceID, renamed); err != nil || again != member {
+		t.Fatalf("adding bob again under a new email gave %+v, want %+v: %v", again, member, err)
 	}
 	if acting, err := c.ActAs(ctx, bob.Principal, owner.WorkspaceID); err != nil || acting != member {
 		t.Fatalf("acting as bob gave %+v, want %+v: %v", acting, member, err)
+	}
+	// Callers adding one person at once agree on the member. Opening the
+	// connections first and repeating the race keep a caller from finishing
+	// before the others start.
+	conns := make([]*pgxpool.Conn, 4)
+	for i := range conns {
+		if conns[i], err = pool.Acquire(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, conn := range conns {
+		conn.Release()
+	}
+	for round := range 5 {
+		person := crm.Member{Principal: crm.Principal{Issuer: "host", Subject: fmt.Sprint("new-", round)}, Name: "New", Email: fmt.Sprint("new", round, "@host.test")}
+		joined := make([]records.Actor, len(conns))
+		failures := make([]error, len(conns))
+		start := make(chan struct{})
+		var wg sync.WaitGroup
+		for i := range joined {
+			wg.Go(func() {
+				<-start
+				joined[i], failures[i] = c.AddMember(ctx, owner.WorkspaceID, person)
+			})
+		}
+		close(start)
+		wg.Wait()
+		for i := range joined {
+			if failures[i] != nil || joined[i] != joined[0] {
+				t.Fatalf("concurrent adds of one person disagree: %+v %v", joined, failures)
+			}
+		}
 	}
 	impostor := crm.Member{Principal: crm.Principal{Issuer: "host", Subject: "u-3"}, Name: "Eve", Email: "bob@host.test"}
 	if _, err := c.AddMember(ctx, owner.WorkspaceID, impostor); !errors.As(err, new(errs.Invalid)) {
