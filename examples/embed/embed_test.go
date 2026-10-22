@@ -26,8 +26,12 @@ func TestEmbeddedCRM(t *testing.T) {
 	ctx := context.Background()
 	pool := scratch(t)
 	exec(t, pool,
-		`CREATE TABLE users (id text PRIMARY KEY, email text NOT NULL)`,
-		`INSERT INTO users VALUES ('u-1', 'ada@host.test'), ('u-2', 'bob@host.test')`,
+		`CREATE TABLE companies (id text PRIMARY KEY, name text NOT NULL)`,
+		`CREATE TABLE users (id text PRIMARY KEY, name text NOT NULL, email text NOT NULL)`,
+		`CREATE TABLE company_memberships (user_id text REFERENCES users, company_id text REFERENCES companies, PRIMARY KEY (user_id, company_id))`,
+		`INSERT INTO companies VALUES ('co-acme', 'Acme'), ('co-rival', 'Rival')`,
+		`INSERT INTO users VALUES ('u-ada', 'Ada', 'ada@acme.test'), ('u-bob', 'Bob', 'bob@acme.test'), ('u-eve', 'Eve', 'eve@rival.test')`,
+		`INSERT INTO company_memberships VALUES ('u-ada', 'co-acme'), ('u-bob', 'co-acme'), ('u-bob', 'co-rival'), ('u-eve', 'co-rival')`,
 		`CREATE TABLE goose_db_version (id serial PRIMARY KEY, version_id bigint NOT NULL, is_applied boolean NOT NULL)`,
 		`INSERT INTO goose_db_version (version_id, is_applied) VALUES (0, true), (7, true)`,
 	)
@@ -49,27 +53,129 @@ func TestEmbeddedCRM(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ada := crm.Member{Principal: crm.Principal{Issuer: "host", Subject: "u-1"}, Name: "Ada", Email: "ada@host.test"}
-	bob := crm.Member{Principal: crm.Principal{Issuer: "host", Subject: "u-2"}, Name: "Bob", Email: "bob@host.test"}
-	owner, err := c.CreateWorkspace(ctx, "Acme Manufacturing", ada)
-	if err != nil || owner.MemberID == "" || owner.MemberID == "u-1" {
-		t.Fatalf("owner %+v: %v", owner, err)
+	// signedIn is the host's request path: it admits a signed-in user to a
+	// company they belong to and hands the CRM what its own tables say.
+	signedIn := func(userID, companyID string) records.Actor {
+		t.Helper()
+		var u crm.User
+		err := pool.QueryRow(ctx, `SELECT m.company_id, u.id, u.name, u.email FROM users u
+			JOIN company_memberships m ON m.user_id = u.id WHERE u.id = $1 AND m.company_id = $2`, userID, companyID).Scan(&u.Tenant, &u.ID, &u.Name, &u.Email)
+		if err != nil {
+			t.Fatalf("%s is not a member of %s: %v", userID, companyID, err)
+		}
+		actor, err := c.Actor(ctx, u)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return actor
 	}
-	member, err := c.AddMember(ctx, owner.WorkspaceID, bob)
+
+	ada := signedIn("u-ada", "co-acme")
+	if ada.WorkspaceID != "co-acme" || ada.MemberID == "" || ada.MemberID == "u-ada" {
+		t.Fatalf("ada acts as %+v", ada)
+	}
+	if again := signedIn("u-ada", "co-acme"); again != ada {
+		t.Fatalf("ada's next request acts as %+v, was %+v", again, ada)
+	}
+	bob := signedIn("u-bob", "co-acme")
+	if bob.WorkspaceID != ada.WorkspaceID || bob.MemberID == ada.MemberID {
+		t.Fatalf("bob acts as %+v beside ada %+v", bob, ada)
+	}
+
+	company, _, err := c.Records.Upsert(ctx, ada, ada.Source(), records.Write{
+		Object: "companies",
+		Set:    map[string][]string{"name": {"Acme"}, "domains": {"acme.com"}},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	renamed := bob
-	renamed.Email = "robert@host.test"
-	if again, err := c.AddMember(ctx, owner.WorkspaceID, renamed); err != nil || again != member {
-		t.Fatalf("adding bob again under a new email gave %+v, want %+v: %v", again, member, err)
+	agent := bob
+	agent.Agent = true
+	same, skipped, err := c.Records.Upsert(ctx, agent, agent.Source(), records.Write{
+		Object: "companies",
+		Set:    map[string][]string{"domains": {"acme.com"}, "name": {"ACME Inc"}, "description": {"Presses"}},
+	})
+	if err != nil || same.ID != company.ID || len(skipped) != 1 || skipped[0].Attribute != "name" {
+		t.Fatalf("agent write matched %s, skipped %+v: %v", same.ID, skipped, err)
 	}
-	if acting, err := c.ActAs(ctx, bob.Principal, owner.WorkspaceID); err != nil || acting != member {
-		t.Fatalf("acting as bob gave %+v, want %+v: %v", acting, member, err)
+	if _, _, err := c.Records.Upsert(ctx, bob, bob.Source(), records.Write{Object: "companies", RecordID: company.ID, Set: map[string][]string{"name": {"Acme Corp"}}}); err != nil {
+		t.Fatal(err)
 	}
-	// Callers adding one person at once agree on the member. Opening the
-	// connections first and repeating the race keep a caller from finishing
-	// before the others start.
+	read, err := c.Records.Get(ctx, ada, company.ID)
+	if err != nil || text(read, "name") != "Acme Corp" || text(read, "description") != "Presses" {
+		t.Fatalf("read %+v: %v", read.Fields, err)
+	}
+
+	exec(t, pool, `UPDATE users SET name = 'Robert', email = 'robert@acme.test' WHERE id = 'u-bob'`)
+	if renamed := signedIn("u-bob", "co-acme"); renamed != bob {
+		t.Fatalf("bob acts as %+v after the host renamed him, was %+v", renamed, bob)
+	}
+	history, err := c.Records.History(ctx, ada, company.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names, agentEdits []string
+	for _, change := range history {
+		if change.Attribute == "name" && change.Source == records.SourceUser {
+			names = append(names, change.Actor+": "+change.Value.Text)
+		}
+		if change.Source == records.SourceAgent && change.Actor == "Robert" {
+			agentEdits = append(agentEdits, change.Attribute)
+		}
+	}
+	slices.Sort(names)
+	if !slices.Equal(names, []string{"Ada: Acme", "Robert: Acme Corp"}) || !slices.Contains(agentEdits, "description") {
+		t.Fatalf("history lost who wrote what: names %v, agent edits %v", names, agentEdits)
+	}
+
+	note, err := c.Interactions.Log(ctx, ada, interactions.Entry{Kind: "note", Text: "Wants a quote for 5,000 brackets", Records: []string{company.ID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	timeline, err := c.Interactions.Timeline(ctx, bob, company.ID, nil, "", false, 10)
+	if err != nil || len(timeline) != 1 || timeline[0].ID != note.ID {
+		t.Fatalf("timeline %+v: %v", timeline, err)
+	}
+
+	eve := signedIn("u-eve", "co-rival")
+	bobAtRival := signedIn("u-bob", "co-rival")
+	if eve.WorkspaceID != "co-rival" || bobAtRival.WorkspaceID != "co-rival" || bobAtRival.MemberID == bob.MemberID {
+		t.Fatalf("rival actors %+v and %+v", eve, bobAtRival)
+	}
+	for _, rival := range []records.Actor{eve, bobAtRival} {
+		if got, err := c.Records.Get(ctx, rival, company.ID); err == nil {
+			t.Fatalf("rival read %s", got.ID)
+		}
+		if _, _, err := c.Records.Upsert(ctx, rival, rival.Source(), records.Write{Object: "companies", RecordID: company.ID, Set: map[string][]string{"name": {"Taken"}}}); err == nil {
+			t.Fatal("rival wrote to another tenant's record")
+		}
+		if found, _, err := c.Records.Search(ctx, rival, records.Search{Object: "companies", Query: "acme"}); err != nil || len(found) != 0 {
+			t.Fatalf("rival found %d companies: %v", len(found), err)
+		}
+		if _, err := c.Interactions.Log(ctx, rival, interactions.Entry{Kind: "note", Text: "Theirs", Records: []string{company.ID}}); err == nil {
+			t.Fatal("rival linked a note to another tenant's record")
+		}
+	}
+	theirs, _, err := c.Records.Upsert(ctx, eve, eve.Source(), records.Write{Object: "companies", Set: map[string][]string{"name": {"Acme"}, "domains": {"acme.com"}}})
+	if err != nil || theirs.ID == company.ID {
+		t.Fatalf("rival's acme.com matched %s: %v", theirs.ID, err)
+	}
+
+	mallory := crm.User{Tenant: "co-acme", ID: "u-mallory", Name: "Mallory", Email: "ADA@acme.test"}
+	if got, err := c.Actor(ctx, mallory); !errors.As(err, new(errs.Invalid)) {
+		t.Fatalf("a second user took ada's email and acts as %+v: %v", got, err)
+	}
+	if _, err := c.Actor(ctx, crm.User{ID: "u-ada", Email: "ada@acme.test"}); !errors.As(err, new(errs.Invalid)) {
+		t.Fatalf("acted without a tenant: %v", err)
+	}
+
+	// Users entering a new tenant at once agree on one workspace and one
+	// member each. Opening the connections first and repeating the race
+	// keep a caller from finishing before the others start.
+	standard, err := c.Records.Objects(ctx, ada, true)
+	if err != nil {
+		t.Fatal(err)
+	}
 	conns := make([]*pgxpool.Conn, 4)
 	for i := range conns {
 		if conns[i], err = pool.Acquire(ctx); err != nil {
@@ -80,108 +186,38 @@ func TestEmbeddedCRM(t *testing.T) {
 		conn.Release()
 	}
 	for round := range 5 {
-		person := crm.Member{Principal: crm.Principal{Issuer: "host", Subject: fmt.Sprint("new-", round)}, Name: "New", Email: fmt.Sprint("new", round, "@host.test")}
-		joined := make([]records.Actor, len(conns))
-		failures := make([]error, len(conns))
+		tenant := fmt.Sprint("co-new-", round)
+		users := []crm.User{
+			{Tenant: tenant, ID: "u-ada", Name: "Ada", Email: "ada@acme.test"},
+			{Tenant: tenant, ID: "u-ada", Name: "Ada", Email: "ada@acme.test"},
+			{Tenant: tenant, ID: "u-eve", Name: "Eve", Email: "eve@rival.test"},
+			{Tenant: tenant, ID: "u-eve", Name: "Eve", Email: "eve@rival.test"},
+		}
+		actors := make([]records.Actor, len(users))
+		failures := make([]error, len(users))
 		start := make(chan struct{})
 		var wg sync.WaitGroup
-		for i := range joined {
+		for i := range users {
 			wg.Go(func() {
 				<-start
-				joined[i], failures[i] = c.AddMember(ctx, owner.WorkspaceID, person)
+				actors[i], failures[i] = c.Actor(ctx, users[i])
 			})
 		}
 		close(start)
 		wg.Wait()
-		for i := range joined {
-			if failures[i] != nil || joined[i] != joined[0] {
-				t.Fatalf("concurrent adds of one person disagree: %+v %v", joined, failures)
-			}
+		if errors.Join(failures...) != nil || actors[0] != actors[1] || actors[2] != actors[3] || actors[0].MemberID == actors[2].MemberID || actors[0].WorkspaceID != tenant {
+			t.Fatalf("concurrent first uses of a tenant disagree: %+v %v", actors, failures)
+		}
+		objects, err := c.Records.Objects(ctx, actors[0], true)
+		if err != nil || len(objects) != len(standard) {
+			t.Fatalf("new tenant has %d objects, want %d: %v", len(objects), len(standard), err)
 		}
 	}
-	impostor := crm.Member{Principal: crm.Principal{Issuer: "host", Subject: "u-3"}, Name: "Eve", Email: "bob@host.test"}
-	if _, err := c.AddMember(ctx, owner.WorkspaceID, impostor); !errors.As(err, new(errs.Invalid)) {
-		t.Fatalf("a second person took bob's email: %v", err)
-	}
-	if _, err := c.ActAs(ctx, crm.Principal{Issuer: "email", Subject: "bob@host.test"}, owner.WorkspaceID); !errors.As(err, new(errs.Invalid)) || errors.Is(err, crm.ErrNotMember) {
-		t.Fatalf("acted as a person proven by email: %v", err)
-	}
 
-	company, _, err := c.Records.Upsert(ctx, member, member.Source(), records.Write{
-		Object: "companies",
-		Set:    map[string][]string{"name": {"Acme"}, "domains": {"acme.com"}},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	agent := member
-	agent.Agent = true
-	same, skipped, err := c.Records.Upsert(ctx, agent, agent.Source(), records.Write{
-		Object: "companies",
-		Set:    map[string][]string{"domains": {"acme.com"}, "name": {"ACME Inc"}, "description": {"Presses"}},
-	})
-	if err != nil || same.ID != company.ID || len(skipped) != 1 || skipped[0].Attribute != "name" {
-		t.Fatalf("agent write matched %s, skipped %+v: %v", same.ID, skipped, err)
-	}
-	if _, _, err := c.Records.Upsert(ctx, member, member.Source(), records.Write{Object: "companies", RecordID: company.ID, Set: map[string][]string{"name": {"Acme Corp"}}}); err != nil {
-		t.Fatal(err)
-	}
-	read, err := c.Records.Get(ctx, owner, company.ID)
-	if err != nil || text(read, "name") != "Acme Corp" || text(read, "description") != "Presses" {
-		t.Fatalf("read %+v: %v", read.Fields, err)
-	}
-	history, err := c.Records.History(ctx, owner, company.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var names, agentEdits []string
-	for _, change := range history {
-		if change.Attribute == "name" && change.Source == records.SourceUser && change.Actor == bob.Name {
-			names = append(names, change.Value.Text)
-		}
-		if change.Source == records.SourceAgent && change.Actor == bob.Name {
-			agentEdits = append(agentEdits, change.Attribute)
-		}
-	}
-	slices.Sort(names)
-	if !slices.Equal(names, []string{"Acme", "Acme Corp"}) || !slices.Contains(agentEdits, "description") {
-		t.Fatalf("history lost who wrote what: names %v, agent edits %v", names, agentEdits)
-	}
-
-	note, err := c.Interactions.Log(ctx, member, interactions.Entry{Kind: "note", Text: "Wants a quote for 5,000 brackets", Records: []string{company.ID}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	timeline, err := c.Interactions.Timeline(ctx, owner, company.ID, nil, "", false, 10)
-	if err != nil || len(timeline) != 1 || timeline[0].ID != note.ID {
-		t.Fatalf("timeline %+v: %v", timeline, err)
-	}
-
-	eve := crm.Member{Principal: crm.Principal{Issuer: "host", Subject: "u-9"}, Name: "Eve", Email: "eve@rival.test"}
-	rival, err := c.CreateWorkspace(ctx, "Rival", eve)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := c.ActAs(ctx, eve.Principal, owner.WorkspaceID); !errors.Is(err, crm.ErrNotMember) {
-		t.Fatalf("eve acted in a workspace she is not a member of: %v", err)
-	}
-	if got, err := c.Records.Get(ctx, rival, company.ID); err == nil {
-		t.Fatalf("rival read %s", got.ID)
-	}
-	if _, _, err := c.Records.Upsert(ctx, rival, rival.Source(), records.Write{Object: "companies", RecordID: company.ID, Set: map[string][]string{"name": {"Taken"}}}); err == nil {
-		t.Fatal("rival wrote to another workspace's record")
-	}
-	if found, _, err := c.Records.Search(ctx, rival, records.Search{Object: "companies", Query: "acme"}); err != nil || len(found) != 0 {
-		t.Fatalf("rival found %d companies: %v", len(found), err)
-	}
-	if _, err := c.Interactions.Log(ctx, rival, interactions.Entry{Kind: "note", Text: "Theirs", Records: []string{company.ID}}); err == nil {
-		t.Fatal("rival linked a note to another workspace's record")
-	}
-
-	if n := count(t, pool, `SELECT count(*) FROM users WHERE id IN ('u-1', 'u-2')`); n != 2 {
+	if n := count(t, pool, `SELECT count(*) FROM users`); n != 3 {
 		t.Fatalf("host users changed: %d", n)
 	}
-	if n := count(t, pool, `SELECT count(*) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users'`); n != 2 {
+	if n := count(t, pool, `SELECT count(*) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users'`); n != 3 {
 		t.Fatalf("host users table has %d columns", n)
 	}
 	if n := count(t, pool, `SELECT max(version_id) FROM goose_db_version`); n != 7 {

@@ -134,6 +134,18 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) er
 	return err
 }
 
+const createTenantWorkspace = `-- name: CreateTenantWorkspace :execrows
+INSERT INTO workspaces (name, id) VALUES ('', $1) ON CONFLICT (id) DO NOTHING
+`
+
+func (q *Queries) CreateTenantWorkspace(ctx context.Context, id string) (int64, error) {
+	result, err := q.db.Exec(ctx, createTenantWorkspace, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const createWorkspace = `-- name: CreateWorkspace :one
 INSERT INTO workspaces (name, id) VALUES ($1, $2) RETURNING id, name, created_at, description, auto_keep_email, auto_keep_meetings, auto_keep_records, auto_keep_ai, company_page_id, drafting_web_access, timezone
 `
@@ -457,6 +469,33 @@ func (q *Queries) LockWorkspace(ctx context.Context, id string) (string, error) 
 	return id_2, err
 }
 
+const memberByIdentity = `-- name: MemberByIdentity :one
+SELECT users.id, users.workspace_id, users.name, users.email, users.avatar_url, users.admin, users.created_at, users.addresses FROM identities JOIN users ON users.id = identities.user_id
+WHERE identities.issuer = $1 AND identities.subject = $2 AND users.workspace_id = $3
+`
+
+type MemberByIdentityParams struct {
+	Issuer      string
+	Subject     string
+	WorkspaceID string
+}
+
+func (q *Queries) MemberByIdentity(ctx context.Context, arg MemberByIdentityParams) (User, error) {
+	row := q.db.QueryRow(ctx, memberByIdentity, arg.Issuer, arg.Subject, arg.WorkspaceID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Name,
+		&i.Email,
+		&i.AvatarURL,
+		&i.Admin,
+		&i.CreatedAt,
+		&i.Addresses,
+	)
+	return i, err
+}
+
 const memberships = `-- name: Memberships :many
 SELECT users.id AS user_id, workspaces.id AS workspace_id, workspaces.name FROM users
 JOIN workspaces ON workspaces.id = users.workspace_id
@@ -661,6 +700,30 @@ func (q *Queries) UpdateTriageSettings(ctx context.Context, arg UpdateTriageSett
 		arg.AutoKeepMeetings,
 		arg.AutoKeepRecords,
 		arg.AutoKeepAi,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const updateUserProfile = `-- name: UpdateUserProfile :execrows
+UPDATE users SET name = $1, email = $2 WHERE id = $3 AND workspace_id = $4
+`
+
+type UpdateUserProfileParams struct {
+	Name        string
+	Email       string
+	ID          string
+	WorkspaceID string
+}
+
+func (q *Queries) UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateUserProfile,
+		arg.Name,
+		arg.Email,
+		arg.ID,
+		arg.WorkspaceID,
 	)
 	if err != nil {
 		return 0, err

@@ -3,10 +3,12 @@ package postgres
 import (
 	"context"
 	"encoding/json"
+	"errors"
 
 	"github.com/gluonfield/jaz-crm/internal/storage"
 	authdb "github.com/gluonfield/jaz-crm/internal/storage/postgres/generated/auth"
 	recdb "github.com/gluonfield/jaz-crm/internal/storage/postgres/generated/records"
+	"github.com/jackc/pgx/v5"
 	"github.com/lithammer/shortuuid/v4"
 )
 
@@ -122,13 +124,41 @@ func (s *Store) JoinWorkspace(ctx context.Context, invite storage.WorkspaceInvit
 	return one(toUser)(user, err)
 }
 
-// AddMember adds a member to member.WorkspaceID, linked to the identity.
-func (s *Store) AddMember(ctx context.Context, member storage.NewUser, identity storage.Identity) (storage.User, error) {
-	var user authdb.User
-	err := s.tx(ctx, func(a *authdb.Queries, _ *recdb.Queries) error {
-		var err error
-		user, err = addMember(ctx, a, member, identity)
-		return err
+// TenantMember returns identity's member of the workspace with the given
+// ID, named and addressed as member. A missing workspace is created with
+// objects, a missing member added and a changed name or email updated, all
+// under the workspace lock, so concurrent first uses agree on one member.
+func (s *Store) TenantMember(ctx context.Context, workspaceID string, member storage.NewUser, identity storage.Identity, objects []storage.NewObject) (storage.User, error) {
+	byIdentity := authdb.MemberByIdentityParams{Issuer: identity.Issuer, Subject: identity.Subject, WorkspaceID: workspaceID}
+	user, err := s.auth.MemberByIdentity(ctx, byIdentity)
+	if err == nil && user.Name == member.Name && user.Email == member.Email {
+		return toUser(user), nil
+	}
+	err = s.tx(ctx, func(a *authdb.Queries, r *recdb.Queries) error {
+		created, err := a.CreateTenantWorkspace(ctx, workspaceID)
+		if err != nil {
+			return err
+		}
+		if created == 1 {
+			if err := createObjects(ctx, r, workspaceID, objects); err != nil {
+				return err
+			}
+		}
+		if _, err := a.LockWorkspace(ctx, workspaceID); err != nil {
+			return err
+		}
+		user, err = a.MemberByIdentity(ctx, byIdentity)
+		if errors.Is(err, pgx.ErrNoRows) {
+			member.WorkspaceID = workspaceID
+			user, err = addMember(ctx, a, member, identity)
+			return err
+		}
+		if err != nil {
+			return err
+		}
+		user.Name = member.Name
+		user.Email = member.Email
+		return affected(a.UpdateUserProfile(ctx, authdb.UpdateUserProfileParams{Name: user.Name, Email: user.Email, ID: user.ID, WorkspaceID: workspaceID}))
 	})
 	return one(toUser)(user, err)
 }

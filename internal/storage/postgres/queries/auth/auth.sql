@@ -49,6 +49,16 @@ SELECT workspaces.id, workspaces.name, workspaces.created_at, description, auto_
     WHERE workspace_knowledge_pages.workspace_id = workspaces.id ORDER BY position)::text[] AS company_page_ids, timezone
 FROM workspaces WHERE workspaces.id = $1;
 
+-- name: CreateTenantWorkspace :execrows
+INSERT INTO workspaces (name, id) VALUES ('', @id) ON CONFLICT (id) DO NOTHING;
+
+-- name: MemberByIdentity :one
+SELECT users.* FROM identities JOIN users ON users.id = identities.user_id
+WHERE identities.issuer = $1 AND identities.subject = $2 AND users.workspace_id = $3;
+
+-- name: UpdateUserProfile :execrows
+UPDATE users SET name = @name, email = @email WHERE id = @id AND workspace_id = @workspace_id;
+
 -- name: LockWorkspace :one
 SELECT id FROM workspaces WHERE id = $1 FOR NO KEY UPDATE;
 

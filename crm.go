@@ -3,16 +3,14 @@
 //
 // The host owns the pool: it calls Migrate when it deploys and Open once in
 // its composition root, and closes the pool itself. Neither starts servers,
-// jobs or provider clients, and Open leaves the schema as it is. The host
-// authenticates people and decides who belongs to which workspace; the CRM
-// maps each host person to a member of a workspace and scopes every read and
-// write to the workspace of the Actor it is given.
+// jobs or provider clients, and Open leaves the schema as it is. On each
+// request the host turns the user it signed in into an Actor, and the CRM
+// scopes every read and write to that user's tenant.
 package crm
 
 import (
 	"context"
 	"errors"
-	"slices"
 	"strings"
 
 	"github.com/gluonfield/jaz-crm/errs"
@@ -58,102 +56,42 @@ func Open(ctx context.Context, pool *pgxpool.Pool, opts Options) (*CRM, error) {
 	}, nil
 }
 
-// Principal is a person as the host knows them: Issuer names the host and
-// Subject is its stable ID for the person. The CRM keeps it beside the
-// member it maps to and never reads it as a member ID or an email.
-type Principal struct {
-	Issuer  string
-	Subject string
-}
-
-// Member is a person joining a workspace. The email marks their own side of
-// conversations and must be unique within the workspace.
-type Member struct {
-	Principal
-	Name  string
+// User is a person the host signed in, in the tenant it admitted them to.
+type User struct {
+	// Tenant is the host's ID for the company or account whose records the
+	// user works on. Everyone in a tenant shares its records; no one else
+	// sees them.
+	Tenant string
+	// ID is the host's stable ID for the person.
+	ID   string
+	Name string
+	// Email marks the user's side of conversations. It is unique within a
+	// tenant.
 	Email string
 }
 
-var ErrNotMember = errs.Invalid{Message: "not a member of this workspace"}
+// hostIssuer names the host's people among identities, where the
+// standalone app's sign-in providers use their URLs.
+const hostIssuer = "host"
 
-// CreateWorkspace starts a workspace with the standard objects and owner as
-// its admin, and returns the owner's actor there.
-func (c *CRM) CreateWorkspace(ctx context.Context, name string, owner Member) (records.Actor, error) {
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return records.Actor{}, errs.Invalidf("a workspace needs a name")
+// Actor returns the actor u writes as. The host calls it on every request,
+// after it has authenticated u and checked that u belongs to u.Tenant, with
+// values from its own records rather than from the request: the CRM trusts
+// them. The tenant ID becomes the actor's WorkspaceID. The tenant's
+// workspace is created on first use, and the CRM keeps a member for each
+// user in each tenant, found by the host's ID and never by email, so
+// history names who wrote what.
+func (c *CRM) Actor(ctx context.Context, u User) (records.Actor, error) {
+	if u.Tenant == "" || u.ID == "" {
+		return records.Actor{}, errs.Invalidf("a user needs a tenant and an ID")
 	}
-	user, err := owner.parse()
-	if err != nil {
-		return records.Actor{}, err
+	member := storage.NewUser{Name: strings.TrimSpace(u.Name), Email: strings.ToLower(strings.TrimSpace(u.Email))}
+	if member.Email == "" {
+		return records.Actor{}, errs.Invalidf("a user needs an email")
 	}
-	user.Admin = true
-	created, err := c.store.CreateOwnedWorkspace(ctx, name, user, owner.identity(), records.StandardObjects)
-	return actor(created), err
-}
-
-// AddMember makes m a member of the workspace, or returns their actor there
-// when they already are one.
-func (c *CRM) AddMember(ctx context.Context, workspaceID string, m Member) (records.Actor, error) {
-	if existing, err := c.ActAs(ctx, m.Principal, workspaceID); !errors.Is(err, ErrNotMember) {
-		return existing, err
-	}
-	user, err := m.parse()
-	if err != nil {
-		return records.Actor{}, err
-	}
-	user.WorkspaceID = workspaceID
-	added, err := c.store.AddMember(ctx, user, m.identity())
+	current, err := c.store.TenantMember(ctx, u.Tenant, member, storage.Identity{Issuer: hostIssuer, Subject: u.ID}, records.StandardObjects)
 	if errors.Is(err, storage.ErrConflict) {
-		// A concurrent call may have added the same person first.
-		if existing, err := c.ActAs(ctx, m.Principal, workspaceID); err == nil {
-			return existing, nil
-		}
-		return records.Actor{}, errs.Invalidf("another member of this workspace has the email %s", user.Email)
+		return records.Actor{}, errs.Invalidf("another user of this tenant has the email %s", member.Email)
 	}
-	return actor(added), err
-}
-
-// ActAs returns the actor of p's member in the workspace, or ErrNotMember.
-func (c *CRM) ActAs(ctx context.Context, p Principal, workspaceID string) (records.Actor, error) {
-	if err := p.check(); err != nil {
-		return records.Actor{}, err
-	}
-	users, err := c.store.UsersByIdentity(ctx, p.Issuer, p.Subject)
-	if err != nil {
-		return records.Actor{}, err
-	}
-	i := slices.IndexFunc(users, func(u storage.User) bool { return u.WorkspaceID == workspaceID })
-	if i < 0 {
-		return records.Actor{}, ErrNotMember
-	}
-	return actor(users[i]), nil
-}
-
-// check keeps host people apart from the standalone app's own: the "email"
-// issuer stands for whoever proves an address, which no host may claim.
-func (p Principal) check() error {
-	switch {
-	case p.Issuer == "" || p.Subject == "":
-		return errs.Invalidf("a principal needs an issuer and a subject")
-	case p.Issuer == "email":
-		return errs.Invalidf(`the issuer "email" is reserved`)
-	}
-	return nil
-}
-
-func (p Principal) identity() storage.Identity {
-	return storage.Identity{Issuer: p.Issuer, Subject: p.Subject}
-}
-
-func (m Member) parse() (storage.NewUser, error) {
-	user := storage.NewUser{Name: strings.TrimSpace(m.Name), Email: strings.ToLower(strings.TrimSpace(m.Email))}
-	if user.Email == "" {
-		return user, errs.Invalidf("a member needs an email")
-	}
-	return user, m.check()
-}
-
-func actor(u storage.User) records.Actor {
-	return records.Actor{WorkspaceID: u.WorkspaceID, MemberID: u.ID}
+	return records.Actor{WorkspaceID: current.WorkspaceID, MemberID: current.ID}, err
 }
