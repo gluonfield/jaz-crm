@@ -12,8 +12,11 @@ import (
 func TestStandardSchemaUpgradeAndDeletedDefault(t *testing.T) {
 	ctx := t.Context()
 	db, dsn := legacy(t, 14)
-	var workspace string
+	var workspace, user string
 	if err := db.QueryRowContext(ctx, "INSERT INTO workspaces (name) VALUES ('Existing') RETURNING id").Scan(&workspace); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRowContext(ctx, "INSERT INTO users(workspace_id,name,email) VALUES($1,'Owner','owner@example.com') RETURNING id", workspace).Scan(&user); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.ExecContext(ctx, `
@@ -118,7 +121,7 @@ JOIN objects ON objects.id = records.object_id WHERE objects.slug = 'companies';
 			}
 		}
 	}
-	actor := records.Actor{WorkspaceID: workspace}
+	actor := records.Actor{WorkspaceID: workspace, MemberID: user}
 	objects, err := svc.Objects(ctx, actor, false)
 	if err != nil {
 		t.Fatal(err)
@@ -143,7 +146,7 @@ JOIN objects ON objects.id = records.object_id WHERE objects.slug = 'companies';
 		t.Fatalf("migrated follow-up fields/filter unusable: %v %v", due, err)
 	}
 	followUpFilters, err := svc.SavedFilters(ctx, actor, records.FollowUps)
-	if err != nil || len(followUpFilters) != 3 {
+	if err != nil || len(followUpFilters) != 5 {
 		t.Fatalf("existing workspace did not get follow-up filters: %v %v", followUpFilters, err)
 	}
 	followUp, _, err := svc.Upsert(ctx, actor, records.SourceUser, records.Write{Object: records.FollowUps, Set: map[string][]string{"name": {"Send the quote"}, "deal": {found[0].ID}, "action_date": {"2000-01-01"}}})

@@ -17,8 +17,11 @@ import (
 func TestActionDateMigration(t *testing.T) {
 	ctx := context.Background()
 	db, dsn := legacy(t, 31)
-	var workspace, object string
+	var workspace, object, user string
 	if err := db.QueryRowContext(ctx, "INSERT INTO workspaces(name) VALUES('Existing') RETURNING id").Scan(&workspace); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRowContext(ctx, "INSERT INTO users(workspace_id,name,email) VALUES($1,'Owner','owner@example.com') RETURNING id", workspace).Scan(&user); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.QueryRowContext(ctx, "INSERT INTO objects(workspace_id,slug,name) VALUES($1,'follow_ups','Follow-ups') RETURNING id", workspace).Scan(&object); err != nil {
@@ -52,7 +55,7 @@ func TestActionDateMigration(t *testing.T) {
 	}
 	store := postgrestest.Open(t, dsn)
 	svc := records.NewService(store)
-	actor := records.Actor{WorkspaceID: workspace}
+	actor := records.Actor{WorkspaceID: workspace, MemberID: user}
 	for i, id := range ids {
 		r, err := svc.Get(ctx, actor, id)
 		if err != nil {
@@ -79,7 +82,7 @@ func TestActionDateMigration(t *testing.T) {
 		}
 	}
 	filters, err := svc.SavedFilters(ctx, actor, records.FollowUps)
-	if err != nil || len(filters) != 1 || filters[0].ID != filterID || filters[0].Filters[2].Attribute != "action_date" || filters[0].Filters[2].Value != "now" {
+	if err != nil || len(filters) != 3 || filters[2].ID != filterID || filters[2].Filters[2].Attribute != "action_date" || filters[2].Filters[2].Value != "now" {
 		t.Fatalf("existing Chase preset identity and deadline semantics: %+v %v", filters, err)
 	}
 	var originalDates int
@@ -97,7 +100,7 @@ func TestNeedsAttentionMigration(t *testing.T) {
 	updated := `[{"attribute":"status","operator":"is","value":"Open"},{"attribute":"waiting_on","operator":"is_not","value":"Them"}]`
 	type fixture struct {
 		name, slug, query, saved, wantSaved string
-		workspace, object, id               string
+		workspace, object, id, user         string
 	}
 	fixtures := []fixture{
 		{name: "Needs attention", slug: "follow_ups", saved: old, wantSaved: updated},
@@ -114,6 +117,9 @@ func TestNeedsAttentionMigration(t *testing.T) {
 		if err := db.QueryRowContext(ctx, "INSERT INTO workspaces(name) VALUES('Existing') RETURNING id").Scan(&f.workspace); err != nil {
 			t.Fatal(err)
 		}
+		if err := db.QueryRowContext(ctx, "INSERT INTO users(workspace_id,name,email) VALUES($1,'Owner','owner@example.com') RETURNING id", f.workspace).Scan(&f.user); err != nil {
+			t.Fatal(err)
+		}
 		if err := db.QueryRowContext(ctx, "INSERT INTO objects(workspace_id,slug,name) VALUES($1,$2,'Actions') RETURNING id", f.workspace, f.slug).Scan(&f.object); err != nil {
 			t.Fatal(err)
 		}
@@ -123,7 +129,7 @@ func TestNeedsAttentionMigration(t *testing.T) {
 	}
 	store := postgrestest.Open(t, dsn)
 	for i, f := range fixtures {
-		filters, err := store.SavedFilters(ctx, f.workspace, f.object)
+		filters, err := store.SavedFilters(ctx, f.workspace, f.object, f.user)
 		if err != nil || len(filters) != 1 || filters[0].ID != f.id || filters[0].Query != f.query {
 			t.Fatalf("case %d lost saved filter identity or query: %+v %v", i, filters, err)
 		}

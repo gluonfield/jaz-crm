@@ -29,7 +29,7 @@ func TestClientFilterMigration(t *testing.T) {
 		t.Fatal(err)
 	}
 	store := postgrestest.Open(t, dsn)
-	saved, err := store.SavedFilters(ctx, workspace, object)
+	saved, err := store.SavedFilters(ctx, workspace, object, "")
 	if err != nil || len(saved) != 1 || saved[0].ID != preset || saved[0].Name != "Shared preset" || saved[0].Query != "Customer" {
 		t.Fatalf("shared preset changed: %+v %v", saved, err)
 	}

@@ -22,7 +22,7 @@ func (s *Service) SavedFilters(ctx context.Context, actor Actor, slug string) ([
 	if err != nil {
 		return nil, err
 	}
-	filters, err := s.store.SavedFilters(ctx, actor.WorkspaceID, object.ID)
+	filters, err := s.store.SavedFilters(ctx, actor.WorkspaceID, object.ID, actor.MemberID)
 	if err != nil {
 		return nil, err
 	}
@@ -45,6 +45,21 @@ func (s *Service) SavedFilters(ctx context.Context, actor Actor, slug string) ([
 	slices.SortStableFunc(filters, func(a, b storage.SavedFilter) int {
 		return cmp.Compare(order[strings.ToLower(a.Name)], order[strings.ToLower(b.Name)])
 	})
+	if slug == FollowUps {
+		users, err := s.store.Users(ctx, actor.WorkspaceID)
+		if err != nil {
+			return nil, err
+		}
+		i := slices.IndexFunc(users, func(user storage.User) bool { return user.ID == actor.MemberID })
+		if i < 0 {
+			return nil, errs.Invalidf("Follow Ups views belong to a member of the workspace")
+		}
+		open := Filter{Attribute: "status", Operator: "is", Value: "Open"}
+		filters = append([]storage.SavedFilter{
+			{ID: "everyone", Name: "Everyone", Builtin: true, Filters: []Filter{open}},
+			{ID: "assigned_to_me", Name: "Assigned to me", Builtin: true, Filters: []Filter{open, {Attribute: "owner", Operator: "is", Value: users[i].Email}}},
+		}, filters...)
+	}
 	return filters, nil
 }
 
@@ -70,11 +85,17 @@ func (s *Service) SaveFilter(ctx context.Context, actor Actor, slug string, filt
 	if _, err := s.filterQuery(ctx, actor, sc, object, filter.Filters); err != nil {
 		return filter, err
 	}
+	if slug == FollowUps {
+		if strings.EqualFold(filter.Name, "Everyone") || strings.EqualFold(filter.Name, "Assigned to me") {
+			return filter, errs.Invalidf("this name belongs to a built-in Follow Ups view")
+		}
+		filter.UserID = &actor.MemberID
+	}
 	filter.ObjectID = object.ID
 	if filter.Filters == nil {
 		filter.Filters = []Filter{}
 	}
-	saved, err := s.store.SaveFilter(ctx, actor.WorkspaceID, filter)
+	saved, err := s.store.SaveFilter(ctx, actor.WorkspaceID, actor.MemberID, filter)
 	if errors.Is(err, storage.ErrConflict) {
 		return filter, errs.Invalidf("a filter with this name already exists")
 	}
@@ -85,7 +106,7 @@ func (s *Service) SaveFilter(ctx context.Context, actor Actor, slug string, filt
 }
 
 func (s *Service) DeleteFilter(ctx context.Context, actor Actor, id string) error {
-	err := s.store.DeleteFilter(ctx, actor.WorkspaceID, id)
+	err := s.store.DeleteFilter(ctx, actor.WorkspaceID, id, actor.MemberID)
 	if errors.Is(err, storage.ErrNotFound) {
 		return errs.Invalidf("saved filter not found")
 	}

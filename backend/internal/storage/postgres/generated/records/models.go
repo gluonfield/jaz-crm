@@ -63,4 +63,5 @@ type SavedFilter struct {
 	Name        string
 	Query       string
 	Filters     []byte
+	UserID      *string
 }

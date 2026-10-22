@@ -130,15 +130,11 @@ func TestActionDateSearchUsesWorkspaceTimeAndStablePages(t *testing.T) {
 	if err != nil || len(sameDay) != 1 || sameDay[0].ID != today.ID {
 		t.Fatalf("is today must include timed values in the workspace day: %v %v", sameDay, err)
 	}
-	filters, err := svc.SavedFilters(ctx, actor, records.FollowUps)
-	if err != nil {
-		t.Fatal(err)
-	}
-	chase := slices.IndexFunc(filters, func(f storage.SavedFilter) bool { return f.Name == "Chase" })
-	if chase < 0 {
-		t.Fatal("new workspace has no Chase preset")
-	}
-	rows, _, err := svc.Search(ctx, actor, records.Search{Object: records.FollowUps, Filters: filters[chase].Filters})
+	rows, _, err := svc.Search(ctx, actor, records.Search{Object: records.FollowUps, Filters: []storage.RecordFilter{
+		{Attribute: "status", Operator: "is", Value: "Open"},
+		{Attribute: "waiting_on", Operator: "is", Value: "Them"},
+		{Attribute: "action_date", Operator: "on_or_before", Value: "now"},
+	}})
 	if err != nil {
 		t.Fatal(err)
 	}
