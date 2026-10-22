@@ -1,110 +1,86 @@
 # Jaz CRM
 
-A self-hosted CRM that fills itself from Gmail, Google Calendar and Meet transcripts, and that agents operate over MCP. People, companies and any objects you add keep every value's history and who set it; each person's and company's page shows the emails, meetings, calls and notes with them.
+A CRM that fills itself from Gmail, Google Calendar and Meet transcripts and that agents operate over MCP. People, companies, deals and any objects you add keep every value's history and who set it, ranked person > agent > sync so sync never overwrites an agent and neither overwrites a person. Each record's page shows the emails, meetings, calls and notes with it.
 
-## Run it
+Use it two ways:
+
+- **Standalone app**: server, sync worker and web app, with its own sign-in.
+- **Go library**: embedded in another Go program that already signs people in and has a Postgres database.
+
+## Standalone app
 
 ```sh
-cp .env.example .env   # set OIDC_*, GOOGLE_*, ENCRYPTION_KEY
+cp .env.example .env   # sign-in, Google sync and optional AI settings are documented there
 docker compose up
 ```
 
-This starts Postgres (host port 55532), Temporal (7533, UI on 8533), the server on http://localhost:7500 and the sync worker. Sign in, open Connections and connect a Google account; its mail and calendar sync in the background.
+This starts Postgres (host port 55532), Temporal (7533), the server on http://localhost:7500 and the sync worker. Sign in, open Connections and connect a Google account.
 
-Agents connect to `/mcp` with OAuth, or with an API key as a bearer token:
+CI publishes `ghcr.io/gluonfield/jaz-crm-server` and `ghcr.io/gluonfield/jaz-crm-worker` for every commit on main (`latest` and the commit SHA). Run both from the same tag with the same `DATABASE_URL`, `TEMPORAL_*`, `PUBLIC_URL` and `ENCRYPTION_KEY`; migrations run at startup and `GET /healthz` checks the server.
+
+- **Sign-in**: OpenID Connect or Firebase (`AUTH_PROVIDER`). New people get a workspace of their own; invites are the only way into another.
+- **Agents**: connect to `/mcp` with OAuth 2.1 (dynamic client registration, PKCE) or an API key as a bearer token, and list the tools from there. The web app calls the same operations at `POST /api/tools/{tool}`.
 
 ```sh
 claude mcp add --transport http jaz-crm http://localhost:7500/mcp --header "Authorization: Bearer $OWNER_API_KEY"
 ```
 
-## Container images
+ChatGPT setup and packaging: [docs/chatgpt-plugin.md](docs/chatgpt-plugin.md) and `plugin/`.
 
-GitHub Actions verifies the backend and publishes two images for Linux amd64 and arm64:
-
-- `ghcr.io/gluonfield/jaz-crm-server`: HTTP, MCP and the web app; listens on port 7500.
-- `ghcr.io/gluonfield/jaz-crm-worker`: background sync; starts the worker directly, with no web assets or HTTP port.
-
-Main publishes `latest` and the full commit SHA. A `v*` Git tag publishes that tag and its commit SHA. Pin both services to the same SHA or release tag for a repeatable deployment.
-
-Copy `.env.example` to `deployment.env`. Set `DATABASE_URL` to a reachable Postgres database, `TEMPORAL_ADDRESS` and `TEMPORAL_NAMESPACE` to your Temporal service, and `PUBLIC_URL` to the public server URL. Add `TEMPORAL_API_KEY` for Temporal Cloud. Configure `OIDC_*` for sign-in and `GOOGLE_*` plus a stable `ENCRYPTION_KEY` for sync. Both containers use the same database, Temporal settings and encryption key; configuration is read at startup.
+## Go library
 
 ```sh
-docker run -d --name jaz-crm-server --restart unless-stopped \
-  --env-file deployment.env -p 7500:7500 ghcr.io/gluonfield/jaz-crm-server:latest
-docker run -d --name jaz-crm-worker --restart unless-stopped \
-  --env-file deployment.env ghcr.io/gluonfield/jaz-crm-worker:latest
+go get github.com/gluonfield/jaz-crm/backend@<commit>
 ```
 
-Postgres and Temporal run separately. Schema migrations run automatically. `GET /healthz` checks the server; worker startup and sync are reported in its logs. The images run as a non-root user. GitHub creates new packages as private: authenticated pulls need a token with `read:packages`, or the package owner can make each package public in its settings.
+```go
+import (
+	"github.com/gluonfield/jaz-crm/backend/crm"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
+)
 
-Build locally with `docker build --target server -t jaz-crm-server .` and `docker build --target worker -t jaz-crm-worker .`. Docker Compose selects these targets automatically.
+// When the host deploys, on the pool it already has:
+err := crm.Migrate(ctx, pool, "crm")
 
-## How it works
+// Once, in the host's composition root:
+c, err := crm.Open(ctx, pool, crm.Options{Schema: "crm"})
 
-- **Records.** Objects are record types; every workspace starts with people, companies and deals and can add its own, such as suppliers. Attributes are typed: text, number, date, checkbox, url, select, status, email, domain, phone and reference. A status is a select whose options are ordered stages, so an object with one is a pipeline, shown as a board. Add stages, drag their grips to reorder, or click a grip to rename, move, collapse or delete a stage. Deleting moves its deals to a chosen stage and keeps their history. Emails, domains, phone numbers and links identify records, so writing a known email updates that person instead of creating another. People and companies have Links, the pages they are on such as LinkedIn and X; links compare by host and path, so variants of one profile are the same link.
-- **Companies.** Assign several coloured category tags directly in the table or on a company page. Create reusable labels, filter by a category, search and sort by name; company names stay visible while the table scrolls.
-- **History and provenance.** Values are append-only: a change closes the current value and inserts its successor. Each value records its source, ranked user > agent > sync; a write replaces or removes only values from its own or a lower-ranked source and reports the rest as skipped, so sync never overwrites an agent and neither overwrites a person.
-- **Last updated.** Each record tracks when its fields or document last changed, shown on its page and in tables. Sort by Last updated to put recent changes first; record tools return `updated_at` and searches accept `sort: "updated_at"`. Repeated identical or skipped writes keep the timestamp. Existing records start from their latest recorded value history, or creation time; historical document edits grouped into one version retain that version's recorded time.
-- **Interactions.** An interaction is a message conversation, meeting, call or note. A message conversation has one channel (Email, LinkedIn, WhatsApp, X, Telegram or SMS) and attributed messages with recipients and original dates; an email thread is a conversation on the email channel. Calls and meetings can carry notes and speaker turns. Each has a link to its original where one exists: the Gmail thread, calendar event, chat thread or recording. A logged conversation is identified by that link, so logging the thread again adds its new messages; a recorder can add a transcript to a synced meeting. Threads seen by two teammates' mailboxes merge by Message-ID. Participants are email addresses, phone numbers or profile links, and each joins the person who holds it. Interactions link to records; notes appear on the timeline without counting as contact.
-- **Triage.** Contacts wait for approval by default. Settings independently opt into keeping people you email, people from completed small meetings, existing CRM contacts, or AI decisions against your Who belongs criteria. Your own addresses and colleagues are internal; automated senders and bulk mail are skipped. In Settings, members list other addresses they send from, such as a university mailbox (admins can list anyone's), so that mail reads as the workspace's own without making the rest of that domain internal. Explicit address and domain decisions take precedence. Deleting a company excludes its domains from future triage; Settings lists domain rules and lets you add or remove them.
-- **Follow-ups.** Every next step is a follow-up on a person, company or deal: what is owed, whose move it is, when to look at it again, and an optional draft of the message that moves it on. Follow-ups opens on the open ones, earliest first, and is the one place their drafts are shown and edited. Send replies to an email draft in its conversation from the teammate's mailbox that holds it, unless they turned that off in Connections; Approve marks a draft on any other channel ready for the system that sends it, which claims it once by setting it to Sending and then marks it Sent. Send/Approve opens the same confirmation in the website and embedded Jaz app, saves the latest edit and releases only the reviewed draft and recipients; editing a draft withdraws its approval. The app-only `save_draft` and `send_draft` operations use the connected account; `send_draft` requires `confirmed: true`. This is UI confirmation, not separate human authentication: a holder of the connected account credential can call these operations directly. With `LLM_API_KEY` set, an agent reads each new conversation, in or out, keeps its follow-ups current and drafts replies where one is useful. It also keeps each person's Context, a bullet-point TLDR of the relationship, by merging the current one with what each conversation adds; any writer replaces Context whole, and its history keeps every version. Opening a follow-up shows its conversation, the person's Context and the draft beside the queue, or in its place when the queue is narrow. Sending needs Gmail send access, so accounts connected earlier reconnect once.
-- **Privacy.** Metadata is stored for every message, but bodies are fetched only for conversations linked to a kept person or a record, and forgotten when they no longer are. Skipping a thread removes it for good.
-- **Sync.** One Temporal workflow per connection backfills mail and calendar (`BACKFILL_DAYS`), then follows Gmail history and Calendar sync tokens every minute, or at once on a push. Meet transcripts are fetched after meetings end and kept, since Meet deletes them after 30 days.
-- **Web app.** Triage, conversations, every object as a table, and a page per record with its fields, timeline and a form to log a call or note; ⌘K searches records. In Jaz the same app opens from the sidebar as an MCP App through the `show_crm` tool.
-- **Live pages.** Open pages refetch what they show when their workspace's data changes, whoever changed it: Postgres triggers notify the server, which streams an event to each signed-in page at `GET /api/changes`. Pages do not poll, except a sync step in progress, Connections' sync times and Follow-ups, whose Chase view changes with time. The MCP App, which has no session to stream with, refreshes every half minute.
-- **Calls and recorders.** Log a call or note in the app or through `log_interaction`. Recorders post conversations to `POST /webhooks/interactions` with an API key; an `external_id` makes a repeated post update one interaction.
+// When the host creates a team; it keeps owner.WorkspaceID on the team:
+owner, err := c.CreateWorkspace(ctx, team.Name, crm.Member{
+	Principal: crm.Principal{Issuer: "myapp", Subject: user.ID},
+	Name:      user.Name,
+	Email:     user.Email,
+})
 
-## Authentication
-
-- **People** sign in with OpenID Connect. Anyone with a verified email may sign up unless `ALLOWED_EMAIL_DOMAINS` or `ALLOWED_EMAILS` restrict it. Each new person gets a workspace; invites are the only way into another. Every member sees the whole workspace; admins invite people and edit the workspace.
-- **Agents** use OAuth 2.1 with dynamic client registration and PKCE, discovered from the 401 on `/mcp`. Personal API keys work as bearer tokens too. The web app calls the same operations at `POST /api/tools/{tool}` with its session.
-- **Tenant isolation**: every query and tool is scoped to one workspace; tests attack another workspace's records and interactions by id.
-
-Configuration is documented in `.env.example`.
-
-## ChatGPT plugin
-
-The existing MCP server and embedded app can be connected to ChatGPT using OAuth. See [setup, packaging and remaining requirements](docs/chatgpt-plugin.md); `plugin/` contains the portable manifest and ZIP packager.
-
-## MCP
-
-| Tool | Does |
-| --- | --- |
-| `list_objects`, `create_object`, `create_attribute` | the schema |
-| `add_attribute_option` | reusable select choices, including company categories |
-| `edit_pipeline_stage` | rename, reorder or delete stages, preserving records and history |
-| `search_records`, `get_record`, `upsert_record`, `delete_record` | records; `get_record` includes how often and when last they were in touch |
-| `search` | a few records of each object matching a query, name matches first, as `{results: [{id, title, url, text}]}`, [OpenAI's search convention](https://developers.openai.com/api/docs/mcp), for host search such as Jaz's command palette |
-| `list_interactions`, `get_interaction`, `search_interactions` | timelines, full conversations, full-text search |
-| `log_interaction`, `link_interaction`, `unlink_interaction`, `skip_interaction` | notes, messages and calls/meetings, links to records, removal |
-| `list_triage`, `decide_triage` | who is kept, skipped or waiting, and decisions by address or domain |
-| `get_triage_settings`, `update_triage_settings` | workspace auto-approval settings, off by default |
-| `list_triage_rules`, `forget_triage_rule` | inspect or remove persistent domain decisions |
-| `list_connections`, `disconnect` | synced Google accounts |
-| `get_workspace`, `update_workspace`, `invite_member`, `delete_workspace` | the workspace, its description and members; deletion requires an admin, its current ID and its name |
-| `show_crm` | opens the web app in hosts that support MCP Apps |
-
-`list_interactions` pages with `cursor`, the last interaction ID from the previous page. Dates retain their original precision; transcript turns keep their supplied order and include a time only when one was provided.
-
-`search_records` returns `records` and a `resource_uri` with the same text, attribute filters and limit. MCP Apps hosts render only compact record rows inline, sized to their content. Selecting a row opens its record in the full CRM through the host's app link. `show_crm` also accepts the URI to reopen the results. The `ui://jaz-crm/o/{object}` resource template, like the web app's `/o/{object}` pages, takes its filters as URL keys:
-
-```text
-ui://jaz-crm/o/deals?stage=Lead&view=table
-/o/people?tags=Advisor+Candidate&updated_at.after=2026-10-01
-/o/people?saved=<saved view id>
+// Per request, after the host has signed the person in and checked the team:
+actor, err := c.ActAs(ctx, crm.Principal{Issuer: "myapp", Subject: user.ID}, team.CRMWorkspaceID)
+company, skipped, err := c.Records.Upsert(ctx, actor, actor.Source(), records.Write{
+	Object: "companies",
+	Set:    map[string][]string{"name": {"Acme"}, "domains": {"acme.com"}},
+})
 ```
 
-`attribute=value` matches a value, and `attribute.operator=value` applies another operator: `is_not`, `contains`, `not_contains`, `before`, `on_or_before`, `after` or `on_or_after`; `attribute.is_empty` and `attribute.is_not_empty` take no value. Repeat a key for several values; every condition must match. `q` searches text, `saved` opens a saved view, `limit` is at most 100, and `view=table` selects a table instead of a pipeline. Keys that name no attribute, such as tracking parameters, are ignored, and older links with a JSON `filters` or `where` still open. Reference filters accept a record ID or its unique value, such as a company's domain. Every request uses the connected workspace's permissions.
+- **The host** authenticates people, decides who belongs to which team, owns the database and the pool, and chooses when `Migrate` runs. It calls `AddMember` when someone joins a team and stops calling `ActAs` for them when they leave.
+- **The CRM** owns its schema: tables, migration history, records with their history, and one member per person per workspace, linked to the host's `Principal` (an issuer naming the host and the host's stable user ID). It never reads a host user ID as a member ID or matches people by email. Every call is scoped to the workspace of its `records.Actor`; set `actor.Agent` when software acts for the person.
+- **No side effects at construction.** `Open` checks that the schema is migrated and changes nothing; neither function starts servers, jobs or provider clients or closes the pool. `Migrate` connects through a short-lived pool built from the host pool's configuration. Each statement sets `search_path` inside its own transaction, so the host's connections keep their settings. `Migrate` needs permission to create the schema and the `pg_trgm` extension; install `pg_trgm` beforehand to keep it in `public`.
+- **Jobs stay standalone.** Gmail and Calendar sync, AI triage and follow-up drafting run in the standalone worker (Temporal, Google, OpenAI). An embedded CRM gets them only by running that worker, which is not covered yet.
+- **Interface.** The host renders CRM data in its own UI from `c.Records` and `c.Interactions`; the web app and MCP server are the standalone app's. Writes notify the Postgres channel `changes` with the workspace ID, for hosts that refresh open pages.
+- **Other CRMs.** Connectors are not built. One would write through these services as `records.SourceSync`, matching records by unique attributes such as emails and domains, so people's and agents' edits always win.
+
+The Go API follows commits on main; there are no tagged releases yet. [`examples/embed`](examples/embed) is a separate module that runs this flow on a scratch database next to host tables.
 
 ## Develop
 
 ```sh
 docker compose up -d postgres temporal
-cd backend
-go build ./... && go vet ./... && go test ./...
-sqlc generate                      # after changing SQL in internal/storage/postgres/queries
+cd frontend && bun install && bun run build   # also generates the MCP App the server embeds
+cd ../backend && go build ./... && go vet ./... && go test ./...
 go run ./cmd/server & go run ./cmd/worker
-cd ../frontend && bun install && bun run dev
+cd ../frontend && bun run dev
 ```
 
-Run `bun run check` in `frontend` for unit tests, type checking, lint, builds and headless browser scenarios. Set `CHROME` to select the browser binary. The harness disables Chrome's automatic startup window so each scenario can create its own tabs without racing browser startup.
+`bun run check` in `frontend` runs unit tests, type checks, lint, builds and headless browser scenarios. Run `go test ./...` in `examples/embed` after changing the public API, and `sqlc generate` in `backend` after changing SQL in `internal/storage/postgres/queries`. [CLAUDE.md](CLAUDE.md) and [AGENTS.md](AGENTS.md) hold the engineering and design rules.
+
+## Licence
+
+[MIT](LICENSE)

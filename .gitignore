@@ -3,3 +3,4 @@
 .DS_Store
 /backend/server
 runs/
+/backend/internal/httpapi/mcpapi/app/mcp-app.html
