@@ -3,10 +3,9 @@ package mcpapi
 import (
 	"context"
 
-	"github.com/gluonfield/jaz-crm/backend/internal/auth"
-	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
+	"github.com/gluonfield/jaz-crm/backend/crm/interactions"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/logos"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
 )
 
 // pictures finds the pictures of records and of the records they reference:
@@ -18,7 +17,7 @@ type pictures struct {
 	publicURL string
 }
 
-func (p pictures) of(ctx context.Context, actor auth.Actor, shown []records.Record) (map[string]string, error) {
+func (p pictures) of(ctx context.Context, actor records.Actor, shown []records.Record) (map[string]string, error) {
 	var ids []string
 	for _, r := range shown {
 		ids = append(ids, r.ID)

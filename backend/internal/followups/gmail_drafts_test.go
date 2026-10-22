@@ -18,12 +18,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gluonfield/jaz-crm/backend/internal/auth"
+	"github.com/gluonfield/jaz-crm/backend/crm/interactions"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/connections"
 	"github.com/gluonfield/jaz-crm/backend/internal/followups"
 	"github.com/gluonfield/jaz-crm/backend/internal/google"
-	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
 	"github.com/gluonfield/jaz-crm/backend/internal/workspaces"
@@ -37,7 +36,7 @@ func TestImportedGmailDraftLifecycle(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			actor := auth.Actor{UserID: owner.ID, WorkspaceID: owner.WorkspaceID}
+			actor := records.Actor{MemberID: owner.ID, WorkspaceID: owner.WorkspaceID}
 			provider := &draftMailbox{t: t, raw: draftMIME("Prepared in Gmail", "A prepared email"), revision: 1, present: true, at: time.Now().Add(-time.Minute)}
 			if outcome == "Bcc only" {
 				provider.raw = strings.Replace(provider.raw, "To: jane@acme.com\r\n", "", 1)
@@ -293,7 +292,7 @@ func TestGmailDraftEligibility(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			actor := auth.Actor{UserID: owner.ID, WorkspaceID: owner.WorkspaceID}
+			actor := records.Actor{MemberID: owner.ID, WorkspaceID: owner.WorkspaceID}
 			raw := "From: Owner <owner@cas.dev>\r\nTo: " + test.to + "\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n" + test.body
 			if test.rich != "" {
 				raw = strings.Replace(raw, "Content-Type: text/plain", "Content-Type: text/html", 1)

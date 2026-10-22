@@ -4,8 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/gluonfield/jaz-crm/backend/internal/auth"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres"
 	"github.com/lithammer/shortuuid/v4"
 )
@@ -73,7 +72,7 @@ func TestLinksMigration(t *testing.T) {
 		t.Fatalf("saved filter: %s %v", filters, err)
 	}
 	crm := records.NewService(store)
-	actor := auth.Actor{UserID: user, WorkspaceID: workspace}
+	actor := records.Actor{MemberID: user, WorkspaceID: workspace}
 	for variant, id := range map[string]string{"linkedin.com/in/jim": jim, "https://x.com/ann/": ann, "linkedin.com/company/acme": acme} {
 		object := "people"
 		if id == acme {

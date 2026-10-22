@@ -4,9 +4,9 @@ import (
 	"context"
 	"strings"
 
+	"github.com/gluonfield/jaz-crm/backend/crm/errs"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
-	"github.com/gluonfield/jaz-crm/backend/internal/errs"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -23,7 +23,7 @@ func registerDates(r *registry, crm *records.Service) {
 			} else {
 				w.Set = map[string][]string{"action_date": {in.Value}}
 			}
-			record, _, err := crm.Upsert(ctx, actor, records.SourceUser, w)
+			record, _, err := crm.Upsert(ctx, actor.Actor, records.SourceUser, w)
 			return r.recordOf(record, nil), err
 		})
 }

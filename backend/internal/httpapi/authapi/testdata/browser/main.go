@@ -12,6 +12,8 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/log"
+	"github.com/gluonfield/jaz-crm/backend/crm/interactions"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"github.com/gluonfield/jaz-crm/backend/internal/changes"
 	"github.com/gluonfield/jaz-crm/backend/internal/connections"
@@ -22,9 +24,7 @@ import (
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/mcpapi"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/pageimagesapi"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/webhooks"
-	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
 	"github.com/gluonfield/jaz-crm/backend/internal/logos"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/server"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"

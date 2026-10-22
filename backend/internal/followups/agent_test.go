@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -13,12 +14,11 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
-	"github.com/gluonfield/jaz-crm/backend/internal/auth"
+	"github.com/gluonfield/jaz-crm/backend/crm/interactions"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/connections"
 	"github.com/gluonfield/jaz-crm/backend/internal/followups"
 	"github.com/gluonfield/jaz-crm/backend/internal/google"
-	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
 	"github.com/gluonfield/jaz-crm/backend/internal/workspaces"
@@ -61,7 +61,7 @@ func TestCancelledDraftReleasesItsClaim(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	actor := auth.Actor{UserID: owner.ID, WorkspaceID: owner.WorkspaceID}
+	actor := records.Actor{MemberID: owner.ID, WorkspaceID: owner.WorkspaceID}
 	crm := records.NewService(store)
 	person, _, err := crm.Upsert(ctx, actor, records.SourceUser, records.Write{Object: "people", Set: map[string][]string{"name": {"Jane"}}})
 	if err != nil {
@@ -103,13 +103,13 @@ func TestAgentKeepsFollowUpsCurrent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	actor := auth.Actor{UserID: owner.ID, WorkspaceID: owner.WorkspaceID}
+	actor := records.Actor{MemberID: owner.ID, WorkspaceID: owner.WorkspaceID}
 	workspaceService := workspaces.NewService(store, workspaces.Config{})
 	zone := "Europe/London"
-	if _, err := workspaceService.Update(ctx, actor, storage.WorkspaceUpdate{Timezone: &zone}); err != nil {
+	if _, err := workspaceService.Update(ctx, auth.Actor{Actor: actor}, storage.WorkspaceUpdate{Timezone: &zone}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := workspaceService.Invite(ctx, actor, "bob@acme.com"); err != nil {
+	if _, err := workspaceService.Invite(ctx, auth.Actor{Actor: actor}, "bob@acme.com"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := workspaceService.SignIn(ctx, signin.Identity{Issuer: "test", Subject: "bob", Email: "bob@acme.com", EmailVerified: true}); err != nil {

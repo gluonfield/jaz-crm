@@ -4,8 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/gluonfield/jaz-crm/backend/internal/auth"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres"
 )
 
@@ -77,7 +76,7 @@ JOIN objects ON objects.id = records.object_id WHERE objects.slug = 'companies';
 		if err := db.QueryRowContext(ctx, "SELECT id FROM workspaces WHERE name = $1", name).Scan(&workspaceID); err != nil {
 			t.Fatal(err)
 		}
-		personActor := auth.Actor{WorkspaceID: workspaceID}
+		personActor := records.Actor{WorkspaceID: workspaceID}
 		people, _, err := svc.Search(ctx, personActor, records.Search{Object: "people"})
 		if err != nil || len(people) != 1 {
 			t.Fatalf("upgrade lost %s person: %v %v", name, people, err)
@@ -124,7 +123,7 @@ JOIN objects ON objects.id = records.object_id WHERE objects.slug = 'companies';
 			}
 		}
 	}
-	actor := auth.Actor{WorkspaceID: workspace}
+	actor := records.Actor{WorkspaceID: workspace}
 	objects, err := svc.Objects(ctx, actor, false)
 	if err != nil {
 		t.Fatal(err)

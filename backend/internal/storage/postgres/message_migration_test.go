@@ -7,9 +7,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gluonfield/jaz-crm/backend/internal/auth"
-	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
+	"github.com/gluonfield/jaz-crm/backend/crm/interactions"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres"
 	datamigrations "github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/migrations"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
@@ -123,7 +122,7 @@ func TestMessageMigration(t *testing.T) {
 		}
 		crm := records.NewService(store)
 		svc := interactions.NewService(interactions.Params{Store: store, Connections: store, Workspaces: store, Records: crm})
-		actor := auth.Actor{UserID: user, WorkspaceID: workspace}
+		actor := records.Actor{MemberID: user, WorkspaceID: workspace}
 		message, err := svc.Get(ctx, actor, messageID)
 		if err != nil || message.Kind != "message" || message.Channel != "linkedin" || message.StartedAt != "2026-09-20" || len(message.Messages) != 1 || len(message.Records) != 1 || message.Records[0].ID != record {
 			t.Fatalf("migrated message, pass %d: %+v %v", pass, message, err)

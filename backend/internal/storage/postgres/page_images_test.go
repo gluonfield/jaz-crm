@@ -13,9 +13,9 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/log"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/mcpapi"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres"
 	"github.com/gluonfield/jaz-crm/backend/internal/workspaces"
@@ -35,7 +35,7 @@ func TestPreviouslyUploadedPageImagesRemainReadable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	actor := auth.Actor{UserID: owner.ID, WorkspaceID: owner.WorkspaceID}
+	actor := records.Actor{MemberID: owner.ID, WorkspaceID: owner.WorkspaceID}
 	svc := records.NewService(store)
 	page, _, err := svc.Upsert(ctx, actor, records.SourceUser, records.Write{Object: records.Pages, Set: map[string][]string{"name": {"Design"}}})
 	if err != nil {
@@ -66,7 +66,7 @@ func TestPreviouslyUploadedPageImagesRemainReadable(t *testing.T) {
 	link := "image:https://crm.test/page-icons/" + id
 	for _, operation := range []string{`"values":{"icon":"` + link + `"}`, `"remove":{"icon":["` + link + `"]}`} {
 		body := `{"object":"pages","record_id":"` + page.ID + `","expect":{"icon":"` + link + `"},` + operation + `}`
-		req := httptest.NewRequest(http.MethodPost, "/api/tools/upsert_record", strings.NewReader(body)).WithContext(auth.WithActor(ctx, actor))
+		req := httptest.NewRequest(http.MethodPost, "/api/tools/upsert_record", strings.NewReader(body)).WithContext(auth.WithActor(ctx, auth.Actor{Actor: actor}))
 		req.SetPathValue("tool", "upsert_record")
 		out := httptest.NewRecorder()
 		api.ServeHTTP(out, req)
@@ -82,7 +82,7 @@ func TestPreviouslyUploadedPageImagesRemainReadable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := svc.Upsert(ctx, auth.Actor{UserID: other.ID, WorkspaceID: other.WorkspaceID}, records.SourceUser, records.Write{Object: records.Pages, Set: map[string][]string{"icon": {icon}}}); err == nil {
+	if _, _, err := svc.Upsert(ctx, records.Actor{MemberID: other.ID, WorkspaceID: other.WorkspaceID}, records.SourceUser, records.Write{Object: records.Pages, Set: map[string][]string{"icon": {icon}}}); err == nil {
 		t.Fatal("another workspace reused the stored image identifier")
 	}
 	if err := svc.Delete(ctx, actor, page.ID); err != nil {

@@ -5,8 +5,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/gluonfield/jaz-crm/backend/internal/auth"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres"
 )
 
@@ -39,7 +38,7 @@ func TestPagesMigration(t *testing.T) {
 	}
 	defer store.Close()
 	crm := records.NewService(store)
-	actor := auth.Actor{UserID: user, WorkspaceID: workspace}
+	actor := records.Actor{MemberID: user, WorkspaceID: workspace}
 	objects, err := crm.Objects(ctx, actor, false)
 	if err != nil {
 		t.Fatal(err)

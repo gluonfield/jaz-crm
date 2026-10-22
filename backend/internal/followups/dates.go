@@ -4,7 +4,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gluonfield/jaz-crm/backend/internal/errs"
+	"github.com/gluonfield/jaz-crm/backend/crm/errs"
 )
 
 func actionDate(value, timezone string) (string, error) {

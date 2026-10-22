@@ -12,13 +12,13 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
+	"github.com/gluonfield/jaz-crm/backend/crm/interactions"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"github.com/gluonfield/jaz-crm/backend/internal/connections"
 	"github.com/gluonfield/jaz-crm/backend/internal/followups"
 	"github.com/gluonfield/jaz-crm/backend/internal/google"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/mcpapi"
-	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
 	"github.com/gluonfield/jaz-crm/backend/internal/workspaces"
 	"golang.org/x/oauth2"
@@ -33,7 +33,7 @@ func TestNewEmailAfterCall(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			actor := auth.Actor{UserID: owner.ID, WorkspaceID: owner.WorkspaceID}
+			actor := records.Actor{MemberID: owner.ID, WorkspaceID: owner.WorkspaceID}
 			g := &gmail{}
 			server := httptest.NewServer(g)
 			t.Cleanup(server.Close)

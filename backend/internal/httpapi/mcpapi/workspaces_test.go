@@ -59,7 +59,7 @@ func TestWorkspaceDeletion(t *testing.T) {
 	}
 	record := mustCall(t, owner, "upsert_record", map[string]any{"object": "companies", "values": map[string]any{"name": "Delete me"}})["record"].(map[string]any)
 	mustCall(t, owner, "invite_member", map[string]any{"email": "pending@example.com"})
-	connection, err := store.SaveConnection(ctx, storage.NewConnection{WorkspaceID: actor.WorkspaceID, UserID: actor.UserID, Provider: "google", Account: "mailbox@example.com", RefreshToken: []byte("encrypted")})
+	connection, err := store.SaveConnection(ctx, storage.NewConnection{WorkspaceID: actor.WorkspaceID, UserID: actor.MemberID, Provider: "google", Account: "mailbox@example.com", RefreshToken: []byte("encrypted")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,11 +75,11 @@ func TestWorkspaceDeletion(t *testing.T) {
 	if err := store.UpsertPart(ctx, storage.NewPart{InteractionID: interaction.ID, Kind: "message", ExternalID: "mail", ConnectionID: &connection.ID, At: &at, Content: &content}); err != nil {
 		t.Fatal(err)
 	}
-	cookie, _, err := e.keys.CreateSession(ctx, actor.UserID)
+	cookie, _, err := e.keys.CreateSession(ctx, actor.MemberID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	user, err := store.UserByID(ctx, actor.UserID)
+	user, err := store.UserByID(ctx, actor.MemberID)
 	if err != nil {
 		t.Fatal(err)
 	}

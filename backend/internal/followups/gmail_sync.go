@@ -7,10 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gluonfield/jaz-crm/backend/internal/auth"
+	"github.com/gluonfield/jaz-crm/backend/crm/interactions"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/google"
-	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 )
 
@@ -122,7 +121,7 @@ func (s *Service) importGmailDraft(ctx context.Context, connection storage.Conne
 			return nil
 		}
 		crm := records.NewService(store)
-		actor := auth.Actor{WorkspaceID: connection.WorkspaceID, UserID: connection.UserID}
+		actor := records.Actor{WorkspaceID: connection.WorkspaceID, MemberID: connection.UserID}
 		if current.FollowUpID != nil {
 			record, err := crm.Get(ctx, actor, *current.FollowUpID)
 			if err != nil {
@@ -266,7 +265,7 @@ func (s *Service) finishGmailDraft(ctx context.Context, connection storage.Conne
 			return store.UpsertGmailDraft(ctx, draft)
 		}
 		crm := records.NewService(store)
-		actor := auth.Actor{WorkspaceID: connection.WorkspaceID, UserID: connection.UserID}
+		actor := records.Actor{WorkspaceID: connection.WorkspaceID, MemberID: connection.UserID}
 		current, err := crm.Get(ctx, actor, *draft.FollowUpID)
 		if err != nil {
 			return err

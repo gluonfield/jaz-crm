@@ -18,6 +18,8 @@ import (
 	"github.com/gluonfield/jaz-tasks/auth"
 
 	"github.com/charmbracelet/log"
+	"github.com/gluonfield/jaz-crm/backend/crm/interactions"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"github.com/gluonfield/jaz-crm/backend/internal/changes"
 	"github.com/gluonfield/jaz-crm/backend/internal/connections"
@@ -26,8 +28,6 @@ import (
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/connectapi"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/mcpapi"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/webhooks"
-	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/server"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
 	"github.com/gluonfield/jaz-crm/backend/internal/workspaces"

@@ -3,6 +3,7 @@ package followups_test
 import (
 	"context"
 	"fmt"
+	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"io"
 	"reflect"
 	"slices"
@@ -11,10 +12,9 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
-	"github.com/gluonfield/jaz-crm/backend/internal/auth"
+	"github.com/gluonfield/jaz-crm/backend/crm/interactions"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/followups"
-	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
 	"github.com/gluonfield/jaz-crm/backend/internal/workspaces"
@@ -38,7 +38,7 @@ func TestRewriteUsesStoredContextWithoutSaving(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	actor := auth.Actor{UserID: owner.ID, WorkspaceID: owner.WorkspaceID}
+	actor := records.Actor{MemberID: owner.ID, WorkspaceID: owner.WorkspaceID}
 	crm := records.NewService(store)
 	convs := interactions.NewService(interactions.Params{Store: store, Connections: store, Workspaces: store, Records: crm})
 	brain := &rewriter{}
@@ -53,7 +53,7 @@ func TestRewriteUsesStoredContextWithoutSaving(t *testing.T) {
 	}
 	page := write(records.Pages, map[string][]string{"name": {"Capabilities"}, "content": {"We can quote aluminium brackets."}})
 	child := write(records.Pages, map[string][]string{"name": {"Booking"}, "parent": {page.ID}, "content": {"Use https://example.test/book for a call."}})
-	if _, err := workspaces.Update(ctx, actor, storage.WorkspaceUpdate{CompanyPageIDs: []string{page.ID}, DraftingWebAccess: new(true)}); err != nil {
+	if _, err := workspaces.Update(ctx, auth.Actor{Actor: actor}, storage.WorkspaceUpdate{CompanyPageIDs: []string{page.ID}, DraftingWebAccess: new(true)}); err != nil {
 		t.Fatal(err)
 	}
 	company := write("companies", map[string][]string{"name": {"Customer"}})
@@ -112,7 +112,7 @@ func TestRewriteUsesStoredContextWithoutSaving(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(stored, f) {
 		t.Fatalf("a rewrite proposal changed the saved draft: %+v %v", stored, err)
 	}
-	connection, err := store.SaveConnection(ctx, storage.NewConnection{WorkspaceID: actor.WorkspaceID, UserID: actor.UserID, Provider: "google", Account: "alex@alternate.test", RefreshToken: []byte("unused")})
+	connection, err := store.SaveConnection(ctx, storage.NewConnection{WorkspaceID: actor.WorkspaceID, UserID: actor.MemberID, Provider: "google", Account: "alex@alternate.test", RefreshToken: []byte("unused")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +136,7 @@ func TestRewriteUsesStoredContextWithoutSaving(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := agent.Rewrite(ctx, auth.Actor{UserID: other.ID, WorkspaceID: other.WorkspaceID}, f.ID, input); err == nil || len(brain.inputs) != 3 {
+	if _, err := agent.Rewrite(ctx, records.Actor{MemberID: other.ID, WorkspaceID: other.WorkspaceID}, f.ID, input); err == nil || len(brain.inputs) != 3 {
 		t.Fatal("another workspace read the draft or called the model")
 	}
 	if _, err := agent.Rewrite(ctx, actor, person.ID, input); err == nil {

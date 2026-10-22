@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/charmbracelet/log"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 )
 

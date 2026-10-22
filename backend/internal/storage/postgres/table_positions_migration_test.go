@@ -5,8 +5,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/gluonfield/jaz-crm/backend/internal/auth"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres"
 	"github.com/lithammer/shortuuid/v4"
 )
@@ -41,7 +40,7 @@ func TestTablePositionsMigration(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	objects, err := records.NewService(store).Objects(ctx, auth.Actor{UserID: user, WorkspaceID: workspace}, false)
+	objects, err := records.NewService(store).Objects(ctx, records.Actor{MemberID: user, WorkspaceID: workspace}, false)
 	if err != nil {
 		t.Fatal(err)
 	}

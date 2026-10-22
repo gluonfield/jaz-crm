@@ -17,11 +17,11 @@ import (
 	"github.com/gluonfield/jaz-tasks/auth"
 
 	"github.com/charmbracelet/log"
+	"github.com/gluonfield/jaz-crm/backend/crm/interactions"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"github.com/gluonfield/jaz-crm/backend/internal/connections"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/mcpapi"
-	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
 	"github.com/gluonfield/jaz-crm/backend/internal/workspaces"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -483,7 +483,7 @@ func (e env) oauth(t *testing.T, user storage.User) string {
 	}
 	verifier := strings.Repeat("verifier", 8)
 	sum := sha256.Sum256([]byte(verifier))
-	target, err := e.keys.Approve(ctx, auth.Actor{UserID: user.ID, WorkspaceID: user.WorkspaceID}, auth.AuthorizeRequest{
+	target, err := e.keys.Approve(ctx, auth.Actor{Actor: records.Actor{MemberID: user.ID, WorkspaceID: user.WorkspaceID}}, auth.AuthorizeRequest{
 		ResponseType: "code", ClientID: app.ID, RedirectURI: "http://localhost/cb",
 		CodeChallenge: base64.RawURLEncoding.EncodeToString(sum[:]), CodeChallengeMethod: "S256",
 	})

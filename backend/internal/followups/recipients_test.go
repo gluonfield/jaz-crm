@@ -1,17 +1,17 @@
 package followups_test
 
 import (
+	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"net/http/httptest"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/gluonfield/jaz-crm/backend/internal/auth"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/connections"
 	"github.com/gluonfield/jaz-crm/backend/internal/followups"
 	"github.com/gluonfield/jaz-crm/backend/internal/google"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
 	"github.com/gluonfield/jaz-crm/backend/internal/workspaces"
@@ -25,8 +25,8 @@ func TestReplyAllRecipientsThroughPreviewAndSend(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	actor := auth.Actor{UserID: owner.ID, WorkspaceID: owner.WorkspaceID}
-	if _, err := people.Invite(ctx, actor, "mate@cas.dev"); err != nil {
+	actor := records.Actor{MemberID: owner.ID, WorkspaceID: owner.WorkspaceID}
+	if _, err := people.Invite(ctx, auth.Actor{Actor: actor}, "mate@cas.dev"); err != nil {
 		t.Fatal(err)
 	}
 	mate, err := people.SignIn(ctx, signin.Identity{Issuer: "test", Subject: "mate", Email: "mate@cas.dev", EmailVerified: true})
@@ -50,7 +50,7 @@ func TestReplyAllRecipientsThroughPreviewAndSend(t *testing.T) {
 	if err := store.AddAliases(ctx, mailbox.ID, []string{"sales@cas.dev"}); err != nil {
 		t.Fatal(err)
 	}
-	mateActor := auth.Actor{UserID: mate.ID, WorkspaceID: mate.WorkspaceID}
+	mateActor := records.Actor{MemberID: mate.ID, WorkspaceID: mate.WorkspaceID}
 	g.account = "mate@cas.dev"
 	if _, err := conns.Connect(ctx, mateActor, "code", "verifier"); err != nil {
 		t.Fatal(err)

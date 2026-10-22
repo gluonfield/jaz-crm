@@ -13,11 +13,10 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
-	"github.com/gluonfield/jaz-crm/backend/internal/auth"
+	"github.com/gluonfield/jaz-crm/backend/crm/interactions"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/followups"
-	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
 	"github.com/gluonfield/jaz-crm/backend/internal/llm"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
 	"github.com/gluonfield/jaz-crm/backend/internal/workspaces"
@@ -35,11 +34,11 @@ func TestDraftAgentRetrievesContextWithReadOnlyTools(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	actor := auth.Actor{UserID: owner.ID, WorkspaceID: owner.WorkspaceID}
-	foreign := auth.Actor{UserID: other.ID, WorkspaceID: other.WorkspaceID}
+	actor := records.Actor{MemberID: owner.ID, WorkspaceID: owner.WorkspaceID}
+	foreign := records.Actor{MemberID: other.ID, WorkspaceID: other.WorkspaceID}
 	crm := records.NewService(store)
 	convs := interactions.NewService(interactions.Params{Store: store, Connections: store, Workspaces: store, Records: crm})
-	write := func(as auth.Actor, object string, fields map[string][]string) records.Record {
+	write := func(as records.Actor, object string, fields map[string][]string) records.Record {
 		t.Helper()
 		r, _, err := crm.Upsert(ctx, as, records.SourceUser, records.Write{Object: object, Set: fields})
 		if err != nil {
@@ -52,9 +51,9 @@ func TestDraftAgentRetrievesContextWithReadOnlyTools(t *testing.T) {
 	content := strings.Repeat("Complete production specifications. λ\n", 1000) + "Verified tolerance: 0.02 mm."
 	child := write(actor, records.Pages, map[string][]string{"name": {"Bracket specification"}, "parent": {root.ID}, "content": {content}})
 	secret := write(foreign, records.Pages, map[string][]string{"name": {"Secret"}, "content": {"FOREIGN SECRET"}})
-	thread := func(as auth.Actor, title, body string, at time.Time, personID string) string {
+	thread := func(as records.Actor, title, body string, at time.Time, personID string) string {
 		t.Helper()
-		id, err := store.UpsertEmailThread(ctx, storage.EmailThread{WorkspaceID: as.WorkspaceID, ExternalID: title, UserID: &as.UserID, Title: title, At: at})
+		id, err := store.UpsertEmailThread(ctx, storage.EmailThread{WorkspaceID: as.WorkspaceID, ExternalID: title, UserID: &as.MemberID, Title: title, At: at})
 		if err != nil {
 			t.Fatal(err)
 		}

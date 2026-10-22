@@ -6,14 +6,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gluonfield/jaz-crm/backend/internal/auth"
-	"github.com/gluonfield/jaz-crm/backend/internal/errs"
+	"github.com/gluonfield/jaz-crm/backend/crm/errs"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/google"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 )
 
-func (s *Service) importedMailbox(ctx context.Context, actor auth.Actor, draft storage.GmailDraft) (storage.Connection, *google.Client, error) {
+func (s *Service) importedMailbox(ctx context.Context, actor records.Actor, draft storage.GmailDraft) (storage.Connection, *google.Client, error) {
 	connection, err := s.conns.Mailbox(ctx, actor, draft.ConnectionID)
 	if err != nil {
 		return connection, nil, err
@@ -25,7 +24,7 @@ func (s *Service) importedMailbox(ctx context.Context, actor auth.Actor, draft s
 	return connection, mailbox, err
 }
 
-func (s *Service) composeImported(ctx context.Context, actor auth.Actor, f records.Record, snapshot storage.GmailDraft) (outgoing, error) {
+func (s *Service) composeImported(ctx context.Context, actor records.Actor, f records.Record, snapshot storage.GmailDraft) (outgoing, error) {
 	if snapshot.State != "draft" {
 		return outgoing{}, errs.Invalidf("this draft is no longer in Gmail Drafts; refresh the conversation")
 	}
@@ -47,7 +46,7 @@ func (s *Service) composeImported(ctx context.Context, actor auth.Actor, f recor
 	return outgoing{mailbox: mailbox, account: draft.Message.From.Email, message: message, imported: &snapshot, bcc: emails(draft.Message.Bcc), attachments: draft.Message.Attachments, html: draft.Message.HTML}, nil
 }
 
-func (s *Service) saveImported(ctx context.Context, actor auth.Actor, snapshot storage.GmailDraft, revision, body, subject, channel string, to, cc []string) (SavedDraft, error) {
+func (s *Service) saveImported(ctx context.Context, actor records.Actor, snapshot storage.GmailDraft, revision, body, subject, channel string, to, cc []string) (SavedDraft, error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	var result SavedDraft
@@ -64,7 +63,7 @@ func (s *Service) saveImported(ctx context.Context, actor auth.Actor, snapshot s
 	return result, err
 }
 
-func (s *Service) saveImportedLocked(ctx context.Context, actor auth.Actor, snapshot storage.GmailDraft, revision, body, subject, channel string, to, cc []string) (SavedDraft, error) {
+func (s *Service) saveImportedLocked(ctx context.Context, actor records.Actor, snapshot storage.GmailDraft, revision, body, subject, channel string, to, cc []string) (SavedDraft, error) {
 	if channel != "Email" {
 		return SavedDraft{}, errs.Invalidf("a Gmail draft must remain an email")
 	}

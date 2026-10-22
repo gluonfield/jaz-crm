@@ -13,7 +13,7 @@ func registerConnections(r *registry, conns *connections.Service, publicURL stri
 	add(r, &mcp.Tool{Name: "list_connections", Title: "List connections", Annotations: readOnly,
 		Description: "Google accounts syncing mail and calendar into this workspace: when each stream last moved, the step running now, how much mail is in and whether its history back to since is complete, and where to connect another."},
 		func(ctx context.Context, actor auth.Actor, _ empty) (connectionsOutput, error) {
-			list, err := conns.List(ctx, actor)
+			list, err := conns.List(ctx, actor.Actor)
 			out := connectionsOutput{Connections: list, Since: conns.Since()}
 			if conns.Enabled() {
 				out.ConnectURL = publicURL + "/connections/google/start"
@@ -23,12 +23,12 @@ func registerConnections(r *registry, conns *connections.Service, publicURL stri
 	add(r, &mcp.Tool{Name: "set_teammates_send", Title: "Let teammates send", Meta: mcp.Meta{"ui": map[string]any{"visibility": []string{"app"}}},
 		Description: "Decide whether the workspace's other members may send replies from your own connected mailbox."},
 		func(ctx context.Context, actor auth.Actor, in teammatesSendInput) (empty, error) {
-			return empty{}, conns.SetTeammatesSend(ctx, actor, in.ConnectionID, in.Allowed)
+			return empty{}, conns.SetTeammatesSend(ctx, actor.Actor, in.ConnectionID, in.Allowed)
 		})
 	add(r, &mcp.Tool{Name: "disconnect", Title: "Disconnect",
 		Description: "Stop syncing a Google account; what it already synced stays."},
 		func(ctx context.Context, actor auth.Actor, in connectionInput) (empty, error) {
-			return empty{}, conns.Disconnect(ctx, actor, in.ConnectionID)
+			return empty{}, conns.Disconnect(ctx, actor.Actor, in.ConnectionID)
 		})
 }
 

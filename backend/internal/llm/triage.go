@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
+	"github.com/gluonfield/jaz-crm/backend/crm/interactions"
 )
 
 const triageInstructions = `You decide which email correspondents belong in a CRM.

@@ -5,9 +5,8 @@ import (
 	"slices"
 	"time"
 
-	"github.com/gluonfield/jaz-crm/backend/internal/auth"
-	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
+	"github.com/gluonfield/jaz-crm/backend/crm/interactions"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 )
 
 type Record struct {
@@ -36,7 +35,7 @@ func recordInput(r records.Record) Record {
 	return out
 }
 
-func (a *Agent) conversation(ctx context.Context, actor auth.Actor, conv interactions.Interaction) (Conversation, error) {
+func (a *Agent) conversation(ctx context.Context, actor records.Actor, conv interactions.Interaction) (Conversation, error) {
 	ws, err := a.workspaces.Workspace(ctx, actor.WorkspaceID)
 	if err != nil {
 		return Conversation{}, err
@@ -60,7 +59,7 @@ func (a *Agent) conversation(ctx context.Context, actor auth.Actor, conv interac
 	for _, u := range users {
 		person := Person{Name: u.Name, Address: u.Email}
 		in.Us = append(in.Us, person)
-		if len(stored) == 1 && stored[0].UserID != nil && *stored[0].UserID == u.ID || len(stored) == 0 && u.ID == actor.UserID {
+		if len(stored) == 1 && stored[0].UserID != nil && *stored[0].UserID == u.ID || len(stored) == 0 && u.ID == actor.MemberID {
 			in.Sender = &person
 		}
 	}
@@ -116,7 +115,7 @@ func (a *Agent) conversation(ctx context.Context, actor auth.Actor, conv interac
 	return in, err
 }
 
-func (a *Agent) companyKnowledge(ctx context.Context, actor auth.Actor, roots []string) ([]Record, error) {
+func (a *Agent) companyKnowledge(ctx context.Context, actor records.Actor, roots []string) ([]Record, error) {
 	out := []Record{}
 	paths := map[string]string{}
 	for _, root := range roots {
@@ -150,7 +149,7 @@ func (a *Agent) companyKnowledge(ctx context.Context, actor auth.Actor, roots []
 	return out, nil
 }
 
-func (a *Agent) contactHistory(ctx context.Context, actor auth.Actor, currentID string, contacts []Record) ([]interactions.Interaction, error) {
+func (a *Agent) contactHistory(ctx context.Context, actor records.Actor, currentID string, contacts []Record) ([]interactions.Interaction, error) {
 	out := []interactions.Interaction{}
 	seen := map[string]bool{currentID: true}
 	for _, contact := range contacts {
@@ -182,7 +181,7 @@ func (a *Agent) contactHistory(ctx context.Context, actor auth.Actor, currentID 
 	return out, nil
 }
 
-func (a *Agent) searchRecords(ctx context.Context, actor auth.Actor, q records.Search) ([]records.Record, error) {
+func (a *Agent) searchRecords(ctx context.Context, actor records.Actor, q records.Search) ([]records.Record, error) {
 	q.Limit = 100
 	out := []records.Record{}
 	for {

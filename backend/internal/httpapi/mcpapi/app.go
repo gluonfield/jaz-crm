@@ -14,8 +14,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

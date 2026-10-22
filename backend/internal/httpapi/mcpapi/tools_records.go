@@ -5,10 +5,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gluonfield/jaz-crm/backend/crm/errs"
+	"github.com/gluonfield/jaz-crm/backend/crm/interactions"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
-	"github.com/gluonfield/jaz-crm/backend/internal/errs"
-	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -19,25 +19,25 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 	add(r, &mcp.Tool{Name: "edit_pipeline_stage", Title: "Edit pipeline stage",
 		Description: "Rename, move or delete a status stage. Move places it before another stage, or last when before is omitted. Delete requires a replacement when records use the stage, and moves them there. At least one stage remains; history is preserved."},
 		func(ctx context.Context, actor auth.Actor, in stageInput) (empty, error) {
-			return empty{}, crm.EditStage(ctx, actor, in.Object, in.Attribute, records.StageEdit{Action: in.Action, Stage: in.Stage, Name: in.Name, Before: in.Before, Replacement: in.Replacement})
+			return empty{}, crm.EditStage(ctx, actor.Actor, in.Object, in.Attribute, records.StageEdit{Action: in.Action, Stage: in.Stage, Name: in.Name, Before: in.Before, Replacement: in.Replacement})
 		})
 	add(r, &mcp.Tool{Annotations: &mcp.ToolAnnotations{DestructiveHint: new(false)}, Name: "add_attribute_option", Title: "Add attribute option",
 		Description: "Add a reusable choice to a select attribute or append a pipeline stage to a status attribute. Returns the existing choice when its spelling differs only in case. Assign choices through upsert_record."},
 		func(ctx context.Context, actor auth.Actor, in optionInput) (optionOutput, error) {
-			value, err := crm.AddOption(ctx, actor, in.Object, in.Attribute, in.Value)
+			value, err := crm.AddOption(ctx, actor.Actor, in.Object, in.Attribute, in.Value)
 			return optionOutput{Value: value}, err
 		})
 	add(r, &mcp.Tool{Name: "list_objects", Title: "List objects", Annotations: readOnly,
 		Description: "List objects and their active attributes. Include archived attributes to inspect or restore them. Pages nest under a parent page."},
 		func(ctx context.Context, actor auth.Actor, in objectsInput) (objectsOutput, error) {
-			objects, err := crm.Objects(ctx, actor, in.IncludeArchived)
+			objects, err := crm.Objects(ctx, actor.Actor, in.IncludeArchived)
 			return objectsOutput{Objects: objectViews(objects)}, err
 		})
 	add(r, &mcp.Tool{Name: "search_records", Title: "Search records", Annotations: readOnly,
 		Description: "List an object's records, newest first or by a date, filtered by text and attribute values, with how often and when last each was in touch and the start of its latest message. Text matching a record's name ranks first, then an email address or domain. Returns a filtered resource_uri that renders the matching CRM list or deal pipeline, and opens it automatically. Records, and the records they reference, carry a picture: a person's profile picture when Google has one, else the website logo of a record with a domain. Listed records leave out their markdown content, which query still matches and get_record returns.",
 		Meta:        mcp.Meta{"ui": map[string]any{"resourceUri": appURI}}},
 		func(ctx context.Context, actor auth.Actor, in searchInput) (recordsOutput, error) {
-			found, total, err := crm.Search(ctx, actor, records.Search{Object: in.Object, Query: in.Query, Where: in.Where, Filters: in.Filters, Sort: in.Sort, Offset: in.Offset, Limit: in.Limit, Include: in.Include, GroupByConversation: in.GroupByConversation, ConversationID: in.ConversationID})
+			found, total, err := crm.Search(ctx, actor.Actor, records.Search{Object: in.Object, Query: in.Query, Where: in.Where, Filters: in.Filters, Sort: in.Sort, Offset: in.Offset, Limit: in.Limit, Include: in.Include, GroupByConversation: in.GroupByConversation, ConversationID: in.ConversationID})
 			if err != nil {
 				return recordsOutput{}, err
 			}
@@ -45,11 +45,11 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 			for i, record := range found {
 				ids[i] = record.ID
 			}
-			activity, err := conversations.Activities(ctx, actor, ids)
+			activity, err := conversations.Activities(ctx, actor.Actor, ids)
 			if err != nil {
 				return recordsOutput{}, err
 			}
-			photos, err := pics.of(ctx, actor, found)
+			photos, err := pics.of(ctx, actor.Actor, found)
 			out := recordsOutput{Records: []recordView{}, Total: total, ResourceURI: recordSearchURI(in)}
 			for _, record := range found {
 				out.Records = append(out.Records, r.recordWith(record, activity, photos))
@@ -60,25 +60,25 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 		Description: "Get a person, company, deal, page or table record by record_id with its current values, including a page's markdown content, communication activity, and what references it, such as its follow-ups or a page's sub-pages, as compact references in related keyed by object.attribute, up to 20 each; upcoming meetings do not count. Returns a resource_uri that automatically renders a compact record card. Clicking the card opens the full CRM record.",
 		Meta:        mcp.Meta{"ui": map[string]any{"resourceUri": appURI}, "ui/resourceUri": appURI}},
 		func(ctx context.Context, actor auth.Actor, in recordInput) (recordOutput, error) {
-			record, err := crm.Get(ctx, actor, in.RecordID)
+			record, err := crm.Get(ctx, actor.Actor, in.RecordID)
 			if err != nil {
 				return recordOutput{}, err
 			}
-			activity, err := conversations.Activities(ctx, actor, []string{record.ID})
+			activity, err := conversations.Activities(ctx, actor.Actor, []string{record.ID})
 			if err != nil {
 				return recordOutput{}, err
 			}
-			record, err = crm.Referenced(ctx, actor, record, 20)
+			record, err = crm.Referenced(ctx, actor.Actor, record, 20)
 			if err != nil {
 				return recordOutput{}, err
 			}
-			photos, err := pics.of(ctx, actor, []records.Record{record})
+			photos, err := pics.of(ctx, actor.Actor, []records.Record{record})
 			return recordOutput{recordView: r.recordWith(record, activity, photos), ResourceURI: "ui://jaz-crm/r/" + record.ID}, err
 		})
 	add(r, &mcp.Tool{Name: "record_history", Title: "Record history", Annotations: readOnly,
 		Description: "A record's recent changes, newest first: the value each attribute got, from which source (user, agent or sync), who made it and when; removed marks a value taken away with nothing in its place."},
 		func(ctx context.Context, actor auth.Actor, in recordInput) (historyOutput, error) {
-			changes, err := crm.History(ctx, actor, in.RecordID)
+			changes, err := crm.History(ctx, actor.Actor, in.RecordID)
 			out := historyOutput{Changes: []changeView{}}
 			for _, c := range changes {
 				if c.Value.RecordID == "" && c.Value.Icon != "" {
@@ -110,7 +110,7 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 					}
 				}
 			}
-			record, skips, err := crm.Upsert(ctx, actor, records.SourceOf(actor), records.Write{Object: in.Object, RecordID: in.RecordID, Set: set, Remove: in.Remove, Expect: expect})
+			record, skips, err := crm.Upsert(ctx, actor.Actor, actor.Source(), records.Write{Object: in.Object, RecordID: in.RecordID, Set: set, Remove: in.Remove, Expect: expect})
 			if err != nil {
 				return upsertOutput{}, err
 			}
@@ -123,23 +123,23 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 	add(r, &mcp.Tool{Name: "delete_record", Title: "Delete record",
 		Description: "Move a record to Trash, retaining its values, history and links for restore_record. A deleted person's addresses and a deleted company's domains are skipped in triage, so sync does not add them back."},
 		func(ctx context.Context, actor auth.Actor, in recordInput) (empty, error) {
-			return empty{}, crm.Delete(ctx, actor, in.RecordID)
+			return empty{}, crm.Delete(ctx, actor.Actor, in.RecordID)
 		})
 	add(r, &mcp.Tool{Annotations: &mcp.ToolAnnotations{DestructiveHint: new(false)}, Name: "create_object", Title: "Create table",
 		Description: "Create a table: a record type, such as painpoints or suppliers, whose records are pages. It starts with a name and markdown content; add columns with create_attribute."},
 		func(ctx context.Context, actor auth.Actor, in objectInput) (objectView, error) {
-			object, err := crm.CreateObject(ctx, actor, in.Slug, in.Name, in.Parent)
+			object, err := crm.CreateObject(ctx, actor.Actor, in.Slug, in.Name, in.Parent)
 			return objectOf(object), err
 		})
 	add(r, &mcp.Tool{Name: "edit_object", Title: "Edit table",
 		Description: "Edit a workspace database: rename, move inside a page or to the top level or reorder it by position, set its icon or description, order its columns for everyone, or delete. Order also applies to the CRM's own objects, such as people. Icons use emoji, icon:Name[:color], or image:https://URL, as pages do; empty removes the icon. Delete removes its records and every reference attribute pointing at it."},
 		func(ctx context.Context, actor auth.Actor, in objectEdit) (empty, error) {
-			return empty{}, crm.EditObject(ctx, actor, in.Object, records.ObjectEdit{Action: in.Action, Name: in.Name, Parent: in.Parent, Position: in.Position, Icon: in.Icon, Description: in.Description, Columns: in.Columns})
+			return empty{}, crm.EditObject(ctx, actor.Actor, in.Object, records.ObjectEdit{Action: in.Action, Name: in.Name, Parent: in.Parent, Position: in.Position, Icon: in.Icon, Description: in.Description, Columns: in.Columns})
 		})
 	add(r, &mcp.Tool{Annotations: &mcp.ToolAnnotations{DestructiveHint: new(false)}, Name: "create_attribute", Title: "Create attribute",
 		Description: "Add an attribute to an object, such as a table's column. Types: text, number, date, datetime (date with optional time), checkbox, url, select (with options), status (with its stages in order as options; a new record starts in the first), member (a workspace member by email; a new record names its creator), email, domain, phone, reference (with target, such as people, companies or pages)."},
 		func(ctx context.Context, actor auth.Actor, in attributeInput) (objectView, error) {
-			object, err := crm.CreateAttribute(ctx, actor, in.Object, records.Attribute{
+			object, err := crm.CreateAttribute(ctx, actor.Actor, in.Object, records.Attribute{
 				Slug: in.Slug, Name: in.Name, Type: in.Type, Multi: in.Multi, Unique: in.Unique, Target: in.Target, Options: in.Options,
 			})
 			return objectOf(object), err
@@ -147,7 +147,7 @@ func registerRecords(r *registry, crm *records.Service, conversations *interacti
 	add(r, &mcp.Tool{Name: "edit_attribute", Title: "Edit attribute",
 		Description: "Rename, archive or restore a custom attribute. Archiving removes it from active records and filters while retaining its values and history for restoration. Delete permanently removes its values and saved filter conditions. Built-in attributes stay."},
 		func(ctx context.Context, actor auth.Actor, in attributeEdit) (empty, error) {
-			return empty{}, crm.EditAttribute(ctx, actor, in.Object, in.Attribute, in.Action, in.Name)
+			return empty{}, crm.EditAttribute(ctx, actor.Actor, in.Object, in.Attribute, in.Action, in.Name)
 		})
 }
 

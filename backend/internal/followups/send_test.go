@@ -17,12 +17,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"github.com/gluonfield/jaz-crm/backend/internal/connections"
 	"github.com/gluonfield/jaz-crm/backend/internal/followups"
 	"github.com/gluonfield/jaz-crm/backend/internal/google"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/mcpapi"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
 	"github.com/gluonfield/jaz-crm/backend/internal/workspaces"
@@ -141,15 +141,15 @@ func releaseSendsEmailRepliesAndApprovesOthers(t *testing.T, transport string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ownerActor := auth.Actor{UserID: owner.ID, WorkspaceID: owner.WorkspaceID}
-	if _, err := people.Invite(ctx, ownerActor, "mate@cas.dev"); err != nil {
+	ownerActor := records.Actor{MemberID: owner.ID, WorkspaceID: owner.WorkspaceID}
+	if _, err := people.Invite(ctx, auth.Actor{Actor: ownerActor}, "mate@cas.dev"); err != nil {
 		t.Fatal(err)
 	}
 	mate, err := people.SignIn(ctx, signin.Identity{Issuer: "test", Subject: "mate", Email: "mate@cas.dev", EmailVerified: true})
 	if err != nil || mate.WorkspaceID != owner.WorkspaceID {
 		t.Fatalf("teammate did not join: %+v %v", mate, err)
 	}
-	mateActor := auth.Actor{UserID: mate.ID, WorkspaceID: mate.WorkspaceID}
+	mateActor := records.Actor{MemberID: mate.ID, WorkspaceID: mate.WorkspaceID}
 	g := &gmail{}
 	srv := httptest.NewServer(g)
 	t.Cleanup(srv.Close)

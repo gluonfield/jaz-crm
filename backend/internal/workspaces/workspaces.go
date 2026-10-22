@@ -10,9 +10,9 @@ import (
 	"time"
 	_ "time/tzdata"
 
+	"github.com/gluonfield/jaz-crm/backend/crm/errs"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
-	"github.com/gluonfield/jaz-crm/backend/internal/errs"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 	"github.com/gluonfield/jaz-tasks/auth"
 )
@@ -163,7 +163,7 @@ func (s *Service) Invite(ctx context.Context, actor auth.Actor, email string) (s
 	if !validEmail(email) {
 		return storage.WorkspaceInvite{}, ErrInvalidEmail
 	}
-	invite, err := s.store.CreateInvite(ctx, actor.WorkspaceID, email, actor.UserID)
+	invite, err := s.store.CreateInvite(ctx, actor.WorkspaceID, email, actor.MemberID)
 	if errors.Is(err, storage.ErrConflict) {
 		return invite, errs.Invalidf("%s is already invited", email)
 	}
@@ -183,7 +183,7 @@ func (s *Service) SetAddresses(ctx context.Context, actor auth.Actor, email stri
 		return storage.User{}, errs.Invalidf("%s is not a member of this workspace", email)
 	}
 	user := users[i]
-	if user.ID != actor.UserID {
+	if user.ID != actor.MemberID {
 		if err := s.requireAdmin(ctx, actor); err != nil {
 			return storage.User{}, err
 		}
@@ -249,12 +249,12 @@ func (s *Service) Update(ctx context.Context, actor auth.Actor, in storage.Works
 
 // Memberships lists the workspaces the actor's person belongs to.
 func (s *Service) Memberships(ctx context.Context, actor auth.Actor) ([]storage.Membership, error) {
-	return s.store.Memberships(ctx, actor.UserID)
+	return s.store.Memberships(ctx, actor.MemberID)
 }
 
 // Member returns the actor's person's membership of a workspace.
 func (s *Service) Member(ctx context.Context, actor auth.Actor, workspaceID string) (storage.Membership, error) {
-	memberships, err := s.store.Memberships(ctx, actor.UserID)
+	memberships, err := s.store.Memberships(ctx, actor.MemberID)
 	if err != nil {
 		return storage.Membership{}, err
 	}
@@ -272,7 +272,7 @@ func (s *Service) In(ctx context.Context, actor auth.Actor, name string) (auth.A
 	if name == "" {
 		return actor, nil
 	}
-	memberships, err := s.store.Memberships(ctx, actor.UserID)
+	memberships, err := s.store.Memberships(ctx, actor.MemberID)
 	if err != nil {
 		return actor, err
 	}
@@ -300,11 +300,11 @@ func (s *Service) Create(ctx context.Context, actor auth.Actor, name string) (st
 	if name == "" || len([]rune(name)) > 80 {
 		return storage.Membership{}, ErrInvalidName
 	}
-	me, err := s.store.UserByID(ctx, actor.UserID)
+	me, err := s.store.UserByID(ctx, actor.MemberID)
 	if err != nil {
 		return storage.Membership{}, err
 	}
-	identities, err := s.store.UserIdentities(ctx, actor.UserID)
+	identities, err := s.store.UserIdentities(ctx, actor.MemberID)
 	if err != nil {
 		return storage.Membership{}, err
 	}
@@ -344,7 +344,7 @@ func (s *Service) Delete(ctx context.Context, actor auth.Actor, workspaceID, nam
 }
 
 func (s *Service) requireAdmin(ctx context.Context, actor auth.Actor) error {
-	user, err := s.store.UserByID(ctx, actor.UserID)
+	user, err := s.store.UserByID(ctx, actor.MemberID)
 	if err != nil {
 		return err
 	}

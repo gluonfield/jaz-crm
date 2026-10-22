@@ -3,6 +3,7 @@ package workspaces_test
 import (
 	"context"
 	"errors"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"testing"
 
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
@@ -24,7 +25,7 @@ func TestFirebaseMigrationPreservesGoogleMemberships(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = people.Invite(ctx, auth.Actor{UserID: other.ID, WorkspaceID: other.WorkspaceID}, google.Email)
+	_, err = people.Invite(ctx, auth.Actor{Actor: records.Actor{MemberID: other.ID, WorkspaceID: other.WorkspaceID}}, google.Email)
 	if err != nil {
 		t.Fatal(err)
 	}

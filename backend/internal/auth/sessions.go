@@ -33,7 +33,7 @@ func (s *Service) EndSession(ctx context.Context, token string) error {
 
 // Describe names who an actor is and which workspace they act in.
 func (s *Service) Describe(ctx context.Context, actor Actor) (storage.User, storage.Workspace, error) {
-	user, err := s.store.UserByID(ctx, actor.UserID)
+	user, err := s.store.UserByID(ctx, actor.MemberID)
 	if err != nil {
 		return user, storage.Workspace{}, err
 	}

@@ -3,8 +3,8 @@ package mcpapi
 import (
 	"context"
 
+	"github.com/gluonfield/jaz-crm/backend/crm/errs"
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
-	"github.com/gluonfield/jaz-crm/backend/internal/errs"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 	"github.com/gluonfield/jaz-crm/backend/internal/workspaces"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -108,7 +108,7 @@ type memberView struct {
 }
 
 func memberOf(u storage.User, actor auth.Actor) memberView {
-	m := memberView{Name: u.Name, Email: u.Email, Addresses: u.Addresses, Admin: u.Admin, IsMe: u.ID == actor.UserID}
+	m := memberView{Name: u.Name, Email: u.Email, Addresses: u.Addresses, Admin: u.Admin, IsMe: u.ID == actor.MemberID}
 	if u.AvatarURL != nil {
 		m.Photo = *u.AvatarURL
 	}

@@ -6,10 +6,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/gluonfield/jaz-crm/backend/internal/auth"
-	"github.com/gluonfield/jaz-crm/backend/internal/errs"
+	"github.com/gluonfield/jaz-crm/backend/crm/errs"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/google"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 )
 
@@ -28,7 +27,7 @@ type Sender struct {
 	HTML          string   `json:"html,omitempty"`
 }
 
-func (s *Service) Sender(ctx context.Context, actor auth.Actor, id string) (Sender, error) {
+func (s *Service) Sender(ctx context.Context, actor records.Actor, id string) (Sender, error) {
 	f, err := s.crm.Get(ctx, actor, id)
 	if err != nil {
 		return Sender{}, err
@@ -46,7 +45,7 @@ func (s *Service) Sender(ctx context.Context, actor auth.Actor, id string) (Send
 	return sender, err
 }
 
-func (s *Service) compose(ctx context.Context, actor auth.Actor, f records.Record) (outgoing, error) {
+func (s *Service) compose(ctx context.Context, actor records.Actor, f records.Record) (outgoing, error) {
 	if draft, err := s.store.GmailDraft(ctx, actor.WorkspaceID, f.ID); err == nil && draft.State == "draft" {
 		return s.composeImported(ctx, actor, f, draft)
 	} else if err != nil && !errors.Is(err, storage.ErrNotFound) {

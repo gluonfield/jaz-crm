@@ -8,10 +8,9 @@ import (
 	"reflect"
 	"slices"
 
-	"github.com/gluonfield/jaz-crm/backend/internal/auth"
-	"github.com/gluonfield/jaz-crm/backend/internal/errs"
-	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
+	"github.com/gluonfield/jaz-crm/backend/crm/errs"
+	"github.com/gluonfield/jaz-crm/backend/crm/interactions"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/google/jsonschema-go/jsonschema"
 )
 
@@ -64,7 +63,7 @@ type timelineQuery struct {
 
 // The same services back MCP reads. Bind the workspace here; model arguments
 // cannot select another actor, add a tool or reach a write operation.
-func NewReadTools(crm *records.Service, convs *interactions.Service, actor auth.Actor) ReadTools {
+func NewReadTools(crm *records.Service, convs *interactions.Service, actor records.Actor) ReadTools {
 	return ReadTools{WorkspaceID: actor.WorkspaceID, Tools: []ReadTool{
 		readTool("list_objects", "Discover this workspace's object and attribute schemas, including reference targets. Use these to choose record searches.", func(ctx context.Context, _ struct{}) (any, error) {
 			return crm.Objects(ctx, actor, false)

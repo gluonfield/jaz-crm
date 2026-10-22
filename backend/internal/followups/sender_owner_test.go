@@ -9,12 +9,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"github.com/gluonfield/jaz-crm/backend/internal/connections"
 	"github.com/gluonfield/jaz-crm/backend/internal/followups"
 	"github.com/gluonfield/jaz-crm/backend/internal/google"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/mcpapi"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
 	"github.com/gluonfield/jaz-crm/backend/internal/workspaces"
 	signin "github.com/gluonfield/jaz-tasks/auth"
@@ -29,15 +29,15 @@ func TestNewEmailKeepsAssignedSender(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			ownerActor := auth.Actor{UserID: owner.ID, WorkspaceID: owner.WorkspaceID}
-			if _, err := people.Invite(ctx, ownerActor, "mate@cas.dev"); err != nil {
+			ownerActor := records.Actor{MemberID: owner.ID, WorkspaceID: owner.WorkspaceID}
+			if _, err := people.Invite(ctx, auth.Actor{Actor: ownerActor}, "mate@cas.dev"); err != nil {
 				t.Fatal(err)
 			}
 			mate, err := people.SignIn(ctx, signin.Identity{Issuer: "test", Subject: "mate", Email: "mate@cas.dev", EmailVerified: true})
 			if err != nil {
 				t.Fatal(err)
 			}
-			mateActor := auth.Actor{UserID: mate.ID, WorkspaceID: mate.WorkspaceID}
+			mateActor := records.Actor{MemberID: mate.ID, WorkspaceID: mate.WorkspaceID}
 			g := &gmail{}
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.URL.Path == "/gmail/v1/users/me/settings/sendAs/mate@cas.dev" || r.URL.Path == "/gmail/v1/users/me/settings/sendAs/mate@university.dev" {
@@ -86,7 +86,7 @@ func TestNewEmailKeepsAssignedSender(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			for _, viewer := range []auth.Actor{ownerActor, mateActor} {
+			for _, viewer := range []records.Actor{ownerActor, mateActor} {
 				preview, err := svc.Sender(ctx, viewer, f.ID)
 				if err != nil || preview.Reply || preview.From != mailbox.Account || !strings.Contains(preview.Signature, "Mate Name") || !slices.Equal(preview.To, []string{"jane@acme.com"}) {
 					t.Fatalf("assigned sender changed with the viewer: %+v %v", preview, err)

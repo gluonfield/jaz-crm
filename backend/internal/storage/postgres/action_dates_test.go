@@ -7,8 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gluonfield/jaz-crm/backend/internal/auth"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres"
 	"github.com/lithammer/shortuuid/v4"
@@ -56,7 +55,7 @@ func TestActionDateMigration(t *testing.T) {
 	}
 	defer store.Close()
 	svc := records.NewService(store)
-	actor := auth.Actor{WorkspaceID: workspace}
+	actor := records.Actor{WorkspaceID: workspace}
 	for i, id := range ids {
 		r, err := svc.Get(ctx, actor, id)
 		if err != nil {

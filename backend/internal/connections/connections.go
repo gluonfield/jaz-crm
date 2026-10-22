@@ -9,11 +9,11 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"errors"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"slices"
 	"time"
 
-	"github.com/gluonfield/jaz-crm/backend/internal/auth"
-	"github.com/gluonfield/jaz-crm/backend/internal/errs"
+	"github.com/gluonfield/jaz-crm/backend/crm/errs"
 	"github.com/gluonfield/jaz-crm/backend/internal/google"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 )
@@ -89,7 +89,7 @@ func (s *Service) AuthURL(state, verifier string) (string, error) {
 
 // Connect finishes consent: it stores the account for the actor's workspace
 // and starts syncing it.
-func (s *Service) Connect(ctx context.Context, actor auth.Actor, code, verifier string) (storage.Connection, error) {
+func (s *Service) Connect(ctx context.Context, actor records.Actor, code, verifier string) (storage.Connection, error) {
 	if !s.Enabled() {
 		return storage.Connection{}, ErrDisabled
 	}
@@ -107,7 +107,7 @@ func (s *Service) Connect(ctx context.Context, actor auth.Actor, code, verifier 
 	nonce := make([]byte, s.aead.NonceSize())
 	_, _ = rand.Read(nonce)
 	c, err := s.store.SaveConnection(ctx, storage.NewConnection{
-		WorkspaceID: actor.WorkspaceID, UserID: actor.UserID, Provider: "google", Account: profile.Email,
+		WorkspaceID: actor.WorkspaceID, UserID: actor.MemberID, Provider: "google", Account: profile.Email,
 		RefreshToken: s.aead.Seal(nonce, nonce, []byte(token.RefreshToken), nil),
 	})
 	if err != nil {
@@ -167,7 +167,7 @@ type View struct {
 	Oldest   *time.Time `json:"oldest,omitempty"`
 }
 
-func (s *Service) List(ctx context.Context, actor auth.Actor) ([]View, error) {
+func (s *Service) List(ctx context.Context, actor records.Actor) ([]View, error) {
 	list, err := s.store.Connections(ctx, actor.WorkspaceID)
 	if err != nil {
 		return nil, err
@@ -214,25 +214,25 @@ func (s *Service) step(ctx context.Context, connectionID string) string {
 
 // Mailbox is the connection the actor sends from: the preferred one when it
 // is active and theirs or open to teammates, else the actor's own.
-func (s *Service) Mailbox(ctx context.Context, actor auth.Actor, preferred string) (storage.Connection, error) {
+func (s *Service) Mailbox(ctx context.Context, actor records.Actor, preferred string) (storage.Connection, error) {
 	list, err := s.store.Connections(ctx, actor.WorkspaceID)
 	if err != nil {
 		return storage.Connection{}, err
 	}
 	usable := func(c storage.Connection) bool {
-		return c.Status == "active" && (c.UserID == actor.UserID || c.TeammatesSend)
+		return c.Status == "active" && (c.UserID == actor.MemberID || c.TeammatesSend)
 	}
 	if i := slices.IndexFunc(list, func(c storage.Connection) bool { return c.ID == preferred }); i >= 0 && usable(list[i]) {
 		return list[i], nil
 	}
-	if i := slices.IndexFunc(list, func(c storage.Connection) bool { return c.UserID == actor.UserID && usable(c) }); i >= 0 {
+	if i := slices.IndexFunc(list, func(c storage.Connection) bool { return c.UserID == actor.MemberID && usable(c) }); i >= 0 {
 		return list[i], nil
 	}
 	return storage.Connection{}, errs.Invalidf("no mailbox to send from: connect your Google account")
 }
 
 // SenderMailbox keeps an assigned sender fixed across viewers.
-func (s *Service) SenderMailbox(ctx context.Context, actor auth.Actor, address string) (storage.Connection, error) {
+func (s *Service) SenderMailbox(ctx context.Context, actor records.Actor, address string) (storage.Connection, error) {
 	if address == "" {
 		return s.Mailbox(ctx, actor, "")
 	}
@@ -247,7 +247,7 @@ func (s *Service) SenderMailbox(ctx context.Context, actor auth.Actor, address s
 		if c.Status != "active" {
 			return storage.Connection{}, errs.Invalidf("%s must reconnect Google to send this draft", address)
 		}
-		if c.UserID != actor.UserID && !c.TeammatesSend {
+		if c.UserID != actor.MemberID && !c.TeammatesSend {
 			return storage.Connection{}, errs.Invalidf("%s must allow teammates to send this draft", address)
 		}
 		return c, nil
@@ -257,8 +257,8 @@ func (s *Service) SenderMailbox(ctx context.Context, actor auth.Actor, address s
 
 // SetTeammatesSend decides whether the workspace's other members may send
 // replies from the actor's own mailbox.
-func (s *Service) SetTeammatesSend(ctx context.Context, actor auth.Actor, id string, allowed bool) error {
-	err := s.store.SetTeammatesSend(ctx, actor.WorkspaceID, actor.UserID, id, allowed)
+func (s *Service) SetTeammatesSend(ctx context.Context, actor records.Actor, id string, allowed bool) error {
+	err := s.store.SetTeammatesSend(ctx, actor.WorkspaceID, actor.MemberID, id, allowed)
 	if errors.Is(err, storage.ErrNotFound) {
 		return errs.Invalidf("no connection %q of yours", id)
 	}
@@ -267,7 +267,7 @@ func (s *Service) SetTeammatesSend(ctx context.Context, actor auth.Actor, id str
 
 // Disconnect stops a connection's sync and deletes it; what it already
 // synced stays.
-func (s *Service) Disconnect(ctx context.Context, actor auth.Actor, id string) error {
+func (s *Service) Disconnect(ctx context.Context, actor records.Actor, id string) error {
 	list, err := s.store.Connections(ctx, actor.WorkspaceID)
 	if err != nil {
 		return err

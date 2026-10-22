@@ -13,10 +13,10 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/coreos/go-oidc/v3/oidc"
+	"github.com/gluonfield/jaz-crm/backend/crm/errs"
+	"github.com/gluonfield/jaz-crm/backend/crm/interactions"
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"github.com/gluonfield/jaz-crm/backend/internal/connections"
-	"github.com/gluonfield/jaz-crm/backend/internal/errs"
-	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
 )
 
 // Config verifies Gmail pushes: Pub/Sub signs each with a Google ID token
@@ -118,7 +118,7 @@ func (h *Handler) Interactions(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON body"})
 		return
 	}
-	i, err := h.convs.Log(r.Context(), actor, e)
+	i, err := h.convs.Log(r.Context(), actor.Actor, e)
 	switch {
 	case errors.As(err, new(errs.Invalid)):
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})

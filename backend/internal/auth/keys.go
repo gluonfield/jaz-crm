@@ -40,11 +40,11 @@ func hint(key string) string {
 }
 
 func (s *Service) APIKeys(ctx context.Context, actor Actor) ([]storage.APIKey, error) {
-	return s.store.APIKeys(ctx, actor.UserID)
+	return s.store.APIKeys(ctx, actor.MemberID)
 }
 
 func (s *Service) DeleteKey(ctx context.Context, actor Actor, id string) error {
-	return s.store.DeleteAPIKey(ctx, actor.UserID, id)
+	return s.store.DeleteAPIKey(ctx, actor.MemberID, id)
 }
 
 // CreateKeyForEmail mints a key for the active user with that email. A person

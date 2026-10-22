@@ -58,7 +58,7 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 		h.finish(w, r, "Google reported: "+query.Get("error"))
 	default:
 		actor, _ := auth.ActorFrom(r.Context())
-		_, err := h.conns.Connect(r.Context(), actor, query.Get("code"), verifier)
+		_, err := h.conns.Connect(r.Context(), actor.Actor, query.Get("code"), verifier)
 		if err != nil {
 			h.logger.Warn("connect failed", "error", err)
 			h.finish(w, r, err.Error())

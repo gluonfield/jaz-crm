@@ -11,10 +11,10 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/gluonfield/jaz-crm/backend/crm/interactions"
 	"github.com/gluonfield/jaz-crm/backend/internal/connections"
 	"github.com/gluonfield/jaz-crm/backend/internal/followups"
 	"github.com/gluonfield/jaz-crm/backend/internal/google"
-	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
 	"github.com/gluonfield/jaz-crm/backend/internal/logos"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 	"go.temporal.io/sdk/activity"

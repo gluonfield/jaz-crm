@@ -5,9 +5,8 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/gluonfield/jaz-crm/backend/internal/auth"
-	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
+	"github.com/gluonfield/jaz-crm/backend/crm/interactions"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres"
 	"github.com/lithammer/shortuuid/v4"
 )
@@ -61,7 +60,7 @@ func TestInteractionChannelsMigration(t *testing.T) {
 	}
 	defer store.Close()
 	svc := interactions.NewService(interactions.Params{Store: store, Connections: store, Workspaces: store, Records: records.NewService(store)})
-	actor := auth.Actor{UserID: user, WorkspaceID: workspace}
+	actor := records.Actor{MemberID: user, WorkspaceID: workspace}
 	got, err := svc.Get(ctx, actor, email)
 	if err != nil || got.Kind != interactions.Message || got.Channel != "email" || got.URL != "https://mail.google.com/mail/u/owner@cas.dev/#all/thr1" {
 		t.Fatalf("email thread: %+v %v", got, err)

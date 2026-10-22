@@ -6,8 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gluonfield/jaz-crm/backend/internal/auth"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres"
 	"github.com/lithammer/shortuuid/v4"
 )
@@ -74,7 +73,7 @@ func TestCorePropertiesMigrationAdoptsExistingData(t *testing.T) {
 		t.Fatalf("adoption changed identities/options/custom archive: %s %s %q %v %v", cityID, industryID, industryName, options, customArchived)
 	}
 	crm := records.NewService(store)
-	actor := auth.Actor{WorkspaceID: workspace, UserID: user}
+	actor := records.Actor{WorkspaceID: workspace, MemberID: user}
 	got, err := crm.Get(ctx, actor, record)
 	if err != nil {
 		t.Fatal(err)

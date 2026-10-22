@@ -4,8 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/gluonfield/jaz-crm/backend/internal/auth"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres"
 	"github.com/lithammer/shortuuid/v4"
 )
@@ -35,7 +34,7 @@ func TestNotesMigrationArchivesNotesWithTheirValues(t *testing.T) {
 	}
 	defer store.Close()
 	crm := records.NewService(store)
-	actor := auth.Actor{WorkspaceID: workspace, UserID: user}
+	actor := records.Actor{WorkspaceID: workspace, MemberID: user}
 	note := func() []string {
 		got, err := crm.Get(ctx, actor, record)
 		if err != nil {

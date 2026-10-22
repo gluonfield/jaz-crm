@@ -140,7 +140,7 @@ func (h *Handler) createKey(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON body"})
 		return
 	}
-	key, record, err := h.svc.CreateKey(r.Context(), actor.UserID, in.Label, "")
+	key, record, err := h.svc.CreateKey(r.Context(), actor.MemberID, in.Label, "")
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return

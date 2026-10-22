@@ -7,14 +7,13 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/gluonfield/jaz-crm/backend/internal/auth"
-	"github.com/gluonfield/jaz-crm/backend/internal/errs"
-	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
+	"github.com/gluonfield/jaz-crm/backend/crm/errs"
+	"github.com/gluonfield/jaz-crm/backend/crm/interactions"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 )
 
-func (a *Agent) savePlan(ctx context.Context, actor auth.Actor, conv interactions.Interaction, in Conversation, plan Plan) (bool, error) {
+func (a *Agent) savePlan(ctx context.Context, actor records.Actor, conv interactions.Interaction, in Conversation, plan Plan) (bool, error) {
 	drafts := make([]map[string][]string, len(plan.FollowUps))
 	replies := 0
 	for i, c := range plan.FollowUps {
@@ -60,7 +59,7 @@ func (a *Agent) savePlan(ctx context.Context, actor auth.Actor, conv interaction
 }
 
 // apply writes one change and its conversation link in the plan's transaction.
-func (a *Agent) apply(ctx context.Context, actor auth.Actor, conv interactions.Interaction, in Conversation, c Change, set map[string][]string) (bool, error) {
+func (a *Agent) apply(ctx context.Context, actor records.Actor, conv interactions.Interaction, in Conversation, c Change, set map[string][]string) (bool, error) {
 	if c.ID != "" && !slices.ContainsFunc(in.FollowUps, func(o Open) bool { return o.ID == c.ID }) {
 		return false, nil
 	}
@@ -150,7 +149,7 @@ func (a *Agent) apply(ctx context.Context, actor auth.Actor, conv interactions.I
 	return drafted, a.store.AddLink(ctx, conv.ID, f.ID, interactions.ByAgent)
 }
 
-func (a *Agent) replyTarget(ctx context.Context, actor auth.Actor, conversationID, requested string) (string, error) {
+func (a *Agent) replyTarget(ctx context.Context, actor records.Actor, conversationID, requested string) (string, error) {
 	links, err := a.store.Links(ctx, []string{conversationID})
 	if err != nil {
 		return "", err
@@ -174,7 +173,7 @@ func (a *Agent) replyTarget(ctx context.Context, actor auth.Actor, conversationI
 
 // draft sets a reply's text and channel; an email reply goes to everyone on
 // the latest message, except the sending mailbox and its aliases.
-func (a *Agent) draft(ctx context.Context, actor auth.Actor, conv interactions.Interaction, c Change, set map[string][]string) error {
+func (a *Agent) draft(ctx context.Context, actor records.Actor, conv interactions.Interaction, c Change, set map[string][]string) error {
 	channel := cmp.Or(c.Channel, records.ChannelName(conv.Channel))
 	if !slices.Contains(records.Channels, channel) {
 		return nil

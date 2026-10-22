@@ -6,9 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gluonfield/jaz-crm/backend/internal/auth"
-	"github.com/gluonfield/jaz-crm/backend/internal/errs"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
+	"github.com/gluonfield/jaz-crm/backend/crm/errs"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres"
 	"github.com/lithammer/shortuuid/v4"
 )
@@ -73,8 +72,8 @@ INSERT INTO sessions(token_hash,user_id,expires_at) SELECT 'legacy'::bytea,id,no
 	if err := db.QueryRowContext(ctx, "SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name <> 'domain_logos' AND udt_name IN ('uuid','_uuid')").Scan(&uuidColumns); err != nil || uuidColumns != 0 {
 		t.Fatalf("remaining UUID columns: %d, %v", uuidColumns, err)
 	}
-	var actor auth.Actor
-	if err := db.QueryRowContext(ctx, "SELECT id,workspace_id FROM users").Scan(&actor.UserID, &actor.WorkspaceID); err != nil {
+	var actor records.Actor
+	if err := db.QueryRowContext(ctx, "SELECT id,workspace_id FROM users").Scan(&actor.MemberID, &actor.WorkspaceID); err != nil {
 		t.Fatal(err)
 	}
 	var parent string

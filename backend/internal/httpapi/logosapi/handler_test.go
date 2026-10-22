@@ -8,10 +8,9 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/log"
-	"github.com/gluonfield/jaz-crm/backend/internal/auth"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/logosapi"
 	"github.com/gluonfield/jaz-crm/backend/internal/logos"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
 	"github.com/gluonfield/jaz-crm/backend/internal/workspaces"
@@ -26,7 +25,7 @@ func TestServesLogosByToken(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	actor := auth.Actor{UserID: owner.ID, WorkspaceID: owner.WorkspaceID}
+	actor := records.Actor{MemberID: owner.ID, WorkspaceID: owner.WorkspaceID}
 	acme, _, err := records.NewService(store).Upsert(ctx, actor, records.SourceUser, records.Write{Object: "companies", Set: map[string][]string{"name": {"Acme"}, "domains": {"acme.io"}}})
 	if err != nil {
 		t.Fatal(err)

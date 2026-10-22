@@ -3,6 +3,7 @@ package followups_test
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -12,11 +13,10 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
-	"github.com/gluonfield/jaz-crm/backend/internal/auth"
+	"github.com/gluonfield/jaz-crm/backend/crm/interactions"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/followups"
-	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
 	"github.com/gluonfield/jaz-crm/backend/internal/llm"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
 	"github.com/gluonfield/jaz-crm/backend/internal/workspaces"
@@ -30,10 +30,10 @@ func TestDraftRequestIncludesFullConversationAndCompanyKnowledge(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	actor := auth.Actor{UserID: owner.ID, WorkspaceID: owner.WorkspaceID}
+	actor := records.Actor{MemberID: owner.ID, WorkspaceID: owner.WorkspaceID}
 	crm := records.NewService(store)
 	convs := interactions.NewService(interactions.Params{Store: store, Connections: store, Workspaces: store, Records: crm})
-	write := func(as auth.Actor, object string, fields map[string][]string) records.Record {
+	write := func(as records.Actor, object string, fields map[string][]string) records.Record {
 		t.Helper()
 		r, _, err := crm.Upsert(ctx, as, records.SourceUser, records.Write{Object: object, Set: fields})
 		if err != nil {
@@ -43,7 +43,7 @@ func TestDraftRequestIncludesFullConversationAndCompanyKnowledge(t *testing.T) {
 	}
 	companyText := "Our company capabilities:\n" + strings.Repeat("We machine aluminium components. λ\n", 1000) + "END CAPABILITIES"
 	company := write(actor, records.Pages, map[string][]string{"name": {"Company"}, "content": {companyText}})
-	if _, err := ws.Update(ctx, actor, storage.WorkspaceUpdate{CompanyPageIDs: []string{company.ID}}); err != nil {
+	if _, err := ws.Update(ctx, auth.Actor{Actor: actor}, storage.WorkspaceUpdate{CompanyPageIDs: []string{company.ID}}); err != nil {
 		t.Fatal(err)
 	}
 	wantDocuments := map[string]string{company.ID: companyText}
@@ -60,7 +60,7 @@ func TestDraftRequestIncludesFullConversationAndCompanyKnowledge(t *testing.T) {
 	quality := write(actor, records.Pages, map[string][]string{"name": {"Quality"}, "content": {"Public quality policy."}})
 	wantDocuments[quality.ID] = "Public quality policy."
 	wantPaths[quality.ID] = "Quality"
-	if _, err := ws.Update(ctx, actor, storage.WorkspaceUpdate{CompanyPageIDs: []string{company.ID, quality.ID, strategy.ID}}); err != nil {
+	if _, err := ws.Update(ctx, auth.Actor{Actor: actor}, storage.WorkspaceUpdate{CompanyPageIDs: []string{company.ID, quality.ID, strategy.ID}}); err != nil {
 		t.Fatal(err)
 	}
 	write(actor, records.Pages, map[string][]string{"name": {"Unrelated notes"}, "content": {"Unrelated document."}})
@@ -69,7 +69,7 @@ func TestDraftRequestIncludesFullConversationAndCompanyKnowledge(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	write(auth.Actor{UserID: other.ID, WorkspaceID: other.WorkspaceID}, records.Pages, map[string][]string{"name": {"Company"}, "content": {"Another workspace's private knowledge."}})
+	write(records.Actor{MemberID: other.ID, WorkspaceID: other.WorkspaceID}, records.Pages, map[string][]string{"name": {"Company"}, "content": {"Another workspace's private knowledge."}})
 	customer := write(actor, "companies", map[string][]string{"name": {"Customer Ltd"}, "description": {"Builds scientific instruments."}, "size": {"11-50"}})
 	person := write(actor, "people", map[string][]string{"name": {"Jane"}, "job_title": {"Purchasing lead"}, "company": {customer.ID}, "context": {"- Asked us about precision brackets."}})
 	colleague := write(actor, "people", map[string][]string{"name": {"Alex"}, "company": {customer.ID}, "context": {"- Approves the technical specification."}})
@@ -230,7 +230,7 @@ func TestDraftRequestIncludesFullConversationAndCompanyKnowledge(t *testing.T) {
 		t.Fatal(err)
 	}
 	message("latest", "What can you offer now?", time.Now())
-	if _, err := ws.Update(ctx, actor, storage.WorkspaceUpdate{DraftingWebAccess: new(true)}); err != nil {
+	if _, err := ws.Update(ctx, auth.Actor{Actor: actor}, storage.WorkspaceUpdate{DraftingWebAccess: new(true)}); err != nil {
 		t.Fatal(err)
 	}
 	in = run()
@@ -246,7 +246,7 @@ func TestDraftRequestIncludesFullConversationAndCompanyKnowledge(t *testing.T) {
 			t.Fatalf("renaming the selected root must update every descendant path: %s", doc.Path)
 		}
 	}
-	if _, err := ws.Update(ctx, actor, storage.WorkspaceUpdate{CompanyPageIDs: []string{}}); err != nil {
+	if _, err := ws.Update(ctx, auth.Actor{Actor: actor}, storage.WorkspaceUpdate{CompanyPageIDs: []string{}}); err != nil {
 		t.Fatal(err)
 	}
 	message("cleared", "Any further information?", time.Now())

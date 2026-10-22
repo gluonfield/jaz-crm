@@ -11,19 +11,18 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gluonfield/jaz-crm/backend/internal/errs"
+	"github.com/gluonfield/jaz-crm/backend/crm/errs"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 )
 
 var ErrUnauthenticated = errors.New("authentication required: sign in, or send an OAuth access token or API key in the Authorization header")
 
-// Actor is the authenticated user and the workspace every request is scoped to.
+// Actor is the authenticated member and the workspace every request is
+// scoped to. Bearer credentials set Agent: software acting for the member
+// rather than the person's own browser.
 type Actor struct {
-	UserID      string
-	WorkspaceID string
-	// Agent is set for bearer credentials: the request comes from software
-	// acting for the user rather than from the person's own browser.
-	Agent bool
+	records.Actor
 	// The session or OAuth grant the request came with, which a switch of
 	// workspace moves; an API key has neither and stays in its workspace.
 	session []byte
@@ -36,7 +35,7 @@ func (a Actor) Principal() string {
 	if a.grant != "" {
 		return "grant:" + a.grant
 	}
-	return a.UserID
+	return a.MemberID
 }
 
 // ErrFixedWorkspace is a switch asked of an API key, which belongs to one
@@ -61,13 +60,13 @@ func (a Actor) In(userID, workspaceID string) (Actor, error) {
 	if a.session == nil && a.grant == "" && workspaceID != a.WorkspaceID {
 		return a, ErrFixedWorkspace
 	}
-	a.UserID = userID
+	a.MemberID = userID
 	a.WorkspaceID = workspaceID
 	return a, nil
 }
 
 func actorOf(user storage.User) Actor {
-	return Actor{UserID: user.ID, WorkspaceID: user.WorkspaceID}
+	return Actor{Actor: records.Actor{MemberID: user.ID, WorkspaceID: user.WorkspaceID}}
 }
 
 type Config struct {

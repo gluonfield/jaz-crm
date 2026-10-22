@@ -8,9 +8,8 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
-	"github.com/gluonfield/jaz-crm/backend/internal/auth"
-	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
+	"github.com/gluonfield/jaz-crm/backend/crm/interactions"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 	"go.uber.org/fx"
 )
@@ -233,7 +232,7 @@ func (a *Agent) backfill(ctx context.Context, workspaceID string) error {
 	if a.summarizer == nil {
 		return nil
 	}
-	actor := auth.Actor{WorkspaceID: workspaceID, Agent: true}
+	actor := records.Actor{WorkspaceID: workspaceID, Agent: true}
 	open, _, err := a.crm.Search(ctx, actor, records.Search{Object: records.FollowUps, Where: map[string]string{"status": "Open"}, Limit: 100})
 	if err != nil {
 		return err
@@ -280,7 +279,7 @@ func (a *Agent) backfill(ctx context.Context, workspaceID string) error {
 }
 
 // history gathers who a person is and their latest conversations.
-func (a *Agent) history(ctx context.Context, actor auth.Actor, person records.Record) (History, error) {
+func (a *Agent) history(ctx context.Context, actor records.Actor, person records.Record) (History, error) {
 	users, err := a.workspaces.Users(ctx, actor.WorkspaceID)
 	if err != nil {
 		return History{}, err
@@ -335,7 +334,7 @@ var subjects = map[string]string{"people": "person", "companies": "company", "de
 
 // follow reports the outcome of drafting, independently of follow-up changes.
 func (a *Agent) follow(ctx context.Context, workspaceID, id string) (string, string, error) {
-	actor := auth.Actor{WorkspaceID: workspaceID, Agent: true}
+	actor := records.Actor{WorkspaceID: workspaceID, Agent: true}
 	conv, err := a.convs.Source(ctx, actor, id)
 	if err != nil {
 		return "", "Could not load the conversation. The system will retry.", err

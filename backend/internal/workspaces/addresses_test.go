@@ -3,6 +3,7 @@ package workspaces_test
 import (
 	"context"
 	"errors"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"slices"
 	"testing"
 
@@ -21,7 +22,7 @@ func TestMembersSetTheirOwnAddressesAndAdminsAnyones(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	admin := auth.Actor{UserID: owner.ID, WorkspaceID: owner.WorkspaceID}
+	admin := auth.Actor{Actor: records.Actor{MemberID: owner.ID, WorkspaceID: owner.WorkspaceID}}
 	if _, err := people.Invite(ctx, admin, "pat@cas.dev"); err != nil {
 		t.Fatal(err)
 	}
@@ -29,7 +30,7 @@ func TestMembersSetTheirOwnAddressesAndAdminsAnyones(t *testing.T) {
 	if err != nil || pat.WorkspaceID != owner.WorkspaceID || pat.Admin {
 		t.Fatalf("pat joins as a member: %+v %v", pat, err)
 	}
-	member := auth.Actor{UserID: pat.ID, WorkspaceID: pat.WorkspaceID}
+	member := auth.Actor{Actor: records.Actor{MemberID: pat.ID, WorkspaceID: pat.WorkspaceID}}
 	outsider, err := people.Provision(ctx, "eve@else.dev")
 	if err != nil {
 		t.Fatal(err)
@@ -42,7 +43,7 @@ func TestMembersSetTheirOwnAddressesAndAdminsAnyones(t *testing.T) {
 	if _, err := people.SetAddresses(ctx, member, "owner@cas.dev", []string{"owner@uni.ac.uk"}); !errors.Is(err, workspaces.ErrForbidden) {
 		t.Fatalf("a member changed another's addresses: %v", err)
 	}
-	if _, err := people.SetAddresses(ctx, auth.Actor{UserID: outsider.ID, WorkspaceID: outsider.WorkspaceID}, "pat@cas.dev", nil); err == nil {
+	if _, err := people.SetAddresses(ctx, auth.Actor{Actor: records.Actor{MemberID: outsider.ID, WorkspaceID: outsider.WorkspaceID}}, "pat@cas.dev", nil); err == nil {
 		t.Fatal("another workspace changed a member's addresses")
 	}
 	if _, err := people.SetAddresses(ctx, member, "pat@cas.dev", []string{"not an address"}); err == nil {

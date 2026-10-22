@@ -16,12 +16,11 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/gluonfield/jaz-crm/backend/internal/logos"
 
-	"github.com/gluonfield/jaz-crm/backend/internal/auth"
+	"github.com/gluonfield/jaz-crm/backend/crm/interactions"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/connections"
 	"github.com/gluonfield/jaz-crm/backend/internal/followups"
 	"github.com/gluonfield/jaz-crm/backend/internal/google"
-	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
 	"github.com/gluonfield/jaz-crm/backend/internal/workspaces"
@@ -145,7 +144,7 @@ func TestSyncAgainstGoogle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	actor := auth.Actor{UserID: owner.ID, WorkspaceID: owner.WorkspaceID}
+	actor := records.Actor{MemberID: owner.ID, WorkspaceID: owner.WorkspaceID}
 	now := time.Now().UTC()
 	fake := &fakeGoogle{now: now, messages: map[string]string{
 		"m1": gmailMessage("m1", "t1", "Owner <owner@cas.dev>", "Ada Lovelace <ada@customer.io>", "Quote", "", "Hello Ada", now.Add(-48*time.Hour)),

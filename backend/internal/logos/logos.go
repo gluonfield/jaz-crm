@@ -5,8 +5,8 @@ package logos
 
 import (
 	"context"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 
-	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 	"github.com/google/uuid"
 )
@@ -51,6 +51,6 @@ func (s *Service) Logo(ctx context.Context, token string) (storage.Logo, error) 
 }
 
 // Tokens maps the workspace's records that have a logo to its token.
-func (s *Service) Tokens(ctx context.Context, actor auth.Actor, recordIDs []string) (map[string]string, error) {
+func (s *Service) Tokens(ctx context.Context, actor records.Actor, recordIDs []string) (map[string]string, error) {
 	return s.store.RecordLogos(ctx, actor.WorkspaceID, recordIDs)
 }

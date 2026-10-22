@@ -123,7 +123,7 @@ func (s *Service) Approve(ctx context.Context, actor Actor, req AuthorizeRequest
 	if err := s.store.CreateOAuthCode(ctx, storage.OAuthCode{
 		CodeHash:      hash(code),
 		ClientID:      req.ClientID,
-		UserID:        actor.UserID,
+		UserID:        actor.MemberID,
 		RedirectURI:   req.RedirectURI,
 		CodeChallenge: req.CodeChallenge,
 		Scope:         req.Scope,
@@ -249,9 +249,9 @@ func (s *Service) Revoke(ctx context.Context, token string) error {
 }
 
 func (s *Service) Grants(ctx context.Context, actor Actor) ([]storage.OAuthGrantSummary, error) {
-	return s.store.OAuthGrants(ctx, actor.UserID)
+	return s.store.OAuthGrants(ctx, actor.MemberID)
 }
 
 func (s *Service) RevokeGrant(ctx context.Context, actor Actor, id string) error {
-	return s.store.RevokeOAuthGrant(ctx, actor.UserID, id)
+	return s.store.RevokeOAuthGrant(ctx, actor.MemberID, id)
 }

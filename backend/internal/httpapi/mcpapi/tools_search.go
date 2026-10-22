@@ -3,8 +3,8 @@ package mcpapi
 import (
 	"context"
 
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -33,14 +33,14 @@ func registerSearch(r *registry, crm *records.Service) {
 	add(r, &mcp.Tool{Name: "search", Title: "Search", Annotations: readOnly,
 		Description: "Find people, companies, deals, pages and other records matching a query, a few of each object with name matches first, as names with links. Use search_records to filter one object and read values."},
 		func(ctx context.Context, actor auth.Actor, in searchQuery) (searchResults, error) {
-			objects, err := crm.Objects(ctx, actor, false)
+			objects, err := crm.Objects(ctx, actor.Actor, false)
 			if err != nil {
 				return searchResults{}, err
 			}
 			out := searchResults{Results: []searchResult{}}
 			var ids []string
 			for _, object := range objects {
-				matches, _, err := crm.Search(ctx, actor, records.Search{Object: object.Slug, Query: in.Query, Limit: searchPerObject})
+				matches, _, err := crm.Search(ctx, actor.Actor, records.Search{Object: object.Slug, Query: in.Query, Limit: searchPerObject})
 				if err != nil {
 					return searchResults{}, err
 				}

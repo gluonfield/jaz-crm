@@ -7,10 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gluonfield/jaz-crm/backend/internal/auth"
-	"github.com/gluonfield/jaz-crm/backend/internal/errs"
-	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
+	"github.com/gluonfield/jaz-crm/backend/crm/errs"
+	"github.com/gluonfield/jaz-crm/backend/crm/interactions"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 )
 
 type RewriteInput struct {
@@ -42,7 +41,7 @@ func Composes(action string) bool {
 	return actions[action]
 }
 
-func (a *Agent) Rewrite(ctx context.Context, actor auth.Actor, id string, input RewriteInput) (RewriteResult, error) {
+func (a *Agent) Rewrite(ctx context.Context, actor records.Actor, id string, input RewriteInput) (RewriteResult, error) {
 	if a.rewriter == nil {
 		return RewriteResult{}, errs.Invalidf("AI drafting is not configured")
 	}

@@ -6,9 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gluonfield/jaz-crm/backend/internal/auth"
-	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
+	"github.com/gluonfield/jaz-crm/backend/crm/interactions"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres"
 	"github.com/lithammer/shortuuid/v4"
 )
@@ -91,7 +90,7 @@ func TestCASCompanyFieldsMigrationPreservesInformationAndOtherWorkspaces(t *test
 	}
 	defer store.Close()
 	crm := records.NewService(store)
-	actor := auth.Actor{WorkspaceID: cas, UserID: fixtures[0].user}
+	actor := records.Actor{WorkspaceID: cas, MemberID: fixtures[0].user}
 	svc := interactions.NewService(interactions.Params{Store: store, Connections: store, Workspaces: store, Records: crm})
 	for i, id := range fixtures[0].records {
 		got, err := crm.Get(ctx, actor, id)

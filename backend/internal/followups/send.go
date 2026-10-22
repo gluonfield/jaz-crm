@@ -10,12 +10,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gluonfield/jaz-crm/backend/internal/auth"
+	"github.com/gluonfield/jaz-crm/backend/crm/errs"
+	"github.com/gluonfield/jaz-crm/backend/crm/interactions"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/connections"
-	"github.com/gluonfield/jaz-crm/backend/internal/errs"
 	"github.com/gluonfield/jaz-crm/backend/internal/google"
-	"github.com/gluonfield/jaz-crm/backend/internal/interactions"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 )
 
@@ -37,7 +36,7 @@ type SavedDraft struct {
 	Revision string
 }
 
-func (s *Service) SaveDraft(ctx context.Context, actor auth.Actor, id, draft, subject, channel string, to, cc []string, revisions ...string) (SavedDraft, error) {
+func (s *Service) SaveDraft(ctx context.Context, actor records.Actor, id, draft, subject, channel string, to, cc []string, revisions ...string) (SavedDraft, error) {
 	imported, err := s.store.GmailDraft(ctx, actor.WorkspaceID, id)
 	if err == nil && imported.State == "draft" {
 		revision := ""
@@ -53,7 +52,7 @@ func (s *Service) SaveDraft(ctx context.Context, actor auth.Actor, id, draft, su
 	return SavedDraft{Record: record}, err
 }
 
-func (s *Service) saveRecordDraft(ctx context.Context, actor auth.Actor, id, draft, subject, channel string, to, cc []string) (records.Record, error) {
+func (s *Service) saveRecordDraft(ctx context.Context, actor records.Actor, id, draft, subject, channel string, to, cc []string) (records.Record, error) {
 	current, err := s.crm.Get(ctx, actor, id)
 	if err != nil {
 		return records.Record{}, err
@@ -98,7 +97,7 @@ type Seen struct {
 // now, replying in its newest linked email conversation when present; any other draft is
 // approved for whoever sends it. Confirmation and the reviewed draft are
 // required on both browser and connected-app transports.
-func (s *Service) Release(ctx context.Context, actor auth.Actor, id string, seen Seen) (records.Record, error) {
+func (s *Service) Release(ctx context.Context, actor records.Actor, id string, seen Seen) (records.Record, error) {
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
 	if !seen.Confirmed {
@@ -225,7 +224,7 @@ func sameSet(a, b []string) bool {
 	return slices.Equal(slices.Compact(a), slices.Compact(b))
 }
 
-func (s *Service) set(ctx context.Context, actor auth.Actor, id string, pairs ...string) (records.Record, error) {
+func (s *Service) set(ctx context.Context, actor records.Actor, id string, pairs ...string) (records.Record, error) {
 	set := map[string][]string{}
 	for i := 0; i < len(pairs); i += 2 {
 		set[pairs[i]] = []string{pairs[i+1]}
@@ -249,7 +248,7 @@ type outgoing struct {
 // sender finds the newest message of the email conversations a follow-up is
 // linked to, and the mailbox a reply to it goes from: the one holding it when
 // the actor may send from it, else their own. New emails use the assigned owner.
-func (s *Service) sender(ctx context.Context, actor auth.Actor, f records.Record) (storage.Part, storage.Connection, error) {
+func (s *Service) sender(ctx context.Context, actor records.Actor, f records.Record) (storage.Part, storage.Connection, error) {
 	threads, err := s.store.Timeline(ctx, storage.TimelineQuery{RecordID: f.ID, WorkspaceID: actor.WorkspaceID, Kinds: []string{interactions.Message}, Limit: 20})
 	if err != nil {
 		return storage.Part{}, storage.Connection{}, err
@@ -293,7 +292,7 @@ func (s *Service) original(ctx context.Context, part storage.Part) (google.Messa
 }
 
 // draftedAt is when the follow-up's draft text was last written.
-func (s *Service) draftedAt(ctx context.Context, actor auth.Actor, id string) (time.Time, error) {
+func (s *Service) draftedAt(ctx context.Context, actor records.Actor, id string) (time.Time, error) {
 	changes, err := s.crm.History(ctx, actor, id)
 	if err != nil {
 		return time.Time{}, err

@@ -6,8 +6,8 @@ import (
 	"net"
 	"slices"
 
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/followups"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
 	"github.com/openai/openai-go/v3"
 )
 

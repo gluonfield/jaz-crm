@@ -8,15 +8,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gluonfield/jaz-crm/backend/internal/auth"
-	"github.com/gluonfield/jaz-crm/backend/internal/records"
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
 	"github.com/gluonfield/jaz-crm/backend/internal/workspaces"
 )
 
-func draftStore(t *testing.T) (*postgres.Store, auth.Actor, storage.Connection, string) {
+func draftStore(t *testing.T) (*postgres.Store, records.Actor, storage.Connection, string) {
 	t.Helper()
 	ctx := t.Context()
 	store := postgrestest.New(t)
@@ -24,7 +23,7 @@ func draftStore(t *testing.T) (*postgres.Store, auth.Actor, storage.Connection, 
 	if err != nil {
 		t.Fatal(err)
 	}
-	actor := auth.Actor{UserID: owner.ID, WorkspaceID: owner.WorkspaceID}
+	actor := records.Actor{MemberID: owner.ID, WorkspaceID: owner.WorkspaceID}
 	connection, err := store.SaveConnection(ctx, storage.NewConnection{WorkspaceID: owner.WorkspaceID, UserID: owner.ID, Provider: "google", Account: owner.Email, RefreshToken: []byte("encrypted")})
 	if err != nil {
 		t.Fatal(err)
@@ -268,7 +267,7 @@ func TestDisconnectWithdrawsOnlyUnsentGmailDrafts(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := store.DeleteConnection(ctx, actor.UserID, connection.ID); !errors.Is(err, storage.ErrNotFound) {
+	if err := store.DeleteConnection(ctx, actor.MemberID, connection.ID); !errors.Is(err, storage.ErrNotFound) {
 		t.Fatalf("cross-workspace disconnect: %v", err)
 	}
 	if draft, err := store.GmailDraft(ctx, actor.WorkspaceID, followUp); err != nil || draft.State != "draft" {
@@ -337,7 +336,7 @@ func TestGmailDraftSentLinksFollowProviderIdentity(t *testing.T) {
 			}
 			partConnection, providerID := connection.ID, draft.SentMessageID
 			if order == "recipient-first" {
-				recipient, err := store.SaveConnection(ctx, storage.NewConnection{WorkspaceID: actor.WorkspaceID, UserID: actor.UserID, Provider: "google", Account: "recipient@cas.dev", RefreshToken: []byte("encrypted")})
+				recipient, err := store.SaveConnection(ctx, storage.NewConnection{WorkspaceID: actor.WorkspaceID, UserID: actor.MemberID, Provider: "google", Account: "recipient@cas.dev", RefreshToken: []byte("encrypted")})
 				if err != nil {
 					t.Fatal(err)
 				}
