@@ -159,6 +159,8 @@ type SavedFilter struct {
 	Query    string         `json:"query,omitempty"`
 	Filters  []RecordFilter `json:"filters"`
 	ObjectID string         `json:"-"`
+	UserID   *string        `json:"-"`
+	Builtin  bool           `json:"builtin,omitempty"`
 }
 
 // ValueChanges closes current values by ID and inserts new ones. Revise
@@ -218,9 +220,9 @@ type RecordStore interface {
 	// SearchRecords returns a page of matching records and how many match.
 	SearchRecords(ctx context.Context, query RecordQuery) ([]SearchRecord, int, error)
 	RelatedRecords(ctx context.Context, workspaceID, attributeID string, ids []string, limit int32) ([]RelatedRecord, error)
-	SavedFilters(ctx context.Context, workspaceID, objectID string) ([]SavedFilter, error)
-	SaveFilter(ctx context.Context, workspaceID string, filter SavedFilter) (SavedFilter, error)
-	DeleteFilter(ctx context.Context, workspaceID, id string) error
+	SavedFilters(ctx context.Context, workspaceID, objectID, userID string) ([]SavedFilter, error)
+	SaveFilter(ctx context.Context, workspaceID, userID string, filter SavedFilter) (SavedFilter, error)
+	DeleteFilter(ctx context.Context, workspaceID, id, userID string) error
 	CurrentValues(ctx context.Context, workspaceID string, recordIDs []string) ([]RecordValue, error)
 	PageImage(ctx context.Context, id string) (PageImage, error)
 	// History returns a record's values, current and closed, newest first.

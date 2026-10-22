@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	signin "github.com/gluonfield/jaz-tasks/auth"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -148,55 +149,105 @@ func TestSavedPeopleFiltersRoundTrip(t *testing.T) {
 	}
 }
 
-func TestFollowUpQueues(t *testing.T) {
+func TestPrivateFollowUpFilters(t *testing.T) {
 	e := serve(t)
-	a := e.session(t, e.apiKey(t, "queues@jaz.test"))
-	mustCall(t, a, "save_filter", map[string]any{"object": "follow_ups", "name": "A custom view"})
-	listed := mustCall(t, a, "list_saved_filters", map[string]any{"object": "follow_ups"})["filters"].([]any)
-	var names []string
-	for _, item := range listed {
-		names = append(names, item.(map[string]any)["name"].(string))
+	key := e.apiKey(t, "owner@example.com")
+	owner := e.session(t, key)
+	mustCall(t, owner, "invite_member", map[string]any{"email": "member@example.com"})
+	user, err := e.people.SignIn(t.Context(), signin.Identity{Issuer: "https://idp.test", Subject: "member", Email: "member@example.com", EmailVerified: true})
+	if err != nil {
+		t.Fatal(err)
 	}
-	if !slices.Equal(names, []string{"Needs attention", "Chase", "Waiting on them", "A custom view"}) {
-		t.Fatalf("queue priority: %v", names)
+	memberKey, _, err := e.keys.CreateKey(t.Context(), user.ID, "member", "")
+	if err != nil {
+		t.Fatal(err)
 	}
-	for _, fixture := range []struct{ name, waiting, date, status string }{
-		{"Our overdue action", "Us", "2000-01-01", "Open"},
-		{"Our future action", "Us", "2099-10-19", "Open"},
-		{"Our undated action", "Us", "", "Open"},
-		{"Unassigned overdue action", "", "2000-01-01", "Open"},
-		{"Unassigned undated action", "", "", "Open"},
-		{"Their overdue action", "Them", "2000-01-01", "Open"},
-		{"Their future action", "Them", "2099-10-19", "Open"},
-		{"Their undated action", "Them", "", "Open"},
-		{"Our completed action", "Us", "", "Done"},
-		{"Their dismissed action", "Them", "", "Dismissed"},
+	member := e.session(t, memberKey)
+	other := e.session(t, e.apiKey(t, "outside@example.com"))
+	for _, session := range []*mcp.ClientSession{owner, member} {
+		listed := mustCall(t, session, "list_saved_filters", map[string]any{"object": "follow_ups"})["filters"].([]any)
+		if len(listed) != 2 || listed[0].(map[string]any)["name"] != "Everyone" || listed[1].(map[string]any)["name"] != "Assigned to me" {
+			t.Fatalf("built-in views: %v", listed)
+		}
+		for _, item := range listed {
+			view := item.(map[string]any)
+			if view["builtin"] != true {
+				t.Fatalf("built-in must be marked fixed: %v", view)
+			}
+			for _, tool := range []string{"save_filter", "delete_saved_filter"} {
+				args := map[string]any{"id": view["id"]}
+				if tool == "save_filter" {
+					args["object"] = "follow_ups"
+					args["name"] = "Replaced"
+				}
+				if _, failure := call(t, session, tool, args); failure == "" {
+					t.Fatalf("%s accepted a built-in view", tool)
+				}
+			}
+		}
+	}
+	for _, name := range []string{" EVERYONE ", "assigned TO me"} {
+		if _, failure := call(t, owner, "save_filter", map[string]any{"object": "follow_ups", "name": name}); failure == "" {
+			t.Fatal("built-in name accepted for a private filter")
+		}
+	}
+	for _, fixture := range []struct{ name, owner, status string }{
+		{"Owner action", "owner@example.com", "Open"},
+		{"Member action", "member@example.com", "Open"},
+		{"Completed action", "owner@example.com", "Done"},
 	} {
-		values := map[string]any{"name": fixture.name, "status": fixture.status}
-		if fixture.waiting != "" {
-			values["waiting_on"] = fixture.waiting
-		}
-		if fixture.date != "" {
-			values["action_date"] = fixture.date
-			values["action_date_basis"] = "Stated"
-			values["action_date_reason"] = "The conversation states this date."
-		}
-		mustCall(t, a, "upsert_record", map[string]any{"object": "follow_ups", "values": values})
+		mustCall(t, owner, "upsert_record", map[string]any{"object": "follow_ups", "values": map[string]any{"name": fixture.name, "owner": fixture.owner, "status": fixture.status}})
 	}
-	for i, want := range [][]string{
-		{"Our future action", "Our overdue action", "Our undated action", "Unassigned overdue action", "Unassigned undated action"},
-		{"Their overdue action"},
-		{"Their future action", "Their overdue action", "Their undated action"},
-	} {
-		filter := listed[i].(map[string]any)
-		found := mustCall(t, a, "search_records", map[string]any{"object": "follow_ups", "filters": filter["filters"], "sort": "name"})["records"].([]any)
-		var got []string
-		for _, row := range found {
-			got = append(got, row.(map[string]any)["values"].(map[string]any)["name"].(string))
+	for i, session := range []*mcp.ClientSession{owner, member} {
+		listed := mustCall(t, session, "list_saved_filters", map[string]any{"object": "follow_ups"})["filters"].([]any)
+		for j, item := range listed {
+			view := item.(map[string]any)
+			rows := mustCall(t, session, "search_records", map[string]any{"object": "follow_ups", "filters": view["filters"]})["records"].([]any)
+			if j == 0 && len(rows) != 2 || j == 1 && (len(rows) != 1 || rows[0].(map[string]any)["values"].(map[string]any)["name"] != []string{"Owner action", "Member action"}[i]) {
+				t.Fatalf("%s membership: %v", view["name"], rows)
+			}
 		}
-		if !slices.Equal(got, want) {
-			t.Fatalf("%s membership: got %v, want %v", filter["name"], got, want)
+	}
+	args := map[string]any{"object": "follow_ups", "name": "My email", "query": "Private search", "filters": []any{map[string]any{"attribute": "channel", "operator": "is", "value": "Email"}}}
+	saved := mustCall(t, owner, "save_filter", args)
+	for _, session := range []*mcp.ClientSession{member, other} {
+		listed := mustCall(t, session, "list_saved_filters", map[string]any{"object": "follow_ups"})["filters"].([]any)
+		if len(listed) != 2 {
+			t.Fatalf("private filter leaked: %v", listed)
 		}
+		for _, tool := range []string{"save_filter", "delete_saved_filter"} {
+			args := map[string]any{"id": saved["id"]}
+			if tool == "save_filter" {
+				args["object"] = "follow_ups"
+				args["name"] = "Stolen"
+			}
+			if _, failure := call(t, session, tool, args); failure == "" {
+				t.Fatalf("%s accepted another user's private filter", tool)
+			}
+		}
+	}
+	own := mustCall(t, member, "save_filter", args)
+	if own["id"] == saved["id"] {
+		t.Fatal("same-name private filters must be independent")
+	}
+	if _, failure := call(t, owner, "save_filter", args); failure == "" {
+		t.Fatal("duplicate private name accepted for the same owner")
+	}
+	args["id"] = saved["id"]
+	args["query"] = "Updated private search"
+	updated := mustCall(t, e.session(t, key), "save_filter", args)
+	if updated["query"] != args["query"] {
+		t.Fatalf("owner update: %v", updated)
+	}
+	mustCall(t, owner, "delete_saved_filter", map[string]any{"id": saved["id"]})
+	listed := mustCall(t, member, "list_saved_filters", map[string]any{"object": "follow_ups"})["filters"].([]any)
+	if len(listed) != 3 || listed[2].(map[string]any)["id"] != own["id"] || listed[2].(map[string]any)["query"] != "Private search" {
+		t.Fatalf("owner mutation affected member's filter: %v", listed)
+	}
+	shared := mustCall(t, owner, "save_filter", map[string]any{"object": "people", "name": "Shared people"})
+	listed = mustCall(t, member, "list_saved_filters", map[string]any{"object": "people"})["filters"].([]any)
+	if len(listed) != 1 || listed[0].(map[string]any)["id"] != shared["id"] {
+		t.Fatalf("other objects must retain shared filters: %v", listed)
 	}
 }
 

@@ -83,20 +83,6 @@ var StandardObjects = []storage.NewObject{
 		{Slug: "to", Name: "To", Type: Email, Multi: true},
 		{Slug: "cc", Name: "Cc", Type: Email, Multi: true},
 		{Slug: draftStatusAttribute, Name: "Draft status", Type: Select, Options: []string{DraftWritten, DraftApproved, DraftSending, DraftSent}},
-	}, Filters: []storage.SavedFilter{
-		{Name: "Needs attention", Filters: []storage.RecordFilter{
-			{Attribute: "status", Operator: "is", Value: "Open"},
-			{Attribute: "waiting_on", Operator: "is_not", Value: "Them"},
-		}},
-		{Name: "Chase", Filters: []storage.RecordFilter{
-			{Attribute: "status", Operator: "is", Value: "Open"},
-			{Attribute: "waiting_on", Operator: "is", Value: "Them"},
-			{Attribute: "action_date", Operator: "on_or_before", Value: "now"},
-		}},
-		{Name: "Waiting on them", Filters: []storage.RecordFilter{
-			{Attribute: "status", Operator: "is", Value: "Open"},
-			{Attribute: "waiting_on", Operator: "is", Value: "Them"},
-		}},
 	}},
 	{Slug: Pages, Name: "Pages", Attributes: []storage.NewAttribute{
 		{Slug: titleAttribute, Name: "Name", Type: Text},

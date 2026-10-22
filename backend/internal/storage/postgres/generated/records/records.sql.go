@@ -159,9 +159,9 @@ func (q *Queries) CreateRecord(ctx context.Context, arg CreateRecordParams) (Rec
 }
 
 const createSavedFilter = `-- name: CreateSavedFilter :one
-INSERT INTO saved_filters (id, workspace_id, object_id, name, query, filters)
-VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, workspace_id, object_id, name, query, filters
+INSERT INTO saved_filters (id, workspace_id, object_id, name, query, filters, user_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+RETURNING id, workspace_id, object_id, name, query, filters, user_id
 `
 
 type CreateSavedFilterParams struct {
@@ -171,6 +171,7 @@ type CreateSavedFilterParams struct {
 	Name        string
 	Query       string
 	Filters     []byte
+	UserID      *string
 }
 
 func (q *Queries) CreateSavedFilter(ctx context.Context, arg CreateSavedFilterParams) (SavedFilter, error) {
@@ -181,6 +182,7 @@ func (q *Queries) CreateSavedFilter(ctx context.Context, arg CreateSavedFilterPa
 		arg.Name,
 		arg.Query,
 		arg.Filters,
+		arg.UserID,
 	)
 	var i SavedFilter
 	err := row.Scan(
@@ -190,6 +192,7 @@ func (q *Queries) CreateSavedFilter(ctx context.Context, arg CreateSavedFilterPa
 		&i.Name,
 		&i.Query,
 		&i.Filters,
+		&i.UserID,
 	)
 	return i, err
 }
@@ -259,16 +262,18 @@ func (q *Queries) DeleteAttribute(ctx context.Context, arg DeleteAttributeParams
 }
 
 const deleteFilter = `-- name: DeleteFilter :execrows
-DELETE FROM saved_filters WHERE workspace_id = $1 AND id = $2
+DELETE FROM saved_filters WHERE saved_filters.workspace_id = $1 AND saved_filters.id = $2
+AND (user_id = $3::text OR (user_id IS NULL AND NOT EXISTS (SELECT 1 FROM objects WHERE id = saved_filters.object_id AND slug = 'follow_ups')))
 `
 
 type DeleteFilterParams struct {
 	WorkspaceID string
 	ID          string
+	ActorID     string
 }
 
 func (q *Queries) DeleteFilter(ctx context.Context, arg DeleteFilterParams) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteFilter, arg.WorkspaceID, arg.ID)
+	result, err := q.db.Exec(ctx, deleteFilter, arg.WorkspaceID, arg.ID, arg.ActorID)
 	if err != nil {
 		return 0, err
 	}
@@ -469,16 +474,19 @@ func (q *Queries) ListObjects(ctx context.Context, workspaceID string) ([]Object
 }
 
 const listSavedFilters = `-- name: ListSavedFilters :many
-SELECT id, workspace_id, object_id, name, query, filters FROM saved_filters WHERE workspace_id = $1 AND object_id = $2 ORDER BY lower(name), id
+SELECT saved_filters.id, saved_filters.workspace_id, saved_filters.object_id, saved_filters.name, saved_filters.query, saved_filters.filters, saved_filters.user_id FROM saved_filters WHERE saved_filters.workspace_id = $1 AND saved_filters.object_id = $2
+AND (user_id = $3::text OR (user_id IS NULL AND NOT EXISTS (SELECT 1 FROM objects WHERE id = saved_filters.object_id AND slug = 'follow_ups')))
+ORDER BY lower(name), id
 `
 
 type ListSavedFiltersParams struct {
 	WorkspaceID string
 	ObjectID    string
+	ActorID     string
 }
 
 func (q *Queries) ListSavedFilters(ctx context.Context, arg ListSavedFiltersParams) ([]SavedFilter, error) {
-	rows, err := q.db.Query(ctx, listSavedFilters, arg.WorkspaceID, arg.ObjectID)
+	rows, err := q.db.Query(ctx, listSavedFilters, arg.WorkspaceID, arg.ObjectID, arg.ActorID)
 	if err != nil {
 		return nil, err
 	}
@@ -493,6 +501,7 @@ func (q *Queries) ListSavedFilters(ctx context.Context, arg ListSavedFiltersPara
 			&i.Name,
 			&i.Query,
 			&i.Filters,
+			&i.UserID,
 		); err != nil {
 			return nil, err
 		}
@@ -1124,8 +1133,9 @@ func (q *Queries) UpdateObject(ctx context.Context, arg UpdateObjectParams) (int
 
 const updateSavedFilter = `-- name: UpdateSavedFilter :one
 UPDATE saved_filters SET name = $1, query = $2, filters = $3
-WHERE workspace_id = $4 AND object_id = $5 AND id = $6
-RETURNING id, workspace_id, object_id, name, query, filters
+WHERE saved_filters.workspace_id = $4 AND saved_filters.object_id = $5 AND saved_filters.id = $6
+AND (user_id = $7::text OR (user_id IS NULL AND NOT EXISTS (SELECT 1 FROM objects WHERE id = saved_filters.object_id AND slug = 'follow_ups')))
+RETURNING id, workspace_id, object_id, name, query, filters, user_id
 `
 
 type UpdateSavedFilterParams struct {
@@ -1135,6 +1145,7 @@ type UpdateSavedFilterParams struct {
 	WorkspaceID string
 	ObjectID    string
 	ID          string
+	ActorID     string
 }
 
 func (q *Queries) UpdateSavedFilter(ctx context.Context, arg UpdateSavedFilterParams) (SavedFilter, error) {
@@ -1145,6 +1156,7 @@ func (q *Queries) UpdateSavedFilter(ctx context.Context, arg UpdateSavedFilterPa
 		arg.WorkspaceID,
 		arg.ObjectID,
 		arg.ID,
+		arg.ActorID,
 	)
 	var i SavedFilter
 	err := row.Scan(
@@ -1154,6 +1166,7 @@ func (q *Queries) UpdateSavedFilter(ctx context.Context, arg UpdateSavedFilterPa
 		&i.Name,
 		&i.Query,
 		&i.Filters,
+		&i.UserID,
 	)
 	return i, err
 }

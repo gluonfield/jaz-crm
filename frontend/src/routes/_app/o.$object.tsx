@@ -15,7 +15,6 @@ import { CreateRecord } from '@/components/create-record'
 import { ConnectGoogle, EmptyState } from '@/components/empty-state'
 import { ObjectIcon, RecordIcon } from '@/components/icons'
 import { Picker } from '@/components/picker'
-import { OwnerFilter } from '@/components/owner-filter'
 import { RecordFilters } from '@/components/record-filters'
 import { RecordMenu } from '@/components/record-menu'
 import { NavButton } from '@/components/nav-drawer'
@@ -58,15 +57,11 @@ function ObjectList({ slug }: { slug: string }) {
   const object = objects?.find((o) => o.slug === slug)
   const pages = usePages()
   const ancestors = object?.parent && pages ? path(pages, object.parent) : []
-  const me = useWorkspace()?.members?.find((m) => m.is_me)
   const search = Route.useSearch()
-  const defaults: RecordFilter[] = slug === 'follow_ups' ? [
-    { attribute: 'status', operator: 'is', value: 'Open' },
-    ...(me ? [{ attribute: 'owner', operator: 'is' as const, value: me.email }] : []),
-  ] : []
-  const { sort, view, saved, limit = 100, conversation_id } = search
+  const { sort, view, saved = slug === 'follow_ups' ? 'assigned_to_me' : undefined, limit = 100, conversation_id } = search
   // A saved view's link shows the view; changing its filters or search edits it.
   const views = useTool<{ filters: SavedFilter[] }>('list_saved_filters', { object: slug })
+  const defaults = views.data?.filters.find((f) => f.id === 'assigned_to_me')?.filters ?? []
   const chosen = views.data?.filters.find((f) => f.id === saved)
   // A key naming no attribute, such as a link's tracking parameter, neither
   // filters nor replaces a saved view.
@@ -124,11 +119,10 @@ function ObjectList({ slug }: { slug: string }) {
     return objects ? <Header><NavButton />{slug}</Header> : <Loading />
   }
   const own = !object.standard
-  const ownerFilter = slug === 'follow_ups' && <OwnerFilter filters={filters} onChange={(filters) => void navigate({ to: '.', search: (previous) => ({ ...previous, filters: urlFilters(filters) }), replace: true })} />
   const recordFilters = (title = false) => (
-    <RecordFilters key={slug} object={object} filters={filters} defaults={defaults} query={q} scope={scope} selected={saved} title={title} total={total}
+    <RecordFilters key={slug} object={object} filters={filters} defaults={defaults} query={q} scope={scope} selected={saved} viewKey={JSON.stringify(search)} title={title} total={total}
       onChange={(filters) => void navigate({ to: '.', search: (previous) => ({ ...previous, filters: urlFilters(filters) }), replace: true })}
-      onApply={(picked) => void navigate({ to: '.', search: (previous) => ({ ...previous, filters: picked || !defaults.length ? undefined : [], q: undefined, saved: picked?.id }), replace: true })}
+      onApply={(picked) => void navigate({ to: '.', search: (previous) => ({ ...previous, filters: undefined, q: undefined, saved: picked?.id }), replace: true })}
     />
   )
   const conversationFilter = conversation_id && <Button variant="ghost" aria-label="Clear conversation filter" title="Show all conversations" onClick={() => void navigate({ to: '.', search: (previous) => ({ ...previous, conversation_id: undefined }), replace: true })}>This conversation<X /></Button>
@@ -157,14 +151,13 @@ function ObjectList({ slug }: { slug: string }) {
     'data-page-search': true,
   }
   // The queue has no page header: one row of its column holds the view as
-  // its title, a filter, whose follow-ups show and a search that narrows the
+  // its title, a filter and a search that narrows the
   // view, which opens from its icon or with /.
   const controls = (
     <>
       <div className="flex min-w-0 items-center gap-1">
         <NavButton />
         <div className="mr-auto min-w-0 md:-ml-2">{recordFilters(true)}</div>
-        {ownerFilter}
         <label title="Search" className={cn('flex h-7 min-w-7 shrink-0 cursor-text items-center gap-2 rounded-[var(--radius-control)] px-1.5 text-ink-2 transition-colors focus-within:bg-list-hover hover:bg-list-hover', q && 'bg-list-hover')}>
           <Search className="size-4 shrink-0" />
           <input
@@ -202,8 +195,7 @@ function ObjectList({ slug }: { slug: string }) {
       <div className={cn('flex min-w-0 max-w-full items-center gap-1 font-normal md:flex-wrap', own ? 'flex-1' : 'ml-auto', q ? 'max-md:flex-1' : 'max-md:group-has-[[data-page-search]:focus]/header:flex-1')}>
         <span className={cn('flex min-w-0 items-center gap-1', own && 'mr-auto', phoneSearch)}>
           {recordFilters()}
-          {ownerFilter}
-          {sorter(
+            {sorter(
             <Button variant="ghost" aria-label="Sort records" className="max-md:px-1.5">
               <ArrowDownAZ />
               <span className="hidden xl:inline">{sortName}</span>

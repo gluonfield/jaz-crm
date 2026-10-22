@@ -16,12 +16,13 @@ import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
 // RecordFilters edits conditions and selects saved views, counting only the
 // conditions someone added beyond the view's defaults. The title variant
 // shows each view's count, where search narrows the view without editing it.
-export function RecordFilters({ object, filters, defaults = [], query, scope, selected, title = false, total, onChange, onApply }: { object: CrmObject; filters: RecordFilter[]; defaults?: RecordFilter[]; query: string; scope: RecordSearchScope; selected?: string; title?: boolean; total?: number; onChange: (filters: RecordFilter[]) => void; onApply: (filter?: SavedFilter) => void }) {
+export function RecordFilters({ object, filters, defaults = [], query, scope, selected, viewKey, title = false, total, onChange, onApply }: { object: CrmObject; filters: RecordFilter[]; defaults?: RecordFilter[]; query: string; scope: RecordSearchScope; selected?: string; viewKey: string; title?: boolean; total?: number; onChange: (filters: RecordFilter[]) => void; onApply: (filter?: SavedFilter) => void }) {
   const saved = useTool<{ filters: SavedFilter[] }>('list_saved_filters', { object: object.slug }).data?.filters ?? []
   const active = saved.find((f) => f.id === selected)
+  const views = object.slug === 'follow_ups' ? saved : [{ id: '', name: `All ${object.name.toLowerCase()}`, filters: [] }, ...saved]
   const [menu, setMenu] = useState(false)
   const counts = useQueries({
-    queries: [{ query: '', filters: [] }, ...saved].map((view) => ({ ...toolQuery<{ total: number }>('search_records', { object: object.slug, ...scope, query: view.query ?? '', filters: view.filters, limit: 1 }), enabled: title && menu })),
+    queries: views.map((view) => ({ ...toolQuery<{ total: number }>('search_records', { object: object.slug, ...scope, query: view.query ?? '', filters: view.filters, limit: 1 }), enabled: title && menu })),
     combine: (results) => results.map((r) => r.data?.total),
   })
   const save = useAction<{ object: string; id?: string; name: string; query: string; filters: RecordFilter[] }, SavedFilter>('save_filter')
@@ -35,7 +36,7 @@ export function RecordFilters({ object, filters, defaults = [], query, scope, se
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [name, setName] = useState('')
-  const contextKey = JSON.stringify([filters, query, selected, scope, draft, name])
+  const contextKey = JSON.stringify([viewKey, draft, name])
   const { reset: resetSave } = save
   const { reset: resetRemove } = remove
   // Changed editor/view context detaches its callbacks; the write still completes.
@@ -65,7 +66,7 @@ export function RecordFilters({ object, filters, defaults = [], query, scope, se
           </button>
           : <Button variant="ghost" className={cn('max-w-40 shrink-0 max-md:px-1.5', active && 'max-md:bg-list-hover max-md:text-ink')}><Bookmark className="shrink-0" /><span className="truncate max-md:sr-only">{label}</span>{!object.standard && total !== undefined && <span title="Record count" className="tabular-nums text-ink-3">{total}</span>}<ChevronDown className="shrink-0 max-md:hidden" /></Button>}
         placeholder="Find saved filters…"
-        options={[{ value: '', label: `All ${object.name.toLowerCase()}` }, ...saved.map((f) => ({ value: f.id, label: f.name }))].map((option, i) => title ? { ...option, hint: counts[i] ?? '' } : option)}
+        options={views.map((view, i) => ({ value: view.id, label: view.name, hint: title ? counts[i] ?? '' : undefined }))}
         selected={active ? [active.id] : filters.length ? [] : ['']}
         onSelect={(id) => onApply(saved.find((f) => f.id === id))}
         onOpenChange={setMenu}
@@ -85,8 +86,9 @@ export function RecordFilters({ object, filters, defaults = [], query, scope, se
         <PopoverContent align="start" collisionPadding={8} className="w-[520px] max-w-[calc(100vw-2rem)] p-3" onKeyDown={(e) => e.stopPropagation()}>
           <div className="mb-2 flex items-center justify-between gap-2">
             <span className="text-[12px] text-ink-3">Match all conditions</span>
-            {active && <Button variant="ghost" aria-label={`Delete saved filter ${active.name}`} onClick={() => {
+            {active && !active.builtin && <Button variant="ghost" aria-label={`Delete saved filter ${active.name}`} onClick={() => {
               setOpen(false)
+              setName(active.name)
               setDeleting(true)
             }}><Trash2 /></Button>}
           </div>
@@ -111,13 +113,13 @@ export function RecordFilters({ object, filters, defaults = [], query, scope, se
               setName('')
               setSaving(true)
             }}><Bookmark />Save as…</Button>
-            {changed && <Button variant="ghost" disabled={incomplete || save.isPending} onClick={() => persist(active.name, active.id)}><Save />Save changes</Button>}
+            {changed && !active.builtin && <Button variant="ghost" disabled={incomplete || save.isPending} onClick={() => persist(active.name, active.id)}><Save />Save changes</Button>}
           </div>}
         </PopoverContent>
       </Popover>
       <Dialog open={saving} onOpenChange={setSaving}>
         <DialogContent className="bg-raised text-ink sm:max-w-sm" aria-describedby={undefined}>
-          <DialogTitle className="text-[14px]">Save filter</DialogTitle>
+          <DialogTitle className="text-[14px]">{object.slug === 'follow_ups' ? 'Save private filter' : 'Save filter'}</DialogTitle>
           <form autoComplete="off" className="grid gap-4" onSubmit={(e) => {
             e.preventDefault()
             persist(name)
@@ -129,7 +131,7 @@ export function RecordFilters({ object, filters, defaults = [], query, scope, se
       </Dialog>
       <Dialog open={deleting} onOpenChange={setDeleting}>
         <DialogContent className="bg-raised text-ink sm:max-w-sm" aria-describedby={undefined}>
-          <DialogTitle className="text-[14px]">Delete “{active?.name}” filter?</DialogTitle>
+          <DialogTitle className="text-[14px]">Delete “{name}” filter?</DialogTitle>
           <div className="flex justify-end gap-2">
             <Button onClick={() => setDeleting(false)}>Cancel</Button>
             <Button disabled={remove.isPending} onClick={() => active && remove.mutate({ id: active.id }, { onSuccess: () => {

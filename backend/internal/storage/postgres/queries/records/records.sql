@@ -263,17 +263,21 @@ INSERT INTO record_values (record_id, attribute_id, text, ref_record_id, unique_
 VALUES ($1, $2, $3, $4, $5, $6, $7);
 
 -- name: ListSavedFilters :many
-SELECT * FROM saved_filters WHERE workspace_id = $1 AND object_id = $2 ORDER BY lower(name), id;
+SELECT saved_filters.* FROM saved_filters WHERE saved_filters.workspace_id = @workspace_id AND saved_filters.object_id = @object_id
+AND (user_id = sqlc.arg(actor_id)::text OR (user_id IS NULL AND NOT EXISTS (SELECT 1 FROM objects WHERE id = saved_filters.object_id AND slug = 'follow_ups')))
+ORDER BY lower(name), id;
 
 -- name: CreateSavedFilter :one
-INSERT INTO saved_filters (id, workspace_id, object_id, name, query, filters)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO saved_filters (id, workspace_id, object_id, name, query, filters, user_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING *;
 
 -- name: UpdateSavedFilter :one
 UPDATE saved_filters SET name = @name, query = @query, filters = @filters
-WHERE workspace_id = @workspace_id AND object_id = @object_id AND id = @id
+WHERE saved_filters.workspace_id = @workspace_id AND saved_filters.object_id = @object_id AND saved_filters.id = @id
+AND (user_id = sqlc.arg(actor_id)::text OR (user_id IS NULL AND NOT EXISTS (SELECT 1 FROM objects WHERE id = saved_filters.object_id AND slug = 'follow_ups')))
 RETURNING *;
 
 -- name: DeleteFilter :execrows
-DELETE FROM saved_filters WHERE workspace_id = $1 AND id = $2;
+DELETE FROM saved_filters WHERE saved_filters.workspace_id = @workspace_id AND saved_filters.id = @id
+AND (user_id = sqlc.arg(actor_id)::text OR (user_id IS NULL AND NOT EXISTS (SELECT 1 FROM objects WHERE id = saved_filters.object_id AND slug = 'follow_ups')));
