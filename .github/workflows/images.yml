@@ -31,7 +31,7 @@ jobs:
         with:
           go-version: '1.26'
           cache-dependency-path: |
-            backend/go.sum
+            go.sum
             examples/embed/go.sum
       - name: Set up Bun
         run: |
@@ -46,8 +46,7 @@ jobs:
         run: |
           bun install --frozen-lockfile
           bun run check
-      - working-directory: backend
-        run: |
+      - run: |
           go build ./...
           go vet ./...
           go test ./...

@@ -30,13 +30,13 @@ ChatGPT setup and packaging: [docs/chatgpt-plugin.md](docs/chatgpt-plugin.md) an
 ## Go library
 
 ```sh
-go get github.com/gluonfield/jaz-crm/backend@<commit>
+go get github.com/gluonfield/jaz-crm@<commit>
 ```
 
 ```go
 import (
-	"github.com/gluonfield/jaz-crm/backend/crm"
-	"github.com/gluonfield/jaz-crm/backend/crm/records"
+	crm "github.com/gluonfield/jaz-crm"
+	"github.com/gluonfield/jaz-crm/records"
 )
 
 // When the host deploys, on the pool it already has:
@@ -74,12 +74,12 @@ The Go API follows commits on main; there are no tagged releases yet. [`examples
 ```sh
 docker compose up -d postgres temporal
 cd frontend && bun install && bun run build   # also generates the MCP App the server embeds
-cd ../backend && go build ./... && go vet ./... && go test ./...
+cd .. && go build ./... && go vet ./... && go test ./...
 go run ./cmd/server & go run ./cmd/worker
-cd ../frontend && bun run dev
+cd frontend && bun run dev
 ```
 
-`bun run check` in `frontend` runs unit tests, type checks, lint, builds and headless browser scenarios. Run `go test ./...` in `examples/embed` after changing the public API, and `sqlc generate` in `backend` after changing SQL in `internal/storage/postgres/queries`. [CLAUDE.md](CLAUDE.md) and [AGENTS.md](AGENTS.md) hold the engineering and design rules.
+`bun run check` in `frontend` runs unit tests, type checks, lint, builds and headless browser scenarios. Run `go test ./...` in `examples/embed` after changing the public API, and `sqlc generate` at the root after changing SQL in `internal/storage/postgres/queries`. [CLAUDE.md](CLAUDE.md) and [AGENTS.md](AGENTS.md) hold the engineering and design rules.
 
 ## Licence
 

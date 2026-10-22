@@ -9,7 +9,7 @@ export async function checkEmbedded(chrome, directory, config, record) {
   const bundle = resolve(directory, 'host.js')
   execFileSync('bun', ['build', 'tests/mcp-host.ts', '--target', 'browser', '--outfile', bundle], { stdio: 'pipe' })
   const host = await readFile(bundle)
-  const html = (await readFile(process.env.SHORTCUT_MCP_HTML ?? resolve('../backend/internal/httpapi/mcpapi/app/mcp-app.html'), 'utf8'))
+  const html = (await readFile(process.env.SHORTCUT_MCP_HTML ?? resolve('../internal/httpapi/mcpapi/app/mcp-app.html'), 'utf8'))
     .replace('<div id="root"', `<div data-start-path="/r/${record.id}" id="root"`)
     .replace('<head>', `<head><script>document.documentElement.dataset.clipboardAvailable = String(typeof navigator.clipboard?.writeText === 'function')
 Object.defineProperty(navigator, 'clipboard', {value:{writeText:async(text)=>parent.postMessage({copied:text},'*')}})</script>`)

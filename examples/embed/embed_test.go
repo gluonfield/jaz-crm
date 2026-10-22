@@ -14,10 +14,10 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/gluonfield/jaz-crm/backend/crm"
-	"github.com/gluonfield/jaz-crm/backend/crm/errs"
-	"github.com/gluonfield/jaz-crm/backend/crm/interactions"
-	"github.com/gluonfield/jaz-crm/backend/crm/records"
+	crm "github.com/gluonfield/jaz-crm"
+	"github.com/gluonfield/jaz-crm/errs"
+	"github.com/gluonfield/jaz-crm/interactions"
+	"github.com/gluonfield/jaz-crm/records"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )

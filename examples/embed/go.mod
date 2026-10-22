@@ -3,7 +3,7 @@ module github.com/gluonfield/jaz-crm/examples/embed
 go 1.26.0
 
 require (
-	github.com/gluonfield/jaz-crm/backend v0.0.0
+	github.com/gluonfield/jaz-crm v0.0.0
 	github.com/jackc/pgx/v5 v5.11.0
 )
 
@@ -21,4 +21,4 @@ require (
 	golang.org/x/text v0.42.0 // indirect
 )
 
-replace github.com/gluonfield/jaz-crm/backend => ../../backend
+replace github.com/gluonfield/jaz-crm => ../..

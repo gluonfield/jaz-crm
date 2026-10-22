@@ -18,7 +18,7 @@ export default defineConfig({
   resolve: { tsconfigPaths: true },
   plugins: [noShellStylesheet, tailwindcss(), viteReact(), viteSingleFile()],
   build: {
-    outDir: '../backend/internal/httpapi/mcpapi/app',
+    outDir: '../internal/httpapi/mcpapi/app',
     emptyOutDir: false,
     assetsInlineLimit: Number.MAX_SAFE_INTEGER,
     rollupOptions: { input: 'mcp-app.html' },

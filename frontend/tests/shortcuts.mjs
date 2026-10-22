@@ -12,7 +12,7 @@ const directory = resolve(process.env.SHORTCUT_OUTPUT ?? '../runs/shortcuts/brow
 test('CRM commands target real records, preserve typing and match menu actions', { timeout: 180000 }, async () => {
   await mkdir(directory, { recursive: true })
   const binary = resolve(directory, 'server')
-  execFileSync('go', ['build', '-o', binary, './internal/httpapi/authapi/testdata/browser'], { cwd: resolve('../backend'), stdio: 'pipe' })
+  execFileSync('go', ['build', '-o', binary, './internal/httpapi/authapi/testdata/browser'], { cwd: resolve('..'), stdio: 'pipe' })
   const server = spawn(binary, [], { env: { ...process.env, SHORTCUT_WEB_DIR: process.env.SHORTCUT_WEB_DIR ?? resolve('dist/client') }, stdio: ['pipe', 'pipe', 'inherit'] })
   const exited = new Promise((accept) => server.once('close', accept))
   const lines = createInterface({ input: server.stdout })
