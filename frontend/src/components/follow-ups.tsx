@@ -11,8 +11,8 @@ import { Conversation, Done, refsOf } from './follow-up'
 import { RecordIcon } from './icons'
 
 const groups = [
-  { name: 'To do', className: 'text-ink' },
-  { name: 'Waiting on them', className: 'text-ink-3' },
+  { name: 'Needs Attention', className: 'text-ink' },
+  { name: 'Waiting on Them', className: 'text-ink-3' },
   { name: 'Done', className: 'text-ink-3' },
   { name: 'Dismissed', className: 'text-ink-3' },
 ]
@@ -39,7 +39,7 @@ export function FollowUpQueue({ records, focus, onFocus, controls, empty }: { re
     <div className="@container flex min-h-0 flex-1">
       <div className={cn('relative flex min-h-0 min-w-0 flex-col', selected ? 'hidden w-[340px] shrink-0 border-r border-border @4xl:flex' : 'flex-1')}>
         <div className="shrink-0 border-b border-border">
-          <div className={cn('flex flex-col gap-2.5 px-3 pb-2.5 pt-3', !selected && 'mx-auto max-w-[880px]')}>{controls}</div>
+          <div className={cn('@container flex flex-col gap-2.5 px-3 pb-2.5 pt-3', !selected && 'mx-auto max-w-[880px]')}>{controls}</div>
         </div>
         <div className="scrollbar-quiet min-h-0 flex-1 overflow-y-auto">
           <div className={cn('flex flex-col gap-0.5 p-2', !selected && 'mx-auto max-w-[880px]')}>

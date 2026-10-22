@@ -37,8 +37,15 @@ WHERE f.user_id IS NULL ORDER BY f.id, u.created_at, u.id`)
 	previous := ""
 	for _, copy := range copies {
 		if copy.filter != previous {
-			_, err = tx.ExecContext(ctx, `UPDATE saved_filters SET user_id = $1,
-name = CASE WHEN lower(name) IN ('everyone', 'assigned to me') THEN name || ' (' || id || ')' ELSE name END WHERE id = $2`, copy.user, copy.filter)
+			_, err = tx.ExecContext(ctx, `UPDATE saved_filters f SET user_id = $1,
+name = CASE WHEN lower(f.name) IN ('everyone', 'assigned to me') THEN (
+  SELECT candidate.name FROM (
+    SELECT n, f.name || ' (saved' || CASE WHEN n = 1 THEN '' ELSE ' ' || n END || ')' AS name
+    FROM generate_series(1, (SELECT count(*)::int + 1 FROM saved_filters WHERE object_id = f.object_id)) n
+  ) candidate
+  WHERE NOT EXISTS (SELECT 1 FROM saved_filters other WHERE other.object_id = f.object_id AND lower(other.name) = lower(candidate.name))
+  ORDER BY candidate.n LIMIT 1
+) ELSE f.name END WHERE f.id = $2`, copy.user, copy.filter)
 		} else {
 			_, err = tx.ExecContext(ctx, `INSERT INTO saved_filters (id, workspace_id, object_id, name, query, filters, user_id)
 SELECT $1, workspace_id, object_id, name, query, filters, $2 FROM saved_filters WHERE id = $3`, shortuuid.New(), copy.user, copy.filter)

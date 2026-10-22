@@ -150,14 +150,11 @@ function ObjectList({ slug }: { slug: string }) {
     'aria-label': `Search ${object.name.toLowerCase()}`,
     'data-page-search': true,
   }
-  // The queue has no page header: one row of its column holds the view as
-  // its title, a filter and a search that narrows the
-  // view, which opens from its icon or with /.
   const controls = (
     <>
-      <div className="flex min-w-0 items-center gap-1">
-        <NavButton />
-        <div className="mr-auto min-w-0 md:-ml-2">{recordFilters(true)}</div>
+      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+        <div className="flex shrink-0 items-center gap-1 @max-[500px]:mr-auto"><NavButton /><h1 className="text-[14px] font-medium">Follow Ups</h1></div>
+        <div className="mr-auto min-w-0 flex-1 @max-[500px]:order-last @max-[500px]:basis-full">{recordFilters(true)}</div>
         <label title="Search" className={cn('flex h-7 min-w-7 shrink-0 cursor-text items-center gap-2 rounded-[var(--radius-control)] px-1.5 text-ink-2 transition-colors focus-within:bg-list-hover hover:bg-list-hover', q && 'bg-list-hover')}>
           <Search className="size-4 shrink-0" />
           <input
@@ -195,7 +192,7 @@ function ObjectList({ slug }: { slug: string }) {
       <div className={cn('flex min-w-0 max-w-full items-center gap-1 font-normal md:flex-wrap', own ? 'flex-1' : 'ml-auto', q ? 'max-md:flex-1' : 'max-md:group-has-[[data-page-search]:focus]/header:flex-1')}>
         <span className={cn('flex min-w-0 items-center gap-1', own && 'mr-auto', phoneSearch)}>
           {recordFilters()}
-            {sorter(
+          {sorter(
             <Button variant="ghost" aria-label="Sort records" className="max-md:px-1.5">
               <ArrowDownAZ />
               <span className="hidden xl:inline">{sortName}</span>
@@ -224,7 +221,7 @@ function ObjectList({ slug }: { slug: string }) {
           </span>)}
         </nav>}
         <ObjectIcon slug={slug} icon={object.icon} />
-        <span className={cn('whitespace-nowrap max-md:min-w-0 max-md:truncate', phoneSearch)}>{object.name}</span>
+        <span className={cn('whitespace-nowrap max-md:min-w-0 max-md:truncate', phoneSearch)}>{slug === 'follow_ups' ? 'Follow Ups' : object.name}</span>
         {!own && total !== undefined && <span className={cn('font-normal tabular-nums text-ink-3', phoneSearch)}>{total}</span>}
         {conversationFilter}
         {!own && tableToolbar}

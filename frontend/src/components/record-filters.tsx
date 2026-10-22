@@ -19,10 +19,11 @@ import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
 export function RecordFilters({ object, filters, defaults = [], query, scope, selected, viewKey, title = false, total, onChange, onApply }: { object: CrmObject; filters: RecordFilter[]; defaults?: RecordFilter[]; query: string; scope: RecordSearchScope; selected?: string; viewKey: string; title?: boolean; total?: number; onChange: (filters: RecordFilter[]) => void; onApply: (filter?: SavedFilter) => void }) {
   const saved = useTool<{ filters: SavedFilter[] }>('list_saved_filters', { object: object.slug }).data?.filters ?? []
   const active = saved.find((f) => f.id === selected)
-  const views = object.slug === 'follow_ups' ? saved : [{ id: '', name: `All ${object.name.toLowerCase()}`, filters: [] }, ...saved]
+  const followUps = object.slug === 'follow_ups'
+  const views = followUps ? saved : [{ id: '', name: `All ${object.name.toLowerCase()}`, filters: [] }, ...saved]
   const [menu, setMenu] = useState(false)
   const counts = useQueries({
-    queries: views.map((view) => ({ ...toolQuery<{ total: number }>('search_records', { object: object.slug, ...scope, query: view.query ?? '', filters: view.filters, limit: 1 }), enabled: title && menu })),
+    queries: views.map((view) => ({ ...toolQuery<{ total: number }>('search_records', { object: object.slug, ...scope, query: view.query ?? '', filters: view.filters, limit: 1 }), enabled: (title || followUps) && menu })),
     combine: (results) => results.map((r) => r.data?.total),
   })
   const save = useAction<{ object: string; id?: string; name: string; query: string; filters: RecordFilter[] }, SavedFilter>('save_filter')
@@ -34,7 +35,7 @@ export function RecordFilters({ object, filters, defaults = [], query, scope, se
   } })
   const [draft, setDraft] = useState<RecordFilter[]>([])
   const [saving, setSaving] = useState(false)
-  const [deleting, setDeleting] = useState(false)
+  const [deleting, setDeleting] = useState<SavedFilter>()
   const [name, setName] = useState('')
   const contextKey = JSON.stringify([viewKey, draft, name])
   const { reset: resetSave } = save
@@ -54,20 +55,20 @@ export function RecordFilters({ object, filters, defaults = [], query, scope, se
   const edited = title ? active && JSON.stringify(active.filters) !== JSON.stringify(filters) : changed
   const added = filters.filter((f) => !defaults.some((d) => JSON.stringify(d) === JSON.stringify(f))).length
   const custom = !title && (added > 0 || !!query.trim())
-  const label = active ? `${active.name}${edited ? ' · Edited' : ''}` : custom ? 'Custom filter' : title || defaults.length ? object.name : object.standard ? `All ${object.name.toLowerCase()}` : 'All Records'
+  const label = followUps && active?.builtin && edited ? 'Custom View' : active ? `${active.name}${edited ? ' · Edited' : ''}` : custom ? 'Custom filter' : title || defaults.length ? object.name : object.standard ? `All ${object.name.toLowerCase()}` : 'All Records'
   return (
     <div className="flex min-w-0 max-w-full items-center gap-1 md:flex-wrap">
       <Picker
         trigger={title
-          ? <button type="button" className="flex min-w-0 items-center gap-2 rounded-[var(--radius-control)] px-2 py-1 text-left outline-none hover:bg-list-hover focus-visible:ring-2 focus-visible:ring-ring">
-            <span className="truncate text-[14px] font-semibold text-ink">{label}</span>
+          ? <button type="button" aria-label={followUps ? 'Select Follow Ups view' : undefined} className="flex min-w-0 items-center gap-2 rounded-[var(--radius-control)] px-2 py-1 text-left outline-none hover:bg-list-hover focus-visible:ring-2 focus-visible:ring-ring">
+            <span className={cn('truncate text-ink', followUps ? 'text-[13px] font-medium' : 'text-[14px] font-semibold')}>{label}</span>
             <span className="text-[13px] tabular-nums text-ink-3">{total}</span>
             <ChevronDown className="size-3.5 shrink-0 text-ink-3" />
           </button>
-          : <Button variant="ghost" className={cn('max-w-40 shrink-0 max-md:px-1.5', active && 'max-md:bg-list-hover max-md:text-ink')}><Bookmark className="shrink-0" /><span className="truncate max-md:sr-only">{label}</span>{!object.standard && total !== undefined && <span title="Record count" className="tabular-nums text-ink-3">{total}</span>}<ChevronDown className="shrink-0 max-md:hidden" /></Button>}
-        placeholder="Find saved filters…"
-        options={views.map((view, i) => ({ value: view.id, label: view.name, hint: title ? counts[i] ?? '' : undefined }))}
-        selected={active ? [active.id] : filters.length ? [] : ['']}
+          : <Button variant="ghost" aria-label={followUps ? 'Select Follow Ups view' : undefined} className={cn('max-w-40 shrink-0 max-md:px-1.5', active && 'max-md:bg-list-hover max-md:text-ink')}><Bookmark className="shrink-0" /><span className={cn('truncate', !followUps && 'max-md:sr-only')}>{label}</span>{!object.standard && total !== undefined && <span title="Record count" className="tabular-nums text-ink-3">{total}</span>}<ChevronDown className={cn('shrink-0', !followUps && 'max-md:hidden')} /></Button>}
+        placeholder={followUps ? 'Find views…' : 'Find saved filters…'}
+        options={views.map((view, i) => ({ value: view.id, label: view.name, group: followUps && !view.builtin ? 'Private Views' : undefined, hint: title || followUps ? counts[i] ?? '' : undefined }))}
+        selected={active ? active.builtin && edited ? [] : [active.id] : filters.length ? [] : ['']}
         onSelect={(id) => onApply(saved.find((f) => f.id === id))}
         onOpenChange={setMenu}
         actions={title && (filters.length > 0 || query.trim()) && (!active || changed) ? [{ label: 'Save current filters as view…', onSelect: () => {
@@ -89,7 +90,7 @@ export function RecordFilters({ object, filters, defaults = [], query, scope, se
             {active && !active.builtin && <Button variant="ghost" aria-label={`Delete saved filter ${active.name}`} onClick={() => {
               setOpen(false)
               setName(active.name)
-              setDeleting(true)
+              setDeleting(active)
             }}><Trash2 /></Button>}
           </div>
           <div className="scrollbar-quiet grid max-h-72 gap-2 overflow-y-auto">
@@ -119,7 +120,7 @@ export function RecordFilters({ object, filters, defaults = [], query, scope, se
       </Popover>
       <Dialog open={saving} onOpenChange={setSaving}>
         <DialogContent className="bg-raised text-ink sm:max-w-sm" aria-describedby={undefined}>
-          <DialogTitle className="text-[14px]">{object.slug === 'follow_ups' ? 'Save private filter' : 'Save filter'}</DialogTitle>
+          <DialogTitle className="text-[14px]">{followUps ? 'Save private view' : 'Save filter'}</DialogTitle>
           <form autoComplete="off" className="grid gap-4" onSubmit={(e) => {
             e.preventDefault()
             persist(name)
@@ -129,14 +130,20 @@ export function RecordFilters({ object, filters, defaults = [], query, scope, se
           </form>
         </DialogContent>
       </Dialog>
-      <Dialog open={deleting} onOpenChange={setDeleting}>
+      <Dialog open={!!deleting} onOpenChange={(next) => {
+        if (!next) {
+          setDeleting(undefined)
+        }
+      }}>
         <DialogContent className="bg-raised text-ink sm:max-w-sm" aria-describedby={undefined}>
           <DialogTitle className="text-[14px]">Delete “{name}” filter?</DialogTitle>
           <div className="flex justify-end gap-2">
-            <Button onClick={() => setDeleting(false)}>Cancel</Button>
-            <Button disabled={remove.isPending} onClick={() => active && remove.mutate({ id: active.id }, { onSuccess: () => {
-              setDeleting(false)
-              onApply()
+            <Button onClick={() => setDeleting(undefined)}>Cancel</Button>
+            <Button disabled={remove.isPending} onClick={() => deleting && remove.mutate({ id: deleting.id }, { onSuccess: () => {
+              setDeleting(undefined)
+              if (selected === deleting.id) {
+                onApply()
+              }
             } })}>Delete</Button>
           </div>
         </DialogContent>

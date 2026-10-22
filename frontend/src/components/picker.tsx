@@ -4,7 +4,7 @@ import { type ReactNode, useState } from 'react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 
-export type PickerOption = { value: string; label: string; icon?: ReactNode; hint?: ReactNode }
+export type PickerOption = { group?: string; value: string; label: string; icon?: ReactNode; hint?: ReactNode }
 
 // Picker is Linear's property menu: a filter field over a keyboard-driven
 // list. Number keys pick the first nine options when the filter is empty.
@@ -38,6 +38,7 @@ export function Picker({
   align?: 'start' | 'end'
 }) {
   const [open, setOpen] = useState(false)
+  const groups = [...new Set(options.map((option) => option.group))]
   const [search, setSearch] = useState('')
   const newValue = search.trim()
   const canCreate = onCreate && newValue && !options.some((o) => o.label.toLowerCase() === newValue.toLowerCase())
@@ -86,28 +87,33 @@ export function Picker({
           </CommandPrimitive.Input>
           <CommandPrimitive.List className="scrollbar-quiet max-h-72 overflow-y-auto p-1.5">
             <CommandPrimitive.Empty className="px-2 py-3 text-center text-[12px] text-ink-3">No results</CommandPrimitive.Empty>
-            {options.map((option, index) => {
-              const active = selected.includes(option.value)
-              return (
-                <CommandPrimitive.Item
-                  key={option.value}
-                  disabled={disabled}
-                  value={`${option.label} ${option.value}`}
-                  onSelect={() => pick(option.value)}
-                  className="flex h-8 cursor-default items-center gap-2.5 rounded-[var(--radius-control)] px-2 text-[13px] text-ink outline-none data-[selected=true]:bg-list-active data-[disabled=true]:opacity-50"
-                >
-                  {multiple && (
-                    <span className={cn('flex size-4 shrink-0 items-center justify-center rounded-[4px] border border-ink-3/60', active && 'border-primary bg-primary text-on-primary')}>
-                      {active && <Check className="size-3" strokeWidth={3} />}
-                    </span>
-                  )}
-                  {option.icon}
-                  <span className="min-w-0 flex-1 truncate">{option.label}</span>
-                  {!multiple && active && <Check className="size-4 shrink-0 text-ink" />}
-                  {option.hint !== undefined ? <span className="text-[12px] tabular-nums text-ink-3">{option.hint}</span> : !onCreate && index < 9 && <span className="w-3 text-right text-[12px] tabular-nums text-ink-3">{index + 1}</span>}
-                </CommandPrimitive.Item>
-              )
-            })}
+            {groups.map((group) => <CommandPrimitive.Group key={group ?? ''} heading={group} className={cn(group && 'mt-1.5 border-t border-border pt-1.5', '[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:text-ink-3')}>
+              {options.map((option, index) => {
+                if (option.group !== group) {
+                  return null
+                }
+                const active = selected.includes(option.value)
+                return (
+                  <CommandPrimitive.Item
+                    key={option.value}
+                    disabled={disabled}
+                    value={`${option.label} ${option.value}`}
+                    onSelect={() => pick(option.value)}
+                    className="flex h-8 cursor-default items-center gap-2.5 rounded-[var(--radius-control)] px-2 text-[13px] text-ink outline-none data-[selected=true]:bg-list-active data-[disabled=true]:opacity-50"
+                  >
+                    {multiple && (
+                      <span className={cn('flex size-4 shrink-0 items-center justify-center rounded-[4px] border border-ink-3/60', active && 'border-primary bg-primary text-on-primary')}>
+                        {active && <Check className="size-3" strokeWidth={3} />}
+                      </span>
+                    )}
+                    {option.icon}
+                    <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                    {!multiple && active && <Check className="size-4 shrink-0 text-ink" />}
+                    {option.hint !== undefined ? <span className="text-[12px] tabular-nums text-ink-3">{option.hint}</span> : !onCreate && index < 9 && <span className="w-3 text-right text-[12px] tabular-nums text-ink-3">{index + 1}</span>}
+                  </CommandPrimitive.Item>
+                )
+              })}
+            </CommandPrimitive.Group>)}
             {canCreate && (
               <CommandPrimitive.Item
                 value={`Create ${newValue}`}
