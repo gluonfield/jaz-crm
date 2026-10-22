@@ -4,8 +4,9 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
+
 	"github.com/gluonfield/jaz-crm/backend/crm/records"
-	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres"
 )
 
 func TestStandardSchemaUpgradeAndDeletedDefault(t *testing.T) {
@@ -63,13 +64,7 @@ JOIN objects ON objects.id = records.object_id WHERE objects.slug = 'companies';
 `); err != nil {
 		t.Fatal(err)
 	}
-	store, err := postgres.Open(ctx, dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		store.Close()
-	})
+	store := postgrestest.Open(t, dsn)
 	svc := records.NewService(store)
 	for _, name := range []string{"Missing Context", "Existing Context"} {
 		var workspaceID string
@@ -161,11 +156,7 @@ JOIN objects ON objects.id = records.object_id WHERE objects.slug = 'companies';
 	if err := svc.DeleteFilter(ctx, actor, filters[0].ID); err != nil {
 		t.Fatal(err)
 	}
-	store.Close()
-	store, err = postgres.Open(ctx, dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
+	store = postgrestest.Open(t, dsn)
 	if filters, err := records.NewService(store).SavedFilters(ctx, actor, "deals"); err != nil || len(filters) != 0 {
 		t.Fatalf("deleted default returned on restart: %v %v", filters, err)
 	}

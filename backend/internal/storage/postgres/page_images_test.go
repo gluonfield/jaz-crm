@@ -12,12 +12,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
+
 	"github.com/charmbracelet/log"
 	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"github.com/gluonfield/jaz-crm/backend/internal/httpapi/mcpapi"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
-	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres"
 	"github.com/gluonfield/jaz-crm/backend/internal/workspaces"
 	"github.com/lithammer/shortuuid/v4"
 )
@@ -25,11 +26,7 @@ import (
 func TestPreviouslyUploadedPageImagesRemainReadable(t *testing.T) {
 	ctx := t.Context()
 	db, dsn := legacy(t, 44)
-	store, err := postgres.Open(ctx, dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
+	store := postgrestest.Open(t, dsn)
 	people := workspaces.NewService(store, workspaces.Config{})
 	owner, err := people.Provision(ctx, "owner@jaz.test")
 	if err != nil {

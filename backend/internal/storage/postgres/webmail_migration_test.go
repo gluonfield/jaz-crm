@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres"
+	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
 )
 
 // A webmail skip rule is forgotten, and the senders it skipped on arrival
@@ -28,11 +28,7 @@ func TestWebmailRulesMigration(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	store, err := postgres.Open(ctx, dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
+	postgrestest.Open(t, dsn)
 	triage := map[string]string{}
 	rows, err := db.QueryContext(ctx, "SELECT value, triage FROM handles")
 	if err != nil {

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
+	"github.com/gluonfield/jaz-crm/backend/crm"
 	"github.com/gluonfield/jaz-crm/backend/crm/interactions"
 	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
@@ -32,6 +33,7 @@ import (
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres"
 	"github.com/gluonfield/jaz-crm/backend/internal/worker"
 	"github.com/gluonfield/jaz-crm/backend/internal/workspaces"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
 )
@@ -43,12 +45,12 @@ func shared(cfg Config) fx.Option {
 		fx.Supply(cfg, cfg.Auth, cfg.Workspaces, cfg.SignIn, cfg.Temporal, cfg.Connections, cfg.Sync, cfg.Webhooks, cfg.WebDir),
 		fx.Provide(
 			NewLogger,
+			OpenPool,
+			OpenCRM,
 			fx.Annotate(OpenStore, fx.As(fx.Self()), fx.As(new(storage.AuthStore)), fx.As(new(storage.WorkspaceStore)),
 				fx.As(new(storage.RecordStore)), fx.As(new(storage.ConnectionStore)), fx.As(new(storage.InteractionStore)), fx.As(new(storage.LogoStore)), fx.As(new(storage.ChangeFeed))),
-			records.NewService,
 			logos.NewFetcher,
 			logos.NewService,
-			interactions.NewService,
 			connections.NewService,
 			followups.NewService,
 			followups.NewAgent,
@@ -98,15 +100,52 @@ func NewLogger() *log.Logger {
 	return log.NewWithOptions(os.Stderr, log.Options{ReportTimestamp: true, Level: level})
 }
 
-func OpenStore(lc fx.Lifecycle, cfg Config) (*postgres.Store, error) {
+// OpenPool connects to DATABASE_URL and migrates it; the pool closes when
+// the process stops.
+func OpenPool(lc fx.Lifecycle, cfg Config) (*pgxpool.Pool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	store, err := postgres.Open(ctx, cfg.DatabaseURL)
+	pool, err := migratedPool(ctx, cfg.DatabaseURL)
 	if err != nil {
 		return nil, err
 	}
-	lc.Append(fx.StopHook(store.Close))
-	return store, nil
+	lc.Append(fx.StopHook(pool.Close))
+	return pool, nil
+}
+
+func migratedPool(ctx context.Context, url string) (*pgxpool.Pool, error) {
+	pool, err := pgxpool.New(ctx, url)
+	if err != nil {
+		return nil, fmt.Errorf("connect postgres: %w", err)
+	}
+	if err := crm.Migrate(ctx, pool, ""); err != nil {
+		pool.Close()
+		return nil, err
+	}
+	return pool, nil
+}
+
+func OpenStore(pool *pgxpool.Pool) (*postgres.Store, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	return postgres.New(ctx, pool, "")
+}
+
+type crmParams struct {
+	fx.In
+	Pool       *pgxpool.Pool
+	Classifier interactions.Classifier `optional:"true"`
+}
+
+// OpenCRM builds the CRM services as an embedding host does.
+func OpenCRM(p crmParams) (*records.Service, *interactions.Service, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	c, err := crm.Open(ctx, p.Pool, crm.Options{Classifier: p.Classifier})
+	if err != nil {
+		return nil, nil, err
+	}
+	return c.Records, c.Interactions, nil
 }
 
 // ProvisionOwner creates the OWNER_EMAIL account when it is new and registers
@@ -151,11 +190,15 @@ func StartHTTP(lc fx.Lifecycle, handler http.Handler, cfg Config, logger *log.Lo
 
 // MintAPIKey opens the database directly to issue a key outside the server.
 func MintAPIKey(ctx context.Context, cfg Config, email, workspace string) (string, error) {
-	store, err := postgres.Open(ctx, cfg.DatabaseURL)
+	pool, err := migratedPool(ctx, cfg.DatabaseURL)
 	if err != nil {
 		return "", err
 	}
-	defer store.Close()
+	defer pool.Close()
+	store, err := postgres.New(ctx, pool, "")
+	if err != nil {
+		return "", err
+	}
 	return auth.NewService(store, cfg.Auth).CreateKeyForEmail(ctx, email, workspace)
 }
 

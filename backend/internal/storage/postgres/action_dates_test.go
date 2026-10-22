@@ -7,9 +7,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
+
 	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
-	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres"
 	"github.com/lithammer/shortuuid/v4"
 )
 
@@ -49,11 +50,7 @@ func TestActionDateMigration(t *testing.T) {
 	if _, err := db.ExecContext(ctx, "INSERT INTO active_filters(object_id,filters,saved_id) VALUES($1,$2::jsonb,$3)", object, filter, filterID); err != nil {
 		t.Fatal(err)
 	}
-	store, err := postgres.Open(ctx, dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
+	store := postgrestest.Open(t, dsn)
 	svc := records.NewService(store)
 	actor := records.Actor{WorkspaceID: workspace}
 	for i, id := range ids {
@@ -124,11 +121,7 @@ func TestNeedsAttentionMigration(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	store, err := postgres.Open(ctx, dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
+	store := postgrestest.Open(t, dsn)
 	for i, f := range fixtures {
 		filters, err := store.SavedFilters(ctx, f.workspace, f.object)
 		if err != nil || len(filters) != 1 || filters[0].ID != f.id || filters[0].Query != f.query {

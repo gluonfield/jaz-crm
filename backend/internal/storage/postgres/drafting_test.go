@@ -6,20 +6,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
+
 	"github.com/gluonfield/jaz-crm/backend/crm/interactions"
 	"github.com/gluonfield/jaz-crm/backend/crm/records"
-	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres"
 	"github.com/gluonfield/jaz-crm/backend/internal/workspaces"
 )
 
 func TestInterruptedDraftRetriesWithoutStaleCompletion(t *testing.T) {
 	ctx := context.Background()
 	db, url := legacy(t, 24)
-	store, err := postgres.Open(ctx, url)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(store.Close)
+	store := postgrestest.Open(t, url)
 	owner, err := workspaces.NewService(store, workspaces.Config{}).Provision(ctx, "drafting@cas.dev")
 	if err != nil {
 		t.Fatal(err)

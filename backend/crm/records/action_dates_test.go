@@ -1,10 +1,11 @@
 package records_test
 
 import (
-	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"slices"
 	"testing"
 	"time"
+
+	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 
 	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"

@@ -3,7 +3,6 @@ package followups_test
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 
 	"github.com/charmbracelet/log"
 	"github.com/gluonfield/jaz-crm/backend/crm/interactions"

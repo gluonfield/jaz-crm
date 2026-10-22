@@ -2,10 +2,11 @@ package interactions_test
 
 import (
 	"fmt"
-	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 
 	"github.com/gluonfield/jaz-crm/backend/crm/interactions"
 	"github.com/gluonfield/jaz-crm/backend/internal/workspaces"

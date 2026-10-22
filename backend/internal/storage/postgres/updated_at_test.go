@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres"
+	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
 )
 
 func TestUpdatedAtMigration(t *testing.T) {
@@ -35,11 +35,7 @@ func TestUpdatedAtMigration(t *testing.T) {
 	if _, err := db.ExecContext(ctx, "INSERT INTO record_values(record_id,attribute_id,text,source,active_from,active_until) VALUES($1,$2,'Former name','user',$3,$4)", removed, attribute, created.Add(time.Hour), closed); err != nil {
 		t.Fatal(err)
 	}
-	store, err := postgres.Open(ctx, dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
+	store := postgrestest.Open(t, dsn)
 	rows, err := store.Records(ctx, workspace, []string{empty, removed})
 	if err != nil || len(rows) != 2 {
 		t.Fatalf("migrated records: %+v %v", rows, err)

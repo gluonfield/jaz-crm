@@ -5,6 +5,7 @@ package logos
 
 import (
 	"context"
+
 	"github.com/gluonfield/jaz-crm/backend/crm/records"
 
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"

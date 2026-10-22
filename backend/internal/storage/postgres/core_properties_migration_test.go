@@ -6,6 +6,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres"
 	"github.com/lithammer/shortuuid/v4"
@@ -42,11 +45,7 @@ func TestCorePropertiesMigrationAdoptsExistingData(t *testing.T) {
 	if err := db.QueryRowContext(ctx, `SELECT jsonb_agg(to_jsonb(v) ORDER BY v.id)::text FROM record_values v`).Scan(&before); err != nil {
 		t.Fatal(err)
 	}
-	store, err := postgres.Open(ctx, dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
+	store := postgrestest.Open(t, dsn)
 	var after, cityID, industryID, industryName string
 	var rawOptions []byte
 	var options []string
@@ -132,9 +131,13 @@ func TestCorePropertiesMigrationRollsBackIncompatibleData(t *testing.T) {
 	if _, err := db.ExecContext(ctx, `INSERT INTO attributes(id, object_id, slug, name, type, archived) VALUES ($1, $2, 'owner', 'Owner', 'number', true)`, shortuuid.New(), object); err != nil {
 		t.Fatal(err)
 	}
-	store, err := postgres.Open(ctx, dsn)
+	pool, err := pgxpool.New(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+	err = postgres.Migrate(ctx, pool, "")
 	if err == nil {
-		store.Close()
 		t.Fatal("migration silently adopted an incompatible core property")
 	}
 	if !strings.Contains(err.Error(), "people.owner") || !strings.Contains(err.Error(), "incompatible") {
@@ -155,9 +158,7 @@ func TestCorePropertiesMigrationRollsBackIncompatibleData(t *testing.T) {
 	if _, err := db.ExecContext(ctx, `UPDATE attributes SET type = 'member' WHERE object_id = $1 AND slug = 'owner'`, object); err != nil {
 		t.Fatal(err)
 	}
-	store, err = postgres.Open(ctx, dsn)
-	if err != nil {
+	if err := postgres.Migrate(ctx, pool, ""); err != nil {
 		t.Fatalf("migration did not recover after explicit schema mapping: %v", err)
 	}
-	store.Close()
 }

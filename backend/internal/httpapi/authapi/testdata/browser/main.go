@@ -31,6 +31,7 @@ import (
 	"github.com/gluonfield/jaz-crm/backend/internal/workspaces"
 	signin "github.com/gluonfield/jaz-tasks/auth"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/fx"
 )
 
@@ -62,11 +63,18 @@ func run() error {
 		return err
 	}
 	u.Path = "/" + name
-	store, err := postgres.Open(ctx, u.String())
+	pool, err := pgxpool.New(ctx, u.String())
 	if err != nil {
 		return err
 	}
-	defer store.Close()
+	defer pool.Close()
+	if err := postgres.Migrate(ctx, pool, ""); err != nil {
+		return err
+	}
+	store, err := postgres.New(ctx, pool, "")
+	if err != nil {
+		return err
+	}
 	srv := httptest.NewUnstartedServer(nil)
 	origin := "http://" + srv.Listener.Addr().String()
 	keys := auth.NewService(store, auth.Config{PublicURL: origin})

@@ -8,7 +8,6 @@ import (
 
 	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
-	"go.uber.org/fx"
 )
 
 // Interaction kinds.
@@ -62,13 +61,13 @@ type Service struct {
 	classifier Classifier
 }
 
+// Params are what crm.Open wires a Service from.
 type Params struct {
-	fx.In
 	Store       storage.InteractionStore
 	Connections storage.ConnectionStore
 	Workspaces  storage.WorkspaceStore
 	Records     *records.Service
-	Classifier  Classifier `optional:"true"`
+	Classifier  Classifier
 }
 
 func NewService(p Params) *Service {

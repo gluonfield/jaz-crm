@@ -12,7 +12,12 @@ import (
 	"github.com/lithammer/shortuuid/v4"
 )
 
-type Filter = storage.RecordFilter
+// Filter and SavedFilter are the storage shapes, named here for callers
+// outside this module.
+type (
+	Filter      = storage.RecordFilter
+	SavedFilter = storage.SavedFilter
+)
 
 type Search struct {
 	Object  string

@@ -3,7 +3,8 @@ package postgres_test
 import (
 	"testing"
 
-	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres"
+	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
+
 	"github.com/lithammer/shortuuid/v4"
 )
 
@@ -27,11 +28,7 @@ func TestClientFilterMigration(t *testing.T) {
 	if _, err := db.ExecContext(ctx, "INSERT INTO active_filters(object_id,query,saved_id) VALUES($1,'Someone else',$2)", object, preset); err != nil {
 		t.Fatal(err)
 	}
-	store, err := postgres.Open(ctx, dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
+	store := postgrestest.Open(t, dsn)
 	saved, err := store.SavedFilters(ctx, workspace, object)
 	if err != nil || len(saved) != 1 || saved[0].ID != preset || saved[0].Name != "Shared preset" || saved[0].Query != "Customer" {
 		t.Fatalf("shared preset changed: %+v %v", saved, err)

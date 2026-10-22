@@ -26,7 +26,7 @@ import (
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
 	"github.com/gluonfield/jaz-crm/backend/internal/workspaces"
-	"github.com/gluonfield/jaz-tasks/auth"
+	signin "github.com/gluonfield/jaz-tasks/auth"
 )
 
 var ctx = context.Background()

@@ -4,8 +4,9 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
+
 	"github.com/gluonfield/jaz-crm/backend/crm/records"
-	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres"
 )
 
 func TestTrashMigrationRetainsExistingValuesAndReferences(t *testing.T) {
@@ -26,11 +27,7 @@ func TestTrashMigrationRetainsExistingValuesAndReferences(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	store, err := postgres.Open(ctx, dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
+	store := postgrestest.Open(t, dsn)
 	crm := records.NewService(store)
 	actor := records.Actor{WorkspaceID: workspace}
 	before, err := crm.Get(ctx, actor, "root")

@@ -3,7 +3,7 @@ package postgres_test
 import (
 	"testing"
 
-	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres"
+	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
 )
 
 func TestEmailSubjectMigration(t *testing.T) {
@@ -45,11 +45,7 @@ func TestEmailSubjectMigration(t *testing.T) {
 			}
 		}
 	}
-	store, err := postgres.Open(ctx, dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(store.Close)
+	postgrestest.Open(t, dsn)
 	for _, c := range cases {
 		for field, want := range map[string]string{"draft": c.wantBody, "subject": c.wantSubject, "draft_status": c.wantStatus} {
 			var got string

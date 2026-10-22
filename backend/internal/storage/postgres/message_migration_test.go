@@ -9,7 +9,6 @@ import (
 
 	"github.com/gluonfield/jaz-crm/backend/crm/interactions"
 	"github.com/gluonfield/jaz-crm/backend/crm/records"
-	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres"
 	datamigrations "github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/migrations"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
 	"github.com/jackc/pgx/v5"
@@ -19,7 +18,7 @@ import (
 )
 
 // legacy returns a database migrated up to version, as one deployed then,
-// and its URL, which postgres.Open migrates the rest of the way.
+// and its URL, which postgrestest.Open migrates the rest of the way.
 func legacy(t *testing.T, version int64) (*sql.DB, string) {
 	t.Helper()
 	ctx := context.Background()
@@ -116,10 +115,7 @@ func TestMessageMigration(t *testing.T) {
 		}
 	}
 	for pass := range 2 {
-		store, err := postgres.Open(ctx, dsn)
-		if err != nil {
-			t.Fatal(err)
-		}
+		store := postgrestest.Open(t, dsn)
 		crm := records.NewService(store)
 		svc := interactions.NewService(interactions.Params{Store: store, Connections: store, Workspaces: store, Records: crm})
 		actor := records.Actor{MemberID: user, WorkspaceID: workspace}
@@ -147,6 +143,5 @@ func TestMessageMigration(t *testing.T) {
 		if err != nil || activity[record].Interactions != 1 {
 			t.Fatalf("migration still counts notes as contact: %+v %v", activity, err)
 		}
-		store.Close()
 	}
 }

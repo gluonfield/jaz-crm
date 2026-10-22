@@ -1,12 +1,13 @@
 package followups_test
 
 import (
-	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"net/http/httptest"
 	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 
 	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"github.com/gluonfield/jaz-crm/backend/internal/connections"

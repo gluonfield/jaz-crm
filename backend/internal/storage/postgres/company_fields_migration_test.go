@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
+
 	"github.com/gluonfield/jaz-crm/backend/crm/interactions"
 	"github.com/gluonfield/jaz-crm/backend/crm/records"
-	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres"
 	"github.com/lithammer/shortuuid/v4"
 )
 
@@ -84,11 +85,7 @@ func TestCASCompanyFieldsMigrationPreservesInformationAndOtherWorkspaces(t *test
 	if err := db.QueryRowContext(ctx, "SELECT jsonb_agg(to_jsonb(v) ORDER BY v.id)::text FROM record_values v JOIN records r ON r.id = v.record_id WHERE r.workspace_id = $1", other).Scan(&before); err != nil {
 		t.Fatal(err)
 	}
-	store, err := postgres.Open(ctx, dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
+	store := postgrestest.Open(t, dsn)
 	crm := records.NewService(store)
 	actor := records.Actor{WorkspaceID: cas, MemberID: fixtures[0].user}
 	svc := interactions.NewService(interactions.Params{Store: store, Connections: store, Workspaces: store, Records: crm})

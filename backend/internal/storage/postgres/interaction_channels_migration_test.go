@@ -5,9 +5,10 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
+
 	"github.com/gluonfield/jaz-crm/backend/crm/interactions"
 	"github.com/gluonfield/jaz-crm/backend/crm/records"
-	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres"
 	"github.com/lithammer/shortuuid/v4"
 )
 
@@ -54,11 +55,7 @@ func TestInteractionChannelsMigration(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	store, err := postgres.Open(ctx, dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
+	store := postgrestest.Open(t, dsn)
 	svc := interactions.NewService(interactions.Params{Store: store, Connections: store, Workspaces: store, Records: records.NewService(store)})
 	actor := records.Actor{MemberID: user, WorkspaceID: workspace}
 	got, err := svc.Get(ctx, actor, email)

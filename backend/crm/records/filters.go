@@ -13,7 +13,7 @@ import (
 	"github.com/lithammer/shortuuid/v4"
 )
 
-func (s *Service) SavedFilters(ctx context.Context, actor Actor, slug string) ([]storage.SavedFilter, error) {
+func (s *Service) SavedFilters(ctx context.Context, actor Actor, slug string) ([]SavedFilter, error) {
 	sc, err := s.schema(ctx, actor.WorkspaceID)
 	if err != nil {
 		return nil, err
@@ -48,7 +48,7 @@ func (s *Service) SavedFilters(ctx context.Context, actor Actor, slug string) ([
 	return filters, nil
 }
 
-func (s *Service) SaveFilter(ctx context.Context, actor Actor, slug string, filter storage.SavedFilter) (storage.SavedFilter, error) {
+func (s *Service) SaveFilter(ctx context.Context, actor Actor, slug string, filter SavedFilter) (SavedFilter, error) {
 	filter.Name = strings.TrimSpace(filter.Name)
 	filter.Query = strings.TrimSpace(filter.Query)
 	if filter.Name == "" || utf8.RuneCountInString(filter.Name) > 100 {

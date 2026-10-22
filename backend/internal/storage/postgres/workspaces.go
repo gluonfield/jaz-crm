@@ -115,14 +115,31 @@ func (s *Store) JoinWorkspace(ctx context.Context, invite storage.WorkspaceInvit
 			return err
 		}
 		member.WorkspaceID = invite.WorkspaceID
-		member.ID = shortuuid.New()
 		var err error
-		if user, err = a.CreateAuthUser(ctx, authdb.CreateAuthUserParams(member)); err != nil {
-			return err
-		}
-		return a.LinkIdentity(ctx, authdb.LinkIdentityParams{Issuer: identity.Issuer, Subject: identity.Subject, UserID: user.ID})
+		user, err = addMember(ctx, a, member, identity)
+		return err
 	})
 	return one(toUser)(user, err)
+}
+
+// AddMember adds a member to member.WorkspaceID, linked to the identity.
+func (s *Store) AddMember(ctx context.Context, member storage.NewUser, identity storage.Identity) (storage.User, error) {
+	var user authdb.User
+	err := s.tx(ctx, func(a *authdb.Queries, _ *recdb.Queries) error {
+		var err error
+		user, err = addMember(ctx, a, member, identity)
+		return err
+	})
+	return one(toUser)(user, err)
+}
+
+func addMember(ctx context.Context, a *authdb.Queries, member storage.NewUser, identity storage.Identity) (authdb.User, error) {
+	member.ID = shortuuid.New()
+	user, err := a.CreateAuthUser(ctx, authdb.CreateAuthUserParams(member))
+	if err != nil {
+		return user, err
+	}
+	return user, a.LinkIdentity(ctx, authdb.LinkIdentityParams{Issuer: identity.Issuer, Subject: identity.Subject, UserID: user.ID})
 }
 
 func (s *Store) CreateInvite(ctx context.Context, workspaceID, email, invitedBy string) (storage.WorkspaceInvite, error) {

@@ -5,8 +5,9 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
+
 	"github.com/gluonfield/jaz-crm/backend/crm/records"
-	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres"
 )
 
 // A workspace from before pages gains them, and its own tables gain content
@@ -32,11 +33,7 @@ func TestPagesMigration(t *testing.T) {
 	if err := db.QueryRowContext(ctx, "INSERT INTO records(workspace_id,object_id) VALUES($1,$2) RETURNING id", workspace, object).Scan(&quote); err != nil {
 		t.Fatal(err)
 	}
-	store, err := postgres.Open(ctx, dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
+	store := postgrestest.Open(t, dsn)
 	crm := records.NewService(store)
 	actor := records.Actor{MemberID: user, WorkspaceID: workspace}
 	objects, err := crm.Objects(ctx, actor, false)
@@ -107,11 +104,7 @@ func TestCompanyKnowledgeMigration(t *testing.T) {
 			}
 		}
 	}
-	store, err := postgres.Open(ctx, dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
+	store := postgrestest.Open(t, dsn)
 	for id, want := range roots {
 		ws, err := store.Workspace(ctx, id)
 		if err != nil {

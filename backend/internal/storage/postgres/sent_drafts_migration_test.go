@@ -3,7 +3,7 @@ package postgres_test
 import (
 	"testing"
 
-	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres"
+	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
 )
 
 func TestSentDraftMigrationPreservesUnsentTextAndHistory(t *testing.T) {
@@ -33,11 +33,7 @@ func TestSentDraftMigrationPreservesUnsentTextAndHistory(t *testing.T) {
 			}
 		}
 	}
-	store, err := postgres.Open(ctx, dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(store.Close)
+	postgrestest.Open(t, dsn)
 	rows, err := db.QueryContext(ctx, "SELECT objects.slug, state.text, draft.text, draft.active_until IS NULL FROM record_values AS draft JOIN attributes AS field ON field.id = draft.attribute_id JOIN objects ON objects.id = field.object_id JOIN record_values AS state ON state.record_id = draft.record_id JOIN attributes AS status ON status.id = state.attribute_id WHERE field.slug = 'draft' AND status.slug = 'draft_status'")
 	if err != nil {
 		t.Fatal(err)

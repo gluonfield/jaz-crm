@@ -9,9 +9,10 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"errors"
-	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"slices"
 	"time"
+
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 
 	"github.com/gluonfield/jaz-crm/backend/crm/errs"
 	"github.com/gluonfield/jaz-crm/backend/internal/google"

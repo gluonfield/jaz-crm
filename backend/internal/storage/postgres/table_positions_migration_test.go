@@ -5,8 +5,9 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
+
 	"github.com/gluonfield/jaz-crm/backend/crm/records"
-	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres"
 	"github.com/lithammer/shortuuid/v4"
 )
 
@@ -35,11 +36,7 @@ func TestTablePositionsMigration(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	store, err := postgres.Open(ctx, dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
+	store := postgrestest.Open(t, dsn)
 	objects, err := records.NewService(store).Objects(ctx, records.Actor{MemberID: user, WorkspaceID: workspace}, false)
 	if err != nil {
 		t.Fatal(err)

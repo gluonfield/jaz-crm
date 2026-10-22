@@ -4,8 +4,9 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
+
 	"github.com/gluonfield/jaz-crm/backend/crm/records"
-	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres"
 	"github.com/lithammer/shortuuid/v4"
 )
 
@@ -28,11 +29,7 @@ func TestNotesMigrationArchivesNotesWithTheirValues(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	store, err := postgres.Open(ctx, dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
+	store := postgrestest.Open(t, dsn)
 	crm := records.NewService(store)
 	actor := records.Actor{WorkspaceID: workspace, MemberID: user}
 	note := func() []string {

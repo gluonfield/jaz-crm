@@ -3,10 +3,11 @@ package interactions
 import (
 	"cmp"
 	"context"
-	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 
 	"github.com/gluonfield/jaz-crm/backend/crm/errs"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage"

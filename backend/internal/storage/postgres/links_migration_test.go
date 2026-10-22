@@ -4,8 +4,9 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
+
 	"github.com/gluonfield/jaz-crm/backend/crm/records"
-	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres"
 	"github.com/lithammer/shortuuid/v4"
 )
 
@@ -37,11 +38,7 @@ func TestLinksMigration(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	store, err := postgres.Open(ctx, dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
+	store := postgrestest.Open(t, dsn)
 	var touched int
 	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM records WHERE updated_at <> '2026-01-01'`).Scan(&touched); err != nil || touched != 0 {
 		t.Fatalf("moving links changed %d records' last update: %v", touched, err)

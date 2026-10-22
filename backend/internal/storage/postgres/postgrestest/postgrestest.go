@@ -11,6 +11,7 @@ import (
 
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // DefaultURL is the docker compose Postgres; override with TEST_DATABASE_URL.
@@ -34,19 +35,34 @@ func New(t testing.TB) *postgres.Store {
 	if _, err := admin.Exec(ctx, "CREATE DATABASE "+name); err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() {
+		_, _ = admin.Exec(ctx, "DROP DATABASE "+name+" WITH (FORCE)")
+		_ = admin.Close(ctx)
+	})
 	u, err := url.Parse(base)
 	if err != nil {
 		t.Fatal(err)
 	}
 	u.Path = "/" + name
-	store, err := postgres.Open(ctx, u.String())
+	return Open(t, u.String())
+}
+
+// Open migrates the database at dsn, as a process does when it starts, and
+// returns a store on it whose pool closes after the test.
+func Open(t testing.TB, dsn string) *postgres.Store {
+	t.Helper()
+	ctx := context.Background()
+	pool, err := pgxpool.New(ctx, dsn)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() {
-		store.Close()
-		_, _ = admin.Exec(ctx, "DROP DATABASE "+name+" WITH (FORCE)")
-		_ = admin.Close(ctx)
-	})
+	t.Cleanup(pool.Close)
+	if err := postgres.Migrate(ctx, pool, ""); err != nil {
+		t.Fatal(err)
+	}
+	store, err := postgres.New(ctx, pool, "")
+	if err != nil {
+		t.Fatal(err)
+	}
 	return store
 }

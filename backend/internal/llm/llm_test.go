@@ -6,13 +6,14 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/charmbracelet/log"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/charmbracelet/log"
 
 	"github.com/gluonfield/jaz-crm/backend/crm/interactions"
 	"github.com/gluonfield/jaz-crm/backend/internal/followups"

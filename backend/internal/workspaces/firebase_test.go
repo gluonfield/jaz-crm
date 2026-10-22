@@ -3,8 +3,9 @@ package workspaces_test
 import (
 	"context"
 	"errors"
-	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"testing"
+
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 
 	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"

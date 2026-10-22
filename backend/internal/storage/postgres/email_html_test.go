@@ -3,7 +3,7 @@ package postgres_test
 import (
 	"testing"
 
-	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres"
+	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
 )
 
 func TestEmailHTMLMigration(t *testing.T) {
@@ -39,11 +39,7 @@ WITH workspace AS (
 SELECT connection.id,interaction.id,part.id FROM connection,interaction,part`).Scan(&connection, &interaction, &part); err != nil {
 		t.Fatal(err)
 	}
-	store, err := postgres.Open(ctx, dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(store.Close)
+	store := postgrestest.Open(t, dsn)
 	due, err := store.UnfetchedParts(ctx, connection, 50)
 	if err != nil || len(due) != 1 || due[0].ID != part {
 		t.Fatalf("existing email must refresh its HTML: %+v %v", due, err)

@@ -2,8 +2,9 @@ package interactions
 
 import (
 	"context"
-	"github.com/gluonfield/jaz-crm/backend/crm/records"
 	"strings"
+
+	"github.com/gluonfield/jaz-crm/backend/crm/records"
 )
 
 type DomainRule struct {

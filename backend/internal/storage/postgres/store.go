@@ -41,44 +41,81 @@ type Store struct {
 	logo *logodb.Queries
 }
 
-// Open connects and migrates to the latest schema.
-func Open(ctx context.Context, url string) (*Store, error) {
-	pool, err := pgxpool.New(ctx, url)
+// New opens the store on pool, in schema or, when schema is empty, wherever
+// the pool's connections look. It fails while migrations are pending: an
+// unmigrated schema would let names resolve to the host's tables in public.
+func New(ctx context.Context, pool *pgxpool.Pool, schema string) (*Store, error) {
+	provider, err := migrator(pool, schema)
 	if err != nil {
-		return nil, fmt.Errorf("connect postgres: %w", err)
-	}
-	if err := migrate(ctx, pool); err != nil {
-		pool.Close()
 		return nil, err
 	}
-	return &Store{pool: pool, db: pool, auth: authdb.New(pool), rec: recdb.New(pool), conn: conndb.New(pool), in: intdb.New(pool), logo: logodb.New(pool)}, nil
+	defer provider.Close()
+	pending, err := provider.HasPending(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("check migrations: %w", err)
+	}
+	if pending {
+		return nil, errors.New("migrations are pending: run Migrate first")
+	}
+	var db interface {
+		beginner
+		authdb.DBTX
+	} = pool
+	if schema != "" {
+		db = newScoped(pool, schema)
+	}
+	return &Store{pool: pool, db: db, auth: authdb.New(db), rec: recdb.New(db), conn: conndb.New(db), in: intdb.New(db), logo: logodb.New(db)}, nil
 }
 
-func (s *Store) Close() {
-	s.pool.Close()
-}
-
-func migrate(ctx context.Context, pool *pgxpool.Pool) error {
-	dir, err := fs.Sub(migrations, "migrations")
+// Migrate brings schema, created if missing, or the pool's own search_path
+// when schema is empty, to the latest version. It connects through a pool of
+// its own made from pool's configuration and closed on return, so pool's
+// connections keep their settings.
+func Migrate(ctx context.Context, pool *pgxpool.Pool, schema string) error {
+	config := pool.Config()
+	if schema != "" {
+		if _, err := pool.Exec(ctx, "CREATE SCHEMA IF NOT EXISTS "+pgx.Identifier{schema}.Sanitize()); err != nil {
+			return fmt.Errorf("create schema: %w", err)
+		}
+		config.ConnConfig.RuntimeParams["search_path"] = searchPath(schema)
+	}
+	own, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
 		return err
 	}
-	sqlDB := stdlib.OpenDBFromPool(pool)
-	defer sqlDB.Close()
-	// The server and worker start together; a session lock runs one's
+	defer own.Close()
+	// Every process migrates when it starts; a session lock runs one's
 	// migrations at a time.
 	locker, err := lock.NewPostgresSessionLocker()
 	if err != nil {
 		return err
 	}
-	provider, err := goose.NewProvider(goose.DialectPostgres, sqlDB, dir, goose.WithDisableGlobalRegistry(true), goose.WithSessionLocker(locker), goose.WithGoMigrations(datamigrations.All...))
+	provider, err := migrator(own, schema, goose.WithSessionLocker(locker))
 	if err != nil {
-		return fmt.Errorf("create migration provider: %w", err)
+		return err
 	}
+	defer provider.Close()
 	if _, err := provider.Up(ctx); err != nil {
 		return fmt.Errorf("run migrations: %w", err)
 	}
 	return nil
+}
+
+func migrator(pool *pgxpool.Pool, schema string, opts ...goose.ProviderOption) (*goose.Provider, error) {
+	dir, err := fs.Sub(migrations, "migrations")
+	if err != nil {
+		return nil, err
+	}
+	table := goose.DefaultTablename
+	if schema != "" {
+		table = schema + "." + table
+	}
+	opts = append(opts, goose.WithDisableGlobalRegistry(true), goose.WithGoMigrations(datamigrations.All...), goose.WithTableName(table))
+	provider, err := goose.NewProvider(goose.DialectPostgres, stdlib.OpenDBFromPool(pool), dir, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("create migration provider: %w", err)
+	}
+	return provider, nil
 }
 
 // tx runs fn with the auth and records queries bound to one transaction.

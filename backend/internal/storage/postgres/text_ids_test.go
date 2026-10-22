@@ -6,9 +6,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres/postgrestest"
+
 	"github.com/gluonfield/jaz-crm/backend/crm/errs"
 	"github.com/gluonfield/jaz-crm/backend/crm/records"
-	"github.com/gluonfield/jaz-crm/backend/internal/storage/postgres"
 	"github.com/lithammer/shortuuid/v4"
 )
 
@@ -60,11 +61,7 @@ INSERT INTO sessions(token_hash,user_id,expires_at) SELECT 'legacy'::bytea,id,no
 		return strings.Join(rows, "\n")
 	}
 	before := snapshot()
-	store, err := postgres.Open(ctx, dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
+	store := postgrestest.Open(t, dsn)
 	if after := snapshot(); after != before {
 		t.Fatalf("migration changed existing records:\nbefore %s\nafter %s", before, after)
 	}

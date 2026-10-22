@@ -3,13 +3,14 @@ package followups_test
 import (
 	"context"
 	"fmt"
-	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 	"io"
 	"reflect"
 	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gluonfield/jaz-crm/backend/internal/auth"
 
 	"github.com/charmbracelet/log"
 	"github.com/gluonfield/jaz-crm/backend/crm/interactions"
