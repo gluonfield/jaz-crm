@@ -11,10 +11,12 @@ package crm
 import (
 	"context"
 	"errors"
+	"net/http"
 	"strings"
 
 	"github.com/gluonfield/jaz-crm/errs"
 	"github.com/gluonfield/jaz-crm/interactions"
+	"github.com/gluonfield/jaz-crm/internal/logos"
 	"github.com/gluonfield/jaz-crm/internal/storage"
 	"github.com/gluonfield/jaz-crm/internal/storage/postgres"
 	"github.com/gluonfield/jaz-crm/records"
@@ -29,12 +31,18 @@ type Options struct {
 	// Classifier triages incoming conversations; without one they wait for
 	// a person.
 	Classifier interactions.Classifier
+	// LogoClient and LogoHome replace how RefreshLogos reaches websites:
+	// the client for every request and the home page read for a domain.
+	// By default only public addresses are reached, at https://<domain>/.
+	LogoClient *http.Client
+	LogoHome   func(domain string) string
 }
 
 type CRM struct {
 	Records      *records.Service
 	Interactions *interactions.Service
 	store        *postgres.Store
+	logos        *logos.Service
 }
 
 // Migrate brings schema to the latest version, creating it when missing.
@@ -49,10 +57,18 @@ func Open(ctx context.Context, pool *pgxpool.Pool, opts Options) (*CRM, error) {
 		return nil, err
 	}
 	recs := records.NewService(store)
+	fetch := logos.NewFetcher()
+	if opts.LogoClient != nil {
+		fetch.Client = opts.LogoClient
+	}
+	if opts.LogoHome != nil {
+		fetch.Home = opts.LogoHome
+	}
 	return &CRM{
 		Records:      recs,
 		Interactions: interactions.NewService(interactions.Params{Store: store, Connections: store, Workspaces: store, Records: recs, Classifier: opts.Classifier}),
 		store:        store,
+		logos:        logos.NewService(store, fetch),
 	}, nil
 }
 
@@ -94,4 +110,37 @@ func (c *CRM) Actor(ctx context.Context, u User) (records.Actor, error) {
 		return records.Actor{}, errs.Invalidf("another user of this tenant has the email %s", member.Email)
 	}
 	return records.Actor{WorkspaceID: current.WorkspaceID, MemberID: current.ID}, err
+}
+
+// Logo is the icon a company's website publishes.
+type Logo struct {
+	ContentType string
+	Image       []byte
+}
+
+// ErrNoLogo means a token names no logo.
+var ErrNoLogo = errors.New("no logo has this token")
+
+// RefreshLogos looks up the icons of the tenant's company domains that are
+// due a look: never looked up, a month old, or a week old when none was
+// found. It reaches out to those websites, so hosts call it off their
+// request path.
+func (c *CRM) RefreshLogos(ctx context.Context, actor records.Actor) error {
+	return c.logos.Refresh(ctx, actor.WorkspaceID)
+}
+
+// LogoTokens maps those of the actor's records that have a logo to the
+// token that reads it.
+func (c *CRM) LogoTokens(ctx context.Context, actor records.Actor, recordIDs []string) (map[string]string, error) {
+	return c.logos.Tokens(ctx, actor, recordIDs)
+}
+
+// Logo reads the logo a token names. Tokens are random and logos public, so
+// a host may serve them without a session, as the CRM's own app does.
+func (c *CRM) Logo(ctx context.Context, token string) (Logo, error) {
+	logo, err := c.logos.Logo(ctx, token)
+	if errors.Is(err, storage.ErrNotFound) {
+		return Logo{}, ErrNoLogo
+	}
+	return Logo{ContentType: logo.ContentType, Image: logo.Image}, err
 }
