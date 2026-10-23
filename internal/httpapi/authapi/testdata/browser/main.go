@@ -16,6 +16,7 @@ import (
 	"github.com/gluonfield/jaz-crm/internal/auth"
 	"github.com/gluonfield/jaz-crm/internal/changes"
 	"github.com/gluonfield/jaz-crm/internal/connections"
+	"github.com/gluonfield/jaz-crm/internal/followups"
 	"github.com/gluonfield/jaz-crm/internal/httpapi/authapi"
 	"github.com/gluonfield/jaz-crm/internal/httpapi/changesapi"
 	"github.com/gluonfield/jaz-crm/internal/httpapi/connectapi"
@@ -95,7 +96,7 @@ func run() error {
 		return err
 	}
 	lg := logos.NewService(store, logos.Fetcher{})
-	agents := mcpapi.NewHandler(mcpapi.Services{Records: crm, Workspaces: people, Interactions: convs, Connections: conns, Logos: lg}, keys, logger)
+	agents := mcpapi.NewHandler(mcpapi.Services{Records: crm, Workspaces: people, Interactions: convs, Connections: conns, Logos: lg, FollowUps: followups.NewService(crm, store, conns, store)}, keys, logger)
 	var hub *changes.Hub
 	lifecycle := fx.New(fx.NopLogger, fx.Invoke(func(lc fx.Lifecycle) {
 		hub = changes.NewHub(lc, store, logger)
