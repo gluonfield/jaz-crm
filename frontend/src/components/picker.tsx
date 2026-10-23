@@ -42,21 +42,22 @@ export function Picker({
   const [search, setSearch] = useState('')
   const newValue = search.trim()
   const canCreate = onCreate && newValue && !options.some((o) => o.label.toLowerCase() === newValue.toLowerCase())
+  const changeOpen = (next: boolean) => {
+    setOpen(next)
+    setSearch('')
+    onSearch?.('')
+    onOpenChange?.(next)
+  }
   const pick = (value: string) => {
     onSelect(value)
     if (!multiple) {
-      setOpen(false)
+      changeOpen(false)
     }
   }
   return (
     <Popover
       open={open}
-      onOpenChange={(next) => {
-        setOpen(next)
-        setSearch('')
-        onSearch?.('')
-        onOpenChange?.(next)
-      }}
+      onOpenChange={changeOpen}
     >
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent align={align} sideOffset={6} className="w-64 overflow-hidden p-0" onClick={(e) => e.stopPropagation()}>
@@ -122,7 +123,7 @@ export function Picker({
                   onCreate(newValue)
                   setSearch('')
                   if (!multiple) {
-                    setOpen(false)
+                    changeOpen(false)
                   }
                 }}
                 className="flex h-8 cursor-default items-center gap-2.5 rounded-[var(--radius-control)] px-2 text-[13px] text-ink outline-none data-[selected=true]:bg-list-active data-[disabled=true]:opacity-50"
@@ -137,8 +138,7 @@ export function Picker({
                   key={action.label}
                   value={action.label}
                   onSelect={() => {
-                    setOpen(false)
-                    onOpenChange?.(false)
+                    changeOpen(false)
                     action.onSelect()
                   }}
                   className="flex h-8 cursor-default items-center rounded-[var(--radius-control)] px-2 text-[12.5px] text-ink-2 outline-none data-[selected=true]:bg-list-active data-[selected=true]:text-ink"

@@ -305,6 +305,29 @@ test('CRM commands target real records, preserve typing and match menu actions',
       await until(() => page.evaluate(`Array.from(document.querySelectorAll('[cmdk-item]')).find(item => item.textContent.startsWith('Everyone'))?.lastElementChild.textContent === '6'`))
       assert.deepEqual(await page.evaluate(`Array.from(document.querySelectorAll('[cmdk-item]')).map(item => [item.querySelector('span').textContent, item.lastElementChild.textContent])`), [['Everyone', '6'], ['Assigned to me', '6'], ['Email chases', '1']])
       await writeFile(resolve(directory, 'follow-ups-private-views-menu.png'), Buffer.from((await page.call('Page.captureScreenshot')).data, 'base64'))
+      const countRequests = []
+      chrome.on('Network.requestWillBeSent', ({ request }) => {
+        if (request.url.endsWith('/api/tools/search_records') && request.postData) {
+          const args = JSON.parse(request.postData)
+          if (args.limit === 1) {
+            countRequests.push(args)
+          }
+        }
+      })
+      await page.evaluate(`Array.from(document.querySelectorAll('[cmdk-item]')).find(item => item.textContent.startsWith('Email chases')).click()`)
+      await until(() => page.evaluate(`!document.querySelector('[aria-label="Find views…"]')`))
+      await idle()
+      await key('j', 'KeyJ')
+      await key('s', 'KeyS')
+      await until(() => page.evaluate(`Array.from(document.querySelectorAll('[cmdk-item]')).some(item => item.textContent.includes('Done'))`))
+      await page.evaluate(`Array.from(document.querySelectorAll('[cmdk-item]')).find(item => item.textContent.includes('Done')).click()`)
+      await until(async () => (await tool('get_record', { record_id: fixtures[1].id })).values.status === 'Done')
+      await until(() => page.evaluate(`document.querySelectorAll('[data-row]').length === 0`))
+      assert.equal(countRequests.length, 0, 'A closed view picker must stop fetching counts after record changes')
+      await click(page, '[aria-label="Select Follow Ups view"]')
+      await until(() => page.evaluate(`Array.from(document.querySelectorAll('[cmdk-item]')).find(item => item.textContent.startsWith('Email chases'))?.lastElementChild.textContent === '0'`))
+      assert.ok(countRequests.length > 0, 'Reopening the picker must fetch updated counts')
+      chrome.on('Network.requestWillBeSent', () => {})
       await tool('delete_saved_filter', { id: privateView.id })
       for (const record of fixtures) {
         await tool('delete_record', { record_id: record.id })
