@@ -36,13 +36,25 @@ func NewFetcher() Fetcher {
 	}
 }
 
+// unrouted holds addresses that pass as global unicast yet reach no public
+// website: shared address space such as a carrier's or a tailnet's, IETF
+// protocol assignments, benchmarking, the reserved class E, and NAT64.
+var unrouted = []netip.Prefix{
+	netip.MustParsePrefix("100.64.0.0/10"),
+	netip.MustParsePrefix("192.0.0.0/24"),
+	netip.MustParsePrefix("198.18.0.0/15"),
+	netip.MustParsePrefix("240.0.0.0/4"),
+	netip.MustParsePrefix("64:ff9b::/96"),
+	netip.MustParsePrefix("64:ff9b:1::/48"),
+}
+
 func public(_, address string, _ syscall.RawConn) error {
 	host, _, err := net.SplitHostPort(address)
 	if err != nil {
 		return err
 	}
 	ip, err := netip.ParseAddr(host)
-	if err != nil || !ip.IsGlobalUnicast() || ip.IsPrivate() {
+	if err != nil || !ip.IsGlobalUnicast() || ip.IsPrivate() || slices.ContainsFunc(unrouted, func(prefix netip.Prefix) bool { return prefix.Contains(ip) }) {
 		return fmt.Errorf("logos: %s is not a public address", host)
 	}
 	return nil

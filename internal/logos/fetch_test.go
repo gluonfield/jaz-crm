@@ -1,9 +1,13 @@
 package logos_test
 
 import (
+	"context"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/gluonfield/jaz-crm/internal/logos"
 )
@@ -75,5 +79,26 @@ func TestNewFetcherStaysPublic(t *testing.T) {
 	f.Home = func(string) string { return srv.URL + "/" }
 	if logo := f.Icon(t.Context(), "local.test"); logo.Image != nil {
 		t.Fatal("fetched from a loopback address")
+	}
+}
+
+// Addresses that pass as global unicast yet belong to no public website, such
+// as a tailnet's shared address space, are refused before any connection.
+func TestNewFetcherRefusesNonPublicRanges(t *testing.T) {
+	client := logos.NewFetcher().Client
+	for _, address := range []string{"100.100.100.100", "100.64.0.1", "198.18.0.1", "192.0.0.8", "240.0.0.1", "64:ff9b::808:808", "64:ff9b:1::1"} {
+		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+		request, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+net.JoinHostPort(address, "80")+"/", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		response, err := client.Do(request)
+		cancel()
+		if err == nil {
+			response.Body.Close()
+		}
+		if err == nil || !strings.Contains(err.Error(), "is not a public address") {
+			t.Errorf("a dial to %s was not refused: %v", address, err)
+		}
 	}
 }
