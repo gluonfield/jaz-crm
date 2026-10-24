@@ -6,6 +6,7 @@ import { pageIcon } from '@/lib/pages'
 import { formatDateTime, formatDay, formatNumber, recentOrDate } from '@/lib/format'
 import { useColumnWidths } from '@/lib/use-column-widths'
 import { useTableOrder } from '@/lib/use-table-order'
+import { useTableColumnDrag } from '@/lib/use-table-column-drag'
 import type { Attribute, CrmObject, CrmRecord } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { AddColumn, ColumnHeader } from './columns'
@@ -41,9 +42,10 @@ export function RecordTable({ object, objects, records, focus, onFocus, openReco
     ...attributes.map((attribute) => ({ key: attribute.slug, name: attribute.name, width: defaultWidth(attribute), attribute })),
   ]
   const ordering = useTableOrder(object, defaults.map((column) => column.key))
+  const dragColumn = useTableColumnDrag(ordering.move, ordering.pending)
   const columns = ordering.order.map((key) => defaults.find((column) => column.key === key)!)
   return (
-    <table className="w-full table-fixed border-collapse text-[13px] [&_[data-hint]]:opacity-0 [&_[data-hint]:focus-visible]:opacity-100 [&_[data-hint][data-state=open]]:opacity-100 [&_tr:hover_[data-hint]]:opacity-100 [&_tr:not(:hover)_input:not(:focus)::placeholder]:text-transparent pointer-coarse:[&_[data-hint]]:opacity-100">
+    <table className="record-table w-full table-fixed border-collapse text-[13px] [&_[data-hint]]:opacity-0 [&_[data-hint]:focus-visible]:opacity-100 [&_[data-hint][data-state=open]]:opacity-100 [&_tr:hover_[data-hint]]:opacity-100 [&_tr:not(:hover)_input:not(:focus)::placeholder]:text-transparent pointer-coarse:[&_[data-hint]]:opacity-100">
       <colgroup>
         <col style={{ width: width('name', 280) }} />
         {columns.map((column) => <col key={column.key} style={{ width: width(column.key, column.width) }} />)}
@@ -57,14 +59,13 @@ export function RecordTable({ object, objects, records, focus, onFocus, openReco
             <Resizer onPointerDown={resize('name', 280)} />
           </th>
           {columns.map((column, index) => (
-            <th key={column.key} data-column={column.key} title="Drag to reorder" {...ordering.header(column.key)} className={cn('group/column relative select-none px-3 font-medium', !ordering.pending && 'cursor-grab', ordering.dragging === column.key && 'opacity-50')}>
+            <th key={column.key} data-column={column.key} title="Drag to reorder" onPointerDown={dragColumn} className={cn('group/column relative touch-pan-y select-none px-3 font-medium', !ordering.pending && 'cursor-grab')}>
               <div className="flex items-center gap-1">
                 <ColumnHeader object={object} attribute={own ? column.attribute : undefined} name={column.name} reorder={{
                   left: !ordering.pending && index > 0 ? () => ordering.move(column.key, index - 1) : undefined,
                   right: !ordering.pending && index < columns.length - 1 ? () => ordering.move(column.key, index + 1) : undefined,
                 }} />
               </div>
-              {ordering.target?.key === column.key && ordering.dragging !== column.key && <span data-column-drop aria-hidden className={cn('pointer-events-none absolute inset-y-0 z-30 w-0.5 bg-primary', ordering.target.after ? 'right-0' : 'left-0')} />}
               <Resizer onPointerDown={resize(column.key, column.width)} />
             </th>
           ))}
@@ -89,9 +90,10 @@ export function RecordTable({ object, objects, records, focus, onFocus, openReco
               onFocus={() => onFocus?.(index)}
               data-flip={r.id}
               onClick={() => openRecord(index)}
-              className={cn('group h-11 cursor-default border-b border-border/60 hover:bg-list-hover data-[state=open]:bg-list-hover', focus === index && 'bg-list-hover')}
+              data-focused={focus === index || undefined}
+              className="group h-11 cursor-default border-b border-border/60"
             >
-              <td data-column="name" className={cn('sticky left-0 z-10 bg-bg px-4 py-2 group-hover:bg-list-hover group-data-[state=open]:bg-list-hover', focus === index && 'bg-list-hover')}>
+              <td data-column="name" className="sticky left-0 z-10 px-4 py-2">
                 <Link to="/r/$recordId" params={{ recordId: r.id }} onClick={(e) => e.stopPropagation()} className="flex min-w-0 items-center gap-2.5 font-medium leading-[1.35] text-ink">
                   <RecordIcon object={slug} name={recordName(r)} photo={r.photo} icon={pageIcon(r)} />
                   <span title={recordName(r)} className="line-clamp-2 min-w-0">{recordName(r)}</span>
