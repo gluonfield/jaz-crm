@@ -274,11 +274,11 @@ func (s *Service) Disconnect(ctx context.Context, actor records.Actor, id string
 		return err
 	}
 	for _, c := range list {
-		if c.ID == id {
+		if c.ID == id && c.UserID == actor.MemberID {
 			if err := s.syncer.Stop(ctx, id); err != nil {
 				return err
 			}
-			return s.store.DeleteConnection(ctx, actor.WorkspaceID, id)
+			return s.store.DeleteConnection(ctx, actor.WorkspaceID, actor.MemberID, id)
 		}
 	}
 	return errs.Invalidf("no connection %q", id)

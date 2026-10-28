@@ -267,8 +267,13 @@ func TestDisconnectWithdrawsOnlyUnsentGmailDrafts(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := store.DeleteConnection(ctx, actor.MemberID, connection.ID); !errors.Is(err, storage.ErrNotFound) {
-		t.Fatalf("cross-workspace disconnect: %v", err)
+	for _, denied := range []records.Actor{
+		{WorkspaceID: actor.MemberID, MemberID: actor.MemberID},
+		{WorkspaceID: actor.WorkspaceID, MemberID: connection.ID},
+	} {
+		if err := store.DeleteConnection(ctx, denied.WorkspaceID, denied.MemberID, connection.ID); !errors.Is(err, storage.ErrNotFound) {
+			t.Fatalf("unauthorized disconnect: %v", err)
+		}
 	}
 	if draft, err := store.GmailDraft(ctx, actor.WorkspaceID, followUp); err != nil || draft.State != "draft" {
 		t.Fatalf("cross-workspace disconnect changed draft: %+v %v", draft, err)
@@ -278,7 +283,7 @@ func TestDisconnectWithdrawsOnlyUnsentGmailDrafts(t *testing.T) {
 	}) {
 		t.Fatalf("cross-workspace disconnect retired composer: %+v %v", history, err)
 	}
-	if err := store.DeleteConnection(ctx, actor.WorkspaceID, connection.ID); err != nil {
+	if err := store.DeleteConnection(ctx, actor.WorkspaceID, actor.MemberID, connection.ID); err != nil {
 		t.Fatal(err)
 	}
 	for state, id := range recordIDs {

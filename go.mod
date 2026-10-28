@@ -11,7 +11,7 @@ require (
 	github.com/charmbracelet/log v1.0.0
 	github.com/coreos/go-oidc/v3 v3.21.0
 	github.com/gluonfield/jaz-tasks/auth v0.1.1
-	github.com/gluonfield/jaz-tasks/httpx v0.1.1
+	github.com/gluonfield/jaz-tasks/httpx v0.1.2
 	github.com/go-jose/go-jose/v4 v4.1.4
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.11.0
@@ -22,7 +22,7 @@ require (
 	go.temporal.io/api v1.63.5
 	go.temporal.io/sdk v1.49.0
 	go.uber.org/fx v1.24.0
-	golang.org/x/net v0.59.0
+	golang.org/x/net v0.62.0
 	golang.org/x/oauth2 v0.37.0
 )
 
@@ -72,10 +72,10 @@ require (
 	go.uber.org/zap v1.26.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f // indirect
-	golang.org/x/sync v0.23.0 // indirect
-	golang.org/x/sys v0.48.0 // indirect
-	golang.org/x/text v0.42.0 // indirect
-	golang.org/x/time v0.15.0 // indirect
+	golang.org/x/sync v0.24.0 // indirect
+	golang.org/x/sys v0.49.0 // indirect
+	golang.org/x/text v0.43.0 // indirect
+	golang.org/x/time v0.15.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	google.golang.org/grpc v1.83.2 // indirect

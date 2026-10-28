@@ -81,7 +81,7 @@ function ConnectionsPage() {
                       </div>
                     )}
                   </div>
-                  <Button onClick={() => disconnect.mutate({ connection_id: c.id })}>Disconnect</Button>
+                  {c.owner_id === me?.id && <Button onClick={() => disconnect.mutate({ connection_id: c.id })}>Disconnect</Button>}
                 </Row>
               )
             })}

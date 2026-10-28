@@ -52,7 +52,7 @@ type ConnectionStore interface {
 	Connections(ctx context.Context, workspaceID string) ([]Connection, error)
 	ActiveConnections(ctx context.Context) ([]Connection, error)
 	SetConnectionStatus(ctx context.Context, id, status string) error
-	DeleteConnection(ctx context.Context, workspaceID, id string) error
+	DeleteConnection(ctx context.Context, workspaceID, userID, id string) error
 	// SetTeammatesSend changes the setting on the user's own connection;
 	// ErrNotFound when it is not theirs.
 	SetTeammatesSend(ctx context.Context, workspaceID, userID, id string, allowed bool) error

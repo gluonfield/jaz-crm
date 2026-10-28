@@ -1,4 +1,5 @@
-import { createElement, type ReactNode } from 'react'
+import { createElement, type ReactNode, useState } from 'react'
+import { Button } from '@jaz/ui/button'
 import { cn } from '@/lib/utils'
 import { ExternalLink } from './external-link'
 
@@ -15,16 +16,26 @@ const blank = (node: Node): boolean => node instanceof Element
 
 // Rebuild untrusted email HTML as elements without copying styles or event attributes.
 export function HTMLContent({ html, className }: { html: string; className?: string }) {
-  const body = new DOMParser().parseFromString(html, 'text/html').body
+  const [imagesFor, setImagesFor] = useState<string>()
+  const template = document.createElement('template')
+  template.innerHTML = html
+  const body = template.content
   cutQuote(body)
   trimEnd(body)
-  return <div className={cn('max-w-[68ch] text-[13px] leading-5 text-ink-3 [overflow-wrap:anywhere] [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5 [&_p]:mb-3 [&_p:last-child]:mb-0 [&_table]:max-w-full [&_td]:align-top [&_th]:align-top [&_pre]:whitespace-pre-wrap', className)}>{children(body)}</div>
+  const images = imagesFor === html
+  const blocked = !images && body.querySelector('img[src^="https://"]')
+  return (
+    <div className={cn('max-w-[68ch] text-[13px] leading-5 text-ink-3 [overflow-wrap:anywhere] [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5 [&_p]:mb-3 [&_p:last-child]:mb-0 [&_table]:max-w-full [&_td]:align-top [&_th]:align-top [&_pre]:whitespace-pre-wrap', className)}>
+      {blocked && <div className="mb-2 flex items-center gap-2 text-[12px] text-ink-3"><span>Remote images hidden</span><Button size="sm" onClick={() => setImagesFor(html)}>Load images</Button></div>}
+      {children(body, images)}
+    </div>
+  )
 }
 
 // cutQuote removes the earlier mail quoted below a reply, as chat apps hide it:
 // from Outlook's reply markers, or a header that starts "From:" and names the
 // subject. A forward with nothing written above it keeps its content.
-function cutQuote(body: HTMLElement) {
+function cutQuote(body: DocumentFragment) {
   const start = body.querySelector('#mail-editor-reference-message-container, #divRplyFwdMsg, #appendonsend')
     ?? [...body.querySelectorAll('div, p')].find((el) => /^From:/.test(el.textContent?.trim() ?? '') && /Subject:/.test(after(el, body).toString().slice(0, 400)))
   if (!start) {
@@ -39,7 +50,7 @@ function cutQuote(body: HTMLElement) {
 }
 
 // after is the content from node to the end of body.
-function after(node: Node, body: HTMLElement) {
+function after(node: Node, body: DocumentFragment) {
   const range = document.createRange()
   range.setStartBefore(node)
   range.setEndAfter(body.lastChild!)
@@ -56,7 +67,7 @@ function trimEnd(node: Node) {
   }
 }
 
-function children(node: Node): ReactNode[] {
+function children(node: Node, images: boolean): ReactNode[] {
   return [...node.childNodes].map((child, key) => {
     if (child.nodeType === Node.TEXT_NODE) {
       return child.textContent
@@ -64,14 +75,14 @@ function children(node: Node): ReactNode[] {
     if (!(child instanceof Element) || hidden(child)) {
       return null
     }
-    const inner = children(child)
+    const inner = children(child, images)
     if (child.tagName === 'A') {
       const href = child.getAttribute('href') ?? ''
       return /^(https?:|mailto:|tel:)/i.test(href) ? <ExternalLink key={key} href={href} className="underline">{inner}</ExternalLink> : <span key={key}>{inner}</span>
     }
     if (child.tagName === 'IMG') {
       const src = child.getAttribute('src') ?? ''
-      return src.startsWith('https://') ? <img key={key} src={src} alt={child.getAttribute('alt') ?? ''} referrerPolicy="no-referrer" className="inline-block max-w-full" /> : null
+      return images && src.startsWith('https://') ? <img key={key} src={src} alt={child.getAttribute('alt') ?? ''} referrerPolicy="no-referrer" className="inline-block max-w-full" /> : null
     }
     const tag = kept[child.tagName]
     return tag ? createElement(tag, { key }, ...(tag === 'br' || tag === 'hr' ? [] : inner)) : <span key={key}>{inner}</span>

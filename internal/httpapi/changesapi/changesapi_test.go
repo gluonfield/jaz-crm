@@ -64,7 +64,7 @@ func TestChangesReachTheirWorkspaceOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 	ours.next(t)
-	if err := s.store.DeleteConnection(ctx, s.workspace, connection.ID); err != nil {
+	if err := s.store.DeleteConnection(ctx, s.workspace, s.owner, connection.ID); err != nil {
 		t.Fatal(err)
 	}
 	ours.next(t)

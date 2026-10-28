@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"time"
 
+	"golang.org/x/time/rate"
+
 	"github.com/charmbracelet/log"
 	"github.com/gluonfield/jaz-crm/internal/auth"
 	"github.com/gluonfield/jaz-crm/internal/storage"
@@ -19,11 +21,12 @@ import (
 const sessionCookie = "jc_session"
 
 type Handler struct {
-	svc     *auth.Service
-	members *workspaces.Service
-	public  *url.URL
-	logger  *log.Logger
-	mux     *http.ServeMux
+	svc          *auth.Service
+	members      *workspaces.Service
+	public       *url.URL
+	logger       *log.Logger
+	mux          *http.ServeMux
+	registration *rate.Limiter
 }
 
 func NewHandler(svc *auth.Service, members *workspaces.Service, signIn signin.Config, logger *log.Logger) (*Handler, error) {
@@ -31,7 +34,7 @@ func NewHandler(svc *auth.Service, members *workspaces.Service, signIn signin.Co
 	if err != nil {
 		return nil, err
 	}
-	h := &Handler{svc: svc, members: members, public: public, logger: logger.WithPrefix("auth"), mux: http.NewServeMux()}
+	h := &Handler{svc: svc, members: members, public: public, logger: logger.WithPrefix("auth"), mux: http.NewServeMux(), registration: rate.NewLimiter(rate.Every(10*time.Second), 10)}
 	signIn.PublicURL = svc.Issuer()
 	login, err := signin.NewHandler(signIn, "Jaz CRM", sessionCookie+"_login", h.signIn)
 	if err != nil {

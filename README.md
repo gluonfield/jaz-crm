@@ -57,6 +57,10 @@ CI publishes `ghcr.io/gluonfield/jaz-crm-server` and `ghcr.io/gluonfield/jaz-crm
 claude mcp add --transport http jaz-crm http://localhost:7500/mcp --header "Authorization: Bearer $OWNER_API_KEY"
 ```
 
+Public OAuth client registration accepts a 32 KiB body, a 256-byte name and up to eight redirect URIs of 2,048 bytes each. Each server allows a burst of ten registrations, replenishing one every ten seconds; rate-limited clients receive `429` and `Retry-After`.
+
+Only a mailbox’s owner can disconnect it. Email images stay hidden until the viewer chooses **Load images**, and a new message requires new approval.
+
 ChatGPT setup and packaging: [docs/chatgpt-plugin.md](docs/chatgpt-plugin.md) and `plugin/`.
 
 ## Develop

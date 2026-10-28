@@ -45,7 +45,7 @@ func New(authn *authapi.Handler, agents *mcpapi.Handler, changes *changesapi.Han
 	} else {
 		mux.Handle("/", spa(string(web)))
 	}
-	return httpx.Compress(mux)
+	return httpx.Secure(httpx.Compress(mux))
 }
 
 // cors lets browser clients on other origins call the API: credentials

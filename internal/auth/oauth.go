@@ -47,11 +47,14 @@ func (s *Service) ResourceMetadataURL(path string) string {
 // RegisterClient registers a public client (RFC 7591); clients prove
 // possession with PKCE instead of a secret.
 func (s *Service) RegisterClient(ctx context.Context, name string, redirectURIs []string) (storage.OAuthClient, error) {
-	if len(redirectURIs) == 0 {
-		return storage.OAuthClient{}, oauthErr("invalid_redirect_uri", "at least one redirect_uri is required")
+	if len(name) > 256 {
+		return storage.OAuthClient{}, oauthErr("invalid_client_metadata", "client_name must be at most 256 bytes")
+	}
+	if len(redirectURIs) == 0 || len(redirectURIs) > 8 {
+		return storage.OAuthClient{}, oauthErr("invalid_redirect_uri", "between 1 and 8 redirect_uris are required")
 	}
 	for _, uri := range redirectURIs {
-		if !validRedirect(uri) {
+		if len(uri) > 2048 || !validRedirect(uri) {
 			return storage.OAuthClient{}, oauthErr("invalid_redirect_uri", "redirect URIs must be https, http on a loopback host, or a private-use scheme: "+uri)
 		}
 	}
@@ -232,15 +235,15 @@ func (s *Service) issue(scope string) (TokenResponse, []storage.NewOAuthToken) {
 	access, refresh := secret(accessTokenPrefix), secret(refreshTokenPrefix)
 	now := s.now()
 	return TokenResponse{
-			AccessToken:  access,
-			TokenType:    "Bearer",
-			ExpiresIn:    int(accessTTL.Seconds()),
-			RefreshToken: refresh,
-			Scope:        scope,
-		}, []storage.NewOAuthToken{
-			{TokenHash: hash(access), Kind: "access", ExpiresAt: now.Add(accessTTL)},
-			{TokenHash: hash(refresh), Kind: "refresh", ExpiresAt: now.Add(refreshTTL)},
-		}
+		AccessToken:  access,
+		TokenType:    "Bearer",
+		ExpiresIn:    int(accessTTL.Seconds()),
+		RefreshToken: refresh,
+		Scope:        scope,
+	}, []storage.NewOAuthToken{
+		{TokenHash: hash(access), Kind: "access", ExpiresAt: now.Add(accessTTL)},
+		{TokenHash: hash(refresh), Kind: "refresh", ExpiresAt: now.Add(refreshTTL)},
+	}
 }
 
 // Revoke implements RFC 7009: unknown tokens are not an error.

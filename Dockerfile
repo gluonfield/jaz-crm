@@ -5,7 +5,7 @@ RUN bun install --frozen-lockfile
 COPY frontend/ ./
 RUN bun run check:code
 
-FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS build
+FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine AS build
 ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /src

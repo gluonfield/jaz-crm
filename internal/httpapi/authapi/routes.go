@@ -216,8 +216,13 @@ func (h *Handler) serverMetadata(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
+	if !h.registration.Allow() {
+		w.Header().Set("Retry-After", "10")
+		writeJSON(w, http.StatusTooManyRequests, auth.OAuthError{Code: "temporarily_unavailable", Description: "client registration is busy; retry later"})
+		return
+	}
 	var meta oauthex.ClientRegistrationMetadata
-	if err := json.NewDecoder(r.Body).Decode(&meta); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 32<<10)).Decode(&meta); err != nil {
 		writeJSON(w, http.StatusBadRequest, auth.OAuthError{Code: "invalid_client_metadata", Description: "body must be JSON client metadata"})
 		return
 	}

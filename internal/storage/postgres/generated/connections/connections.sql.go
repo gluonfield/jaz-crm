@@ -66,20 +66,21 @@ const deleteConnection = `-- name: DeleteConnection :execrows
 WITH cleared_drafts AS (
   UPDATE record_values v SET active_until = now()
   FROM attributes a, gmail_drafts d JOIN connections c ON c.id = d.connection_id
-  WHERE c.workspace_id = $1 AND c.id = $2 AND d.state <> 'sent'
+  WHERE c.workspace_id = $1 AND c.user_id = $2 AND c.id = $3 AND d.state <> 'sent'
     AND v.record_id = d.follow_up_id AND v.attribute_id = a.id
     AND a.slug IN ('draft', 'subject', 'draft_status') AND v.active_until IS NULL
 )
-DELETE FROM connections target WHERE target.workspace_id = $1 AND target.id = $2
+DELETE FROM connections target WHERE target.workspace_id = $1 AND target.user_id = $2 AND target.id = $3
 `
 
 type DeleteConnectionParams struct {
 	WorkspaceID string
+	UserID      string
 	ID          string
 }
 
 func (q *Queries) DeleteConnection(ctx context.Context, arg DeleteConnectionParams) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteConnection, arg.WorkspaceID, arg.ID)
+	result, err := q.db.Exec(ctx, deleteConnection, arg.WorkspaceID, arg.UserID, arg.ID)
 	if err != nil {
 		return 0, err
 	}
