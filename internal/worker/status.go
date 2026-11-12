@@ -30,11 +30,14 @@ type StatusParams struct {
 
 type StatusObserver struct {
 	interceptor.WorkerInterceptorBase
-	StatusParams
+	Status      *status.Service
+	Connections storage.ConnectionStore
+	Logger      *log.Logger
+	AI          AIAvailability
 }
 
 func NewStatusObserver(p StatusParams) *StatusObserver {
-	return &StatusObserver{StatusParams: p}
+	return &StatusObserver{Status: p.Status, Connections: p.Connections, Logger: p.Logger, AI: p.AI}
 }
 
 func (o *StatusObserver) InterceptActivity(_ context.Context, next interceptor.ActivityInboundInterceptor) interceptor.ActivityInboundInterceptor {
