@@ -20,6 +20,11 @@ const DefaultURL = "postgres://jazcrm:jazcrm@localhost:55532/jazcrm?sslmode=disa
 // New creates a throwaway database, migrates it and drops it after the test.
 func New(t testing.TB) *postgres.Store {
 	t.Helper()
+	return Open(t, Database(t))
+}
+
+func Database(t testing.TB) string {
+	t.Helper()
 	ctx := context.Background()
 	base := os.Getenv("TEST_DATABASE_URL")
 	if base == "" {
@@ -44,7 +49,7 @@ func New(t testing.TB) *postgres.Store {
 		t.Fatal(err)
 	}
 	u.Path = "/" + name
-	return Open(t, u.String())
+	return u.String()
 }
 
 // Open migrates the database at dsn, as a process does when it starts, and

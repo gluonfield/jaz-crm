@@ -123,6 +123,10 @@ func (s *Service) importGmailDraft(ctx context.Context, connection storage.Conne
 		crm := records.NewService(store)
 		actor := records.Actor{WorkspaceID: connection.WorkspaceID, MemberID: connection.UserID}
 		if current.FollowUpID != nil {
+			rows, err := store.Records(ctx, connection.WorkspaceID, []string{*current.FollowUpID})
+			if err != nil || len(rows) == 0 {
+				return err
+			}
 			record, err := crm.Get(ctx, actor, *current.FollowUpID)
 			if err != nil {
 				return err
@@ -257,6 +261,12 @@ func (s *Service) finishGmailDraft(ctx context.Context, connection storage.Conne
 		}
 		if held.MessageID != draft.MessageID || held.State == "sent" && draft.State != "sent" {
 			return nil
+		}
+		if held.FollowUpID != nil {
+			rows, err := store.Records(ctx, connection.WorkspaceID, []string{*held.FollowUpID})
+			if err != nil || len(rows) == 0 {
+				return err
+			}
 		}
 		if held.State != "draft" || draft.FollowUpID == nil {
 			if held.State == draft.State {
