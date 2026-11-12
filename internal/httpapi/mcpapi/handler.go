@@ -15,6 +15,7 @@ import (
 	"github.com/gluonfield/jaz-crm/internal/connections"
 	"github.com/gluonfield/jaz-crm/internal/followups"
 	"github.com/gluonfield/jaz-crm/internal/logos"
+	"github.com/gluonfield/jaz-crm/internal/status"
 	"github.com/gluonfield/jaz-crm/internal/workspaces"
 	"github.com/gluonfield/jaz-crm/records"
 	mcpauth "github.com/modelcontextprotocol/go-sdk/auth"
@@ -59,6 +60,7 @@ type Services struct {
 	Logos        *logos.Service
 	FollowUps    *followups.Service
 	Drafting     *followups.Agent
+	Status       *status.Service
 }
 
 func NewHandler(svc Services, keys *auth.Service, logger *log.Logger) *Handler {
@@ -77,6 +79,7 @@ func NewHandler(svc Services, keys *auth.Service, logger *log.Logger) *Handler {
 	registerFollowUps(r, svc.FollowUps, svc.Drafting)
 	registerApp(r, keys.Issuer())
 	registerProfile(r, keys)
+	registerStatus(r, svc.Status)
 	verify := func(ctx context.Context, token string, _ *http.Request) (*mcpauth.TokenInfo, error) {
 		actor, err := keys.Authenticate(ctx, token)
 		if errors.Is(err, auth.ErrUnauthenticated) {

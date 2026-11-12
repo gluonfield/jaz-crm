@@ -13,6 +13,7 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/gluonfield/jaz-crm/errs"
+	"github.com/gluonfield/jaz-crm/internal/status"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 	"github.com/openai/openai-go/v3/responses"
@@ -27,13 +28,14 @@ type Config struct {
 }
 
 type Client struct {
-	model  string
-	effort shared.ReasoningEffort
-	api    openai.Client
-	logger *log.Logger
-	mu     sync.Mutex
-	paused *errs.Deferred
-	now    func() time.Time
+	model        string
+	effort       shared.ReasoningEffort
+	api          openai.Client
+	logger       *log.Logger
+	mu           sync.Mutex
+	paused       *errs.Deferred
+	availability status.Observation
+	now          func() time.Time
 }
 
 func New(cfg Config, logger *log.Logger) *Client {

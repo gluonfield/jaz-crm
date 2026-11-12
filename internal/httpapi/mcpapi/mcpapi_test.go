@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/gluonfield/jaz-crm/internal/logos"
+	"github.com/gluonfield/jaz-crm/internal/status"
 	"github.com/gluonfield/jaz-crm/internal/storage"
 	"github.com/gluonfield/jaz-tasks/auth"
 
@@ -54,7 +55,7 @@ func serve(t *testing.T) env {
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv := httptest.NewServer(mcpapi.NewHandler(mcpapi.Services{Records: crm, Workspaces: people, Interactions: convs, Connections: conns, Logos: logos.NewService(store, logos.Fetcher{})}, keys, log.New(io.Discard)).MCP)
+	srv := httptest.NewServer(mcpapi.NewHandler(mcpapi.Services{Records: crm, Workspaces: people, Interactions: convs, Connections: conns, Logos: logos.NewService(store, logos.Fetcher{}), Status: status.NewService(store)}, keys, log.New(io.Discard)).MCP)
 	t.Cleanup(srv.Close)
 	return env{url: srv.URL, keys: keys, people: people, store: store}
 }

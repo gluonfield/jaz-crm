@@ -104,6 +104,8 @@ export type Member = { name: string; email: string; addresses?: string[]; admin?
 
 export type Workspace = { id: string; name: string; description: string; company_page_ids: string[]; drafting_web_access: boolean; timezone: string; members?: Member[]; invited?: string[] }
 
+export type OperationError = { id: string; operation: string; reason: string; occurred_at: string; retry_at?: string }
+
 export type Connection = {
   id: string
   account: string

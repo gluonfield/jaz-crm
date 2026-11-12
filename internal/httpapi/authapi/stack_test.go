@@ -28,6 +28,7 @@ import (
 	"github.com/gluonfield/jaz-crm/internal/httpapi/mcpapi"
 	"github.com/gluonfield/jaz-crm/internal/httpapi/webhooks"
 	"github.com/gluonfield/jaz-crm/internal/server"
+	"github.com/gluonfield/jaz-crm/internal/status"
 	"github.com/gluonfield/jaz-crm/internal/storage/postgres/postgrestest"
 	"github.com/gluonfield/jaz-crm/internal/workspaces"
 	"github.com/gluonfield/jaz-crm/records"
@@ -71,7 +72,7 @@ func start(t *testing.T, oidc signin.OIDCConfig, members workspaces.Config) stac
 		t.Fatal(err)
 	}
 	lg := logos.NewService(store, logos.Fetcher{})
-	agents := mcpapi.NewHandler(mcpapi.Services{Records: crm, Workspaces: people, Interactions: convs, Connections: conns, Logos: lg}, keys, logger)
+	agents := mcpapi.NewHandler(mcpapi.Services{Records: crm, Workspaces: people, Interactions: convs, Connections: conns, Logos: lg, Status: status.NewService(store)}, keys, logger)
 	srv.Config.Handler = server.New(authn, agents, changesapi.NewHandler(changes.NewHub(fxtest.NewLifecycle(t), store, logger)), connectapi.NewHandler(conns, keys, logger), webhooks.NewHandler(conns, idle{}, convs, keys, webhooks.Config{}, logger), logosapi.NewHandler(lg, logger), pageimagesapi.NewHandler(crm, logger), "")
 	srv.Start()
 	t.Cleanup(srv.Close)

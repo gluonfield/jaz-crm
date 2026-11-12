@@ -7,12 +7,13 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/gluonfield/jaz-crm/internal/connections"
 	"go.temporal.io/sdk/client"
+	"go.temporal.io/sdk/interceptor"
 	"go.temporal.io/sdk/worker"
 	"go.uber.org/fx"
 )
 
-func NewWorker(c client.Client, a *Activities) worker.Worker {
-	w := worker.New(c, TaskQueue, worker.Options{})
+func NewWorker(c client.Client, a *Activities, observer *StatusObserver) worker.Worker {
+	w := worker.New(c, TaskQueue, worker.Options{Interceptors: []interceptor.WorkerInterceptor{observer}})
 	w.RegisterWorkflow(ConnectionSync)
 	w.RegisterWorkflow(MeetingTranscript)
 	w.RegisterActivity(a)

@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/gluonfield/jaz-crm/interactions"
@@ -26,6 +27,7 @@ import (
 	"github.com/gluonfield/jaz-crm/internal/httpapi/webhooks"
 	"github.com/gluonfield/jaz-crm/internal/logos"
 	"github.com/gluonfield/jaz-crm/internal/server"
+	"github.com/gluonfield/jaz-crm/internal/status"
 	"github.com/gluonfield/jaz-crm/internal/storage/postgres"
 	"github.com/gluonfield/jaz-crm/internal/storage/postgres/postgrestest"
 	"github.com/gluonfield/jaz-crm/internal/workspaces"
@@ -96,7 +98,8 @@ func run() error {
 		return err
 	}
 	lg := logos.NewService(store, logos.Fetcher{})
-	agents := mcpapi.NewHandler(mcpapi.Services{Records: crm, Workspaces: people, Interactions: convs, Connections: conns, Logos: lg, FollowUps: followups.NewService(crm, store, conns, store)}, keys, logger)
+	statuses := status.NewService(store)
+	agents := mcpapi.NewHandler(mcpapi.Services{Records: crm, Workspaces: people, Interactions: convs, Connections: conns, Logos: lg, FollowUps: followups.NewService(crm, store, conns, store), Status: statuses}, keys, logger)
 	var hub *changes.Hub
 	lifecycle := fx.New(fx.NopLogger, fx.Invoke(func(lc fx.Lifecycle) {
 		hub = changes.NewHub(lc, store, logger)
@@ -115,6 +118,28 @@ func run() error {
 	if err := json.NewEncoder(os.Stdout).Encode(map[string]string{"url": origin, "session": token}); err != nil {
 		return err
 	}
-	_, err = io.Copy(io.Discard, os.Stdin)
-	return err
+	commands := json.NewDecoder(os.Stdin)
+	for {
+		var command struct{ Status string }
+		if err := commands.Decode(&command); err != nil {
+			if err == io.EOF {
+				return nil
+			}
+			return err
+		}
+		now := time.Now()
+		observation := status.Observation{ObservedAt: now}
+		switch command.Status {
+		case "quota":
+			observation.Reason = "AI work is paused. Check the model provider's credit or usage limit."
+			observation.OccurredAt = &now
+			observation.RetryAt = new(now.Add(time.Hour))
+		case "recovered":
+		default:
+			return fmt.Errorf("unknown status fixture command %q", command.Status)
+		}
+		if err := statuses.Observe(ctx, status.AI, nil, observation); err != nil {
+			return err
+		}
+	}
 }

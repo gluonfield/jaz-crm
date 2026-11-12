@@ -28,6 +28,7 @@ import (
 	"github.com/gluonfield/jaz-crm/internal/llm"
 	"github.com/gluonfield/jaz-crm/internal/logos"
 	"github.com/gluonfield/jaz-crm/internal/server"
+	"github.com/gluonfield/jaz-crm/internal/status"
 	"github.com/gluonfield/jaz-crm/internal/storage"
 	"github.com/gluonfield/jaz-crm/internal/storage/postgres"
 	"github.com/gluonfield/jaz-crm/internal/worker"
@@ -48,7 +49,8 @@ func shared(cfg Config) fx.Option {
 			OpenPool,
 			OpenCRM,
 			fx.Annotate(OpenStore, fx.As(fx.Self()), fx.As(new(storage.AuthStore)), fx.As(new(storage.WorkspaceStore)),
-				fx.As(new(storage.RecordStore)), fx.As(new(storage.ConnectionStore)), fx.As(new(storage.InteractionStore)), fx.As(new(storage.LogoStore)), fx.As(new(storage.ChangeFeed))),
+				fx.As(new(storage.RecordStore)), fx.As(new(storage.ConnectionStore)), fx.As(new(storage.InteractionStore)), fx.As(new(storage.LogoStore)), fx.As(new(storage.ChangeFeed)), fx.As(new(storage.OperationStore))),
+			status.NewService,
 			logos.NewFetcher,
 			logos.NewService,
 			connections.NewService,
@@ -59,7 +61,7 @@ func shared(cfg Config) fx.Option {
 		),
 	}
 	if cfg.LLM.APIKey != "" {
-		options = append(options, fx.Supply(cfg.LLM), fx.Provide(fx.Annotate(llm.New, fx.As(new(interactions.Classifier)), fx.As(new(followups.Planner)), fx.As(new(followups.Summarizer)), fx.As(new(followups.Rewriter)))))
+		options = append(options, fx.Supply(cfg.LLM), fx.Provide(fx.Annotate(llm.New, fx.As(new(interactions.Classifier)), fx.As(new(followups.Planner)), fx.As(new(followups.Summarizer)), fx.As(new(followups.Rewriter)), fx.As(new(worker.AIAvailability)))))
 	}
 	return fx.Options(options...)
 }
@@ -87,7 +89,7 @@ func Server(cfg Config) fx.Option {
 func Worker(cfg Config) fx.Option {
 	return fx.Options(
 		shared(cfg),
-		fx.Provide(worker.NewActivities, worker.NewWorker),
+		fx.Provide(worker.NewActivities, worker.NewStatusObserver, worker.NewWorker),
 		fx.Invoke(worker.Run),
 	)
 }

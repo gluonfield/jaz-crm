@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gluonfield/jaz-crm/errs"
+	"github.com/gluonfield/jaz-crm/internal/status"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 	"github.com/openai/openai-go/v3/responses"
@@ -56,20 +57,29 @@ func (c *Client) response(ctx context.Context, request responses.ResponseNewPara
 		if !probe {
 			return nil, paused
 		}
-		_, err := c.api.Responses.New(ctx, responses.ResponseNewParams{
+		result, err := c.api.Responses.New(ctx, responses.ResponseNewParams{
 			Model:           c.model,
 			Input:           responses.ResponseNewParamsInputUnion{OfString: openai.String("Reply OK.")},
 			Reasoning:       shared.ReasoningParam{Effort: c.effort},
 			MaxOutputTokens: openai.Int(16),
 			Store:           openai.Bool(false),
 		}, option.WithMaxRetries(0))
+		available := availableResponse(result, err)
 		c.mu.Lock()
-		if err == nil {
+		c.availability.ObservedAt = c.now()
+		if available {
 			c.paused = nil
+			c.availability = status.Observation{ObservedAt: c.now()}
+		} else {
+			c.availability.RetryAt = &c.paused.RetryAt
+			var failure *openai.Error
+			if errors.As(err, &failure) && quotaExhausted(failure.Code, failure.Type) {
+				c.availability.OccurredAt = new(c.now())
+			}
 		}
 		paused = c.paused
 		c.mu.Unlock()
-		if err != nil {
+		if !available {
 			return nil, paused
 		}
 		c.logger.Info("model requests resumed")
@@ -83,7 +93,25 @@ func (c *Client) response(ctx context.Context, request responses.ResponseNewPara
 			c.paused = &errs.Deferred{Reason: "AI work is paused because the model provider's billing or usage limit was reached. It will check again within an hour.", RetryAt: c.now().Add(quotaCooldown)}
 			c.logger.Error("model requests paused", "retry_at", c.paused.RetryAt, "error", err)
 		}
+		c.availability = status.Observation{ObservedAt: c.now(), OccurredAt: new(c.now()), RetryAt: &c.paused.RetryAt, Reason: "AI work is paused. Check the model provider's credit or usage limit."}
 		return nil, c.paused
 	}
+	if availableResponse(res, err) {
+		c.mu.Lock()
+		if c.paused == nil {
+			c.availability = status.Observation{ObservedAt: c.now()}
+		}
+		c.mu.Unlock()
+	}
 	return res, err
+}
+
+func availableResponse(response *responses.Response, err error) bool {
+	return err == nil && response != nil && response.Error.Code == "" && (response.Status == "completed" || response.Status == "incomplete")
+}
+
+func (c *Client) Availability() status.Observation {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.availability
 }

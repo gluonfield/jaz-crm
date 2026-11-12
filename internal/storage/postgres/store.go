@@ -13,6 +13,7 @@ import (
 	intdb "github.com/gluonfield/jaz-crm/internal/storage/postgres/generated/interactions"
 	logodb "github.com/gluonfield/jaz-crm/internal/storage/postgres/generated/logos"
 	recdb "github.com/gluonfield/jaz-crm/internal/storage/postgres/generated/records"
+	statusdb "github.com/gluonfield/jaz-crm/internal/storage/postgres/generated/status"
 	datamigrations "github.com/gluonfield/jaz-crm/internal/storage/postgres/migrations"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -32,13 +33,14 @@ type beginner interface {
 }
 
 type Store struct {
-	pool *pgxpool.Pool
-	db   beginner
-	auth *authdb.Queries
-	rec  *recdb.Queries
-	conn *conndb.Queries
-	in   *intdb.Queries
-	logo *logodb.Queries
+	pool   *pgxpool.Pool
+	db     beginner
+	auth   *authdb.Queries
+	rec    *recdb.Queries
+	conn   *conndb.Queries
+	in     *intdb.Queries
+	logo   *logodb.Queries
+	status *statusdb.Queries
 }
 
 // New opens the store on pool, in schema or, when schema is empty, wherever
@@ -64,7 +66,7 @@ func New(ctx context.Context, pool *pgxpool.Pool, schema string) (*Store, error)
 	if schema != "" {
 		db = newScoped(pool, schema)
 	}
-	return &Store{pool: pool, db: db, auth: authdb.New(db), rec: recdb.New(db), conn: conndb.New(db), in: intdb.New(db), logo: logodb.New(db)}, nil
+	return &Store{pool: pool, db: db, auth: authdb.New(db), rec: recdb.New(db), conn: conndb.New(db), in: intdb.New(db), logo: logodb.New(db), status: statusdb.New(db)}, nil
 }
 
 // Migrate brings schema, created if missing, or the pool's own search_path

@@ -50,6 +50,17 @@ overrides:
 sql:
   - engine: postgresql
     schema: internal/storage/postgres/migrations
+    queries: internal/storage/postgres/queries/status
+    gen:
+      go:
+        package: status
+        out: internal/storage/postgres/generated/status
+        sql_package: pgx/v5
+        emit_pointers_for_null_types: true
+        emit_empty_slices: true
+        omit_unused_structs: true
+  - engine: postgresql
+    schema: internal/storage/postgres/migrations
     queries: internal/storage/postgres/queries/auth
     gen:
       go:

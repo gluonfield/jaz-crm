@@ -5,6 +5,7 @@ import { Row, Section, inputClass } from '@/components/controls'
 import { useAction, useWorkspace } from '@/lib/queries'
 import { cn } from '@/lib/utils'
 import { DeleteWorkspace } from '@/components/delete-workspace'
+import { OperationErrors } from '@/components/operation-errors'
 
 export const Route = createFileRoute('/_app/settings/')({ component: GeneralPage })
 
@@ -14,6 +15,7 @@ function GeneralPage() {
   return workspace && (
     <>
       <GeneralSettings key={workspace.id + workspace.name + workspace.timezone} name={workspace.name} timezone={workspace.timezone} admin={!!admin} />
+      <OperationErrors timezone={workspace.timezone} />
       {admin && <DeleteWorkspace key={workspace.id + workspace.name} workspace={workspace} />}
     </>
   )
