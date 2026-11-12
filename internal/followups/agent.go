@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
+	"github.com/gluonfield/jaz-crm/errs"
 	"github.com/gluonfield/jaz-crm/interactions"
 	"github.com/gluonfield/jaz-crm/internal/storage"
 	"github.com/gluonfield/jaz-crm/records"
@@ -198,9 +199,12 @@ func (a *Agent) Run(ctx context.Context, workspaceID string) (int, error) {
 			continue
 		}
 		state, reason, err := a.follow(ctx, workspaceID, c.ID)
+		var deferred *errs.Deferred
 		at := &c.LatestAt
 		if err != nil {
-			a.logger.Warn("conversation not followed up", "interaction", c.ID, "error", err)
+			if !errors.As(err, &deferred) {
+				a.logger.Warn("conversation not followed up", "interaction", c.ID, "error", err)
+			}
 			state, at = "failed", c.FollowedUpAt
 		}
 		// Release the claim even when the drafting request was cancelled.
@@ -210,6 +214,9 @@ func (a *Agent) Run(ctx context.Context, workspaceID string) (int, error) {
 		if finishErr != nil {
 			return read, finishErr
 		}
+		if deferred != nil {
+			return read, nil
+		}
 		if finished && err == nil {
 			read++
 		}
@@ -218,7 +225,9 @@ func (a *Agent) Run(ctx context.Context, workspaceID string) (int, error) {
 		}
 	}
 	if err := a.backfill(ctx, workspaceID); err != nil {
-		a.logger.Warn("contexts not written", "workspace", workspaceID, "error", err)
+		if !errors.As(err, new(*errs.Deferred)) {
+			a.logger.Warn("contexts not written", "workspace", workspaceID, "error", err)
+		}
 	}
 	return read, nil
 }

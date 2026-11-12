@@ -58,7 +58,7 @@ func (c *Client) draft(ctx context.Context, conv followups.Conversation, reads f
 				request.ToolChoice.OfToolChoiceMode = openai.Opt(responses.ToolChoiceOptionsNone)
 			}
 		}
-		res, err := c.api.Responses.New(ctx, request)
+		res, err := c.response(ctx, request)
 		if err != nil {
 			return fmt.Errorf("draft response: %w", err)
 		}

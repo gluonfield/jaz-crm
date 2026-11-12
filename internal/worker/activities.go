@@ -8,7 +8,6 @@ import (
 	"maps"
 	"net/http"
 	"slices"
-	"strconv"
 	"time"
 
 	"github.com/gluonfield/jaz-crm/interactions"
@@ -17,6 +16,7 @@ import (
 	"github.com/gluonfield/jaz-crm/internal/google"
 	"github.com/gluonfield/jaz-crm/internal/logos"
 	"github.com/gluonfield/jaz-crm/internal/storage"
+	"github.com/lithammer/shortuuid/v4"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/temporal"
 )
@@ -429,7 +429,7 @@ func (a *Activities) Watch(ctx context.Context, id string) error {
 	}
 	token := make([]byte, 16)
 	_, _ = rand.Read(token)
-	next := connections.Channel{ID: id + "." + strconv.FormatInt(time.Now().Unix(), 10), Token: hex.EncodeToString(token)}
+	next := connections.Channel{ID: shortuuid.New(), Token: hex.EncodeToString(token)}
 	next.Resource, next.Expires, err = s.google.WatchEvents(ctx, next.ID, a.Config.CalendarWebhook, next.Token, 7*24*time.Hour)
 	if err != nil {
 		return classify(err)

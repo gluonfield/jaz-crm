@@ -39,7 +39,7 @@ func (c *Client) Rewrite(ctx context.Context, input followups.RewriteInput) (fol
 	if err != nil {
 		return followups.RewriteResult{}, err
 	}
-	res, err := c.api.Responses.New(ctx, responses.ResponseNewParams{
+	res, err := c.response(ctx, responses.ResponseNewParams{
 		Model:        c.model,
 		Instructions: openai.String(rewriteInstructions),
 		Input:        responses.ResponseNewParamsInputUnion{OfString: openai.String(string(data))},

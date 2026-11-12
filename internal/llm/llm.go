@@ -8,9 +8,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/charmbracelet/log"
+	"github.com/gluonfield/jaz-crm/errs"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 	"github.com/openai/openai-go/v3/responses"
@@ -29,14 +31,18 @@ type Client struct {
 	effort shared.ReasoningEffort
 	api    openai.Client
 	logger *log.Logger
+	mu     sync.Mutex
+	paused *errs.Deferred
+	now    func() time.Time
 }
 
 func New(cfg Config, logger *log.Logger) *Client {
 	return &Client{
 		model:  cfg.Model,
 		logger: logger.WithPrefix("llm"),
+		now:    time.Now,
 		effort: shared.ReasoningEffort(cfg.Effort),
-		api:    openai.NewClient(option.WithAPIKey(cfg.APIKey), option.WithBaseURL(cfg.BaseURL), option.WithRequestTimeout(2*time.Minute)),
+		api:    openai.NewClient(option.WithAPIKey(cfg.APIKey), option.WithBaseURL(cfg.BaseURL), option.WithRequestTimeout(2*time.Minute), option.WithMiddleware(quotaRetryPolicy)),
 	}
 }
 
@@ -47,7 +53,7 @@ func (c *Client) ask(ctx context.Context, name, instructions string, input any, 
 	if err != nil {
 		return err
 	}
-	res, err := c.api.Responses.New(ctx, responses.ResponseNewParams{
+	res, err := c.response(ctx, responses.ResponseNewParams{
 		Model:        c.model,
 		Instructions: openai.String(instructions),
 		Input:        responses.ResponseNewParamsInputUnion{OfString: openai.String(string(data))},

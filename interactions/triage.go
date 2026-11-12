@@ -3,6 +3,7 @@ package interactions
 import (
 	"cmp"
 	"context"
+	"errors"
 	"maps"
 	"net/mail"
 	"slices"
@@ -184,6 +185,9 @@ func (s *Service) assess(ctx context.Context, workspaceID, criteria string) erro
 		candidates[i] = Candidate{Address: p.Value, Name: p.Name, Titles: p.Titles}
 	}
 	judgements, err := s.classifier.Classify(ctx, criteria, candidates)
+	if errors.As(err, new(*errs.Deferred)) {
+		return nil
+	}
 	if err != nil {
 		return err
 	}

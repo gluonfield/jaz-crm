@@ -1,5 +1,4 @@
-// Package errs marks errors that are the caller's mistake, which transports
-// show as is; every other error is reported as an internal failure.
+// Package errs defines errors shared by domain services and their callers.
 package errs
 
 import "fmt"

@@ -6,6 +6,7 @@ import (
 	"net"
 	"slices"
 
+	"github.com/gluonfield/jaz-crm/errs"
 	"github.com/gluonfield/jaz-crm/internal/followups"
 	"github.com/gluonfield/jaz-crm/records"
 	"github.com/openai/openai-go/v3"
@@ -81,8 +82,11 @@ func (c *Client) Plan(ctx context.Context, conv followups.Conversation, tools fo
 	if err != nil {
 		reason := "The model response could not be processed. The system will retry."
 		var apiError *openai.Error
+		var deferred *errs.Deferred
 		var networkError net.Error
 		switch {
+		case errors.As(err, &deferred):
+			reason = deferred.Reason
 		case errors.As(err, &apiError):
 			switch apiError.StatusCode {
 			case 401, 403:
