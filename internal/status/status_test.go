@@ -6,9 +6,75 @@ import (
 	"time"
 
 	"github.com/gluonfield/jaz-crm/internal/status"
+	"github.com/gluonfield/jaz-crm/internal/storage"
 	"github.com/gluonfield/jaz-crm/internal/storage/postgres/postgrestest"
 	"github.com/gluonfield/jaz-crm/internal/workspaces"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+func TestStatusIgnoresDeletedConnections(t *testing.T) {
+	ctx := t.Context()
+	dsn := postgrestest.Database(t)
+	store := postgrestest.Open(t, dsn)
+	pool, err := pgxpool.New(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	owner, err := workspaces.NewService(store, workspaces.Config{}).Provision(ctx, "owner@example.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	connection, err := store.SaveConnection(ctx, storage.NewConnection{WorkspaceID: owner.WorkspaceID, UserID: owner.ID, Provider: "google", Account: "mail@example.test", RefreshToken: []byte("encrypted")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := status.NewService(store)
+	now := time.Now()
+	observation := status.Observation{ObservedAt: now, OccurredAt: &now, Reason: "Sync could not finish."}
+	if err := service.Observe(ctx, "GmailDrafts", &connection.ID, observation); err != nil {
+		t.Fatal(err)
+	}
+	if rows, err := service.Errors(ctx, owner.WorkspaceID, owner.ID); err != nil || len(rows) != 1 {
+		t.Fatalf("connected account's failure was not recorded: %+v (%v)", rows, err)
+	}
+	deleting, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer deleting.Rollback(ctx)
+	if _, err := deleting.Exec(ctx, "DELETE FROM connections WHERE id = $1", connection.ID); err != nil {
+		t.Fatal(err)
+	}
+	observation.ObservedAt = now.Add(time.Second)
+	finished := make(chan error, 1)
+	go func() { finished <- service.Observe(ctx, "GmailDrafts", &connection.ID, observation) }()
+	waiting, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	for {
+		var blocked bool
+		if err := pool.QueryRow(waiting, "SELECT EXISTS (SELECT FROM pg_stat_activity WHERE $1 = ANY(pg_blocking_pids(pid)))", deleting.Conn().PgConn().PID()).Scan(&blocked); err != nil {
+			t.Fatal(err)
+		}
+		if blocked {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if err := deleting.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-finished; err != nil {
+		t.Fatalf("activity reporting raced with connection deletion: %v", err)
+	}
+	observation.ObservedAt = now.Add(2 * time.Second)
+	if err := service.Observe(ctx, "GmailDrafts", &connection.ID, observation); err != nil {
+		t.Fatalf("finished activity could not report its deleted connection: %v", err)
+	}
+	if rows, err := service.Errors(ctx, owner.WorkspaceID, owner.ID); err != nil || len(rows) != 0 {
+		t.Fatalf("deleted connection retained an issue: %+v (%v)", rows, err)
+	}
+}
 
 func TestStatusNotifiesErrorsAndRecoveryWithoutIdleRefreshes(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())

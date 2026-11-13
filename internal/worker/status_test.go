@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -29,6 +30,49 @@ func (unavailableStatusStore) ObserveOperation(context.Context, storage.Operatio
 	return errors.New("status database unavailable")
 }
 
+type delayedStatusStore struct {
+	storage.OperationStore
+	calls   atomic.Int32
+	started chan struct{}
+	release chan struct{}
+}
+
+func (s *delayedStatusStore) ObserveOperation(ctx context.Context, observation storage.OperationStatus) error {
+	if observation.Operation == status.AI && s.calls.Add(1) == 1 {
+		close(s.started)
+		<-s.release
+	}
+	return s.OperationStore.ObserveOperation(ctx, observation)
+}
+
+func TestActivityStatusKeepsCompletionOrder(t *testing.T) {
+	ctx := t.Context()
+	store := postgrestest.New(t)
+	owner, err := workspaces.NewService(store, workspaces.Config{}).Provision(ctx, "owner@example.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	connection, err := store.SaveConnection(ctx, storage.NewConnection{WorkspaceID: owner.WorkspaceID, UserID: owner.ID, Provider: "google", Account: "mail@example.test", RefreshToken: []byte("encrypted")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	delayed := &delayedStatusStore{OperationStore: store, started: make(chan struct{}), release: make(chan struct{})}
+	observer := NewStatusObserver(StatusParams{Status: status.NewService(delayed), Logger: log.New(&bytes.Buffer{}), AI: &availabilitySample{state: status.Observation{ObservedAt: time.Now()}}})
+	finished := make(chan struct{})
+	go func() {
+		defer close(finished)
+		observer.record(ctx, "GmailDrafts", []any{connection.ID}, errors.New("earlier failure"))
+	}()
+	<-delayed.started
+	observer.record(ctx, "GmailDrafts", []any{connection.ID}, nil)
+	close(delayed.release)
+	<-finished
+	rows, err := status.NewService(store).Errors(ctx, owner.WorkspaceID, owner.ID)
+	if err != nil || len(rows) != 0 {
+		t.Fatalf("delayed earlier failure replaced the later recovery: %+v (%v)", rows, err)
+	}
+}
+
 func TestActivityStatusPreservesResultsAndObservedAIState(t *testing.T) {
 	ctx := t.Context()
 	store := postgrestest.New(t)
@@ -48,7 +92,7 @@ func TestActivityStatusPreservesResultsAndObservedAIState(t *testing.T) {
 	}
 	ai := &availabilitySample{}
 	var logs bytes.Buffer
-	observer := NewStatusObserver(StatusParams{Status: service, Connections: store, Logger: log.New(&logs), AI: ai})
+	observer := NewStatusObserver(StatusParams{Status: service, Logger: log.New(&logs), AI: ai})
 	failed := false
 	cancelled := false
 	run := func() error {

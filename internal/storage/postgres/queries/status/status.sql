@@ -1,6 +1,8 @@
 -- name: ObserveOperation :exec
 INSERT INTO operation_status (connection_id, operation, reason, observed_at, occurred_at, retry_at)
-VALUES (sqlc.narg(connection_id), @operation, @reason, @observed_at, sqlc.narg(occurred_at), sqlc.narg(retry_at))
+SELECT sqlc.narg(connection_id)::text, @operation, @reason, @observed_at, sqlc.narg(occurred_at), sqlc.narg(retry_at)
+WHERE sqlc.narg(connection_id)::text IS NULL
+  OR EXISTS (SELECT FROM connections WHERE id = sqlc.narg(connection_id)::text FOR KEY SHARE)
 ON CONFLICT (connection_id, operation) DO UPDATE SET
   reason = EXCLUDED.reason, observed_at = EXCLUDED.observed_at,
   occurred_at = EXCLUDED.occurred_at, retry_at = EXCLUDED.retry_at

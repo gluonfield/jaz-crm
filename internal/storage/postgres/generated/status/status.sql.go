@@ -12,7 +12,9 @@ import (
 
 const observeOperation = `-- name: ObserveOperation :exec
 INSERT INTO operation_status (connection_id, operation, reason, observed_at, occurred_at, retry_at)
-VALUES ($1, $2, $3, $4, $5, $6)
+SELECT $1::text, $2, $3, $4, $5, $6
+WHERE $1::text IS NULL
+  OR EXISTS (SELECT FROM connections WHERE id = $1::text FOR KEY SHARE)
 ON CONFLICT (connection_id, operation) DO UPDATE SET
   reason = EXCLUDED.reason, observed_at = EXCLUDED.observed_at,
   occurred_at = EXCLUDED.occurred_at, retry_at = EXCLUDED.retry_at

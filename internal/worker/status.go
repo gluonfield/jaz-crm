@@ -9,7 +9,6 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/gluonfield/jaz-crm/internal/google"
 	"github.com/gluonfield/jaz-crm/internal/status"
-	"github.com/gluonfield/jaz-crm/internal/storage"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/interceptor"
 	"go.temporal.io/sdk/temporal"
@@ -22,22 +21,20 @@ type AIAvailability interface {
 
 type StatusParams struct {
 	fx.In
-	Status      *status.Service
-	Connections storage.ConnectionStore
-	Logger      *log.Logger
-	AI          AIAvailability `optional:"true"`
+	Status *status.Service
+	Logger *log.Logger
+	AI     AIAvailability `optional:"true"`
 }
 
 type StatusObserver struct {
 	interceptor.WorkerInterceptorBase
-	Status      *status.Service
-	Connections storage.ConnectionStore
-	Logger      *log.Logger
-	AI          AIAvailability
+	Status *status.Service
+	Logger *log.Logger
+	AI     AIAvailability
 }
 
 func NewStatusObserver(p StatusParams) *StatusObserver {
-	return &StatusObserver{Status: p.Status, Connections: p.Connections, Logger: p.Logger, AI: p.AI}
+	return &StatusObserver{Status: p.Status, Logger: p.Logger, AI: p.AI}
 }
 
 func (o *StatusObserver) InterceptActivity(_ context.Context, next interceptor.ActivityInboundInterceptor) interceptor.ActivityInboundInterceptor {
@@ -59,6 +56,7 @@ func (o *StatusObserver) record(ctx context.Context, operation string, args []an
 	if ctx.Err() == context.Canceled || errors.Is(activityErr, context.Canceled) || temporal.IsCanceledError(activityErr) {
 		return
 	}
+	now := time.Now()
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
 	defer cancel()
 	report := func(operation string, connectionID *string, observation status.Observation) {
@@ -82,15 +80,6 @@ func (o *StatusObserver) record(ctx context.Context, operation string, args []an
 	} else {
 		connectionID, _ = args[0].(string)
 	}
-	connection, err := o.Connections.Connection(ctx, connectionID)
-	if errors.Is(err, storage.ErrNotFound) {
-		return
-	}
-	if err != nil {
-		o.Logger.Warn("operation status connection unavailable", "operation", operation, "error", err)
-		return
-	}
-	now := time.Now()
 	observation := status.Observation{ObservedAt: now}
 	if activityErr != nil {
 		observation.OccurredAt = &now
@@ -103,5 +92,5 @@ func (o *StatusObserver) record(ctx context.Context, operation string, args []an
 			observation.Reason = "Google denied access. Check the account's permissions in Connections."
 		}
 	}
-	report(operation, &connection.ID, observation)
+	report(operation, &connectionID, observation)
 }
