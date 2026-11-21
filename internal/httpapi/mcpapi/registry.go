@@ -31,10 +31,7 @@ type registry struct {
 // add publishes an operation that acts in one workspace: the one its optional
 // workspace argument names, else the caller's default.
 func add[In, Out any](r *registry, tool *mcp.Tool, fn op[In, Out]) {
-	schema, err := jsonschema.For[In](nil)
-	if err != nil {
-		panic(err)
-	}
+	schema := inputSchema[In]()
 	if schema.Properties == nil {
 		schema.Properties = map[string]*jsonschema.Schema{}
 	}
@@ -63,6 +60,9 @@ func addUnscoped[In, Out any](r *registry, tool *mcp.Tool, fn op[In, Out]) {
 }
 
 func publish[In, Out any](r *registry, tool *mcp.Tool, fn func(ctx context.Context, actor auth.Actor, raw json.RawMessage, in In) (Out, error)) {
+	if tool.InputSchema == nil {
+		tool.InputSchema = inputSchema[In]()
+	}
 	if tool.Meta == nil {
 		tool.Meta = mcp.Meta{}
 	}

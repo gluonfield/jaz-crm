@@ -5,6 +5,7 @@
 - Store product IDs and references as text. Preserve existing ID strings and links; generate shortuuids only for new records. Security tokens still use cryptographically secure token generation.
 - Write self-documenting code. Add comments only to explain non-obvious behavior, constraints or reasons the code cannot express; omit comments that narrate the code.
 - Keep implementations and JSON minimal; every line and field must earn its place. Prefer correcting contracts and deleting duplication over adding branches or layers.
+- Publish MCP tool input schemas compatible with Antigravity/Google function declarations: one concrete type per property, explicit items for arrays, and only genuinely required fields in `required`. Represent optionality by omission instead of nullable type unions. Keep dynamic maps as open objects, validate their contents in the owning handler, and preserve documented empty-string/list clearing.
 - Workspace members share records and named presets outside Follow Ups. Follow Ups has fixed Everyone and Assigned to me views; other saved filters are private to their creator. Active search, conditions, preset selection and navigation belong to each client instance.
 - Core CRM properties are built in and available in every workspace without custom-schema setup. Custom properties extend the core model; preserve existing property IDs, values and history when adopting compatible fields.
 

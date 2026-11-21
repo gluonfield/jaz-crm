@@ -38,6 +38,7 @@ func TestColumnOrder(t *testing.T) {
 		mustCall(t, a, "create_attribute", map[string]any{"object": "events", "slug": slug, "name": slug, "type": "text"})
 	}
 	order := func(session *mcp.ClientSession, object string, columns ...string) string {
+		columns = append([]string{}, columns...)
 		_, failure := call(t, session, "edit_object", map[string]any{"object": object, "action": "order", "columns": columns})
 		return failure
 	}
