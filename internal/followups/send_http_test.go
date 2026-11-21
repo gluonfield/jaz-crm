@@ -35,7 +35,7 @@ func releaseThroughHTTP(t *testing.T, keys *auth.Service, services mcpapi.Servic
 	if err != nil {
 		t.Fatal(err)
 	}
-	input := map[string]any{"confirmed": false, "record_id": id, "draft": seen.Draft, "subject": seen.Subject, "from": seen.From, "to": seen.To, "cc": seen.Cc}
+	input := map[string]any{"confirmed": false, "record_id": id, "draft": seen.Draft, "subject": seen.Subject, "from": seen.From, "to": append([]string{}, seen.To...), "cc": append([]string{}, seen.Cc...)}
 	client := mcp.NewClient(&mcp.Implementation{Name: "embedded-app", Version: "1"}, nil)
 	session, err := client.Connect(ctx, &mcp.StreamableClientTransport{Endpoint: server.URL + "/mcp", HTTPClient: &http.Client{Transport: sendBearer(key)}}, nil)
 	if err != nil {
@@ -89,8 +89,8 @@ func releaseThroughHTTP(t *testing.T, keys *auth.Service, services mcpapi.Servic
 		t.Fatalf("browser composer save: %d", response.StatusCode)
 	}
 	save["draft"] = seen.Draft
-	save["to"] = seen.To
-	save["cc"] = seen.Cc
+	save["to"] = input["to"]
+	save["cc"] = input["cc"]
 	result, err = session.CallTool(ctx, &mcp.CallToolParams{Name: "save_draft", Arguments: save})
 	if err != nil || result.IsError {
 		t.Fatalf("the embedded composer could not edit the browser's draft: %v %v", result, err)
